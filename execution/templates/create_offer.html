@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Crea una nuova offerta di pasto su ApprofittOffro.">
+    <title>Offri un Pasto — ApprofittOffro</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="/dashboard" class="navbar-brand">
+            <span class="logo-icon">🍽️</span>
+            ApprofittOffro
+        </a>
+        <ul class="navbar-nav">
+            <li><a href="/dashboard">← Dashboard</a></li>
+        </ul>
+    </nav>
+
+    <!-- Create Offer Form -->
+    <div class="auth-container main-content">
+        <div class="glass-card auth-card" style="max-width: 600px;">
+            <h2>Offri un Pasto 🎉</h2>
+            <p class="subtitle">Scegli il tipo, il posto e quante persone vuoi invitare.</p>
+
+            <div id="offer-errors"></div>
+
+            <form id="offer-form">
+                <!-- Tipo Pasto -->
+                <div class="form-group">
+                    <label for="tipo_pasto">Tipo di Pasto</label>
+                    <select id="tipo_pasto" name="tipo_pasto" class="form-control" required>
+                        <option value="">Seleziona il tipo</option>
+                        {% for code, label in tipi_pasto %}
+                        <option value="{{ code }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Nome Locale -->
+                <div class="form-group">
+                    <label for="nome_locale">Nome del Locale</label>
+                    <input type="text" id="nome_locale" name="nome_locale" class="form-control" placeholder="Es: Bar Roma, Pizzeria Da Luigi..." required>
+                </div>
+
+                <!-- Indirizzo -->
+                <div class="form-group">
+                    <label for="indirizzo">Indirizzo</label>
+                    <input type="text" id="indirizzo" name="indirizzo" class="form-control" placeholder="Via Roma 1, Milano" required>
+                </div>
+
+                <!-- Mappa per posizione locale -->
+                <div class="form-group">
+                    <label>Posizione del locale (clicca sulla mappa)</label>
+                    <div class="map-container map-small">
+                        <div id="offer-map"></div>
+                    </div>
+                    <input type="hidden" id="offer-lat" name="latitudine">
+                    <input type="hidden" id="offer-lon" name="longitudine">
+                    <p class="text-muted mt-1" id="offer-location-label" style="font-size: 0.85rem;">
+                        📍 Clicca sulla mappa per indicare la posizione del locale
+                    </p>
+                </div>
+
+                <!-- Numero Posti -->
+                <div class="form-group">
+                    <label for="posti_totali">Numero di persone a cui vuoi offrire</label>
+                    <input type="number" id="posti_totali" name="posti_totali" class="form-control" min="1" max="50" placeholder="Es: 3" required>
+                </div>
+
+                <!-- Data e Ora -->
+                <div class="form-group">
+                    <label for="data_ora">Data e ora</label>
+                    <input type="datetime-local" id="data_ora" name="data_ora" class="form-control" required>
+                </div>
+
+                <!-- Descrizione -->
+                <div class="form-group">
+                    <label for="descrizione">Descrizione (opzionale)</label>
+                    <textarea id="descrizione" name="descrizione" class="form-control" placeholder="Qualche dettaglio in più sulla tua offerta..." rows="3"></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block btn-lg" id="offer-btn">
+                    🎉 Pubblica Offerta
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script>
+        // ---- Mappa offerta ----
+        let offerMap, offerMarker;
+
+        async function initOfferMap() {
+            // Centra sulla posizione dell'utente
+            try {
+                const userRes = await fetch('/api/user/me');
+                const userData = await userRes.json();
+                if (userData.success) {
+                    offerMap = L.map('offer-map').setView([userData.user.lat, userData.user.lon], 14);
+                } else {
+                    offerMap = L.map('offer-map').setView([41.9028, 12.4964], 6);
+                }
+            } catch {
+                offerMap = L.map('offer-map').setView([41.9028, 12.4964], 6);
+            }
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap',
+                maxZoom: 19,
+            }).addTo(offerMap);
+
+            offerMap.on('click', async function(e) {
+                const { lat, lng } = e.latlng;
+                document.getElementById('offer-lat').value = lat;
+                document.getElementById('offer-lon').value = lng;
+
+                if (offerMarker) {
+                    offerMarker.setLatLng(e.latlng);
+                } else {
+                    offerMarker = L.marker(e.latlng).addTo(offerMap);
+                }
+
+                // Reverse geocoding per indirizzo
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+                    const data = await res.json();
+                    const addr = data.display_name || '';
+                    document.getElementById('indirizzo').value = addr.split(',').slice(0, 3).join(',').trim();
+                    document.getElementById('offer-location-label').textContent = `📍 Posizione selezionata`;
+                } catch {
+                    document.getElementById('offer-location-label').textContent = `📍 Posizione selezionata (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+                }
+            });
+        }
+
+        // Data minima = ora corrente
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById('data_ora').min = now.toISOString().slice(0, 16);
+
+        // ---- Invio offerta ----
+        document.getElementById('offer-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('offer-btn');
+            const errorsDiv = document.getElementById('offer-errors');
+            errorsDiv.innerHTML = '';
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Pubblicazione...';
+
+            const payload = {
+                tipo_pasto: document.getElementById('tipo_pasto').value,
+                nome_locale: document.getElementById('nome_locale').value,
+                indirizzo: document.getElementById('indirizzo').value,
+                latitudine: document.getElementById('offer-lat').value,
+                longitudine: document.getElementById('offer-lon').value,
+                posti_totali: document.getElementById('posti_totali').value,
+                data_ora: document.getElementById('data_ora').value,
+                descrizione: document.getElementById('descrizione').value,
+            };
+
+            try {
+                const res = await fetch('/api/offers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    showToast('Offerta pubblicata con successo!', 'success');
+                    setTimeout(() => window.location.href = '/dashboard', 1500);
+                } else {
+                    errorsDiv.innerHTML = data.errors.map(e =>
+                        `<div class="alert alert-error">⚠️ ${e}</div>`
+                    ).join('');
+                }
+            } catch (err) {
+                errorsDiv.innerHTML = '<div class="alert alert-error">⚠️ Errore di connessione.</div>';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🎉 Pubblica Offerta';
+            }
+        });
+
+        // Init
+        initOfferMap();
+    </script>
+</body>
+</html>

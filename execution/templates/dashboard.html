@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Dashboard ApprofittOffro — Scopri offerte di pasti nella tua zona.">
+    <title>Dashboard — ApprofittOffro</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="/dashboard" class="navbar-brand">
+            <span class="logo-icon">🍽️</span>
+            ApprofittOffro
+        </a>
+        <ul class="navbar-nav">
+            <li><a href="/new-offer" class="btn btn-primary btn-sm">+ Offri un Pasto</a></li>
+            <li><a href="/profile">Profilo</a></li>
+            <li>
+                <button onclick="logout()" class="btn btn-secondary btn-sm">Esci</button>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container main-content">
+        <!-- Filter Bar -->
+        <div class="filter-bar mb-3">
+            <button class="filter-chip active" data-filter="" onclick="filterOffers(this, '')">🍽️ Tutte</button>
+            <button class="filter-chip" data-filter="colazione" onclick="filterOffers(this, 'colazione')">☕ Colazione</button>
+            <button class="filter-chip" data-filter="pranzo" onclick="filterOffers(this, 'pranzo')">🍝 Pranzo</button>
+            <button class="filter-chip" data-filter="cena" onclick="filterOffers(this, 'cena')">🌙 Cena</button>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- Map -->
+            <div class="map-container">
+                <div id="map"></div>
+            </div>
+
+            <!-- Offers List -->
+            <div class="offers-panel" id="offers-panel">
+                <div class="empty-state" id="empty-state">
+                    <div class="icon">🍽️</div>
+                    <h3>Nessuna offerta disponibile</h3>
+                    <p>Sii il primo a offrire un pasto!</p>
+                    <a href="/new-offer" class="btn btn-primary mt-2">+ Offri un Pasto</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script>
+        // ---- Dashboard Map & Offers ----
+        let dashMap, markers = [];
+        let currentFilter = '';
+
+        async function initDashboard() {
+            // Carica dati utente per centrare la mappa
+            try {
+                const userRes = await fetch('/api/user/me');
+                const userData = await userRes.json();
+                if (userData.success) {
+                    dashMap = L.map('map').setView([userData.user.lat, userData.user.lon], 13);
+                } else {
+                    dashMap = L.map('map').setView([41.9028, 12.4964], 6);
+                }
+            } catch {
+                dashMap = L.map('map').setView([41.9028, 12.4964], 6);
+            }
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap',
+                maxZoom: 19,
+            }).addTo(dashMap);
+
+            loadOffers();
+        }
+
+        async function loadOffers() {
+            const panel = document.getElementById('offers-panel');
+            const emptyState = document.getElementById('empty-state');
+
+            try {
+                const url = currentFilter ? `/api/offers?tipo=${currentFilter}` : '/api/offers';
+                const res = await fetch(url);
+                const data = await res.json();
+
+                // Pulisci marker
+                markers.forEach(m => dashMap.removeLayer(m));
+                markers = [];
+
+                if (!data.success || data.offers.length === 0) {
+                    panel.innerHTML = '';
+                    panel.appendChild(emptyState.cloneNode(true));
+                    return;
+                }
+
+                panel.innerHTML = '';
+
+                // Emoji per tipo pasto
+                const icons = { colazione: '☕', pranzo: '🍝', cena: '🌙' };
+                const badgeClass = { colazione: 'badge-colazione', pranzo: 'badge-pranzo', cena: 'badge-cena' };
+
+                data.offers.forEach((offer, i) => {
+                    // Carta offerta
+                    const card = document.createElement('div');
+                    card.className = 'offer-card';
+                    card.style.animationDelay = `${i * 0.08}s`;
+
+                    const spotsPercent = (offer.posti_disponibili / offer.posti_totali) * 100;
+                    const barClass = spotsPercent <= 20 ? 'critical' : spotsPercent <= 50 ? 'low' : '';
+                    const dateStr = new Date(offer.data_ora).toLocaleString('it-IT', {
+                        weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                    });
+
+                    let actionBtn = '';
+                    if (offer.is_own) {
+                        actionBtn = '<span class="text-muted" style="font-size:0.8rem;">La tua offerta</span>';
+                    } else if (offer.already_claimed) {
+                        actionBtn = '<span class="btn btn-sm btn-secondary" disabled>✅ Approfittato</span>';
+                    } else {
+                        actionBtn = `<button class="btn btn-primary btn-sm" onclick="claimOffer(${offer.id}, this)">Approfitta!</button>`;
+                    }
+
+                    card.innerHTML = `
+                        <div class="offer-card-header">
+                            <img src="/uploads/${offer.autore_foto}" alt="${offer.autore}" class="avatar">
+                            <div class="info">
+                                <div class="name">${offer.autore}</div>
+                                <div class="meta">${offer.autore_fascia_eta} anni</div>
+                            </div>
+                            <span class="offer-type-badge ${badgeClass[offer.tipo_pasto]}">
+                                ${icons[offer.tipo_pasto]} ${offer.tipo_pasto}
+                            </span>
+                        </div>
+                        <div class="offer-card-body">
+                            <h4>${offer.nome_locale}</h4>
+                            <div class="address">📍 ${offer.indirizzo}</div>
+                            <div class="datetime-info">📅 ${dateStr}</div>
+                            ${offer.descrizione ? `<div class="description">${offer.descrizione}</div>` : ''}
+                        </div>
+                        <div class="offer-card-footer">
+                            <div class="spots-indicator">
+                                <div class="spots-bar">
+                                    <div class="spots-bar-fill ${barClass}" style="width: ${spotsPercent}%"></div>
+                                </div>
+                                <span>${offer.posti_disponibili}/${offer.posti_totali} posti</span>
+                            </div>
+                            ${actionBtn}
+                        </div>
+                    `;
+
+                    panel.appendChild(card);
+
+                    // Marker sulla mappa
+                    const marker = L.marker([offer.lat, offer.lon]).addTo(dashMap);
+                    marker.bindPopup(`
+                        <strong>${icons[offer.tipo_pasto]} ${offer.nome_locale}</strong><br>
+                        ${offer.tipo_pasto.charAt(0).toUpperCase() + offer.tipo_pasto.slice(1)} — ${offer.posti_disponibili} posti<br>
+                        <em>${dateStr}</em>
+                    `);
+                    markers.push(marker);
+                });
+
+                // Zoom per mostrare tutti i marker
+                if (markers.length > 0) {
+                    const group = L.featureGroup(markers);
+                    dashMap.fitBounds(group.getBounds().pad(0.2));
+                }
+
+            } catch (err) {
+                panel.innerHTML = '<div class="alert alert-error">⚠️ Errore nel caricamento delle offerte.</div>';
+            }
+        }
+
+        function filterOffers(chip, tipo) {
+            document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            currentFilter = tipo;
+            loadOffers();
+        }
+
+        async function claimOffer(offerId, btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>';
+
+            try {
+                const res = await fetch(`/api/offers/${offerId}/claim`, { method: 'POST' });
+                const data = await res.json();
+
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    loadOffers(); // Ricarica
+                } else {
+                    showToast(data.errors[0], 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = 'Approfitta!';
+                }
+            } catch {
+                showToast('Errore di connessione.', 'error');
+                btn.disabled = false;
+                btn.innerHTML = 'Approfitta!';
+            }
+        }
+
+        // Init
+        initDashboard();
+    </script>
+</body>
+</html>

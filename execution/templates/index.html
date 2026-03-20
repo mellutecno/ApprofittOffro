@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ApprofittOffro — Offri o approfitta di colazioni, pranzi e cene nella tua zona.">
+    <title>ApprofittOffro — Offri o Approfitta</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">
+            <span class="logo-icon">🍽️</span>
+            ApprofittOffro
+        </a>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <h1>Offri o Approfitta di un Pasto</h1>
+            <p>
+                Una community dove la generosità si incontra con la buona cucina.
+                Offri una colazione, un pranzo o una cena a chi vuoi — oppure approfitta
+                delle offerte nella tua zona!
+            </p>
+            <div class="hero-actions" id="hero-actions">
+                <!-- Login Form -->
+                <div class="glass-card auth-card" id="login-form-card">
+                    <h2>Accedi</h2>
+                    <p class="subtitle">Bentornato! Inserisci le tue credenziali.</p>
+
+                    <div id="login-errors"></div>
+
+                    <form id="login-form">
+                        <div class="form-group">
+                            <label for="login-email">Email</label>
+                            <input type="email" id="login-email" class="form-control" placeholder="la-tua@email.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="login-password">Password</label>
+                            <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block btn-lg" id="login-btn">
+                            Accedi
+                        </button>
+                    </form>
+
+                    <p class="text-center mt-3">
+                        Non hai un account? <a href="/register">Registrati ora</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('login-btn');
+            const errorsDiv = document.getElementById('login-errors');
+            errorsDiv.innerHTML = '';
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Accesso in corso...';
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: document.getElementById('login-email').value,
+                        password: document.getElementById('login-password').value,
+                    }),
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    showToast('Login effettuato!', 'success');
+                    setTimeout(() => window.location.href = data.redirect, 500);
+                } else {
+                    errorsDiv.innerHTML = data.errors.map(e =>
+                        `<div class="alert alert-error">⚠️ ${e}</div>`
+                    ).join('');
+                }
+            } catch (err) {
+                errorsDiv.innerHTML = '<div class="alert alert-error">⚠️ Errore di connessione.</div>';
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Accedi';
+            }
+        });
+    </script>
+</body>
+</html>

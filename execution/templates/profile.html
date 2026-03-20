@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Il tuo profilo su ApprofittOffro.">
+    <title>Profilo — ApprofittOffro</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="/dashboard" class="navbar-brand">
+            <span class="logo-icon">🍽️</span>
+            ApprofittOffro
+        </a>
+        <ul class="navbar-nav">
+            <li><a href="/dashboard">← Dashboard</a></li>
+            <li><a href="/new-offer" class="btn btn-primary btn-sm">+ Offri un Pasto</a></li>
+            <li>
+                <button onclick="logout()" class="btn btn-secondary btn-sm">Esci</button>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Profile Content -->
+    <div class="container main-content">
+        <!-- Header -->
+        <div class="profile-header" id="profile-header">
+            <!-- Populated via JS -->
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="glass-card stat-card">
+                <div class="number" id="stat-offerte">{{ my_offers | length }}</div>
+                <div class="label">Offerte Create</div>
+            </div>
+            <div class="glass-card stat-card">
+                <div class="number" id="stat-claims">{{ my_claims | length }}</div>
+                <div class="label">Pasti Approfittati</div>
+            </div>
+            <div class="glass-card stat-card">
+                <div class="number" id="stat-posti">
+                    {% set ns = namespace(total=0) %}
+                    {% for o in my_offers %}
+                        {% set ns.total = ns.total + o.posti_totali %}
+                    {% endfor %}
+                    {{ ns.total }}
+                </div>
+                <div class="label">Posti Offerti Totali</div>
+            </div>
+        </div>
+
+        <!-- Le Mie Offerte -->
+        <h3 class="mb-2">🎁 Le Mie Offerte</h3>
+        {% if my_offers %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-bottom: 40px;">
+            {% for offer in my_offers %}
+            <div class="offer-card" style="opacity: 1;">
+                <div class="offer-card-body">
+                    <span class="offer-type-badge badge-{{ offer.tipo_pasto }}">
+                        {% if offer.tipo_pasto == 'colazione' %}☕{% elif offer.tipo_pasto == 'pranzo' %}🍝{% else %}🌙{% endif %}
+                        {{ offer.tipo_pasto }}
+                    </span>
+                    <h4 class="mt-1">{{ offer.nome_locale }}</h4>
+                    <div class="address">📍 {{ offer.indirizzo }}</div>
+                    <div class="datetime-info">📅 {{ offer.data_ora.strftime('%d/%m/%Y %H:%M') }}</div>
+                    {% if offer.descrizione %}
+                    <div class="description">{{ offer.descrizione }}</div>
+                    {% endif %}
+                </div>
+                <div class="offer-card-footer">
+                    <div class="spots-indicator">
+                        <div class="spots-bar">
+                            {% set pct = (offer.posti_disponibili / offer.posti_totali * 100) if offer.posti_totali > 0 else 0 %}
+                            <div class="spots-bar-fill {{ 'critical' if pct <= 20 else 'low' if pct <= 50 else '' }}" style="width: {{ pct }}%"></div>
+                        </div>
+                        <span>{{ offer.posti_disponibili }}/{{ offer.posti_totali }} posti</span>
+                    </div>
+                    <span class="text-muted" style="font-size: 0.8rem;">
+                        {% if offer.stato == 'completata' %}✅ Completata{% elif offer.stato == 'annullata' %}❌ Annullata{% else %}🟢 Attiva{% endif %}
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 30px;">
+            <p>Non hai ancora creato nessuna offerta.</p>
+            <a href="/new-offer" class="btn btn-primary btn-sm mt-2">+ Crea la tua prima offerta</a>
+        </div>
+        {% endif %}
+
+        <!-- I Miei Approfittamenti -->
+        <h3 class="mb-2">✨ Pasti a cui ho Approfittato</h3>
+        {% if my_claims %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px;">
+            {% for claim in my_claims %}
+            <div class="offer-card" style="opacity: 1;">
+                <div class="offer-card-header">
+                    <img src="/uploads/{{ claim.offerta.autore.foto_filename }}" alt="{{ claim.offerta.autore.nome }}" class="avatar">
+                    <div class="info">
+                        <div class="name">Offerto da {{ claim.offerta.autore.nome }}</div>
+                        <div class="meta">{{ claim.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
+                    </div>
+                </div>
+                <div class="offer-card-body">
+                    <span class="offer-type-badge badge-{{ claim.offerta.tipo_pasto }}">
+                        {% if claim.offerta.tipo_pasto == 'colazione' %}☕{% elif claim.offerta.tipo_pasto == 'pranzo' %}🍝{% else %}🌙{% endif %}
+                        {{ claim.offerta.tipo_pasto }}
+                    </span>
+                    <h4 class="mt-1">{{ claim.offerta.nome_locale }}</h4>
+                    <div class="address">📍 {{ claim.offerta.indirizzo }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 30px;">
+            <p>Non hai ancora approfittato di nessun pasto.</p>
+            <a href="/dashboard" class="btn btn-primary btn-sm mt-2">Scopri le offerte</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        // Carica dati profilo
+        async function loadProfile() {
+            try {
+                const res = await fetch('/api/user/me');
+                const data = await res.json();
+                if (data.success) {
+                    const u = data.user;
+                    document.getElementById('profile-header').innerHTML = `
+                        <img src="/uploads/${u.foto}" alt="${u.nome}" class="avatar-large">
+                        <div class="info">
+                            <h2>${u.nome}</h2>
+                            <p class="text-muted">${u.email} · ${u.fascia_eta} anni${u.citta ? ' · ' + u.citta : ''}</p>
+                            ${u.verificato ? '<span class="badge">✓ Verificato</span>' : ''}
+                        </div>
+                    `;
+                }
+            } catch {}
+        }
+        loadProfile();
+    </script>
+</body>
+</html>

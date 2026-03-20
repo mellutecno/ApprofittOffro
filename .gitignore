@@ -1,0 +1,38 @@
+# ============================================
+# ApprofittOffro - .gitignore
+# ============================================
+
+# Variabili d'ambiente e segreti
+.env
+
+# Credenziali OAuth Google
+credentials.json
+token.json
+
+# File intermedi / temporanei
+.tmp/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
