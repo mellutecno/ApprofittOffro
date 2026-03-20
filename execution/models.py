@@ -40,8 +40,8 @@ class User(UserMixin, db.Model):
     fascia_eta = db.Column(db.String(10), nullable=False)
     latitudine = db.Column(db.Float, nullable=False)
     longitudine = db.Column(db.Float, nullable=False)
-    citta = db.Column(db.String(100), nullable=True)
     verificato = db.Column(db.Boolean, default=False)
+    verification_token = db.Column(db.String(100), unique=True, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     # Relazioni

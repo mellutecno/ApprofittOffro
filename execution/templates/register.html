@@ -3,201 +3,206 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Registrati su ApprofittOffro per offrire o approfittare di pasti nella tua zona.">
-    <title>Registrati — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <title>Registrati - ApprofittOffro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
-<body>
-    <!-- Navbar -->
+<body style="background: var(--bg-surface);">
     <nav class="navbar">
         <a href="/" class="navbar-brand">
-            <span class="logo-icon">🍽️</span>
+            <div class="logo-icon">🍽️</div>
             ApprofittOffro
         </a>
-        <ul class="navbar-nav">
-            <li><a href="/">← Torna al Login</a></li>
-        </ul>
     </nav>
 
-    <!-- Registration Form -->
-    <div class="auth-container main-content">
-        <div class="glass-card auth-card" style="max-width: 560px;">
-            <h2>Crea il tuo Account</h2>
-            <p class="subtitle">Unisciti alla community. Ci vogliono solo 2 minuti.</p>
+    <main class="main-content container auth-container">
+        <div class="glass-card" style="width: 100%; max-width: 800px; padding: 48px;">
+            <center>
+                <h2>Crea il tuo Account</h2>
+                <p class="text-muted mb-3">Unisciti alla nostra community del cibo condiviso.</p>
+            </center>
 
-            <div id="register-errors"></div>
-            <div id="register-success" class="hidden"></div>
+            <div id="register-alerts"></div>
+            <!-- Alert informativo per la verifica email -->
+            <div class="alert alert-success" style="background:#E0E7FF; border-color:#C7D2FE; color:#3730A3;">
+                📧 <strong>Fase 1:</strong> Compila il modulo. <br>
+                🔐 <strong>Fase 2:</strong> Riceverai un'email per confermare il tuo account prima del login!
+            </div>
 
-            <form id="register-form" enctype="multipart/form-data">
-                <!-- Foto Profilo -->
-                <div class="form-group">
-                    <label>Foto Profilo (con il tuo volto)</label>
-                    <div class="photo-upload" id="photo-upload">
-                        <div class="placeholder" id="photo-placeholder">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                                <circle cx="12" cy="7" r="4"/>
-                            </svg>
-                            <span>Carica foto</span>
+            <form id="registerForm" enctype="multipart/form-data">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px;">
+                    <!-- Colonna 1: Dati base -->
+                    <div>
+                        <div class="form-group">
+                            <label>Foto Profilo (Deve mostrare il viso)</label>
+                            <div class="photo-upload" id="photo-upload-btn">
+                                <span class="placeholder" id="photo-placeholder">Clicca o trascina<br>la tua foto</span>
+                                <img id="photo-preview" class="hidden" alt="Anteprima">
+                                <input type="file" id="foto" name="foto" accept="image/*" required>
+                            </div>
                         </div>
-                        <img id="photo-preview" class="hidden" alt="Anteprima foto">
-                        <input type="file" id="foto" name="foto" accept="image/jpeg,image/png,image/webp" required>
+
+                        <div class="form-group">
+                            <label for="nome">Nome o Nickname</label>
+                            <input type="text" id="nome" name="nome" class="form-control" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="email">Email address</label>
+                            <input type="email" id="email" name="email" class="form-control" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="password">Crea Password</label>
+                            <input type="password" id="password" name="password" class="form-control" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="fascia_eta">Fascia d'età</label>
+                            <select id="fascia_eta" name="fascia_eta" class="form-control" required>
+                                <option value="" disabled selected>Seleziona...</option>
+                                <option value="18-25">18 - 25</option>
+                                <option value="26-35">26 - 35</option>
+                                <option value="36-45">36 - 45</option>
+                                <option value="46-55">46 - 55</option>
+                                <option value="56-65">56 - 65</option>
+                                <option value="65+">65+</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Colonna 2: Località -->
+                    <div>
+                        <div class="form-group">
+                            <label>La tua Zona</label>
+                            <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 8px;">Clicca sulla mappa per impostare la tua zona. Cercheremo offerte vicino a qui.</p>
+                            <div class="map-container" style="height: 300px; min-height: 300px;">
+                                <div id="register-map"></div>
+                            </div>
+                            <!-- Campi nascosti valorizzati dalla mappa -->
+                            <input type="hidden" id="lat" name="lat" required>
+                            <input type="hidden" id="lon" name="lon" required>
+                            
+                            <div class="mt-2 text-center">
+                                <span id="location-name" class="text-muted" style="font-size: 0.9rem; font-weight: 500;">Nessuna zona selezionata</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Nome -->
-                <div class="form-group">
-                    <label for="nome">Nome completo</label>
-                    <input type="text" id="nome" name="nome" class="form-control" placeholder="Mario Rossi" required>
-                </div>
-
-                <!-- Email -->
-                <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" name="email" class="form-control" placeholder="mario@esempio.com" required>
-                </div>
-
-                <!-- Password -->
-                <div class="form-group">
-                    <label for="password">Password (min. 6 caratteri)</label>
-                    <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" minlength="6" required>
-                </div>
-
-                <!-- Fascia d'età -->
-                <div class="form-group">
-                    <label for="fascia_eta">Fascia d'età</label>
-                    <select id="fascia_eta" name="fascia_eta" class="form-control" required>
-                        <option value="">Seleziona la tua fascia d'età</option>
-                        {% for code, label in fasce_eta %}
-                        <option value="{{ code }}">{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <!-- Mappa per posizione -->
-                <div class="form-group">
-                    <label>La tua zona (clicca sulla mappa)</label>
-                    <div class="map-container map-small">
-                        <div id="register-map"></div>
-                    </div>
-                    <input type="hidden" id="latitudine" name="latitudine">
-                    <input type="hidden" id="longitudine" name="longitudine">
-                    <input type="hidden" id="citta" name="citta">
-                    <p class="text-muted mt-1" id="location-label" style="font-size: 0.85rem;">
-                        📍 Clicca sulla mappa per selezionare la tua posizione
-                    </p>
-                </div>
-
-                <button type="submit" class="btn btn-primary btn-block btn-lg" id="register-btn">
-                    Registrati
-                </button>
+                <hr style="border: none; border-top: 1px solid var(--border); margin: 32px 0;">
+                
+                <button type="submit" class="btn btn-primary btn-block btn-lg">Registra Account</button>
+                <p class="text-center mt-2">Hai già un account? <a href="/#login-section">Accedi</a></p>
             </form>
-
-            <p class="text-center mt-3">
-                Hai già un account? <a href="/">Accedi</a>
-            </p>
         </div>
-    </div>
+    </main>
 
-    <!-- Toast Container -->
-    <div class="toast-container" id="toast-container"></div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script>
-        // ---- Mappa di registrazione ----
-        const regMap = L.map('register-map').setView([41.9028, 12.4964], 6); // Italia
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap',
-            maxZoom: 19,
-        }).addTo(regMap);
+        // Mappa Logic
+        let map;
+        let marker;
 
-        let regMarker = null;
+        function initMap() {
+            // Default Italia
+            map = L.map('register-map').setView([41.9028, 12.4964], 5);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
 
-        regMap.on('click', async function(e) {
-            const { lat, lng } = e.latlng;
-            document.getElementById('latitudine').value = lat;
-            document.getElementById('longitudine').value = lng;
-
-            if (regMarker) {
-                regMarker.setLatLng(e.latlng);
-            } else {
-                regMarker = L.marker(e.latlng).addTo(regMap);
+            // Geolocalizzazione browser per comodità
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    map.setView([lat, lon], 13);
+                    placeMarker(lat, lon);
+                });
             }
 
-            // Reverse geocoding per nome città
-            try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
-                const data = await res.json();
-                const city = data.address.city || data.address.town || data.address.village || data.address.municipality || '';
-                document.getElementById('citta').value = city;
-                document.getElementById('location-label').textContent = `📍 ${city || 'Posizione selezionata'} (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-            } catch {
-                document.getElementById('location-label').textContent = `📍 Posizione selezionata (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-            }
-        });
-
-        // Prova geolocalizzazione browser
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition((pos) => {
-                regMap.setView([pos.coords.latitude, pos.coords.longitude], 13);
+            map.on('click', function(e) {
+                placeMarker(e.latlng.lat, e.latlng.lng);
             });
         }
 
-        // ---- Anteprima foto ----
-        document.getElementById('foto').addEventListener('change', function(e) {
-            const file = e.target.files[0];
+        async function placeMarker(lat, lon) {
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([lat, lon]).addTo(map);
+            
+            document.getElementById('lat').value = lat;
+            document.getElementById('lon').value = lon;
+
+            // Reverse geocoding (Nominatim OpenStreetMap)
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+                const data = await res.json();
+                const citta = data.address.city || data.address.town || data.address.village || 'Luogo sconosciuto';
+                document.getElementById('location-name').innerHTML = `📍 Hai selezionato: <b>${citta}</b>`;
+            } catch (err) {
+                document.getElementById('location-name').innerHTML = `📍 Coordinate: ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+            }
+        }
+
+        window.onload = initMap;
+
+        // Anteprima Foto
+        const photoInput = document.getElementById('foto');
+        const preview = document.getElementById('photo-preview');
+        const placeholder = document.getElementById('photo-placeholder');
+
+        photoInput.addEventListener('change', function() {
+            const file = this.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = function(ev) {
-                    const preview = document.getElementById('photo-preview');
-                    preview.src = ev.target.result;
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
                     preview.classList.remove('hidden');
-                    document.getElementById('photo-placeholder').classList.add('hidden');
-                };
+                    placeholder.classList.add('hidden');
+                }
                 reader.readAsDataURL(file);
             }
         });
 
-        // ---- Invio form registrazione ----
-        document.getElementById('register-form').addEventListener('submit', async (e) => {
+        // Submit Form
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const btn = document.getElementById('register-btn');
-            const errorsDiv = document.getElementById('register-errors');
-            const successDiv = document.getElementById('register-success');
-            errorsDiv.innerHTML = '';
-            successDiv.classList.add('hidden');
-
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.innerHTML = '<div class="spinner"></div>';
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Registrazione in corso...';
+            
+            if (!document.getElementById('lat').value) {
+                alert("Per favore, seleziona la tua zona sulla mappa.");
+                btn.innerHTML = 'Registra Account';
+                btn.disabled = false;
+                return;
+            }
 
-            const formData = new FormData(document.getElementById('register-form'));
-
+            const formData = new FormData(e.target);
             try {
-                const res = await fetch('/api/register', {
-                    method: 'POST',
-                    body: formData,
-                });
-
+                const res = await fetch('/api/register', { method: 'POST', body: formData });
                 const data = await res.json();
-
+                
+                const alertBox = document.getElementById('register-alerts');
+                alertBox.innerHTML = '';
+                
                 if (data.success) {
-                    successDiv.innerHTML = `<div class="alert alert-success">✅ ${data.message}</div>`;
-                    successDiv.classList.remove('hidden');
-                    showToast('Registrazione completata!', 'success');
-                    setTimeout(() => window.location.href = '/', 2000);
+                    alertBox.innerHTML = `<div class="alert alert-success">✅ ${data.message}</div>`;
+                    e.target.reset();
+                    preview.classList.add('hidden');
+                    placeholder.classList.remove('hidden');
+                    window.scrollTo(0,0);
                 } else {
-                    errorsDiv.innerHTML = data.errors.map(e =>
-                        `<div class="alert alert-error">⚠️ ${e}</div>`
-                    ).join('');
+                    data.errors.forEach(err => {
+                        alertBox.innerHTML += `<div class="alert alert-error">⚠️ ${err}</div>`;
+                    });
                 }
             } catch (err) {
-                errorsDiv.innerHTML = '<div class="alert alert-error">⚠️ Errore di connessione.</div>';
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = 'Registrati';
+                document.getElementById('register-alerts').innerHTML = `<div class="alert alert-error">⚠️ Errore di connessione.</div>`;
             }
+            btn.innerHTML = 'Registra Account';
+            btn.disabled = false;
         });
     </script>
 </body>

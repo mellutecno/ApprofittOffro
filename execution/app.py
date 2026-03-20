@@ -109,6 +109,19 @@ def login_page():
 def dashboard():
     return render_template("dashboard.html", tipi_pasto=TIPI_PASTO)
 
+@app.route("/verify/<token>")
+def verify_email(token):
+    user = User.query.filter_by(verification_token=token).first()
+    if not user:
+        flash("Link di verifica non valido o già utilizzato.", "error")
+        return redirect(url_for("index"))
+    
+    user.verificato = True
+    user.verification_token = None
+    db.session.commit()
+    
+    flash("Email verificata con successo! Ora puoi accedere.", "success")
+    return redirect(url_for("index"))
 
 @app.route("/new-offer")
 @login_required
@@ -200,6 +213,7 @@ def api_register():
         }), 400
 
     # Crea l'utente
+    token_verifica = uuid.uuid4().hex
     user = User(
         nome=nome,
         email=email,
@@ -208,14 +222,27 @@ def api_register():
         latitudine=float(lat),
         longitudine=float(lon),
         citta=citta,
-        verificato=True,  # Verificato perché la foto ha un volto
+        verificato=False,  # Ora l'utente nasce non verificato
+        verification_token=token_verifica
     )
     user.set_password(password)
 
     db.session.add(user)
     db.session.commit()
 
-    return jsonify({"success": True, "message": "Registrazione completata! Ora puoi accedere."})
+    # Simulazione invio email (nella realtà qui useresti Flask-Mail o SendGrid)
+    link_verifica = url_for('verify_email', token=token_verifica, _external=True)
+    print("\n" + "="*60)
+    print(f"📧 EMAIL FINTA DA INVIARE a {user.email}")
+    print(f"Oggetto: Benvenuto su ApprofittOffro! Conferma la tua email")
+    print(f"Corpo: Ciao {user.nome}, clicca qui per confermare il tuo account:")
+    print(f"{link_verifica}")
+    print("="*60 + "\n")
+
+    return jsonify({
+        "success": True, 
+        "message": "Registrazione completata! Controlla la tua email (o il terminale) per confermare l'account prima di accedere."
+    })
 
 
 @app.route("/api/login", methods=["POST"])
@@ -229,6 +256,9 @@ def api_login():
 
     if not user or not user.check_password(password):
         return jsonify({"success": False, "errors": ["Email o password non corretti."]}), 401
+
+    if not user.verificato:
+        return jsonify({"success": False, "errors": ["Devi prima confermare la tua email! Controlla la posta."]}), 401
 
     login_user(user, remember=True)
     return jsonify({"success": True, "redirect": url_for("dashboard")})

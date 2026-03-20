@@ -3,96 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="ApprofittOffro — Offri o approfitta di colazioni, pranzi e cene nella tua zona.">
-    <title>ApprofittOffro — Offri o Approfitta</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <title>ApprofittOffro - Bentornato</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=3">
 </head>
-<body>
-    <!-- Navbar -->
-    <nav class="navbar">
-        <a href="/" class="navbar-brand">
-            <span class="logo-icon">🍽️</span>
-            ApprofittOffro
-        </a>
-    </nav>
+<body style="margin: 0; padding: 0; overflow: hidden; background: var(--bg-surface);">
 
-    <!-- Hero Section -->
-    <section class="hero">
-        <div class="hero-content">
-            <h1>Offri o Approfitta di un Pasto</h1>
-            <p>
-                Una community dove la generosità si incontra con la buona cucina.
-                Offri una colazione, un pranzo o una cena a chi vuoi — oppure approfitta
-                delle offerte nella tua zona!
-            </p>
-            <div class="hero-actions" id="hero-actions">
-                <!-- Login Form -->
-                <div class="glass-card auth-card" id="login-form-card">
-                    <h2>Accedi</h2>
-                    <p class="subtitle">Bentornato! Inserisci le tue credenziali.</p>
-
-                    <div id="login-errors"></div>
-
-                    <form id="login-form">
-                        <div class="form-group">
-                            <label for="login-email">Email</label>
-                            <input type="email" id="login-email" class="form-control" placeholder="la-tua@email.com" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="login-password">Password</label>
-                            <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-block btn-lg" id="login-btn">
-                            Accedi
-                        </button>
-                    </form>
-
-                    <p class="text-center mt-3">
-                        Non hai un account? <a href="/register">Registrati ora</a>
-                    </p>
-                </div>
+    <div class="split-layout">
+        <!-- Immagine Sinistra (IA Generated Premium Food) -->
+        <div class="split-image" style="background-image: url('{{ url_for('static', filename='img/hero.png') }}');">
+            <div class="split-image-overlay">
+                <div class="logo-icon-large mb-3">🍽️</div>
+                <h1 style="color: white; font-size: 3.5rem; margin-bottom: 24px;">Condividi un pasto.</h1>
+                <p style="color: #E5E7EB; font-size: 1.25rem; max-width: 400px;">La prima community in Italia che ti permette di offrire colazioni, pranzi e cene e conoscere persone fantastiche nella tua zona.</p>
             </div>
         </div>
-    </section>
 
-    <!-- Toast Container -->
-    <div class="toast-container" id="toast-container"></div>
+        <!-- Form Destra -->
+        <div class="split-form-container">
+            <div class="auth-card">
+                <h2>Bentornato</h2>
+                <p class="text-muted mb-3">Accedi per continuare su ApprofittOffro</p>
 
-    <script src="/static/js/app.js"></script>
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                  {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                  {% endif %}
+                {% endwith %}
+
+                <div id="login-alerts"></div>
+
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" class="form-control" placeholder="es. mario@email.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top: 16px;">Accedi ora</button>
+                    
+                    <p class="text-center mt-2" style="font-size: 0.95rem; color: var(--text-muted); margin-top: 32px;">
+                        Non sei ancora membro? <a href="/register" style="font-weight: 700;">Registrati gratis</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script>
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const btn = document.getElementById('login-btn');
-            const errorsDiv = document.getElementById('login-errors');
-            errorsDiv.innerHTML = '';
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.innerHTML = '<div class="spinner"></div>';
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Accesso in corso...';
-
+            
+            const formData = new FormData(e.target);
             try {
-                const res = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        email: document.getElementById('login-email').value,
-                        password: document.getElementById('login-password').value,
-                    }),
-                });
-
+                const res = await fetch('/api/login', { method: 'POST', body: formData });
                 const data = await res.json();
-
+                
                 if (data.success) {
-                    showToast('Login effettuato!', 'success');
-                    setTimeout(() => window.location.href = data.redirect, 500);
+                    window.location.href = data.redirect;
                 } else {
-                    errorsDiv.innerHTML = data.errors.map(e =>
-                        `<div class="alert alert-error">⚠️ ${e}</div>`
-                    ).join('');
+                    const alertBox = document.getElementById('login-alerts');
+                    alertBox.innerHTML = '';
+                    data.errors.forEach(err => {
+                        alertBox.innerHTML += `<div class="alert alert-error">⚠️ ${err}</div>`;
+                    });
+                    btn.innerHTML = 'Accedi ora';
+                    btn.disabled = false;
                 }
             } catch (err) {
-                errorsDiv.innerHTML = '<div class="alert alert-error">⚠️ Errore di connessione.</div>';
-            } finally {
+                document.getElementById('login-alerts').innerHTML = `<div class="alert alert-error">⚠️ Errore connessione.</div>`;
+                btn.innerHTML = 'Accedi ora';
                 btn.disabled = false;
-                btn.innerHTML = 'Accedi';
             }
         });
     </script>
