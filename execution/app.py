@@ -589,10 +589,9 @@ def api_create_offer():
         errors.append("Indica almeno 1 posto disponibile.")
     if not data_ora_str:
         errors.append("Seleziona data e ora.")
-    if not foto_locale or not foto_locale.filename:
-        errors.append("La foto del locale è obbligatoria.")
-    elif not allowed_file(foto_locale.filename):
-        errors.append("Formato foto non valido (usa JPG, PNG o WEBP).")
+    if foto_locale and foto_locale.filename:
+        if not allowed_file(foto_locale.filename):
+            errors.append("Formato foto non valido (usa JPG, PNG o WEBP).")
 
     if errors:
         return jsonify({"success": False, "errors": errors}), 400
@@ -603,22 +602,24 @@ def api_create_offer():
     except (ValueError, TypeError):
         return jsonify({"success": False, "errors": ["Formato data non valido."]}), 400
 
-    # Salvataggio Immagine locale
-    ext = foto_locale.filename.rsplit(".", 1)[1].lower()
-    filename = secure_filename(f"offer_{current_user.id}_{int(datetime.now().timestamp())}.{ext}")
-    foto_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    foto_locale.save(foto_path)
+    # Salvataggio Immagine locale (opzionale)
+    filename = 'nessuna.jpg'
+    if foto_locale and foto_locale.filename:
+        ext = foto_locale.filename.rsplit(".", 1)[1].lower()
+        filename = secure_filename(f"offer_{current_user.id}_{int(datetime.now().timestamp())}.{ext}")
+        foto_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        foto_locale.save(foto_path)
 
-    # Elaborazione Immagine (Compressione)
-    try:
-        img = Image.open(foto_path)
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        img.thumbnail((800, 800))
-        img.save(foto_path, "JPEG", quality=85)
-        filename = filename.rsplit(".", 1)[0] + ".jpg" # Forza cambio estensione logico
-    except Exception as e:
-        print("Errore compressione foto offerta:", e)
+        # Elaborazione Immagine (Compressione)
+        try:
+            img = Image.open(foto_path)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            img.thumbnail((800, 800))
+            img.save(foto_path, "JPEG", quality=85)
+            filename = filename.rsplit(".", 1)[0] + ".jpg"
+        except Exception as e:
+            print("Errore compressione foto offerta:", e)
 
     offer = Offer(
         user_id=current_user.id,
