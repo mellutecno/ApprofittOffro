@@ -462,7 +462,7 @@ def api_get_offers():
 @login_required
 def api_delete_offer(offer_id):
     """Elimina definitivamente un'offerta, notificando eventuali partecipanti."""
-    offer = db.session.get(Offer, offer_id)
+    offer = Offer.query.get(offer_id)
     if not offer:
         return jsonify({"success": False, "error": "Offerta non trovata."}), 404
     
