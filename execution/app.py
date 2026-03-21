@@ -610,9 +610,25 @@ def api_create_offer():
         foto_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
         foto_locale.save(foto_path)
 
-        # Elaborazione Immagine (Compressione)
+        # Elaborazione Immagine (Compressione + Fix Rotazione EXIF da mobile)
         try:
             img = Image.open(foto_path)
+            # Corregge la rotazione EXIF automatica dai dispositivi mobili
+            try:
+                from PIL.ExifTags import TAGS
+                exif = img._getexif()
+                if exif:
+                    for tag, value in exif.items():
+                        if TAGS.get(tag) == 'Orientation':
+                            if value == 3:
+                                img = img.rotate(180, expand=True)
+                            elif value == 6:
+                                img = img.rotate(270, expand=True)
+                            elif value == 8:
+                                img = img.rotate(90, expand=True)
+                            break
+            except Exception:
+                pass  # Silenzioso se EXIF non disponibile
             if img.mode != 'RGB':
                 img = img.convert('RGB')
             img.thumbnail((800, 800))
@@ -727,6 +743,72 @@ def api_claim_offer(offer_id):
         "message": "Hai approfittato dell'offerta!",
         "posti_disponibili": offer.posti_disponibili,
     })
+
+
+@app.route("/api/claims/<int:claim_id>", methods=["DELETE"])
+@login_required
+def api_unclaim(claim_id):
+    """Annulla la partecipazione a un'offerta e notifica l'organizzatore via email."""
+    claim = db.session.get(Claim, claim_id)
+    if not claim:
+        return jsonify({"success": False, "error": "Partecipazione non trovata."}), 404
+    if claim.user_id != current_user.id:
+        return jsonify({"success": False, "error": "Non autorizzato."}), 403
+
+    offer = claim.offerta
+    data_formattata = offer.data_ora.strftime('%d/%m/%Y alle %H:%M')
+
+    # Ripristina il posto e lo stato dell'offerta
+    offer.posti_disponibili = min(offer.posti_totali, offer.posti_disponibili + 1)
+    if offer.stato == 'completata':
+        offer.stato = 'attiva'
+
+    db.session.delete(claim)
+    db.session.commit()
+
+    # Email all'autore dell'offerta
+    try:
+        msg = Message(
+            subject=f"⚠️ Disdetta partecipazione a '{offer.nome_locale}'",
+            recipients=[offer.autore.email],
+            html=f"""
+            <div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#f9fafb; padding:32px; border-radius:16px;">
+                <h2 style="color:#ef4444;">🍽️ ApprofittOffro</h2>
+                <h3>Ciao {offer.autore.nome}, una disdetta!</h3>
+                <p><b>{current_user.nome}</b> ha annullato la sua partecipazione al tuo evento:</p>
+                <div style="background:white; padding:20px; border-radius:12px; border-left:4px solid #f59e0b; margin:16px 0;">
+                    <b style="font-size:1.2rem;">{offer.nome_locale}</b><br>
+                    📅 {data_formattata}<br>
+                    👥 Posti ora disponibili: <b>{offer.posti_disponibili}/{offer.posti_totali}</b>
+                </div>
+                <p>Il posto è stato liberato automaticamente: altri utenti potranno ora prenotarsi.</p>
+                <p style="color:#6b7280; font-size:0.85rem;">— Il Team di ApprofittOffro</p>
+            </div>
+            """
+        )
+        Thread(target=send_async_email, args=(app, msg)).start()
+    except Exception as e:
+        print(f"[MAIL_UNCLAIM] Errore: {e}")
+
+    # Email di conferma al partecipante che ha disdetto
+    try:
+        msg_user = Message(
+            subject=f"✅ Partecipazione annullata: '{offer.nome_locale}'",
+            recipients=[current_user.email],
+            html=f"""
+            <div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#f9fafb; padding:32px; border-radius:16px;">
+                <h2 style="color:#ef4444;">🍽️ ApprofittOffro</h2>
+                <h3>Partecipazione annullata, {current_user.nome}.</h3>
+                <p>La tua partecipazione a <b>{offer.nome_locale}</b> ({data_formattata}) è stata annullata con successo.</p>
+                <p style="color:#6b7280; font-size:0.85rem;">— Il Team di ApprofittOffro</p>
+            </div>
+            """
+        )
+        Thread(target=send_async_email, args=(app, msg_user)).start()
+    except Exception as e:
+        print(f"[MAIL_UNCLAIM_USER] Errore: {e}")
+
+    return jsonify({"success": True, "message": "Partecipazione annullata con successo."})
 
 
 # ===================================================================

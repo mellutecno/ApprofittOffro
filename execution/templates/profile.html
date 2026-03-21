@@ -177,6 +177,9 @@
                     <div class="address">📍 {{ claim.offerta.indirizzo }}</div>
                     <div class="datetime-info" style="margin-top: 8px; font-weight: 500;">📅 {{ claim.offerta.data_ora.strftime('%d/%m/%Y alle ore %H:%M') }}</div>
                 </div>
+                <div class="offer-card-footer">
+                    <button onclick="if(confirm('Sei sicuro di voler annullare la partecipazione? L\'organizzatore verrà avvisato via email.')) unclaimOffer({{ claim.id }})" class="btn btn-outline btn-sm" style="width:100%; color:var(--error); border-color:var(--error);">🚫 Annulla la mia partecipazione</button>
+                </div>
             </div>
             {% endfor %}
         </div>
@@ -202,6 +205,21 @@
                     setTimeout(() => window.location.reload(), 1500);
                 } else {
                     showToast(data.error || 'Impossibile eliminare l\'offerta.', 'error');
+                }
+            } catch (err) {
+                showToast('Errore di connessione al server.', 'error');
+            }
+        }
+
+        async function unclaimOffer(claimId) {
+            try {
+                const res = await fetch(`/api/claims/${claimId}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Partecipazione annullata. L\'organizzatore è stato avvisato.', 'success');
+                    setTimeout(() => window.location.reload(), 1800);
+                } else {
+                    showToast(data.error || 'Impossibile annullare.', 'error');
                 }
             } catch (err) {
                 showToast('Errore di connessione al server.', 'error');
