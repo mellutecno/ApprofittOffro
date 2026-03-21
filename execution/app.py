@@ -181,6 +181,30 @@ def profile_page():
 # API — Autenticazione & Utilità
 # ===================================================================
 
+@app.route("/profile/<int:user_id>")
+def public_profile(user_id):
+    """Schermata pubblica dove visito le preferenze di un utente che dona cibo."""
+    user = User.query.get_or_404(user_id)
+    
+    # Previene l'accesso se lui stesso non ha completato il suo profilo base
+    if not current_user.is_authenticated:
+        flash("Accedi prima per visualizzare i profili degli utenti.", "info")
+        return redirect(url_for('index'))
+    if not current_user.bio or not current_user.raggio_azione:
+        flash("Completa prima il tuo Profilo per poter vedere quello degli altri!", "warning")
+        return redirect(url_for('profile_page'))
+
+    # Visualizza quante offerte/richieste ha completato per dare un rating di affidabilità
+    offerte_totali = Offer.query.filter_by(user_id=user.id).count()
+    recuperi_effettuati = Claim.query.filter_by(user_id=user.id).count()
+
+    return render_template(
+        "public_profile.html", 
+        user=user, 
+        offerte_totali=offerte_totali, 
+        recuperi_effettuati=recuperi_effettuati
+    )
+
 @app.errorhandler(413)
 def request_entity_too_large(error):
     return jsonify({"success": False, "errors": ["La foto è troppo pesante (Max 64MB). Compressione fallita."]}), 413
@@ -407,6 +431,7 @@ def api_get_offers():
             "posti_disponibili": o.posti_disponibili,
             "data_ora": o.data_ora.isoformat(),
             "descrizione": o.descrizione or "",
+            "foto_locale": getattr(o, "foto_locale", "nessuna.jpg"),
             "autore": o.autore.nome,
             "autore_id": o.autore.id,
             "autore_foto": o.autore.foto_filename,
@@ -423,17 +448,16 @@ def api_get_offers():
 @app.route("/api/offers", methods=["POST"])
 @login_required
 def api_create_offer():
-    """Crea una nuova offerta."""
-    data = request.get_json() if request.is_json else request.form
-
-    tipo_pasto = data.get("tipo_pasto", "")
-    nome_locale = data.get("nome_locale", "").strip()
-    indirizzo = data.get("indirizzo", "").strip()
-    lat = data.get("latitudine")
-    lon = data.get("longitudine")
-    posti = data.get("posti_totali")
-    data_ora_str = data.get("data_ora", "")
-    descrizione = data.get("descrizione", "").strip()
+    """Crea una nuova offerta con foto del locale."""
+    tipo_pasto = request.form.get("tipo_pasto", "")
+    nome_locale = request.form.get("nome_locale", "").strip()
+    indirizzo = request.form.get("indirizzo", "").strip()
+    lat = request.form.get("latitudine")
+    lon = request.form.get("longitudine")
+    posti = request.form.get("posti_totali")
+    data_ora_str = request.form.get("data_ora", "")
+    descrizione = request.form.get("descrizione", "").strip()
+    foto_locale = request.files.get("foto_locale")
 
     # Validazione
     errors = []
@@ -449,6 +473,10 @@ def api_create_offer():
         errors.append("Indica almeno 1 posto disponibile.")
     if not data_ora_str:
         errors.append("Seleziona data e ora.")
+    if not foto_locale or not foto_locale.filename:
+        errors.append("La foto del locale è obbligatoria.")
+    elif not allowed_file(foto_locale.filename):
+        errors.append("Formato foto non valido (usa JPG, PNG o WEBP).")
 
     if errors:
         return jsonify({"success": False, "errors": errors}), 400
@@ -458,6 +486,23 @@ def api_create_offer():
         data_ora = datetime.fromisoformat(data_ora_str)
     except (ValueError, TypeError):
         return jsonify({"success": False, "errors": ["Formato data non valido."]}), 400
+
+    # Salvataggio Immagine locale
+    ext = foto_locale.filename.rsplit(".", 1)[1].lower()
+    filename = secure_filename(f"offer_{current_user.id}_{int(datetime.now().timestamp())}.{ext}")
+    foto_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    foto_locale.save(foto_path)
+
+    # Elaborazione Immagine (Compressione)
+    try:
+        img = Image.open(foto_path)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        img.thumbnail((800, 800))
+        img.save(foto_path, "JPEG", quality=85)
+        filename = filename.rsplit(".", 1)[0] + ".jpg" # Forza cambio estensione logico
+    except Exception as e:
+        print("Errore compressione foto offerta:", e)
 
     offer = Offer(
         user_id=current_user.id,
@@ -470,6 +515,7 @@ def api_create_offer():
         posti_disponibili=int(posti),
         data_ora=data_ora,
         descrizione=descrizione,
+        foto_locale=filename
     )
 
     db.session.add(offer)

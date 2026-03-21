@@ -224,12 +224,15 @@
                     const card = document.createElement('div');
                     card.className = 'offer-card';
                     card.innerHTML = `
-                        <div class="offer-card-header">
-                            <img src="/uploads/${offer.autore_foto}" alt="${offer.autore}" class="avatar">
-                            <div class="info">
-                                <div class="name">${offer.autore}</div>
-                                <div class="meta">${offer.autore_fascia_eta} anni</div>
-                            </div>
+                        ${offer.foto_locale && offer.foto_locale !== 'nessuna.jpg' ? `<img src="/uploads/${offer.foto_locale}" alt="Foto Locale" style="width: 100%; height: 180px; object-fit: cover; border-radius: var(--radius-xl) var(--radius-xl) 0 0; display: block; margin-bottom: 0;">` : ''}
+                        <div class="offer-card-header" style="${offer.foto_locale && offer.foto_locale !== 'nessuna.jpg' ? 'border-top: none; padding-top: 16px;' : ''}">
+                            <a href="/profile/${offer.autore_id}" style="text-decoration: none; display: flex; align-items: center; gap: 12px; color: inherit; transition: opacity 0.2s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">
+                                <img src="/uploads/${offer.autore_foto}" alt="${offer.autore}" class="avatar">
+                                <div class="info">
+                                    <div class="name" style="color: var(--primary);">${offer.autore}</div>
+                                    <div class="meta">${offer.autore_fascia_eta} anni</div>
+                                </div>
+                            </a>
                             <div class="offer-type-badge badge-${offer.tipo_pasto}">
                                 ${iconEmoji} ${offer.tipo_pasto.charAt(0).toUpperCase() + offer.tipo_pasto.slice(1)}
                             </div>
