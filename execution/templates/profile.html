@@ -14,13 +14,13 @@
             <span class="logo-icon">🍽️</span>
             ApprofittOffro
         </a>
-        <ul class="navbar-nav">
-            <li><a href="/dashboard">← Dashboard</a></li>
-            <li><a href="/new-offer" class="btn btn-primary btn-sm">+ Offri un Pasto</a></li>
-            <li>
-                <button onclick="logout()" class="btn btn-secondary btn-sm">Esci</button>
-            </li>
-        </ul>
+        <div class="nav-links">
+            <ul style="display:flex; list-style:none; gap:16px;">
+                <li><a href="/dashboard" class="btn btn-outline btn-sm">Torna alla Mappa</a></li>
+                <li><a href="/new-offer" class="btn btn-primary btn-sm">Offri un Pasto</a></li>
+                <li><a href="/logout" class="btn btn-ghost btn-sm" style="color:var(--text-muted)">Esci</a></li>
+            </ul>
+        </div>
     </nav>
 
     <!-- Profile Content -->
