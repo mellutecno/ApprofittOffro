@@ -127,17 +127,24 @@
                     <div class="description">{{ offer.descrizione }}</div>
                     {% endif %}
                 </div>
-                <div class="offer-card-footer">
-                    <div class="spots-indicator">
-                        <div class="spots-bar">
-                            {% set pct = (offer.posti_disponibili / offer.posti_totali * 100) if offer.posti_totali > 0 else 0 %}
-                            <div class="spots-bar-fill {{ 'critical' if pct <= 20 else 'low' if pct <= 50 else '' }}" style="width: {{ pct }}%"></div>
+                <div class="offer-card-footer" style="flex-direction: column; align-items: stretch; gap: 12px;">
+                    <div style="display:flex; justify-content: space-between; align-items:center;">
+                        <div class="spots-indicator" style="margin-bottom:0;">
+                            <div class="spots-bar">
+                                {% set pct = (offer.posti_disponibili / offer.posti_totali * 100) if offer.posti_totali > 0 else 0 %}
+                                <div class="spots-bar-fill {{ 'critical' if pct <= 20 else 'low' if pct <= 50 else '' }}" style="width: {{ pct }}%"></div>
+                            </div>
+                            <span>{{ offer.posti_disponibili }}/{{ offer.posti_totali }} posti</span>
                         </div>
-                        <span>{{ offer.posti_disponibili }}/{{ offer.posti_totali }} posti</span>
+                        <span class="text-muted" style="font-size: 0.8rem;">
+                            {% if offer.stato == 'completata' %}✅ Completata{% elif offer.stato == 'annullata' %}❌ Annullata{% else %}🟢 Attiva{% endif %}
+                        </span>
                     </div>
-                    <span class="text-muted" style="font-size: 0.8rem;">
-                        {% if offer.stato == 'completata' %}✅ Completata{% elif offer.stato == 'annullata' %}❌ Annullata{% else %}🟢 Attiva{% endif %}
-                    </span>
+                    
+                    <div style="display:flex; gap:8px;">
+                        <a href="/edit-offer/{{ offer.id }}" class="btn btn-outline btn-sm" style="flex: 1; text-align: center;">✏️ Modifica</a>
+                        <button onclick="if(confirm('Sei sicura/o di voler eliminare questa offerta?')) deleteOfferProfile({{ offer.id }})" class="btn btn-outline btn-sm" style="flex: 1; color:var(--error); border-color:var(--error);">🗑️ Elimina</button>
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -186,6 +193,21 @@
 
     <script src="/static/js/app.js"></script>
     <script>
+        async function deleteOfferProfile(id) {
+            try {
+                const res = await fetch(`/api/offers/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Offerta eliminata con successo.', 'success');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    showToast(data.error || 'Impossibile eliminare l\'offerta.', 'error');
+                }
+            } catch (err) {
+                showToast('Errore di connessione al server.', 'error');
+            }
+        }
+
         document.getElementById('profile-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('save-profile-btn');
