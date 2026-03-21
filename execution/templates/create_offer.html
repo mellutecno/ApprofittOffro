@@ -61,7 +61,7 @@
                     <input type="hidden" id="offer-lat" name="latitudine">
                     <input type="hidden" id="offer-lon" name="longitudine">
                     <p class="text-muted mt-1" id="offer-location-label" style="font-size: 0.85rem;">
-                        📍 Clicca sulla mappa per indicare la posizione del locale
+                        📍 <b>Trascina la mappa</b> per posizionare il pin sul locale.
                     </p>
                 </div>
 
@@ -99,46 +99,57 @@
         // ---- Mappa offerta ----
         let offerMap, offerMarker;
 
+        async function updateOfferLocation(lat, lon) {
+            document.getElementById('offer-lat').value = lat;
+            document.getElementById('offer-lon').value = lon;
+            document.getElementById('offer-location-label').innerHTML = `📍 Ricerca indirizzo in corso...`;
+
+            try {
+                const res = await fetch(`/api/geocode?lat=${lat}&lon=${lon}`);
+                const data = await res.json();
+                
+                document.getElementById('indirizzo').value = data.address;
+                document.getElementById('offer-location-label').innerHTML = `📍 <b style="color:var(--success);">Posizione selezionata</b>`;
+            } catch {
+                document.getElementById('indirizzo').value = "Posizione Geografica";
+                document.getElementById('offer-location-label').innerHTML = `📍 <b style="color:var(--success);">Posizione Mappa</b>`;
+            }
+        }
+
         async function initOfferMap() {
-            // Centra sulla posizione dell'utente
+            let startLoc = [41.9028, 12.4964];
+            let startZoom = 16;
+            
+            // Centra sulla posizione dell'utente (se loggato e posizione presente nel DB)
             try {
                 const userRes = await fetch('/api/user/me');
                 const userData = await userRes.json();
-                if (userData.success) {
-                    offerMap = L.map('offer-map').setView([userData.user.lat, userData.user.lon], 14);
-                } else {
-                    offerMap = L.map('offer-map').setView([41.9028, 12.4964], 6);
+                if (userData.success && userData.user.lat) {
+                    startLoc = [userData.user.lat, userData.user.lon];
                 }
-            } catch {
-                offerMap = L.map('offer-map').setView([41.9028, 12.4964], 6);
-            }
+            } catch (err) { }
+
+            offerMap = L.map('offer-map').setView(startLoc, startZoom);
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap',
                 maxZoom: 19,
             }).addTo(offerMap);
 
-            offerMap.on('click', async function(e) {
-                const { lat, lng } = e.latlng;
-                document.getElementById('offer-lat').value = lat;
-                document.getElementById('offer-lon').value = lng;
+            offerMarker = L.marker(startLoc).addTo(offerMap);
+            updateOfferLocation(startLoc[0], startLoc[1]);
 
-                if (offerMarker) {
-                    offerMarker.setLatLng(e.latlng);
-                } else {
-                    offerMarker = L.marker(e.latlng).addTo(offerMap);
-                }
+            offerMap.on('move', function() {
+                offerMarker.setLatLng(offerMap.getCenter());
+            });
 
-                // Reverse geocoding per indirizzo
-                try {
-                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
-                    const data = await res.json();
-                    const addr = data.display_name || '';
-                    document.getElementById('indirizzo').value = addr.split(',').slice(0, 3).join(',').trim();
-                    document.getElementById('offer-location-label').textContent = `📍 Posizione selezionata`;
-                } catch {
-                    document.getElementById('offer-location-label').textContent = `📍 Posizione selezionata (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-                }
+            let otId;
+            offerMap.on('moveend', function() {
+                clearTimeout(otId);
+                otId = setTimeout(() => {
+                    const center = offerMap.getCenter();
+                    updateOfferLocation(center.lat, center.lng);
+                }, 600);
             });
         }
 

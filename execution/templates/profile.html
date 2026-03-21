@@ -25,9 +25,66 @@
 
     <!-- Profile Content -->
     <div class="container main-content">
-        <!-- Header -->
-        <div class="profile-header" id="profile-header">
-            <!-- Populated via JS -->
+        <!-- Wrapper per layout mobile-style -->
+        <div style="max-width: 600px; margin: 0 auto;">
+            <!-- Header -->
+            <div class="profile-header" id="profile-header" style="flex-direction: column; text-align: center; gap: 16px;">
+                <img src="/uploads/{{ current_user.foto_filename }}" alt="{{ current_user.nome }}" class="avatar-large" style="width: 120px; height: 120px; margin: 0 auto;">
+                <div class="info">
+                    <h2 style="margin-bottom: 4px;">{{ current_user.nome }}</h2>
+                    <p class="text-muted" style="margin-top: 0;">{{ current_user.email }} · {{ current_user.fascia_eta }} anni</p>
+                    {% if current_user.verificato %}
+                    <span class="badge" style="background:#D1FAE5; color:#065F46; border:1px solid #10B981; padding: 4px 12px; border-radius:12px; font-size:0.8rem; margin-top:8px; display:inline-block;">✓ Verificato</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Alerts and Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <div class="alert alert-{{ category }} mb-4" style="background:#FEF3C7; border-color:#34D399; color:#065F46; border-radius: 12px; text-align: center;">
+                      {{ message }}
+                  </div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+            
+            <!-- Identikit Alimentare Form -->
+            <div class="glass-card mb-4" style="padding: 32px; margin-bottom: 40px; border-radius: 16px;">
+                <h3 style="margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px; color:var(--text); font-size:1.2rem; text-align: center;">🍽️ Il tuo Profilo ed Identikit</h3>
+                {% if not current_user.cibi_preferiti or not current_user.intolleranze or not current_user.bio or not current_user.raggio_azione %}
+                  <div class="alert alert-warning mb-4" style="border-radius: 8px; text-align: center; display: block; line-height: 1.6;">
+                    ⚠️ Prima di proseguire nell'app, è <b>obbligatorio</b> completare il tuo profilo.
+                  </div>
+                {% endif %}
+                <form id="profile-form">
+                    <div class="form-group mb-4">
+                        <label style="font-weight:600; font-size:0.95rem;">Cibi preferiti e Gusti principali</label>
+                        <input type="text" id="cibi_preferiti" class="form-control" value="{{ current_user.cibi_preferiti or '' }}" placeholder="Es: Carne, Pizza, Sushi..." required style="padding: 12px; font-size: 1rem;">
+                        <p class="text-muted" style="font-size:0.85rem; margin-top:8px;">Aiuterà gli altri a capire cosa ami mangiare.</p>
+                    </div>
+                    <div class="form-group mb-4">
+                        <label style="font-weight:600; font-size:0.95rem;">Intolleranze o cibi da evitare</label>
+                        <input type="text" id="intolleranze" class="form-control" value="{{ current_user.intolleranze or '' }}" placeholder="Es: Nessuna intolleranza. Oppure: Lattosio..." required style="padding: 12px; font-size: 1rem;">
+                        <p class="text-muted" style="font-size:0.85rem; margin-top:8px;">Sicurezza prima di tutto. Scrivi "Nessuna" se mangi di tutto.</p>
+                    </div>
+                    <div class="form-group mb-4">
+                        <label style="font-weight:600; font-size:0.95rem;">Bio (Raccontaci qualcosa di te)</label>
+                        <textarea id="bio" class="form-control" rows="3" placeholder="Es: Sono uno studente e adoro la compagnia davanti a un buon piatto..." required style="padding: 12px; font-size: 1rem;">{{ current_user.bio or '' }}</textarea>
+                    </div>
+                    <div class="form-group mb-4">
+                        <label style="font-weight:600; font-size:0.95rem;">Raggio d'azione preferito (Km)</label>
+                        <select id="raggio_azione" class="form-control" required style="padding: 12px; font-size: 1rem; cursor: pointer;">
+                            <option value="5" {% if current_user.raggio_azione == 5 %}selected{% endif %}>Entro 5 km (Il mio quartiere)</option>
+                            <option value="10" {% if current_user.raggio_azione == 10 or not current_user.raggio_azione %}selected{% endif %}>Entro 10 km (In città)</option>
+                            <option value="20" {% if current_user.raggio_azione == 20 %}selected{% endif %}>Entro 20 km (Spostamento medio)</option>
+                            <option value="50" {% if current_user.raggio_azione == 50 %}selected{% endif %}>Fino a 50 km (Viaggiatore goloso)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="save-profile-btn" style="width: 100%; padding: 14px; font-size: 1.05rem;">Salva ed Esplora</button>
+                </form>
+            </div>
         </div>
 
         <!-- Stats -->
@@ -102,7 +159,6 @@
                     <img src="/uploads/{{ claim.offerta.autore.foto_filename }}" alt="{{ claim.offerta.autore.nome }}" class="avatar">
                     <div class="info">
                         <div class="name">Offerto da {{ claim.offerta.autore.nome }}</div>
-                        <div class="meta">{{ claim.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
                     </div>
                 </div>
                 <div class="offer-card-body">
@@ -112,6 +168,7 @@
                     </span>
                     <h4 class="mt-1">{{ claim.offerta.nome_locale }}</h4>
                     <div class="address">📍 {{ claim.offerta.indirizzo }}</div>
+                    <div class="datetime-info" style="margin-top: 8px; font-weight: 500;">📅 {{ claim.offerta.data_ora.strftime('%d/%m/%Y alle ore %H:%M') }}</div>
                 </div>
             </div>
             {% endfor %}
@@ -129,25 +186,41 @@
 
     <script src="/static/js/app.js"></script>
     <script>
-        // Carica dati profilo
-        async function loadProfile() {
+        document.getElementById('profile-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('save-profile-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner"></span> Salvataggio...';
+            btn.disabled = true;
+
+            const payload = {
+                cibi_preferiti: document.getElementById('cibi_preferiti').value,
+                intolleranze: document.getElementById('intolleranze').value,
+                bio: document.getElementById('bio').value,
+                raggio_azione: document.getElementById('raggio_azione').value
+            };
+
             try {
-                const res = await fetch('/api/user/me');
+                const res = await fetch('/api/user/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
                 const data = await res.json();
                 if (data.success) {
-                    const u = data.user;
-                    document.getElementById('profile-header').innerHTML = `
-                        <img src="/uploads/${u.foto}" alt="${u.nome}" class="avatar-large">
-                        <div class="info">
-                            <h2>${u.nome}</h2>
-                            <p class="text-muted">${u.email} · ${u.fascia_eta} anni${u.citta ? ' · ' + u.citta : ''}</p>
-                            ${u.verificato ? '<span class="badge">✓ Verificato</span>' : ''}
-                        </div>
-                    `;
+                    showToast('Identikit Alimentare aggiornato con successo!', 'success');
+                    // Rimanda alla dashboard se era bloccato in onboarding
+                    setTimeout(() => window.location.href = '/dashboard', 1500);
+                } else {
+                    showToast(data.errors.join(' '), 'error');
                 }
-            } catch {}
-        }
-        loadProfile();
+            } catch (err) {
+                showToast('Errore di connessione', 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        });
     </script>
 </body>
 </html>

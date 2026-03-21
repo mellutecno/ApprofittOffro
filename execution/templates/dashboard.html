@@ -15,20 +15,34 @@
             ApprofittOffro
         </a>
         <div class="navbar-nav">
-            <a href="/new-offer" class="btn btn-primary btn-sm">+ Offri ora</a>
+            <a href="/new-offer" class="btn btn-primary btn-sm">+ Offri</a>
             <a href="/profile">Profilo</a>
             <button onclick="logout()">Esci</button>
         </div>
     </nav>
 
     <main class="main-content container">
-        <div class="dashboard-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div class="dashboard-header" style="display: flex; flex-direction:column; gap: 16px; margin-bottom: 24px;">
             <h2>Esplora Offerte</h2>
-            <div class="filter-bar">
-                <button class="filter-chip active" onclick="setFilter('')">Tutte</button>
-                <button class="filter-chip" onclick="setFilter('colazione')">Colazione</button>
-                <button class="filter-chip" onclick="setFilter('pranzo')">Pranzo</button>
-                <button class="filter-chip" onclick="setFilter('cena')">Cena</button>
+            
+            <div style="display:flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap:16px;">
+                <div class="filter-bar">
+                    <button class="filter-chip active" onclick="setFilter('')">Tutte</button>
+                    <button class="filter-chip" onclick="setFilter('colazione')">Colazione</button>
+                    <button class="filter-chip" onclick="setFilter('pranzo')">Pranzo</button>
+                    <button class="filter-chip" onclick="setFilter('cena')">Cena</button>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label style="font-weight: 600; color:var(--text-muted); font-size:0.9rem;">Distanza Massima:</label>
+                    <select id="radius-filter" class="form-control" style="width: auto; display:inline-block; padding: 6px 12px; min-height: 0;" onchange="setRadius(this.value)">
+                        <option value="">Ovunque</option>
+                        <option value="5">Entro 5 km</option>
+                        <option value="10">Entro 10 km</option>
+                        <option value="25">Entro 25 km</option>
+                        <option value="50">Entro 50 km</option>
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -51,8 +65,14 @@
         let map;
         let markers = [];
         let currentFilter = '';
+        let currentRadius = '';
         const defaultLat = {{ current_user.latitudine }};
         const defaultLon = {{ current_user.longitudine }};
+        
+        let searchMarker;
+        let searchCircle;
+        let searchLat = defaultLat;
+        let searchLon = defaultLon;
 
         // Custom Leaflet Icons basate sul CSS
         const createCustomIcon = (type) => {
@@ -71,10 +91,39 @@
         };
 
         function initMap() {
-            map = L.map('map').setView([defaultLat, defaultLon], 13);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; OpenStreetMap'
+            map = L.map('map').setView([defaultLat, defaultLon], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap',
+                maxZoom: 19
             }).addTo(map);
+
+            // Aggiungi marker di ricerca centrale (draggable)
+            const searchIcon = L.divIcon({
+                className: 'custom-map-search-marker',
+                html: `<div style="background-color: var(--primary); width: 24px; height: 24px; border-radius: 50%; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.5);"></div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+            searchMarker = L.marker([searchLat, searchLon], { icon: searchIcon, draggable: true, zIndexOffset: 1000 }).addTo(map);
+            searchMarker.bindPopup("<b>📍 Punto di Ricerca</b><br>Trascina per spostare il raggio d'azione").openPopup();
+
+            searchMarker.on('dragend', function() {
+                const pos = searchMarker.getLatLng();
+                searchLat = pos.lat;
+                searchLon = pos.lng;
+                
+                // Centra la mappa dolcemente sul nuovo punto di ricerca
+                map.panTo([searchLat, searchLon]);
+                
+                // Ricarica le offerte con le nuove coordinate
+                loadOffers();
+            });
+
+            loadOffers();
+        }
+
+        function setRadius(radius) {
+            currentRadius = radius;
             loadOffers();
         }
 
@@ -92,7 +141,8 @@
 
         async function loadOffers() {
             try {
-                const res = await fetch(`/api/offers?tipo=${currentFilter}`);
+                const url = `/api/offers?tipo=${currentFilter}&radius=${currentRadius}&lat=${searchLat}&lon=${searchLon}`;
+                const res = await fetch(url);
                 const data = await res.json();
                 
                 const panel = document.getElementById('offers-panel');
@@ -101,6 +151,21 @@
                 // Clear markers
                 markers.forEach(m => map.removeLayer(m));
                 markers = [];
+                
+                // Aggiorna il Cerchio di Ricerca (Raggio)
+                if (searchCircle) {
+                    map.removeLayer(searchCircle);
+                }
+                if (currentRadius) {
+                    searchCircle = L.circle([searchLat, searchLon], {
+                        radius: currentRadius * 1000,
+                        color: 'var(--primary)',
+                        fillColor: 'var(--primary)',
+                        fillOpacity: 0.08,
+                        weight: 2,
+                        dashArray: '5, 5'
+                    }).addTo(map);
+                }
 
                 if (!data.success || data.offers.length === 0) {
                     const filterName = currentFilter ? `per ${currentFilter}` : "";
@@ -140,9 +205,14 @@
                         </div>
                         <div class="offer-card-body">
                             <h4>${offer.nome_locale}</h4>
-                            <div class="address">📍 ${offer.indirizzo}</div>
-                            <div class="datetime-info">🕒 ${formatDateDisplay(offer.data_ora)}</div>
-                            ${offer.descrizione ? `<div class="description">"${offer.descrizione}"</div>` : ''}
+                            <div class="address" style="margin-bottom:8px;">📍 ${offer.indirizzo} <br><span style="color:var(--primary); font-weight:600; font-size:0.85rem;">(a ${offer.distance_km} km da te)</span></div>
+                            <div class="datetime-info">🕒 ${formatDate(offer.data_ora)}</div>
+                            ${offer.descrizione ? `<div class="description" style="margin-bottom:8px;">"${offer.descrizione}"</div>` : ''}
+                            
+                            <div style="display:flex; flex-direction:column; gap:4px; margin-top:12px;">
+                                ${offer.autore_cibi_preferiti && offer.autore_cibi_preferiti.length > 2 ? `<div style="font-size:0.75rem; background:#F0FDF4; color:#065F46; padding:4px 8px; border-radius:6px; font-weight:500;">💚 Ama: ${offer.autore_cibi_preferiti}</div>` : ''}
+                                ${offer.autore_intolleranze && offer.autore_intolleranze.toLowerCase() !== 'nessuna' ? `<div style="font-size:0.75rem; background:#FEF2F2; color:#991B1B; padding:4px 8px; border-radius:6px; font-weight:500;">⛔ Evita: ${offer.autore_intolleranze}</div>` : ''}
+                            </div>
                         </div>
                         <div class="offer-card-footer">
                             <div class="spots-indicator">
@@ -164,7 +234,7 @@
 
                     // Aggiungi marker su mappa
                     const marker = L.marker([offer.lat, offer.lon], { icon: createCustomIcon(offer.tipo_pasto) });
-                    marker.bindPopup(`<b>${offer.nome_locale}</b><br>${offer.posti_disponibili} posti disponibili<br>${formatDateDisplay(offer.data_ora)}`);
+                    marker.bindPopup(`<b>${offer.nome_locale}</b><br>${offer.posti_disponibili} posti disponibili<br>${formatDate(offer.data_ora)}`);
                     marker.addTo(map);
                     markers.push(marker);
                 });

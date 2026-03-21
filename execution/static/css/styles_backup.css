@@ -8,29 +8,29 @@
 
 /* --- CSS Custom Properties --- */
 :root {
-    /* Colori primari (Azzurro/Blu - Fresco, pulito e moderno) */
-    --primary: #0EA5E9;
-    --primary-dark: #0284C7;
-    --primary-light: #38BDF8;
-    --primary-glow: rgba(14, 165, 233, 0.25);
+    /* Colori primari (Indigo) */
+    --primary: #6366F1;
+    --primary-dark: #4F46E5;
+    --primary-light: #818CF8;
+    --primary-glow: rgba(99, 102, 241, 0.2);
 
-    /* Accenti (Warm Gold/Amber) */
-    --accent: #FFB400;
-    --accent-dark: #E5A200;
+    /* Accenti */
+    --accent: #F43F5E; /* Rose */
+    --accent-dark: #E11D48;
 
-    /* Sfondo (Warm Ivory / Off-White) */
-    --bg-body: #FFFDFB;
+    /* Sfondo */
+    --bg-body: #F9FAFB;
     --bg-card: #FFFFFF;
-    --bg-surface: #F2EEEC;
+    --bg-surface: #F3F4F6;
 
-    /* Testo (Slate Navy - più morbido del nero assoluto) */
-    --text-main: #2B2D42;
-    --text-muted: #8D99AE;
-    --text-light: #B8C0CC;
+    /* Testo */
+    --text-main: #111827;
+    --text-muted: #4B5563;
+    --text-light: #9CA3AF;
 
     /* Bordi e Elementi */
-    --border: #E5E0DC;
-    --border-hover: #D6CEC8;
+    --border: #E5E7EB;
+    --border-hover: #D1D5DB;
 
     /* Status */
     --success: #10B981;
@@ -40,20 +40,20 @@
     --warning: #F59E0B;
     --warning-bg: #FEF3C7;
 
-    /* Ombre morbide e profonde (High-End feel) */
-    --shadow-sm: 0 2px 4px rgba(0,0,0,0.02);
-    --shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.02);
-    --shadow-lg: 0 12px 24px -6px rgba(14, 165, 233, 0.12), 0 4px 12px -2px rgba(0,0,0,0.05);
-    --shadow-hover: 0 25px 50px -12px rgba(14, 165, 233, 0.2);
+    /* Ombre morbide (Apple/Airbnb style) */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+    --shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
 
-    /* Raggi arrotondati (Morbidezza Gourmet) */
-    --radius-sm: 0.6rem;
-    --radius-md: 1rem;
-    --radius-lg: 1.25rem;
-    --radius-xl: 2rem;
+    /* Raggi arrotondati (Squircle feel) */
+    --radius-sm: 0.5rem;   /* 8px */
+    --radius-md: 0.75rem;  /* 12px */
+    --radius-lg: 1rem;     /* 16px */
+    --radius-xl: 1.5rem;   /* 24px */
 
-    /* Transizioni */
-    --transition: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    /* Transizioni fluide */
+    --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* --- Reset --- */
@@ -134,14 +134,12 @@ a:hover { color: var(--primary-dark); }
 .btn-primary {
     background: linear-gradient(135deg, var(--primary), var(--primary-dark));
     color: white;
-    box-shadow: 0 8px 16px var(--primary-glow);
-    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 4px 12px var(--primary-glow);
 }
 
 .btn-primary:hover {
-    box-shadow: 0 12px 20px rgba(14, 165, 233, 0.3);
-    transform: translateY(-2px) scale(1.02);
-    filter: brightness(1.1);
+    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.3);
+    transform: translateY(-1px);
 }
 
 .btn-secondary {
@@ -293,16 +291,15 @@ textarea.form-control {
     left: 0;
     right: 0;
     z-index: 1000;
-    background: rgba(255, 255, 255, 0.82);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-bottom: 1px solid rgba(229, 224, 220, 0.5);
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
     padding: 0 24px;
-    height: 80px;
+    height: 72px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    transition: all 0.3s ease;
 }
 
 .navbar-brand {
@@ -404,41 +401,31 @@ textarea.form-control {
 /* --- Auth Split Layout --- */
 .split-layout {
     display: flex;
-    flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
     width: 100vw;
-    overflow-x: hidden;
-    position: relative;
-    background: var(--bg-surface);
+    overflow: hidden;
 }
 
 .split-image {
-    flex: 0 0 40vh; /* L'immagine occupa il 40% dello schermo mobile */
+    flex: 1;
     background-size: cover;
     background-position: center;
     position: relative;
-    display: block;
+    display: none;
+}
+
+@media (min-width: 992px) {
+    .split-image { display: block; }
 }
 
 .split-image-overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(to top, rgba(17, 24, 39, 0.9) 0%, rgba(17, 24, 39, 0.2) 100%);
+    background: linear-gradient(to top, rgba(17, 24, 39, 0.9), rgba(17, 24, 39, 0.3));
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    padding: 30px 24px 60px; /* Spazio extra in basso per l'overlay */
-}
-
-/* Fix inline styles on mobile */
-.split-image-overlay h1 {
-    font-size: 2rem !important;
-    margin-bottom: 8px !important;
-}
-
-.split-image-overlay p {
-    font-size: 1rem !important;
-    display: none; /* Nasconde p troppo lunghi su mobile */
+    padding: 80px;
 }
 
 .logo-icon-large {
@@ -454,61 +441,29 @@ textarea.form-control {
 }
 
 .split-form-container {
-    flex: 1;
+    flex: 0 0 100%;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
-    padding: 32px 24px;
+    padding: 40px;
     background: var(--bg-card);
-    border-radius: 32px 32px 0 0;
-    margin-top: -32px; /* Sovrapposizione "Bottom Sheet" iOS style */
-    position: relative;
-    z-index: 10;
-    box-shadow: 0 -10px 30px rgba(0,0,0,0.15);
+    overflow-y: auto;
 }
 
+@media (min-width: 992px) {
+    .split-form-container { flex: 0 0 500px; }
+}
+@media (min-width: 1200px) {
+    .split-form-container { flex: 0 0 600px; }
+}
+
+/* Modifiche form per integrarsi col container bianco puro */
 .split-form-container .auth-card {
     width: 100%;
     max-width: 440px;
     text-align: left;
     box-shadow: none;
     border: none;
-    background: transparent;
-}
-
-/* --- Layout Split Desktop --- */
-@media (min-width: 992px) {
-    .split-layout {
-        flex-direction: row;
-        height: 100vh;
-        overflow: hidden;
-    }
-    .split-image {
-        flex: 1;
-        height: 100vh;
-    }
-    .split-image-overlay {
-        padding: 80px;
-    }
-    .split-image-overlay h1 {
-        font-size: 3.5rem !important;
-        margin-bottom: 24px !important;
-    }
-    .split-image-overlay p {
-        display: block; 
-    }
-    .split-form-container { 
-        flex: 0 0 500px;
-        align-items: center;
-        margin-top: 0;
-        border-radius: 0;
-        padding: 40px;
-        box-shadow: none;
-        background: var(--bg-card);
-    }
-}
-@media (min-width: 1200px) {
-    .split-form-container { flex: 0 0 600px; }
 }
 
 /* --- Dashboard Layout --- */
@@ -612,38 +567,20 @@ textarea.form-control {
 /* --- Offer Card (Clean White) --- */
 .offer-card {
     background: var(--bg-card);
-    border: 1px solid rgba(229, 224, 220, 0.6);
+    border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     padding: 24px;
     transition: all var(--transition);
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-sm);
     display: flex;
     flex-direction: column;
     gap: 16px;
-    position: relative;
-    overflow: hidden;
-}
-
-.offer-card::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 4px;
-    height: 100%;
-    background: var(--primary);
-    opacity: 0;
-    transition: opacity 0.3s ease;
 }
 
 .offer-card:hover {
     border-color: var(--primary-light);
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-5px);
-}
-
-.offer-card:hover::after {
-    opacity: 1;
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
 }
 
 .offer-card-header {

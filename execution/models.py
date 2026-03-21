@@ -40,6 +40,12 @@ class User(UserMixin, db.Model):
     fascia_eta = db.Column(db.String(10), nullable=False)
     latitudine = db.Column(db.Float, nullable=False)
     longitudine = db.Column(db.Float, nullable=False)
+    citta = db.Column(db.String(200), nullable=True) # Aggiunta colonna mancante per l'indirizzo testuale
+    cibi_preferiti = db.Column(db.String(300), nullable=True) # Aggiunta per Profilazione
+    intolleranze = db.Column(db.String(300), nullable=True) # Aggiunta per Profilazione
+    bio = db.Column(db.String(500), nullable=True) # Aggiunta bio per Profilazione
+    raggio_azione = db.Column(db.Integer, default=10, nullable=True) # KM raggio di spostamento
+
     verificato = db.Column(db.Boolean, default=False)
     verification_token = db.Column(db.String(100), unique=True, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
