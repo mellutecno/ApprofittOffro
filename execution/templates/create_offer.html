@@ -86,16 +86,19 @@
                 <div class="form-group">
                     <label>Foto del Locale / Cibo <span style="font-weight:normal; font-size:0.8rem; color:var(--text-muted);">(Opzionale)</span></label>
                     
-                    <!-- Input nascosti: uno per camera, uno per galleria -->
-                    <input type="file" id="foto_camera" name="foto_locale" accept="image/*" capture="environment" style="display:none;" onchange="handleFotoSelect(this)">
-                    <input type="file" id="foto_galleria" name="foto_locale" accept="image/*" style="display:none;" onchange="handleFotoSelect(this)">
+                    <!-- Input REALE inviato al server (uno solo, senza display) -->
+                    <input type="file" id="foto_locale" name="foto_locale" accept="image/*" style="display:none;">
+                    
+                    <!-- Trigger nascosti per aprire camera o galleria -->
+                    <input type="file" id="trigger_camera" accept="image/*" capture="environment" style="display:none;" onchange="handleFotoSelect(this)">
+                    <input type="file" id="trigger_galleria" accept="image/*" style="display:none;" onchange="handleFotoSelect(this)">
                     
                     <!-- Pulsanti visibili -->
                     <div style="display:flex; gap:10px; margin-top:6px;">
-                        <button type="button" onclick="document.getElementById('foto_camera').click()" class="btn btn-outline" style="flex:1;">
+                        <button type="button" onclick="document.getElementById('trigger_camera').click()" class="btn btn-outline" style="flex:1;">
                             📷 Scatta Foto
                         </button>
-                        <button type="button" onclick="document.getElementById('foto_galleria').click()" class="btn btn-outline" style="flex:1;">
+                        <button type="button" onclick="document.getElementById('trigger_galleria').click()" class="btn btn-outline" style="flex:1;">
                             🖼️ Scegli Galleria
                         </button>
                     </div>
@@ -106,6 +109,7 @@
                         <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;" id="foto-preview-name"></div>
                     </div>
                 </div>
+
 
                 <button type="submit" class="btn btn-primary btn-block btn-lg" id="offer-btn">
                     🎉 Pubblica Offerta
@@ -163,9 +167,16 @@
             }
         }
         // Gestisce la selezione foto (sia da camera che da galleria)
-        function handleFotoSelect(input) {
-            if (!input.files || !input.files[0]) return;
-            const file = input.files[0];
+        function handleFotoSelect(trigger) {
+            if (!trigger.files || !trigger.files[0]) return;
+            const file = trigger.files[0];
+
+            // Copia il file nell'input REALE che verrà inviato al server
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            document.getElementById('foto_locale').files = dt.files;
+
+            // Mostra anteprima
             const reader = new FileReader();
             reader.onload = function(e) {
                 document.getElementById('foto-preview-img').src = e.target.result;
