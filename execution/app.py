@@ -37,7 +37,7 @@ from verify_photo import verifica_volto
 # ---------------------------------------------------------------------------
 # Configurazione
 # ---------------------------------------------------------------------------
-load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 app = Flask(
     __name__,
@@ -154,7 +154,7 @@ def profile_completed_required(f):
     def decorated_function(*args, **kwargs):
         if current_user.is_authenticated:
             if not current_user.cibi_preferiti or not current_user.intolleranze or not current_user.bio or not current_user.raggio_azione:
-                flash("Devi completare il tuo identikit alimentare e la tua bio prima di esplorare l'app.", "warning")
+                flash("Ciao! Completa il tuo identikit alimentare e la tua bio: sono obbligatori per poter esplorare le offerte e partecipare ai pasti. 🍽️", "warning")
                 return redirect(url_for('profile_page'))
         return f(*args, **kwargs)
     return decorated_function
@@ -348,7 +348,7 @@ def api_register():
             latitudine=float(lat),
             longitudine=float(lon),
             citta=citta,
-            verificato=True,  # MODIFICATO PER FASE DI TEST: Auto-approvazione utente
+            verificato=False,
             verification_token=token_verifica
         )
         user.set_password(password)
@@ -467,7 +467,7 @@ def api_get_offers():
             "indirizzo": o.indirizzo,
             "lat": o.latitudine,
             "lon": o.longitudine,
-            "distance_km": round(float(dist), 1),
+            "distance_km": round(dist, 1),
             "posti_totali": o.posti_totali,
             "posti_disponibili": o.posti_disponibili,
             "data_ora": o.data_ora.isoformat(),
@@ -824,34 +824,88 @@ def api_user_me():
 @app.route("/api/user/update", methods=["POST"])
 @login_required
 def api_user_update():
-    """Aggiorna le preferenze alimentari e profilo dell'utente."""
-    data = request.get_json() if request.is_json else request.form
-    pref = data.get("cibi_preferiti", "").strip()
-    intoll = data.get("intolleranze", "").strip()
-    bio = data.get("bio", "").strip()
-    raggio = data.get("raggio_azione", "10").strip()
+    """Aggiorna i dati anagrafici, alimentari e la foto profilo dell'utente."""
+    # Gestisce sia JSON che Form Data (necessario per upload foto)
+    if request.is_json:
+        data = request.get_json()
+    else:
+        data = request.form
 
-    if not pref or len(pref) < 3:
-        return jsonify({"success": False, "errors": ["Quali sono i tuoi cibi preferiti? Scrivi qualcosa in più."]}), 400
-    if not intoll:
-        return jsonify({"success": False, "errors": ["Inserisci le tue intolleranze o allergie. Se non ne hai, scrivi 'Nessuna'."]}), 400
-    if not bio or len(bio) < 5:
-        return jsonify({"success": False, "errors": ["Raccontaci qualcosa di te nella Bio."]}), 400
+    # 1. Dati Anagrafici (Opzionali per l'update, ma validati se presenti)
+    nome = data.get("nome", current_user.nome).strip()
+    email = data.get("email", current_user.email).strip().lower()
+    fascia_eta = data.get("fascia_eta", current_user.fascia_eta)
+    lat = data.get("latitudine")
+    lon = data.get("longitudine")
+    citta = data.get("citta", current_user.citta)
 
-    try:
-        raggio_int = int(raggio)
-        if raggio_int <= 0:
-            raise ValueError()
-    except Exception:
-        return jsonify({"success": False, "errors": ["Raggio d'azione non valido."]}), 400
+    # 2. Identikit Alimentare
+    pref = data.get("cibi_preferiti", current_user.cibi_preferiti or "").strip()
+    intoll = data.get("intolleranze", current_user.intolleranze or "").strip()
+    bio = data.get("bio", current_user.bio or "").strip()
+    raggio = data.get("raggio_azione", str(current_user.raggio_azione or "10")).strip()
 
+    errors = []
+    if not nome:
+        errors.append("Il nome non può essere vuoto.")
+    if not email or "@" not in email:
+        errors.append("Inserisci un'email valida.")
+    if email != current_user.email and User.query.filter_by(email=email).first():
+        errors.append("Questa email è già associata a un altro account.")
+    
+    if len(pref) > 0 and len(pref) < 3:
+        errors.append("Quali sono i tuoi cibi preferiti? Scrivi qualcosa in più.")
+    if len(bio) > 0 and len(bio) < 5:
+        errors.append("Raccontaci qualcosa di più nella tua Bio.")
+
+    # 3. Gestione Foto Profilo (Opzionale nell'update)
+    foto = request.files.get("foto")
+    if foto and foto.filename:
+        if not allowed_file(foto.filename):
+            errors.append("Formato foto non valido. Usa JPG, PNG o WEBP.")
+        else:
+            foto_ext = foto.filename.rsplit(".", 1)[1].lower() if "." in foto.filename else "jpg"
+            unique_id = str(uuid.uuid4().hex)[:8]
+            temp_filename = f"user_{current_user.id}_{unique_id}.{foto_ext}"
+            foto_filename = process_image(foto, temp_filename)
+            foto_path = os.path.join(app.config["UPLOAD_FOLDER"], foto_filename)
+
+            # Verifica volto (opzionale per l'update per non essere troppo bloccanti, ma sicura)
+            verifica = verifica_volto(foto_path)
+            if not verifica["valida"]:
+                if os.path.exists(foto_path):
+                    os.remove(foto_path)
+                errors.append(f"Foto non valida: {verifica['errore']}")
+            else:
+                # Se la verifica passa, aggiorniamo il filename
+                current_user.foto_filename = foto_filename
+
+    if errors:
+        return jsonify({"success": False, "errors": errors}), 400
+
+    # 4. Salvataggio modifiche
+    current_user.nome = nome
+    current_user.email = email
+    current_user.fascia_eta = fascia_eta
+    if lat and lon:
+        try:
+            current_user.latitudine = float(lat)
+            current_user.longitudine = float(lon)
+            current_user.citta = citta
+        except ValueError:
+            pass
+            
     current_user.cibi_preferiti = pref
     current_user.intolleranze = intoll
     current_user.bio = bio
-    current_user.raggio_azione = raggio_int
-    db.session.commit()
+    
+    try:
+        current_user.raggio_azione = int(raggio)
+    except (ValueError, TypeError):
+        pass
 
-    return jsonify({"success": True, "message": "Profilo e Identikit aggiornati!"})
+    db.session.commit()
+    return jsonify({"success": True, "message": "Profilo aggiornato con successo!"})
 
 
 # ===================================================================

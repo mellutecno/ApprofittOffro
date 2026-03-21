@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registrati - ApprofittOffro</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=5">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#FF7043">
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/static/sw.js');
+        });
+      }
+    </script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
@@ -12,16 +21,17 @@
     <nav class="navbar">
         <a href="/" class="navbar-brand">
             <div class="logo-icon">🍽️</div>
-            ApprofittOffro
+            <span>ApprofittOffro</span>
         </a>
+        <div class="nav-links">
+            <a href="/" class="btn btn-ghost btn-sm">Accedi</a>
+        </div>
     </nav>
 
-    <main class="main-content container auth-container">
-        <div class="glass-card" style="width: 100%; max-width: 800px; padding: 48px;">
-            <center>
-                <h2>Crea il tuo Account</h2>
-                <p class="text-muted mb-3">Unisciti alla nostra community del cibo condiviso.</p>
-            </center>
+    <main class="main-content container" style="max-width: 900px;">
+        <div class="glass-card" style="padding: 40px; text-align: center;">
+            <h2 style="margin-bottom: 8px;">Unisciti alla Community 🍲</h2>
+            <p style="color: var(--text-muted); margin-bottom: 40px;">Crea il tuo account per iniziare a condividere cibo e sorrisi.</p>
 
             <div id="register-alerts"></div>
 
@@ -29,13 +39,16 @@
                 <div class="register-layout">
                     <!-- Colonna 1: Dati base -->
                     <div>
-                        <div class="form-group">
-                            <label>Foto Profilo (Deve mostrare il viso)</label>
-                            <div class="photo-upload" id="photo-upload-btn">
-                                <span class="placeholder" id="photo-placeholder">Clicca o trascina<br>la tua foto</span>
-                                <img id="photo-preview" class="hidden" alt="Anteprima">
-                                <input type="file" id="foto" name="foto" accept="image/*" required>
+                        <div class="form-group" style="text-align: center;">
+                            <label>La Tua Foto Profilo</label>
+                            <div class="photo-upload" id="photo-upload-btn" style="margin: 12px auto;">
+                                <img id="photo-preview" class="hidden" alt="Anteprima" style="width: 100%; height: 100%; object-fit: cover;">
+                                <div id="photo-placeholder" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; padding: 10px;">
+                                    Tocca per caricare
+                                </div>
+                                <input type="file" id="foto" name="foto" accept="image/*" required style="position: absolute; inset: 0; opacity: 0; cursor: pointer;">
                             </div>
+                            <p style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">(Assicurati che si veda bene il viso)</p>
                         </div>
 
                         <div class="form-group">
@@ -93,10 +106,10 @@
                     </div>
                 </div>
 
-                <hr style="border: none; border-top: 1px solid var(--border); margin: 32px 0;">
-                
-                <button type="submit" class="btn btn-primary btn-block btn-lg">Registra Account</button>
-                <p class="text-center mt-2">Hai già un account? <a href="/#login-section">Accedi</a></p>
+                <div style="margin-top: 40px;">
+                    <button type="submit" class="btn btn-accent btn-block btn-lg" style="height: 56px; font-size: 1.1rem;">REGISTRA IL MIO ACCOUNT</button>
+                    <p style="margin-top: 20px; color: var(--text-muted); font-weight: 600;">Hai già un account? <a href="/#login-section" style="color: var(--primary);">Accedi qui</a></p>
+                </div>
             </form>
         </div>
     </main>

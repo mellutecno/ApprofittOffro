@@ -6,25 +6,35 @@
     <meta name="description" content="Crea una nuova offerta di pasto su ApprofittOffro.">
     <title>Offri un Pasto — ApprofittOffro</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#FF7043">
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/static/sw.js');
+        });
+      }
+    </script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
     <!-- Navbar -->
     <nav class="navbar">
         <a href="/dashboard" class="navbar-brand">
-            <span class="logo-icon">🍽️</span>
-            ApprofittOffro
+            <div class="logo-icon">🍽️</div>
+            <span>ApprofittOffro</span>
         </a>
-        <ul class="navbar-nav">
-            <li><a href="/dashboard">← Dashboard</a></li>
-        </ul>
+        <div class="nav-links">
+            <a href="/dashboard" class="btn btn-outline btn-sm">Mappa</a>
+            <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
+            <a href="/logout" class="btn btn-ghost btn-sm" style="color:var(--text-muted)">Esci</a>
+        </div>
     </nav>
 
-    <!-- Create Offer Form -->
-    <div class="auth-container main-content">
-        <div class="glass-card auth-card" style="max-width: 600px;">
-            <h2>Offri un Pasto 🎉</h2>
-            <p class="subtitle">Scegli il tipo, il posto e quante persone vuoi invitare.</p>
+    <div class="container main-content" style="max-width: 650px;">
+        <div class="glass-card" style="text-align: center; padding: 40px;">
+            <h2 id="page-title" style="margin-bottom: 8px;">Offri un Pasto 🎉</h2>
+            <p style="color: var(--text-muted); margin-bottom: 32px;">Condividi la tua tavola con la community.</p>
 
             <div id="offer-errors"></div>
 
@@ -54,14 +64,14 @@
 
                 <!-- Mappa per posizione locale -->
                 <div class="form-group">
-                    <label>Posizione del locale (clicca sulla mappa)</label>
-                    <div class="map-container map-small">
-                        <div id="offer-map"></div>
+                    <label>📍 Dove si trova il locale?</label>
+                    <div style="border-radius: var(--radius-md); overflow: hidden; border: 2px solid var(--border); height: 280px; margin-bottom: 12px; position: relative;">
+                        <div id="offer-map" style="height: 100%;"></div>
                     </div>
                     <input type="hidden" id="offer-lat" name="latitudine">
                     <input type="hidden" id="offer-lon" name="longitudine">
-                    <p class="text-muted mt-1" id="offer-location-label" style="font-size: 0.85rem;">
-                        📍 <b>Trascina la mappa</b> per posizionare il pin sul locale.
+                    <p class="text-muted" id="offer-location-label" style="font-size: 0.85rem; font-weight: 700; color: var(--primary); text-align: right;">
+                        📍 Trascina per posizionare il pin
                     </p>
                 </div>
 
@@ -84,33 +94,30 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Foto del Locale / Cibo <span style="font-weight:normal; font-size:0.8rem; color:var(--text-muted);">(Opzionale)</span></label>
+                    <label>Foto del Locale <span style="font-weight:normal; font-size:0.8rem; color:var(--text-muted);">(Opzionale)</span></label>
                     
-                    <!-- Trigger nascosti per aprire camera o galleria (questi conservano il file!) -->
                     <input type="file" id="trigger_camera" accept="image/*" capture="environment" style="display:none;" onchange="handleFotoSelect(this)">
                     <input type="file" id="trigger_galleria" accept="image/*" style="display:none;" onchange="handleFotoSelect(this)">
                     
-                    <!-- Pulsanti visibili -->
-                    <div style="display:flex; gap:10px; margin-top:6px;">
-                        <button type="button" onclick="document.getElementById('trigger_camera').click()" class="btn btn-outline" style="flex:1;">
-                            📷 Scatta Foto
+                    <div style="display:flex; gap:12px; margin-top:12px;">
+                        <button type="button" onclick="document.getElementById('trigger_camera').click()" class="btn btn-outline" style="flex:1; font-weight: 700;">
+                            📷 Scatta
                         </button>
-                        <button type="button" onclick="document.getElementById('trigger_galleria').click()" class="btn btn-outline" style="flex:1;">
-                            🖼️ Scegli Galleria
+                        <button type="button" onclick="document.getElementById('trigger_galleria').click()" class="btn btn-outline" style="flex:1; font-weight: 700;">
+                            🖼️ Galleria
                         </button>
                     </div>
                     
-                    <!-- Anteprima foto selezionata -->
-                    <div id="foto-preview" style="margin-top:10px; display:none; text-align:center;">
-                        <img id="foto-preview-img" style="max-height:160px; border-radius:12px; object-fit:cover; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
-                        <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;" id="foto-preview-name"></div>
+                    <div id="foto-preview" style="margin-top:20px; display:none; text-align:center;">
+                        <img id="foto-preview-img" style="max-width:100%; height: 200px; border-radius:var(--radius-md); object-fit:cover; box-shadow: var(--shadow-md);">
+                        <div style="font-size:0.85rem; color:var(--primary); margin-top:8px; font-weight: 800;" id="foto-preview-name"></div>
                     </div>
                 </div>
 
-
-                <button type="submit" class="btn btn-primary btn-block btn-lg" id="offer-btn">
-                    🎉 Pubblica Offerta
+                <button type="submit" class="btn btn-accent btn-block btn-lg" id="offer-btn" style="margin-top: 40px;">
+                    PUBBLICA OFFERTA
                 </button>
+                <a href="/dashboard" class="btn btn-ghost btn-block mt-2">Annulla</a>
             </form>
         </div>
     </div>

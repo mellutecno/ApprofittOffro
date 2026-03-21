@@ -3,46 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profilo di {{ user.nome }} - ApprofittOffro</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <title>Profilo di {{ user.nome }} — ApprofittOffro</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#FF7043">
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/static/sw.js');
+        });
+      }
+    </script>
 </head>
 <body>
     <nav class="navbar">
         <a href="/dashboard" class="navbar-brand">
-            <span class="logo-icon">🍽️</span>
-            ApprofittOffro
+            <div class="logo-icon">🍽️</div>
+            <span>ApprofittOffro</span>
         </a>
         <div class="nav-links">
-            <ul style="display:flex; list-style:none; gap:16px;">
-                <li><a href="/dashboard" class="btn btn-outline btn-sm">Torna alla Mappa</a></li>
-            </ul>
+            <a href="/dashboard" class="btn btn-outline btn-sm">Mappa</a>
+            {% if user.id == current_user.id %}
+            <a href="/profile" class="btn btn-accent btn-sm">Il Mio Profilo</a>
+            {% endif %}
         </div>
     </nav>
 
-    <main class="container" style="padding-top: 140px; max-width: 680px; padding-bottom: 60px;">
-        
-        <div style="display: flex; align-items: center; gap: 24px; margin-bottom: 32px;">
-            <img src="{{ url_for('uploaded_file', filename=user.foto_filename) }}" alt="Foto di {{ user.nome }}" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; box-shadow: var(--shadow-md);">
-            <div>
-                <h1 style="font-size: 2.2rem; font-family: 'Outfit', sans-serif; font-weight: 700; margin-bottom: 4px; color: var(--text-main);">{{ user.nome }}</h1>
-                <p class="text-muted" style="font-size: 1.1rem;">{{ user.fascia_eta }} anni • {{ user.citta.split(',')[0] if user.citta else 'Luogo segreto' }}</p>
-                {% if user.verificato %}
-                <span class="badge" style="background:#D1FAE5; color:#065F46; border:1px solid #10B981; padding: 4px 12px; border-radius:12px; font-size:0.8rem; margin-top:8px; display:inline-block;">✓ Verificato</span>
-                {% endif %}
+    <main class="container main-content" style="max-width: 700px;">
+        <div class="glass-card" style="padding: 40px;">
+            <div style="display: flex; align-items: center; gap: 32px; flex-wrap: wrap;">
+                <img src="{{ url_for('uploaded_file', filename=user.foto_filename) }}" alt="Foto di {{ user.nome }}" style="width: 140px; height: 140px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: var(--shadow-md);">
+                <div style="flex: 1; min-width: 250px;">
+                    <h1 style="margin-bottom: 4px;">{{ user.nome }}</h1>
+                    <p style="color: var(--text-muted); font-size: 1.1rem; font-weight: 600;">{{ user.fascia_eta }} anni • {{ user.citta.split(',')[0] if user.citta else 'Luogo segreto' }}</p>
+                    {% if user.verificato %}
+                    <span style="background: var(--success); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; display: inline-block; margin-top: 12px; letter-spacing: 0.5px;">✓ VERIFICATO</span>
+                    {% endif %}
+                </div>
             </div>
-        </div>
 
-        <hr style="border: none; border-top: 1px solid var(--border); margin: 32px 0;">
+            <hr style="margin: 40px 0; border: none; border-top: 2px solid var(--border-light);">
 
-        {% if user.bio %}
-        <div style="margin-bottom: 32px;">
-            <h3 style="font-size: 1.3rem; font-family: 'Outfit', sans-serif; font-weight: 700; margin-bottom: 12px; color: var(--text-main);">Su di me</h3>
-            <p style="font-size: 1.05rem; line-height: 1.6; color: var(--text-muted);">{{ user.bio }}</p>
-        </div>
-        
-        <hr style="border: none; border-top: 1px solid var(--border); margin: 32px 0;">
-        {% endif %}
+            {% if user.bio %}
+            <div style="margin-bottom: 40px;">
+                <h3 style="margin-bottom: 12px; color: var(--primary);">Su di me</h3>
+                <p style="font-size: 1.1rem; line-height: 1.7; color: var(--text-muted);">{{ user.bio }}</p>
+            </div>
+            {% endif %}
 
         <div style="display: flex; flex-direction: column; gap: 24px; margin-bottom: 32px;">
             {% if user.cibi_preferiti %}

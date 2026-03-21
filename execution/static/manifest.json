@@ -1,0 +1,21 @@
+{
+  "name": "ApprofittOffro",
+  "short_name": "ApprofittOffro",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#F9F7F2",
+  "theme_color": "#FF7043",
+  "description": "Condividi il cibo, unisci il quartiere.",
+  "icons": [
+    {
+      "src": "/static/img/icon-512.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/img/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
