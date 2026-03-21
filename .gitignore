@@ -32,6 +32,15 @@ build/
 *.swo
 *~
 
+# Database
+approfittoffro.db
+approfittoffro_copy.db
+*.db
+
+# Uploads
+uploads/
+!uploads/.gitkeep
+
 # OS
 Thumbs.db
 Desktop.ini

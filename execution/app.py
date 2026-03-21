@@ -87,6 +87,42 @@ def send_async_email(app, msg):
         except Exception as e:
             print(f"[MAIL_ERRORE] Impossibile inviare a: {msg.recipients[0]}: {e}")
 
+def send_email(subject, recipients, template, **kwargs):
+    """Renderizza e invia un'email in background."""
+    try:
+        html_body = render_template(f"emails/{template}", **kwargs)
+        msg = Message(subject, recipients=recipients)
+        msg.html = html_body
+        Thread(target=send_async_email, args=(app, msg)).start()
+    except Exception as e:
+        print(f"[MAIL_ERROR] Errore preparazione email {template}: {e}")
+
+def process_image(file_storage, filename, size=(800, 800)):
+    """Salva, ruota (EXIF) e ridimensiona un'immagine."""
+    path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    file_storage.save(path)
+    try:
+        from PIL import ImageOps
+        img = Image.open(path)
+        img = ImageOps.exif_transpose(img)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        img.thumbnail(size, Image.LANCZOS)
+        # Se vogliamo forzare JPG per risparmiare spazio
+        if not filename.lower().endswith(".jpg"):
+            new_filename = filename.rsplit(".", 1)[0] + ".jpg"
+            new_path = os.path.join(app.config["UPLOAD_FOLDER"], new_filename)
+            img.save(new_path, "JPEG", quality=85)
+            if path != new_path:
+                os.remove(path)
+            return new_filename
+        else:
+            img.save(path, quality=85)
+            return filename
+    except Exception as e:
+        print(f"[IMAGE_ERROR] Errore processamento {filename}: {e}")
+        return filename
+
 # ---------------------------------------------------------------------------
 # Inizializzazione
 # ---------------------------------------------------------------------------
@@ -286,27 +322,17 @@ def api_register():
         if errors:
             return jsonify({"success": False, "errors": errors}), 400
 
-        # Salva la foto temporaneamente per la verifica
+        # Salva e processa la foto
         foto_ext = foto.filename.rsplit(".", 1)[1].lower() if "." in foto.filename else "jpg"
-        foto_filename = f"{uuid.uuid4().hex}.{foto_ext}"
+        temp_filename = f"{uuid.uuid4().hex}.{foto_ext}"
+        foto_filename = process_image(foto, temp_filename)
         foto_path = os.path.join(app.config["UPLOAD_FOLDER"], foto_filename)
-        foto.save(foto_path)
-
-        # Ridimensiona la foto (max 800x800)
-        try:
-            img = Image.open(foto_path)
-            # Rimuove l'informazione EXIF che ruota le foto HEIF da cellulare
-            from PIL import ImageOps
-            img = ImageOps.exif_transpose(img)
-            img.thumbnail((800, 800), Image.LANCZOS)
-            img.save(foto_path)
-        except Exception:
-            pass
 
         # Verifica volto
         verifica = verifica_volto(foto_path)
         if not verifica["valida"]:
-            os.remove(foto_path)  # Elimina foto non valida
+            if os.path.exists(foto_path):
+                os.remove(foto_path)
             return jsonify({
                 "success": False,
                 "errors": [verifica["errore"]],
@@ -330,13 +356,15 @@ def api_register():
         db.session.add(user)
         db.session.commit()
 
-        # Invio VERA Email in background tramite Flask-Mail
+        # Invio VERA Email in background
         link_verifica = url_for('verify_email', token=token_verifica, _external=True)
-        html_body = render_template('emails/verification.html', user=user, link_verifica=link_verifica)
-        
-        msg = Message("Benvenuto su ApprofittOffro! Conferma la tua email 🍽️", recipients=[user.email])
-        msg.html = html_body
-        Thread(target=send_async_email, args=(app, msg)).start()
+        send_email(
+            "Benvenuto su ApprofittOffro! Conferma la tua email 🍽️",
+            [user.email],
+            "verification.html",
+            user=user,
+            link_verifica=link_verifica
+        )
 
         return jsonify({
             "success": True, 
@@ -480,31 +508,15 @@ def api_delete_offer(offer_id):
     if claims:
         data_evento = offer.data_ora.strftime('%d/%m/%Y alle %H:%M')
         for claim in claims:
-            try:
-                msg = Message(
-                    subject=f"⚠️ Evento Annullato: {offer.nome_locale}",
-                    recipients=[claim.utente.email],
-                    html=f"""
-                    <div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#fff1f2; padding:32px; border-radius:16px; border:1px solid #fecaca;">
-                        <h2 style="color:#e11d48;">❌ Evento Annullato</h2>
-                        <p>Ciao <b>{claim.utente.nome}</b>, spiacenti di informarti che l'organizzatore ha cancellato l'evento a cui avevi partecipato.</p>
-                        
-                        <div style="background:white; padding:20px; border-radius:12px; margin:16px 0; border-left:4px solid #e11d48;">
-                            <b>Evento:</b> {offer.nome_locale}<br>
-                            <b>Data:</b> {data_evento}<br>
-                            <b>Motivo dell'annullamento:</b><br>
-                            <i style="color:#6b7280;">"{motivazione}"</i>
-                        </div>
-                        
-                        <p style="font-size:0.9rem; color:#4b5563;">Ci scusiamo per il disagio. Puoi tornare sulla dashboard per cercare nuove offerte!</p>
-                        <p style="color:#9ca3af; font-size:0.8rem; margin-top:24px;">— Il Team di ApprofittOffro</p>
-                    </div>
-                    """
-                )
-                # Invio asincrono
-                Thread(target=send_async_email, args=(app, msg)).start()
-            except Exception as e:
-                print(f"[MAIL_ERROR] Errore invio annullamento a {claim.utente.email}: {e}")
+            send_email(
+                f"⚠️ Evento Annullato: {offer.nome_locale}",
+                [claim.utente.email],
+                "cancellation.html",
+                user=claim.utente,
+                offer=offer,
+                data_evento=data_evento,
+                motivazione=motivazione
+            )
 
     # Eliminazione effettiva
     Claim.query.filter_by(offer_id=offer.id).delete()
@@ -572,19 +584,8 @@ def api_edit_offer(offer_id):
 
     if foto_locale and foto_locale.filename:
         ext = foto_locale.filename.rsplit(".", 1)[1].lower()
-        filename = secure_filename(f"offer_{current_user.id}_{int(datetime.now().timestamp())}.{ext}")
-        foto_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-        foto_locale.save(foto_path)
-        try:
-            img = Image.open(foto_path)
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-            img.thumbnail((800, 800))
-            img.save(foto_path, "JPEG", quality=85)
-            filename = filename.rsplit(".", 1)[0] + ".jpg"
-            offer.foto_locale = filename
-        except Exception as e:
-            print("Errore compressione foto offerta:", e)
+        filename = f"offer_{current_user.id}_{int(datetime.now().timestamp())}.{ext}"
+        offer.foto_locale = process_image(foto_locale, filename)
 
     offer.tipo_pasto = tipo_pasto
     offer.nome_locale = nome_locale
@@ -648,22 +649,8 @@ def api_create_offer():
     filename = 'nessuna.jpg'
     if foto_locale and foto_locale.filename:
         ext = foto_locale.filename.rsplit(".", 1)[1].lower()
-        filename = secure_filename(f"offer_{current_user.id}_{int(datetime.now().timestamp())}.{ext}")
-        foto_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-        foto_locale.save(foto_path)
-
-        # Elaborazione Immagine (Compressione + Fix Rotazione EXIF da mobile)
-        try:
-            from PIL import ImageOps
-            img = Image.open(foto_path)
-            img = ImageOps.exif_transpose(img)  # Corregge la rotazione EXIF (foto da mobile)
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-            img.thumbnail((800, 800))
-            img.save(foto_path, "JPEG", quality=85)
-            filename = filename.rsplit(".", 1)[0] + ".jpg"
-        except Exception as e:
-            print("Errore compressione foto offerta:", e)
+        temp_filename = f"offer_{current_user.id}_{int(datetime.now().timestamp())}.{ext}"
+        filename = process_image(foto_locale, temp_filename)
 
     offer = Offer(
         user_id=current_user.id,
@@ -715,56 +702,28 @@ def api_claim_offer(offer_id):
     db.session.add(claim)
     db.session.commit()
 
-    # ---- Invio Email di Notifica (Asincrono) ----
+    # ---- Invio Email di Notifica ----
     data_formattata = offer.data_ora.strftime('%d/%m/%Y alle %H:%M')
     
     # Email al partecipante (claimer)
-    try:
-        msg_claimer = Message(
-            subject=f"🎉 Sei dentro! Hai approfittato di '{offer.nome_locale}'",
-            recipients=[current_user.email],
-            html=f"""
-            <div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#f9fafb; padding:32px; border-radius:16px;">
-                <h2 style="color:#ef4444;">🍽️ ApprofittOffro</h2>
-                <h3>Ottimo, {current_user.nome}! Sei confermato/a!</h3>
-                <p>Hai prenotato il tuo posto per:</p>
-                <div style="background:white; padding:20px; border-radius:12px; border-left:4px solid #ef4444; margin:16px 0;">
-                    <b style="font-size:1.2rem;">{offer.nome_locale}</b><br>
-                    📍 {offer.indirizzo}<br>
-                    📅 {data_formattata}<br>
-                    {'☕' if offer.tipo_pasto == 'colazione' else '🌙' if offer.tipo_pasto == 'cena' else '🍝'} {offer.tipo_pasto.capitalize()}
-                </div>
-                <p>Ricordati di presentarti puntuale! In caso di imprevisti, contatta l'organizzatore direttamente tramite la piattaforma.</p>
-                <p style="color:#6b7280; font-size:0.85rem;">— Il Team di ApprofittOffro</p>
-            </div>
-            """
-        )
-        Thread(target=send_async_email, args=(app, msg_claimer)).start()
-    except Exception as e:
-        print(f"[MAIL_CLAIM_CLAIMER] Errore invio email: {e}")
+    send_email(
+        f"🎉 Sei dentro! Hai approfittato di '{offer.nome_locale}'",
+        [current_user.email],
+        "claim_confirmed.html",
+        user=current_user,
+        offer=offer,
+        data_evento=data_formattata
+    )
 
     # Email all'autore dell'offerta
-    try:
-        msg_autore = Message(
-            subject=f"🔔 Nuova partecipazione a '{offer.nome_locale}'!",
-            recipients=[offer.autore.email],
-            html=f"""
-            <div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#f9fafb; padding:32px; border-radius:16px;">
-                <h2 style="color:#ef4444;">🍽️ ApprofittOffro</h2>
-                <h3>Ciao {offer.autore.nome}, hai un nuovo partecipante!</h3>
-                <p><b>{current_user.nome}</b> si è appena prenotato/a per la tua offerta:</p>
-                <div style="background:white; padding:20px; border-radius:12px; border-left:4px solid #10b981; margin:16px 0;">
-                    <b style="font-size:1.2rem;">{offer.nome_locale}</b><br>
-                    📅 {data_formattata}<br>
-                    👥 Posti rimanenti: <b>{offer.posti_disponibili}</b>
-                </div>
-                <p style="color:#6b7280; font-size:0.85rem;">— Il Team di ApprofittOffro</p>
-            </div>
-            """
-        )
-        Thread(target=send_async_email, args=(app, msg_autore)).start()
-    except Exception as e:
-        print(f"[MAIL_CLAIM_AUTORE] Errore invio email: {e}")
+    send_email(
+        f"🔔 Nuova partecipazione a '{offer.nome_locale}'!",
+        [offer.autore.email],
+        "claim_notification.html",
+        user=current_user,
+        offer=offer,
+        data_evento=data_formattata
+    )
 
     return jsonify({
         "success": True,
@@ -795,46 +754,24 @@ def api_unclaim(claim_id):
     db.session.commit()
 
     # Email all'autore dell'offerta
-    try:
-        msg = Message(
-            subject=f"⚠️ Disdetta partecipazione a '{offer.nome_locale}'",
-            recipients=[offer.autore.email],
-            html=f"""
-            <div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#f9fafb; padding:32px; border-radius:16px;">
-                <h2 style="color:#ef4444;">🍽️ ApprofittOffro</h2>
-                <h3>Ciao {offer.autore.nome}, una disdetta!</h3>
-                <p><b>{current_user.nome}</b> ha annullato la sua partecipazione al tuo evento:</p>
-                <div style="background:white; padding:20px; border-radius:12px; border-left:4px solid #f59e0b; margin:16px 0;">
-                    <b style="font-size:1.2rem;">{offer.nome_locale}</b><br>
-                    📅 {data_formattata}<br>
-                    👥 Posti ora disponibili: <b>{offer.posti_disponibili}/{offer.posti_totali}</b>
-                </div>
-                <p>Il posto è stato liberato automaticamente: altri utenti potranno ora prenotarsi.</p>
-                <p style="color:#6b7280; font-size:0.85rem;">— Il Team di ApprofittOffro</p>
-            </div>
-            """
-        )
-        Thread(target=send_async_email, args=(app, msg)).start()
-    except Exception as e:
-        print(f"[MAIL_UNCLAIM] Errore: {e}")
+    send_email(
+        f"⚠️ Disdetta partecipazione a '{offer.nome_locale}'",
+        [offer.autore.email],
+        "unclaim_notification.html",
+        user=current_user,
+        offer=offer,
+        data_evento=data_formattata
+    )
 
     # Email di conferma al partecipante che ha disdetto
-    try:
-        msg_user = Message(
-            subject=f"✅ Partecipazione annullata: '{offer.nome_locale}'",
-            recipients=[current_user.email],
-            html=f"""
-            <div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#f9fafb; padding:32px; border-radius:16px;">
-                <h2 style="color:#ef4444;">🍽️ ApprofittOffro</h2>
-                <h3>Partecipazione annullata, {current_user.nome}.</h3>
-                <p>La tua partecipazione a <b>{offer.nome_locale}</b> ({data_formattata}) è stata annullata con successo.</p>
-                <p style="color:#6b7280; font-size:0.85rem;">— Il Team di ApprofittOffro</p>
-            </div>
-            """
-        )
-        Thread(target=send_async_email, args=(app, msg_user)).start()
-    except Exception as e:
-        print(f"[MAIL_UNCLAIM_USER] Errore: {e}")
+    send_email(
+        f"✅ Partecipazione annullata: '{offer.nome_locale}'",
+        [current_user.email],
+        "unclaim_confirmation.html",
+        user=current_user,
+        offer=offer,
+        data_evento=data_formattata
+    )
 
     return jsonify({"success": True, "message": "Partecipazione annullata con successo."})
 
