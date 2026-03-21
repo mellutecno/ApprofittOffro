@@ -135,7 +135,10 @@
                 loadOffers();
             });
 
-            // Se il GPS funziona (in HTTPS), centra la mappa al primo caricamento automatico
+            // Caricamento Immediato delle offerte per prevenire freeze del browser (su HTTP)
+            loadOffers();
+
+            // Se il GPS funziona (in HTTPS), centra la mappa in background e riaggiorna
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(pos => {
                     searchLat = pos.coords.latitude;
@@ -143,10 +146,10 @@
                     map.setView([searchLat, searchLon], 14);
                     searchMarker.setLatLng([searchLat, searchLon]);
                     updateRadar();
-                    loadOffers();
-                }, () => { loadOffers(); });
-            } else {
-                loadOffers();
+                    loadOffers(); // ricarica con le coordinate precise
+                }, () => { 
+                    /* fallback silenzioso */ 
+                }, { timeout: 5000 });
             }
         }
 
