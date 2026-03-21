@@ -445,6 +445,109 @@ def api_get_offers():
     return jsonify({"success": True, "offers": result})
 
 
+@app.route("/api/offers/<int:offer_id>", methods=["DELETE"])
+@login_required
+def api_delete_offer(offer_id):
+    """Elimina definitivamente un'offerta se se ne è l'autore."""
+    offer = Offer.query.get_or_404(offer_id)
+    if offer.user_id != current_user.id:
+        return jsonify({"success": False, "error": "Non autorizzato."}), 403
+    
+    Claim.query.filter_by(offer_id=offer.id).delete()
+    db.session.delete(offer)
+    db.session.commit()
+    return jsonify({"success": True})
+
+
+@app.route("/edit-offer/<int:offer_id>")
+@login_required
+@profile_completed_required
+def edit_offer_page(offer_id):
+    """Schermata per la modifica di un'offerta esistente."""
+    offer = Offer.query.get_or_404(offer_id)
+    if offer.user_id != current_user.id:
+        flash("Non puoi modificare le offerte altrui.", "error")
+        return redirect(url_for("dashboard"))
+    return render_template("create_offer.html", offer=offer)
+
+
+@app.route("/api/offers/<int:offer_id>", methods=["PUT"])
+@login_required
+def api_edit_offer(offer_id):
+    """Applica le modifiche a un'offerta pre-esistente."""
+    offer = Offer.query.get_or_404(offer_id)
+    if offer.user_id != current_user.id:
+        return jsonify({"success": False, "errors": ["Non autorizzato."]}), 403
+
+    tipo_pasto = request.form.get("tipo_pasto", "")
+    nome_locale = request.form.get("nome_locale", "").strip()
+    indirizzo = request.form.get("indirizzo", "").strip()
+    lat = request.form.get("latitudine")
+    lon = request.form.get("longitudine")
+    posti = request.form.get("posti_totali")
+    data_ora_str = request.form.get("data_ora", "")
+    descrizione = request.form.get("descrizione", "").strip()
+    foto_locale = request.files.get("foto_locale")
+
+    errors = []
+    if tipo_pasto not in [t[0] for t in TIPI_PASTO]:
+        errors.append("Seleziona un tipo di pasto valido.")
+    if not nome_locale:
+        errors.append("Il nome del locale è obbligatorio.")
+    if not indirizzo:
+        errors.append("L'indirizzo è obbligatorio.")
+    if not lat or not lon:
+        errors.append("Seleziona la posizione del locale sulla mappa.")
+    if not posti or int(posti) < 1:
+        errors.append("Indica almeno 1 posto disponibile.")
+    if not data_ora_str:
+        errors.append("Seleziona data e ora.")
+
+    if foto_locale and foto_locale.filename:
+        if not allowed_file(foto_locale.filename):
+            errors.append("Formato foto non valido (usa JPG, PNG o WEBP).")
+
+    if errors:
+        return jsonify({"success": False, "errors": errors}), 400
+
+    try:
+        data_ora = datetime.fromisoformat(data_ora_str)
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "errors": ["Formato data non valido."]}), 400
+
+    if foto_locale and foto_locale.filename:
+        ext = foto_locale.filename.rsplit(".", 1)[1].lower()
+        filename = secure_filename(f"offer_{current_user.id}_{int(datetime.now().timestamp())}.{ext}")
+        foto_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        foto_locale.save(foto_path)
+        try:
+            img = Image.open(foto_path)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            img.thumbnail((800, 800))
+            img.save(foto_path, "JPEG", quality=85)
+            filename = filename.rsplit(".", 1)[0] + ".jpg"
+            offer.foto_locale = filename
+        except Exception as e:
+            print("Errore compressione foto offerta:", e)
+
+    offer.tipo_pasto = tipo_pasto
+    offer.nome_locale = nome_locale
+    offer.indirizzo = indirizzo
+    offer.latitudine = float(lat)
+    offer.longitudine = float(lon)
+    
+    diff_posti = int(posti) - offer.posti_totali
+    offer.posti_totali = int(posti)
+    offer.posti_disponibili = max(0, offer.posti_disponibili + diff_posti)
+    
+    offer.data_ora = data_ora
+    offer.descrizione = descrizione
+
+    db.session.commit()
+    return jsonify({"success": True, "message": "Offerta aggiornata con successo!", "offer_id": offer.id})
+
+
 @app.route("/api/offers", methods=["POST"])
 @login_required
 def api_create_offer():

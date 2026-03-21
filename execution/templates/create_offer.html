@@ -101,6 +101,29 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="/static/js/app.js"></script>
     <script>
+        // Auto-fill in caso di Modifica (Edit Mode)
+        {% if offer %}
+        const offerEditId = {{ offer.id }};
+        let offerEditLat = {{ offer.latitudine }};
+        let offerEditLon = {{ offer.longitudine }};
+        document.addEventListener("DOMContentLoaded", () => {
+            const h2 = document.querySelector('h2');
+            if(h2) h2.innerText = "Modifica l'Offerta";
+            document.getElementById('tipo_pasto').value = "{{ offer.tipo_pasto }}";
+            document.getElementById('nome_locale').value = {{ offer.nome_locale|tojson }};
+            document.getElementById('indirizzo').value = {{ offer.indirizzo|tojson }};
+            document.getElementById('posti_totali').value = "{{ offer.posti_totali }}";
+            document.getElementById('data_ora').value = "{{ offer.data_ora.strftime('%Y-%m-%dT%H:%M') }}";
+            document.getElementById('descrizione').value = {{ offer.descrizione|tojson if offer.descrizione else '""' }};
+            document.getElementById('foto_locale').required = false;
+            
+            const label = document.querySelector('label[for="foto_locale"]');
+            if (label) label.innerHTML = 'Aggiorna foto del Locale <span style="font-weight:normal; font-size:0.8rem; color:var(--text-muted);">(Opzionale)</span>';
+            
+            document.getElementById('offer-btn').innerHTML = '💾 Salva Modifiche';
+        });
+        {% endif %}
+
         // ---- Mappa offerta ----
         let offerMap, offerMarker;
 
@@ -125,14 +148,18 @@
             let startLoc = [41.9028, 12.4964];
             let startZoom = 16;
             
-            // Centra sulla posizione dell'utente (se loggato e posizione presente nel DB)
-            try {
-                const userRes = await fetch('/api/user/me');
-                const userData = await userRes.json();
-                if (userData.success && userData.user.lat) {
-                    startLoc = [userData.user.lat, userData.user.lon];
-                }
-            } catch (err) { }
+            if (typeof offerEditLat !== 'undefined' && offerEditLat) {
+                startLoc = [offerEditLat, offerEditLon];
+            } else {
+                // Centra sulla posizione dell'utente
+                try {
+                    const userRes = await fetch('/api/user/me');
+                    const userData = await userRes.json();
+                    if (userData.success && userData.user.lat) {
+                        startLoc = [userData.user.lat, userData.user.lon];
+                    }
+                } catch (err) { }
+            }
 
             offerMap = L.map('offer-map').setView(startLoc, startZoom);
 
@@ -171,7 +198,8 @@
             errorsDiv.innerHTML = '';
 
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Pubblicazione...';
+            const originalBtnHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner"></span> Salvataggio...';
 
             const formData = new FormData();
             formData.append('tipo_pasto', document.getElementById('tipo_pasto').value);
@@ -189,26 +217,28 @@
             }
 
             try {
-                const res = await fetch('/api/offers', {
-                    method: 'POST',
-                    body: formData,
+                const isEdit = typeof offerEditId !== 'undefined' && offerEditId;
+                const url = isEdit ? `/api/offers/${offerEditId}` : '/api/offers';
+                const method = isEdit ? 'PUT' : 'POST';
+
+                const res = await fetch(url, {
+                    method: method,
+                    body: formData
                 });
-
+                
                 const data = await res.json();
-
+                
                 if (data.success) {
-                    showToast('Offerta pubblicata con successo!', 'success');
-                    setTimeout(() => window.location.href = '/dashboard', 1500);
+                    window.location.href = '/dashboard';
                 } else {
-                    errorsDiv.innerHTML = data.errors.map(e =>
-                        `<div class="alert alert-error">⚠️ ${e}</div>`
-                    ).join('');
+                    errorsDiv.innerHTML = `<div class="alert alert-error">${data.errors.join('<br>')}</div>`;
+                    btn.disabled = false;
+                    btn.innerHTML = originalBtnHtml;
                 }
             } catch (err) {
-                errorsDiv.innerHTML = '<div class="alert alert-error">⚠️ Errore di connessione.</div>';
-            } finally {
+                errorsDiv.innerHTML = `<div class="alert alert-error">Errore di connessione al server.</div>`;
                 btn.disabled = false;
-                btn.innerHTML = '🎉 Pubblica Offerta';
+                btn.innerHTML = originalBtnHtml;
             }
         });
 

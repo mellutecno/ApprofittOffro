@@ -256,7 +256,10 @@
                                 ${offer.posti_disponibili}/${offer.posti_totali} posti
                             </div>
                             ${offer.is_own ? 
-                                `<button class="btn btn-secondary btn-sm" disabled>Tua offerta</button>` : 
+                                `<div style="display:flex; gap:8px;">
+                                    <a href="/edit-offer/${offer.id}" class="btn btn-outline btn-sm">✏️ Modifica</a>
+                                    <button onclick="if(confirm('Sei sicura/o di voler eliminare questa offerta?')) deleteOffer(${offer.id})" class="btn btn-outline btn-sm" style="color:var(--error); border-color:var(--error);">🗑️ Elimina</button>
+                                </div>` : 
                                 (offer.already_claimed ? 
                                     `<button class="btn btn-success btn-sm" disabled style="background:var(--success);color:white">Prenotato ✓</button>` :
                                     `<button class="btn btn-primary btn-sm" onclick="claimOffer(${offer.id})">Approfitta!</button>`
@@ -278,6 +281,21 @@
                 document.getElementById('offers-panel').innerHTML = `
                     <div class="alert alert-error">⚠️ Si è verificato un errore nel caricamento delle offerte.</div>
                 `;
+            }
+        }
+
+        async function deleteOffer(id) {
+            try {
+                const res = await fetch(`/api/offers/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Offerta eliminata irreparabilmente.', 'success');
+                    loadOffers();
+                } else {
+                    showToast(data.error || 'Impossibile eliminare l\'offerta.', 'error');
+                }
+            } catch (err) {
+                showToast('Errore di connessione al server.', 'error');
             }
         }
 
