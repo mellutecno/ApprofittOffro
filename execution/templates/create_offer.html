@@ -86,10 +86,7 @@
                 <div class="form-group">
                     <label>Foto del Locale / Cibo <span style="font-weight:normal; font-size:0.8rem; color:var(--text-muted);">(Opzionale)</span></label>
                     
-                    <!-- Input REALE inviato al server (uno solo, senza display) -->
-                    <input type="file" id="foto_locale" name="foto_locale" accept="image/*" style="display:none;">
-                    
-                    <!-- Trigger nascosti per aprire camera o galleria -->
+                    <!-- Trigger nascosti per aprire camera o galleria (questi conservano il file!) -->
                     <input type="file" id="trigger_camera" accept="image/*" capture="environment" style="display:none;" onchange="handleFotoSelect(this)">
                     <input type="file" id="trigger_galleria" accept="image/*" style="display:none;" onchange="handleFotoSelect(this)">
                     
@@ -138,10 +135,10 @@
             document.getElementById('posti_totali').value = "{{ offer.posti_totali }}";
             document.getElementById('data_ora').value = "{{ offer.data_ora.strftime('%Y-%m-%dT%H:%M') }}";
             document.getElementById('descrizione').value = {{ offer.descrizione|tojson if offer.descrizione else '""' }};
-            document.getElementById('foto_locale').required = false;
-            
-            const label = document.querySelector('label[for="foto_locale"]');
-            if (label) label.innerHTML = 'Aggiorna foto del Locale <span style="font-weight:normal; font-size:0.8rem; color:var(--text-muted);">(Opzionale)</span>';
+            const label = document.querySelector('label');
+            if (label && label.innerText.includes('Foto del Locale')) {
+                label.innerHTML = 'Aggiorna foto del Locale <span style="font-weight:normal; font-size:0.8rem; color:var(--text-muted);">(Opzionale)</span>';
+            }
             
             document.getElementById('offer-btn').innerHTML = '💾 Salva Modifiche';
         });
@@ -170,11 +167,6 @@
         function handleFotoSelect(trigger) {
             if (!trigger.files || !trigger.files[0]) return;
             const file = trigger.files[0];
-
-            // Copia il file nell'input REALE che verrà inviato al server
-            const dt = new DataTransfer();
-            dt.items.add(file);
-            document.getElementById('foto_locale').files = dt.files;
 
             // Mostra anteprima
             const reader = new FileReader();
@@ -269,7 +261,14 @@
             formData.append('data_ora', document.getElementById('data_ora').value);
             formData.append('descrizione', document.getElementById('descrizione').value);
             
-            const fotoFile = document.getElementById('foto_locale').files[0];
+            // Recupera la foto (da fotocamera o galleria)
+            let fotoFile = null;
+            if (document.getElementById('trigger_camera').files.length > 0) {
+                fotoFile = document.getElementById('trigger_camera').files[0];
+            } else if (document.getElementById('trigger_galleria').files.length > 0) {
+                fotoFile = document.getElementById('trigger_galleria').files[0];
+            }
+            
             if (fotoFile) {
                 formData.append('foto_locale', fotoFile);
             }
