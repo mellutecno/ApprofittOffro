@@ -260,7 +260,7 @@
                             ${offer.is_own ? 
                                 `<div style="display:flex; gap:8px;">
                                     <a href="/edit-offer/${offer.id}" class="btn btn-outline btn-sm">✏️ Modifica</a>
-                                    <button onclick="if(confirm('Sei sicura/o di voler eliminare questa offerta?')) deleteOffer(${offer.id})" class="btn btn-outline btn-sm" style="color:var(--error); border-color:var(--error);">🗑️ Elimina</button>
+                                    <button onclick="deleteOffer(${offer.id})" class="btn btn-outline btn-sm" style="color:var(--error); border-color:var(--error);">🗑️ Elimina</button>
                                 </div>` : 
                                 (offer.already_claimed ? 
                                     `<button class="btn btn-success btn-sm" disabled style="background:var(--success);color:white">Prenotato ✓</button>` :
@@ -287,17 +287,34 @@
         }
 
         async function deleteOffer(id) {
+            // Conferma iniziale
+            if (!confirm("Sei sicura/o di voler eliminare questa offerta irreperabilmente?")) return;
+
+            // Richiesta motivo
+            const motivo = prompt("Indica il motivo della cancellazione (verrà inviato via email ai partecipanti prenotati):");
+            if (motivo === null) return; 
+            
+            if (!motivo.trim()) {
+                showToast('Inserimento motivo obbligatorio per procedere con l\'annullamento.', 'warning');
+                return;
+            }
+
             try {
-                const res = await fetch(`/api/offers/${id}`, { method: 'DELETE' });
+                const res = await fetch(`/api/offers/${id}`, { 
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ motivazione: motivo })
+                });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Offerta eliminata irreparabilmente.', 'success');
-                    loadOffers();
+                    showToast('L\'offerta è stata eliminata e i partecipanti avvisati.', 'success');
+                    loadOffers(); // ricarica la lista
                 } else {
                     showToast(data.error || 'Impossibile eliminare l\'offerta.', 'error');
                 }
             } catch (err) {
-                showToast('Errore di connessione al server.', 'error');
+                console.error(err);
+                showToast('Errore di connessione. Riprova o ricarica la pagina.', 'error');
             }
         }
 
