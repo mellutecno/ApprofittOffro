@@ -32,17 +32,6 @@
                     <button class="filter-chip" onclick="setFilter('pranzo')">Pranzo</button>
                     <button class="filter-chip" onclick="setFilter('cena')">Cena</button>
                 </div>
-                
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <label style="font-weight: 600; color:var(--text-muted); font-size:0.9rem;">Distanza Massima:</label>
-                    <select id="radius-filter" class="form-control" style="width: auto; display:inline-block; padding: 6px 12px; min-height: 0;" onchange="setRadius(this.value)">
-                        <option value="">Ovunque</option>
-                        <option value="5">Entro 5 km</option>
-                        <option value="10">Entro 10 km</option>
-                        <option value="25">Entro 25 km</option>
-                        <option value="50">Entro 50 km</option>
-                    </select>
-                </div>
             </div>
         </div>
 
@@ -51,7 +40,20 @@
             <!-- Verranno caricate tramite JS -->
         </div>
 
-        <!-- Mappa in fondo con pulsante GPS -->
+        <!-- Mappa in fondo con filtro distanza + pulsante GPS -->
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700;">🗺️ Mappa delle Offerte</h3>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <label style="font-weight: 600; color:var(--text-muted); font-size:0.9rem;">📏 Distanza Massima:</label>
+                <select id="radius-filter" class="form-control" style="width: auto; display:inline-block; padding: 6px 12px; min-height: 0;" onchange="setRadius(this.value)">
+                    <option value="">Ovunque</option>
+                    <option value="5">Entro 5 km</option>
+                    <option value="10">Entro 10 km</option>
+                    <option value="25">Entro 25 km</option>
+                    <option value="50">Entro 50 km</option>
+                </select>
+            </div>
+        </div>
         <div style="border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-lg); position: relative; margin-bottom: 32px;">
             <button onclick="locateMeDashboard()" class="btn btn-sm" style="position: absolute; top: 12px; left: 55px; z-index: 1000; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-weight:600; padding: 6px 14px; border-radius: 20px;">📍 Posizione Attuale</button>
             <div id="map" style="height: 420px; width: 100%;"></div>
