@@ -197,11 +197,23 @@
     <script src="/static/js/app.js"></script>
     <script>
         async function deleteOfferProfile(id) {
+            const motivo = prompt("Scrivi il motivo della cancellazione (verrà inviato via email agli utenti prenotati):");
+            if (motivo === null) return; // Utente ha cliccato Cancel sul prompt
+            
+            if (!motivo.trim()) {
+                showToast('Devi inserire un motivo per annullare.', 'warning');
+                return;
+            }
+
             try {
-                const res = await fetch(`/api/offers/${id}`, { method: 'DELETE' });
+                const res = await fetch(`/api/offers/${id}`, { 
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ motivazione: motivo })
+                });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Offerta eliminata con successo.', 'success');
+                    showToast('Offerta eliminata e partecipanti avvisati.', 'success');
                     setTimeout(() => window.location.reload(), 1500);
                 } else {
                     showToast(data.error || 'Impossibile eliminare l\'offerta.', 'error');

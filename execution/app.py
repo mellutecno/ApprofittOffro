@@ -461,15 +461,57 @@ def api_get_offers():
 @app.route("/api/offers/<int:offer_id>", methods=["DELETE"])
 @login_required
 def api_delete_offer(offer_id):
-    """Elimina definitivamente un'offerta se se ne è l'autore."""
-    offer = Offer.query.get_or_404(offer_id)
+    """Elimina definitivamente un'offerta, notificando eventuali partecipanti."""
+    offer = db.session.get(Offer, offer_id)
+    if not offer:
+        return jsonify({"success": False, "error": "Offerta non trovata."}), 404
+    
     if offer.user_id != current_user.id:
         return jsonify({"success": False, "error": "Non autorizzato."}), 403
     
+    # Riceve la motivazione dal corpo della richiesta (JSON)
+    data = request.get_json() or {}
+    motivazione = data.get("motivazione", "Nessuna motivazione specificata.").strip() or "Nessuna motivazione specificata."
+    
+    # Trova tutti i partecipanti (Claims)
+    claims = Claim.query.filter_by(offer_id=offer.id).all()
+    
+    # Se ci sono partecipanti, mandiamo l'email di avviso a ciascuno
+    if claims:
+        data_evento = offer.data_ora.strftime('%d/%m/%Y alle %H:%M')
+        for claim in claims:
+            try:
+                msg = Message(
+                    subject=f"⚠️ Evento Annullato: {offer.nome_locale}",
+                    recipients=[claim.utente.email],
+                    html=f"""
+                    <div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#fff1f2; padding:32px; border-radius:16px; border:1px solid #fecaca;">
+                        <h2 style="color:#e11d48;">❌ Evento Annullato</h2>
+                        <p>Ciao <b>{claim.utente.nome}</b>, spiacenti di informarti che l'organizzatore ha cancellato l'evento a cui avevi partecipato.</p>
+                        
+                        <div style="background:white; padding:20px; border-radius:12px; margin:16px 0; border-left:4px solid #e11d48;">
+                            <b>Evento:</b> {offer.nome_locale}<br>
+                            <b>Data:</b> {data_evento}<br>
+                            <b>Motivo dell'annullamento:</b><br>
+                            <i style="color:#6b7280;">"{motivazione}"</i>
+                        </div>
+                        
+                        <p style="font-size:0.9rem; color:#4b5563;">Ci scusiamo per il disagio. Puoi tornare sulla dashboard per cercare nuove offerte!</p>
+                        <p style="color:#9ca3af; font-size:0.8rem; margin-top:24px;">— Il Team di ApprofittOffro</p>
+                    </div>
+                    """
+                )
+                # Invio asincrono
+                Thread(target=send_async_email, args=(app, msg)).start()
+            except Exception as e:
+                print(f"[MAIL_ERROR] Errore invio annullamento a {claim.utente.email}: {e}")
+
+    # Eliminazione effettiva
     Claim.query.filter_by(offer_id=offer.id).delete()
     db.session.delete(offer)
     db.session.commit()
-    return jsonify({"success": True})
+    
+    return jsonify({"success": True, "message": "Offerta eliminata e partecipanti notificati."})
 
 
 @app.route("/edit-offer/<int:offer_id>")
