@@ -481,7 +481,7 @@ def edit_offer_page(offer_id):
     if offer.user_id != current_user.id:
         flash("Non puoi modificare le offerte altrui.", "error")
         return redirect(url_for("dashboard"))
-    return render_template("create_offer.html", offer=offer)
+    return render_template("create_offer.html", offer=offer, tipi_pasto=TIPI_PASTO)
 
 
 @app.route("/api/offers/<int:offer_id>", methods=["PUT"])
@@ -687,7 +687,7 @@ def api_claim_offer(offer_id):
                     <b style="font-size:1.2rem;">{offer.nome_locale}</b><br>
                     📍 {offer.indirizzo}<br>
                     📅 {data_formattata}<br>
-                    🍝 {offer.tipo_pasto.capitalize()}
+                    {'☕' if offer.tipo_pasto == 'colazione' else '🌙' if offer.tipo_pasto == 'cena' else '🍝'} {offer.tipo_pasto.capitalize()}
                 </div>
                 <p>Ricordati di presentarti puntuale! In caso di imprevisti, contatta l'organizzatore direttamente tramite la piattaforma.</p>
                 <p style="color:#6b7280; font-size:0.85rem;">— Il Team di ApprofittOffro</p>
