@@ -660,7 +660,6 @@ def api_claim_offer(offer_id):
     existing = Claim.query.filter_by(user_id=current_user.id, offer_id=offer_id).first()
     if existing:
         return jsonify({"success": False, "errors": ["Hai già approfittato di questa offerta."]}), 400
-
     # Crea il claim e decrementa i posti
     claim = Claim(user_id=current_user.id, offer_id=offer_id)
     offer.posti_disponibili -= 1
@@ -670,6 +669,57 @@ def api_claim_offer(offer_id):
 
     db.session.add(claim)
     db.session.commit()
+
+    # ---- Invio Email di Notifica (Asincrono) ----
+    data_formattata = offer.data_ora.strftime('%d/%m/%Y alle %H:%M')
+    
+    # Email al partecipante (claimer)
+    try:
+        msg_claimer = Message(
+            subject=f"🎉 Sei dentro! Hai approfittato di '{offer.nome_locale}'",
+            recipients=[current_user.email],
+            html=f"""
+            <div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#f9fafb; padding:32px; border-radius:16px;">
+                <h2 style="color:#ef4444;">🍽️ ApprofittOffro</h2>
+                <h3>Ottimo, {current_user.nome}! Sei confermato/a!</h3>
+                <p>Hai prenotato il tuo posto per:</p>
+                <div style="background:white; padding:20px; border-radius:12px; border-left:4px solid #ef4444; margin:16px 0;">
+                    <b style="font-size:1.2rem;">{offer.nome_locale}</b><br>
+                    📍 {offer.indirizzo}<br>
+                    📅 {data_formattata}<br>
+                    🍝 {offer.tipo_pasto.capitalize()}
+                </div>
+                <p>Ricordati di presentarti puntuale! In caso di imprevisti, contatta l'organizzatore direttamente tramite la piattaforma.</p>
+                <p style="color:#6b7280; font-size:0.85rem;">— Il Team di ApprofittOffro</p>
+            </div>
+            """
+        )
+        Thread(target=send_async_email, args=(app, msg_claimer)).start()
+    except Exception as e:
+        print(f"[MAIL_CLAIM_CLAIMER] Errore invio email: {e}")
+
+    # Email all'autore dell'offerta
+    try:
+        msg_autore = Message(
+            subject=f"🔔 Nuova partecipazione a '{offer.nome_locale}'!",
+            recipients=[offer.autore.email],
+            html=f"""
+            <div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#f9fafb; padding:32px; border-radius:16px;">
+                <h2 style="color:#ef4444;">🍽️ ApprofittOffro</h2>
+                <h3>Ciao {offer.autore.nome}, hai un nuovo partecipante!</h3>
+                <p><b>{current_user.nome}</b> si è appena prenotato/a per la tua offerta:</p>
+                <div style="background:white; padding:20px; border-radius:12px; border-left:4px solid #10b981; margin:16px 0;">
+                    <b style="font-size:1.2rem;">{offer.nome_locale}</b><br>
+                    📅 {data_formattata}<br>
+                    👥 Posti rimanenti: <b>{offer.posti_disponibili}</b>
+                </div>
+                <p style="color:#6b7280; font-size:0.85rem;">— Il Team di ApprofittOffro</p>
+            </div>
+            """
+        )
+        Thread(target=send_async_email, args=(app, msg_autore)).start()
+    except Exception as e:
+        print(f"[MAIL_CLAIM_AUTORE] Errore invio email: {e}")
 
     return jsonify({
         "success": True,

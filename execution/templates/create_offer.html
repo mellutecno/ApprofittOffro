@@ -149,16 +149,32 @@
             let startZoom = 16;
             
             if (typeof offerEditLat !== 'undefined' && offerEditLat) {
+                // Modalità modifica: usa le coordinate dell'offerta esistente
                 startLoc = [offerEditLat, offerEditLon];
             } else {
-                // Centra sulla posizione dell'utente
-                try {
-                    const userRes = await fetch('/api/user/me');
-                    const userData = await userRes.json();
-                    if (userData.success && userData.user.lat) {
-                        startLoc = [userData.user.lat, userData.user.lon];
-                    }
-                } catch (err) { }
+                // Nuova offerta: prova prima il GPS live del dispositivo
+                const gpsPosition = await new Promise((resolve) => {
+                    if (!navigator.geolocation) { resolve(null); return; }
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => resolve([pos.coords.latitude, pos.coords.longitude]),
+                        () => resolve(null),
+                        { timeout: 6000, maximumAge: 60000, enableHighAccuracy: true }
+                    );
+                });
+
+                if (gpsPosition) {
+                    startLoc = gpsPosition;
+                    document.getElementById('offer-location-label').innerHTML = `📍 <b style="color:var(--success);">GPS attivo — trascina per affinare la posizione</b>`;
+                } else {
+                    // Fallback: coordinate salvate nel profilo utente
+                    try {
+                        const userRes = await fetch('/api/user/me');
+                        const userData = await userRes.json();
+                        if (userData.success && userData.user.lat) {
+                            startLoc = [userData.user.lat, userData.user.lon];
+                        }
+                    } catch (err) { }
+                }
             }
 
             offerMap = L.map('offer-map').setView(startLoc, startZoom);
