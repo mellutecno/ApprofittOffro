@@ -239,7 +239,7 @@
                             <h4>${offer.nome_locale}</h4>
                             <div class="address" style="margin-bottom:8px;">📍 ${offer.indirizzo} <br><span style="color:var(--primary); font-weight:600; font-size:0.85rem;">(a ${offer.distance_km} km da te)</span></div>
                             <div class="datetime-info">🕒 ${formatDate(offer.data_ora)}</div>
-                            ${offer.descrizione ? `<div class="description" style="margin-bottom:8px;">"${offer.descrizione}"</div>` : ''}
+                            ${offer.descrizione ? `<div class="description" style="margin-bottom:8px; word-break: break-word; overflow-wrap: break-word; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;">"${offer.descrizione}"</div>` : ''}
                             
                             <div style="display:flex; flex-direction:column; gap:4px; margin-top:12px;">
                                 ${offer.autore_cibi_preferiti && offer.autore_cibi_preferiti.length > 2 ? `<div style="font-size:0.75rem; background:#F0FDF4; color:#065F46; padding:4px 8px; border-radius:6px; font-weight:500;">💚 Ama: ${offer.autore_cibi_preferiti}</div>` : ''}
