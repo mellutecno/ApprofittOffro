@@ -219,6 +219,7 @@ def api_register():
         nome = request.form.get("nome", "").strip()
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
+        conferma_password = request.form.get("conferma_password", "")
         fascia_eta = request.form.get("fascia_eta", "")
         lat = request.form.get("latitudine")
         lon = request.form.get("longitudine")
@@ -232,6 +233,8 @@ def api_register():
             errors.append("Inserisci un'email valida.")
         if len(password) < 6:
             errors.append("La password deve avere almeno 6 caratteri.")
+        if password != conferma_password:
+            errors.append("Le due password non coincidono.")
         if fascia_eta not in [f[0] for f in FASCE_ETA]:
             errors.append("Seleziona una fascia d'età valida.")
         if not lat or not lon:
