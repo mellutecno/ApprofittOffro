@@ -5,14 +5,10 @@ Applicazione web per offrire e approfittare di pasti.
 
 import os
 import uuid
-import logging
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
 import math
 from datetime import datetime, timedelta
 from functools import wraps
 
-# Logger setup per APScheduler
 from dotenv import load_dotenv
 from flask import (
     Flask,
@@ -48,6 +44,14 @@ app = Flask(
     template_folder="templates",
     static_folder="static",
 )
+
+# Forzatura No-Cache universale per evitare problemi di refresh template lato Client
+@app.after_request
+def add_header(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
+    return response
 
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "approfittoffro-dev-key-change-me")
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(
