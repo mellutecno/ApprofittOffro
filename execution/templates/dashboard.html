@@ -22,10 +22,10 @@
     </nav>
 
     <main class="main-content container">
-        <div class="dashboard-header" style="display: flex; flex-direction:column; gap: 16px; margin-bottom: 24px;">
+        <div class="dashboard-header flex-column-center" style="gap: 16px; margin-bottom: 24px;">
             <h2>Esplora Offerte</h2>
             
-            <div style="display:flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap:16px;">
+            <div class="flex-center justify-center" style="width: 100%; flex-wrap: wrap; gap:16px;">
                 <div class="filter-bar">
                     <button class="filter-chip active" onclick="setFilter('')">Tutte</button>
                     <button class="filter-chip" onclick="setFilter('colazione')">Colazione</button>
@@ -41,8 +41,8 @@
         </div>
 
         <!-- Mappa in fondo con filtro distanza + pulsante GPS -->
-        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
-            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700;">🗺️ Mappa delle Offerte</h3>
+        <div class="flex-center justify-center" style="flex-wrap: wrap; gap: 12px; margin-bottom: 12px; text-align: center;">
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; width: 100%;">🗺️ Mappa delle Offerte</h3>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <label style="font-weight: 600; color:var(--text-muted); font-size:0.9rem;">📏 Distanza Massima:</label>
                 <select id="radius-filter" class="form-control" style="width: auto; display:inline-block; padding: 6px 12px; min-height: 0;" onchange="setRadius(this.value)">
