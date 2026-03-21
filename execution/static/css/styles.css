@@ -369,7 +369,7 @@ textarea.form-control {
 }
 
 .main-content {
-    padding-top: 100px;
+    padding-top: 130px;
     padding-bottom: 60px;
     min-height: 100vh;
 }
@@ -419,6 +419,7 @@ textarea.form-control {
     min-height: 100vh;
     width: 100vw;
     overflow-x: hidden;
+    overflow-y: auto; /* Permette lo scroll su mobile */
     position: relative;
     background: var(--bg-surface);
 }
