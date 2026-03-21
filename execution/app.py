@@ -358,8 +358,13 @@ def api_login():
     return jsonify({"success": True, "redirect": url_for("dashboard")})
 
 
-@app.route("/api/logout", methods=["POST"])
+@app.route("/logout", methods=["GET"])
 @login_required
+def web_logout():
+    logout_user()
+    return redirect(url_for('index'))
+
+@app.route("/api/logout", methods=["POST"])
 def api_logout():
     logout_user()
     return jsonify({"success": True, "redirect": url_for("index")})
