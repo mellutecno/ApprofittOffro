@@ -12,15 +12,7 @@ import math
 from datetime import datetime, timedelta
 from functools import wraps
 
-# Forzatura No-Cache universale per evitare problemi di refresh template lato Client
-@app.after_request
-def add_header(response):
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '-1'
-    return response
-
-# Logger setup per APSchedulernv
+# Logger setup per APScheduler
 from dotenv import load_dotenv
 from flask import (
     Flask,
