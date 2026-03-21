@@ -520,10 +520,24 @@ textarea.form-control {
     min-height: 500px;
 }
 
+.dashboard-grid .map-container {
+    order: 2; /* Su Desktop va sulla destra (1/3), su Mobile va in basso */
+}
+
+.dashboard-grid .offers-panel {
+    order: 1; /* Su Desktop va a sinistra (2/3), su Mobile va in alto */
+}
+
 @media (max-width: 968px) {
     .dashboard-grid {
-        grid-template-columns: 1fr;
+        display: flex;
+        flex-direction: column;
         height: auto;
+    }
+    
+    .dashboard-grid .map-container {
+        min-height: 400px;
+        margin-bottom: 24px;
     }
 }
 
