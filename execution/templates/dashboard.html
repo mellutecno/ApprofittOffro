@@ -48,7 +48,8 @@
 
         <div class="dashboard-grid">
             <!-- Map Container -->
-            <div class="map-container">
+            <div class="map-container" style="position: relative;">
+                <button onclick="locateMeDashboard()" class="btn btn-sm btn-light" style="position: absolute; top: 15px; left: 55px; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-weight:600; padding: 6px 12px; border-radius: 20px;">📍 Posizione Attuale</button>
                 <div id="map"></div>
             </div>
 
@@ -90,6 +91,21 @@
             });
         };
 
+        function locateMeDashboard() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    searchLat = pos.coords.latitude;
+                    searchLon = pos.coords.longitude;
+                    map.setView([searchLat, searchLon], 14);
+                    searchMarker.setLatLng([searchLat, searchLon]);
+                    updateRadar();
+                    loadOffers();
+                }, err => {
+                    alert("GPS negato. Usa https:// invece di http://");
+                }, { enableHighAccuracy: true });
+            }
+        }
+
         function initMap() {
             map = L.map('map').setView([defaultLat, defaultLon], 14);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -119,7 +135,19 @@
                 loadOffers();
             });
 
-            loadOffers();
+            // Se il GPS funziona (in HTTPS), centra la mappa al primo caricamento automatico
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    searchLat = pos.coords.latitude;
+                    searchLon = pos.coords.longitude;
+                    map.setView([searchLat, searchLon], 14);
+                    searchMarker.setLatLng([searchLat, searchLon]);
+                    updateRadar();
+                    loadOffers();
+                }, () => { loadOffers(); });
+            } else {
+                loadOffers();
+            }
         }
 
         function setRadius(radius) {

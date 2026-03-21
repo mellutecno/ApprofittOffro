@@ -85,8 +85,9 @@
                             <input type="hidden" id="lon" name="longitudine">
                             <input type="hidden" id="citta" name="citta">
                             
-                            <div class="mt-2 text-center">
-                                <span id="location-name" class="text-muted" style="font-size: 0.9rem; font-weight: 500;">Nessuna zona selezionata (clicca sulla mappa)</span>
+                            <div class="mt-2 d-flex justify-content-between align-items-center">
+                                <button type="button" class="btn btn-sm btn-outline-primary" style="font-weight:600; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onclick="locateMe()">📍 Usa GPS</button>
+                                <span id="location-name" class="text-muted" style="font-size: 0.85rem; font-weight: 500; text-align:right;">Nessuna zona selezionata</span>
                             </div>
                         </div>
                     </div>
@@ -120,6 +121,24 @@
             } catch (err) {
                 document.getElementById('citta').value = "Posizione Geografica";
                 document.getElementById('location-name').innerHTML = `📍 <b style="color:var(--success);">Posizione Mappa</b>`;
+            }
+        }
+
+        function locateMe() {
+            if ("geolocation" in navigator) {
+                document.getElementById('location-name').innerHTML = `🔄 Ricerca GPS...`;
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    map.setView([lat, lon], 16);
+                    marker.setLatLng([lat, lon]);
+                    updateLocation(lat, lon);
+                }, err => {
+                    alert("Devi autorizzare il GPS (usa https:// invece di http://).");
+                    document.getElementById('location-name').innerHTML = `❌ GPS Negato`;
+                }, { timeout: 8000, enableHighAccuracy: true });
+            } else {
+                alert("GPS non supportato dal browser.");
             }
         }
 
