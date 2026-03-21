@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=5">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
@@ -54,9 +54,11 @@
                 </select>
             </div>
         </div>
-        <div style="border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-lg); position: relative; margin-bottom: 32px; max-width: 800px; margin-left: auto; margin-right: auto;">
-            <button onclick="locateMeDashboard()" class="btn btn-sm" style="position: absolute; top: 12px; left: 55px; z-index: 1000; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-weight:600; padding: 6px 14px; border-radius: 20px;">📍 Posizione Attuale</button>
-            <div id="map" style="height: 350px; width: 100%;"></div>
+        <div style="display:flex; justify-content:center; margin-bottom: 32px;">
+            <div style="border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-lg); position: relative; width: 100%; max-width: 750px;">
+                <button onclick="locateMeDashboard()" class="btn btn-sm" style="position: absolute; top: 12px; left: 55px; z-index: 1000; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-weight:600; padding: 6px 14px; border-radius: 20px;">📍 Posizione Attuale</button>
+                <div id="map" style="height: 340px; width: 100%;"></div>
+            </div>
         </div>
     </main>
 

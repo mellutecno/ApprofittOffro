@@ -612,23 +612,9 @@ def api_create_offer():
 
         # Elaborazione Immagine (Compressione + Fix Rotazione EXIF da mobile)
         try:
+            from PIL import ImageOps
             img = Image.open(foto_path)
-            # Corregge la rotazione EXIF automatica dai dispositivi mobili
-            try:
-                from PIL.ExifTags import TAGS
-                exif = img._getexif()
-                if exif:
-                    for tag, value in exif.items():
-                        if TAGS.get(tag) == 'Orientation':
-                            if value == 3:
-                                img = img.rotate(180, expand=True)
-                            elif value == 6:
-                                img = img.rotate(270, expand=True)
-                            elif value == 8:
-                                img = img.rotate(90, expand=True)
-                            break
-            except Exception:
-                pass  # Silenzioso se EXIF non disponibile
+            img = ImageOps.exif_transpose(img)  # Corregge la rotazione EXIF (foto da mobile)
             if img.mode != 'RGB':
                 img = img.convert('RGB')
             img.thumbnail((800, 800))
