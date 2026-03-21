@@ -143,7 +143,7 @@
                     
                     <div style="display:flex; gap:8px;">
                         <a href="/edit-offer/{{ offer.id }}" class="btn btn-outline btn-sm" style="flex: 1; text-align: center;">✏️ Modifica</a>
-                        <button onclick="if(confirm('Sei sicura/o di voler eliminare questa offerta?')) deleteOfferProfile({{ offer.id }})" class="btn btn-outline btn-sm" style="flex: 1; color:var(--error); border-color:var(--error);">🗑️ Elimina</button>
+                        <button onclick="deleteOfferProfile({{ offer.id }})" class="btn btn-outline btn-sm" style="flex: 1; color:var(--error); border-color:var(--error);">🗑️ Elimina</button>
                     </div>
                 </div>
             </div>
@@ -197,11 +197,15 @@
     <script src="/static/js/app.js"></script>
     <script>
         async function deleteOfferProfile(id) {
-            const motivo = prompt("Scrivi il motivo della cancellazione (verrà inviato via email agli utenti prenotati):");
-            if (motivo === null) return; // Utente ha cliccato Cancel sul prompt
+            // Conferma iniziale
+            if (!confirm("Sei sicura/o di voler eliminare questa offerta?")) return;
+
+            // Richiesta motivo
+            const motivo = prompt("Perché vuoi annullare? (Il motivo verrà inviato via email ai partecipanti prenotati):");
+            if (motivo === null) return; 
             
             if (!motivo.trim()) {
-                showToast('Devi inserire un motivo per annullare.', 'warning');
+                showToast('Inserimento motivo obbligatorio per annullare.', 'warning');
                 return;
             }
 
@@ -213,13 +217,14 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Offerta eliminata e partecipanti avvisati.', 'success');
-                    setTimeout(() => window.location.reload(), 1500);
+                    showToast('Cancellazione completata. Partecipanti avvisati.', 'success');
+                    setTimeout(() => window.location.href = '/profile?v=' + Date.now(), 1500);
                 } else {
-                    showToast(data.error || 'Impossibile eliminare l\'offerta.', 'error');
+                    showToast(data.error || 'Errore durante la cancellazione.', 'error');
                 }
             } catch (err) {
-                showToast('Errore di connessione al server.', 'error');
+                console.error(err);
+                showToast('Errore tecnico. Prova a ricaricare la pagina con Ctrl+F5.', 'error');
             }
         }
 

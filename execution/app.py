@@ -470,7 +470,7 @@ def api_delete_offer(offer_id):
         return jsonify({"success": False, "error": "Non autorizzato."}), 403
     
     # Riceve la motivazione dal corpo della richiesta (JSON)
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     motivazione = data.get("motivazione", "Nessuna motivazione specificata.").strip() or "Nessuna motivazione specificata."
     
     # Trova tutti i partecipanti (Claims)
