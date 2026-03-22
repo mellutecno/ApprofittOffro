@@ -130,6 +130,8 @@
         const defaultLat = parseFloat('{{ default_lat }}') || 41.9;
         const defaultLon = parseFloat('{{ default_lon }}') || 12.5;
         const mapEnabled = {{ is_authenticated|tojson }};
+        const DEFAULT_MAP_ZOOM = 8;
+        const USER_LOCATION_ZOOM = 9;
         
         let searchLat = defaultLat;
         let searchLon = defaultLon;
@@ -279,7 +281,7 @@
                     searchLat = pos.coords.latitude;
                     searchLon = pos.coords.longitude;
                     hasActiveLocation = true;
-                    map.setView([searchLat, searchLon], 14);
+                    map.setView([searchLat, searchLon], USER_LOCATION_ZOOM);
                     loadOffers();
                 }, err => {
                     alert("GPS negato. Usa https:// invece di http://");
@@ -293,14 +295,14 @@
                 return;
             }
 
-            map = L.map('map').setView([defaultLat, defaultLon], 14);
+            map = L.map('map').setView([defaultLat, defaultLon], DEFAULT_MAP_ZOOM);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap',
                 maxZoom: 19
             }).addTo(map);
 
             // Centra la mappa dolcemente sul punto iniziale
-            map.setView([defaultLat, defaultLon], 14);
+            map.setView([defaultLat, defaultLon], DEFAULT_MAP_ZOOM);
 
             // Caricamento Immediato delle offerte per prevenire freeze del browser (su HTTP)
             loadOffers();
@@ -311,7 +313,7 @@
                     searchLat = pos.coords.latitude;
                     searchLon = pos.coords.longitude;
                     hasActiveLocation = true;
-                    map.setView([searchLat, searchLon], 14);
+                    map.setView([searchLat, searchLon], USER_LOCATION_ZOOM);
                     loadOffers(); // ricarica con le coordinate precise
                     if (venuesActive) loadVenues();
                 }, () => { 
@@ -510,28 +512,46 @@
             loadOffers();
         }
 
-        function downloadIcs(offer) {
-            const dateStr = offer.data_ora.replace(' ', 'T');
-            const d = new Date(dateStr);
-            const start = d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-            const end = new Date(d.getTime() + 2 * 60 * 60 * 1000).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-            
+        function formatCalendarTimestamp(date) {
+            return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        }
+
+        function escapeIcsText(value = '') {
+            return String(value)
+                .replace(/\\/g, '\\\\')
+                .replace(/\n/g, '\\n')
+                .replace(/,/g, '\\,')
+                .replace(/;/g, '\\;');
+        }
+
+        function buildCalendarPayload(offer) {
+            const startDate = new Date(offer.data_ora.replace(' ', 'T'));
+            const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
+            const summary = `${offer.tipo_pasto.toUpperCase()} presso ${offer.nome_locale}`;
+            const description = `Condividi un pasto con ${offer.autore}. Per favore arrivare puntuale.`;
+            const location = offer.indirizzo || offer.nome_locale;
+            const dates = `${formatCalendarTimestamp(startDate)}/${formatCalendarTimestamp(endDate)}`;
+            const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(summary)}&dates=${dates}&details=${encodeURIComponent(description)}&location=${encodeURIComponent(location)}`;
             const icsContent = [
                 'BEGIN:VCALENDAR',
                 'VERSION:2.0',
                 'PRODID:-//ApprofittOffro//NONSGML v1.0//EN',
                 'BEGIN:VEVENT',
                 `UID:offer-${offer.id}@approfittoffro.com`,
-                `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
-                `DTSTART:${start}`,
-                `DTEND:${end}`,
-                `SUMMARY:${offer.tipo_pasto.toUpperCase()} presso ${offer.nome_locale}`,
-                `DESCRIPTION:Condividi un pasto con ${offer.autore}. Per favore arrivare puntuale.`,
-                `LOCATION:${offer.indirizzo}`,
+                `DTSTAMP:${formatCalendarTimestamp(new Date())}`,
+                `DTSTART:${formatCalendarTimestamp(startDate)}`,
+                `DTEND:${formatCalendarTimestamp(endDate)}`,
+                `SUMMARY:${escapeIcsText(summary)}`,
+                `DESCRIPTION:${escapeIcsText(description)}`,
+                `LOCATION:${escapeIcsText(location)}`,
                 'END:VEVENT',
                 'END:VCALENDAR'
             ].join('\r\n');
 
+            return { googleUrl, icsContent };
+        }
+
+        function triggerIcsDownload(offer, icsContent) {
             const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
@@ -541,6 +561,26 @@
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
+        }
+
+        function downloadIcs(offer) {
+            const { googleUrl, icsContent } = buildCalendarPayload(offer);
+            const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+            if (!isIOS) {
+                const calendarWindow = window.open(googleUrl, '_blank', 'noopener');
+                if (calendarWindow) {
+                    showToast('Evento aperto nel calendario. Conferma il salvataggio.', 'success');
+                    return;
+                }
+            }
+
+            triggerIcsDownload(offer, icsContent);
+            if (isIOS) {
+                showToast('File calendario scaricato. Aprilo per aggiungerlo su Apple Calendar.', 'success');
+            } else {
+                showToast('Download calendario avviato. Apri il file per completare il salvataggio.', 'warning');
+            }
         }
 
         function setFilter(type) {
@@ -640,7 +680,7 @@
                                  onclick="${(offer.already_claimed || offer.is_own) ? `event.stopPropagation(); downloadIcs(${JSON.stringify(offer).replace(/"/g, '&quot;')})` : ''}"
                                  style="margin-top: 12px; background: var(--bg-body); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px dashed var(--border); ${(offer.already_claimed || offer.is_own) ? 'cursor: pointer; border: 1px solid var(--success);' : ''}">
                                 🕒 ${formatDate(offer.data_ora)}
-                                ${(offer.already_claimed || offer.is_own) ? '<span style="float:right; font-size:0.75rem; color:var(--success); font-weight:800;">🗓️ CALENDARIO</span>' : ''}
+                                ${(offer.already_claimed || offer.is_own) ? '<span style="float:right; font-size:0.75rem; color:var(--success); font-weight:800;">🗓️ AGGIUNGI</span>' : ''}
                             </div>
 
                             ${offer.descrizione ? `<p style="margin-top: 16px; font-style: italic; color: var(--text-main); line-height: 1.4;">"${offer.descrizione}"</p>` : ''}
