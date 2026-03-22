@@ -483,8 +483,13 @@ textarea.form-control {
 
 /* Fix inline styles on mobile */
 .split-image-overlay h1 {
-    font-size: 2rem !important;
-    margin-bottom: 8px !important;
+    font-family: 'Outfit', sans-serif;
+    font-size: 2.5rem !important;
+    font-weight: 900;
+    margin-bottom: 12px !important;
+    letter-spacing: -0.04em;
+    text-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    line-height: 1.1;
 }
 
 .split-image-overlay p {
@@ -542,7 +547,7 @@ textarea.form-control {
         padding: 80px;
     }
     .split-image-overlay h1 {
-        font-size: 3.5rem !important;
+        font-size: 4.5rem !important;
         margin-bottom: 24px !important;
     }
     .split-image-overlay p {
@@ -998,6 +1003,8 @@ textarea.form-control {
 
 .text-center { text-align: center; }
 .text-muted { color: var(--text-muted); }
+.text-primary { color: var(--primary); }
+.text-accent { color: var(--accent); }
 .mt-1 { margin-top: 8px; }
 .mt-2 { margin-top: 16px; }
 .mb-2 { margin-bottom: 16px; }

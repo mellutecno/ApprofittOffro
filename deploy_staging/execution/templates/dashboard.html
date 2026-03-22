@@ -40,7 +40,6 @@
             
             <div class="flex-center justify-center">
                 <div class="filter-bar">
-                    <button class="filter-chip active" onclick="setFilter('')">Tutte</button>
                     <button class="filter-chip" onclick="setFilter('colazione')">Colazione</button>
                     <button class="filter-chip" onclick="setFilter('pranzo')">Pranzo</button>
                     <button class="filter-chip" onclick="setFilter('cena')">Cena</button>
@@ -342,9 +341,16 @@
         }
 
         function setFilter(type) {
-            currentFilter = type;
-            document.querySelectorAll('.filter-chip').forEach(el => {
-                if (el.textContent.toLowerCase() === type || (type === '' && el.textContent === 'Tutte')) {
+            // Logica di Toggle (Deselezione)
+            if (currentFilter === type) {
+                currentFilter = '';
+            } else {
+                currentFilter = type;
+            }
+
+            document.querySelectorAll('.filter-bar:not(#period-filter-bar) .filter-chip').forEach(el => {
+                const text = el.textContent.toLowerCase();
+                if (currentFilter !== '' && text === currentFilter) {
                     el.classList.add('active');
                 } else {
                     el.classList.remove('active');
