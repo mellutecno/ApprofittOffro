@@ -388,9 +388,14 @@ textarea.form-control {
     font-weight: 900;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--primary);
+    color: transparent;
+    background-image: linear-gradient(135deg, #FFF7EE 0%, #FFD5AE 52%, #FFF0E4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
     pointer-events: none;
-    background: var(--bg-body);
+    background-color: var(--bg-body);
     transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
@@ -433,27 +438,70 @@ textarea.form-control {
 .navbar-brand {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     font-family: 'Outfit', sans-serif;
-    font-size: 1.2rem;
+    font-size: 1.24rem;
     font-weight: 800;
     color: var(--text-main) !important;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.035em;
     white-space: nowrap;
 }
 
 .navbar-brand .logo-icon,
 .navbar-brand div.logo-icon {
-    width: 36px;
-    height: 36px;
-    background: linear-gradient(135deg, var(--primary), #FFB74D);
-    border-radius: var(--radius-sm);
+    width: 42px;
+    height: 42px;
+    background:
+        radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.34), transparent 30%),
+        linear-gradient(145deg, #FFB86B 0%, #FF8A4D 42%, #E05B32 100%);
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.2rem;
-    box-shadow: 0 6px 12px rgba(255, 112, 67, 0.25);
+    font-size: 0;
+    color: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow:
+        0 10px 20px rgba(224, 91, 50, 0.24),
+        inset 0 1px 0 rgba(255, 255, 255, 0.28);
     flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.navbar-brand .logo-icon::before,
+.navbar-brand div.logo-icon::before,
+.logo-icon-large::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 42%);
+    pointer-events: none;
+}
+
+.navbar-brand .logo-icon::after,
+.navbar-brand div.logo-icon::after,
+.logo-icon-large::after {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' fill='none'%3E%3Ccircle cx='24' cy='24' r='10.5' stroke='%23FFF8EF' stroke-width='2.4'/%3E%3Ccircle cx='24' cy='24' r='3.2' fill='%23FFF8EF' fill-opacity='0.96'/%3E%3Cpath d='M13.5 12.5V23.5' stroke='%23FFF8EF' stroke-width='2.3' stroke-linecap='round'/%3E%3Cpath d='M10.5 12.5V18.5' stroke='%23FFF8EF' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M13.5 12.5V18.5' stroke='%23FFF8EF' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M16.5 12.5V18.5' stroke='%23FFF8EF' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M33.5 12.5V34.5' stroke='%23FFF8EF' stroke-width='2.4' stroke-linecap='round'/%3E%3Cpath d='M30.5 12.5C30.5 16.5 32.1 18.9 33.5 20.2' stroke='%23FFF8EF' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    filter: drop-shadow(0 1px 1px rgba(72, 21, 4, 0.2));
+}
+
+.navbar-brand > span {
+    display: inline-block;
+    font-weight: 900;
+    letter-spacing: -0.05em;
+    color: transparent;
+    background: linear-gradient(135deg, #FFF7EE 0%, #FFD4B0 52%, #FFF1E6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
 }
 
 .navbar-nav {
@@ -587,14 +635,26 @@ textarea.form-control {
 .logo-icon-large {
     width: 64px;
     height: 64px;
-    background: var(--bg-surface);
-    border-radius: var(--radius-md);
+    background:
+        radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.34), transparent 30%),
+        linear-gradient(145deg, #FFB86B 0%, #FF8A4D 42%, #E05B32 100%);
+    border-radius: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2rem;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
-    border: 1px solid var(--border);
+    font-size: 0;
+    color: transparent;
+    box-shadow:
+        0 20px 32px rgba(7, 5, 3, 0.4),
+        0 12px 24px rgba(224, 91, 50, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.32);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    position: relative;
+    overflow: hidden;
+}
+
+.logo-icon-large::after {
+    inset: 12px;
 }
 
 .split-form-container {
@@ -704,7 +764,7 @@ textarea.form-control {
         padding-top: 110px; /* Compensa navbar + titolo */
     }
 
-    .navbar-brand span {
+    .navbar-brand > span {
         display: none; /* Nasconde il testo del logo, resta solo l'icona */
     }
 
