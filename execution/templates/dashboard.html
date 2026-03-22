@@ -506,9 +506,10 @@
                                 ${offer.posti_disponibili} posti disponibili<br>
                                 🕒 ${formatDate(offer.data_ora)}
                             </p>
+                            ${new Date(offer.data_ora) > new Date() ? `
                             <a href="#offer-${offer.id}" onclick="map.closePopup();" style="display:inline-block; font-weight:900; font-size: 1rem; color: var(--primary); text-decoration: none; border: 2px solid var(--primary); padding: 6px 16px; border-radius: 100px;">
                                 🍽️ Prenota qui
-                            </a>
+                            </a>` : ''}
                         </div>
                     `);
                     marker.addTo(map);
