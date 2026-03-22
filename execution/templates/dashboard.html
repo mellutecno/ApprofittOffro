@@ -480,16 +480,19 @@
                                 </div>
                                 <span style="font-weight: 800;">${offer.posti_disponibili}/${offer.posti_totali}</span>
                             </div>
-                            <div style="display:flex; gap:10px;">
-                                ${offer.is_own ? 
-                                    `<a href="/edit-offer/${offer.id}" class="btn btn-outline btn-sm">✏️</a>
-                                     <button onclick="deleteOffer(${offer.id})" class="btn btn-outline btn-sm" style="color:var(--error); border-color:var(--error);">🗑️</button>` : 
-                                    (offer.already_claimed ? 
-                                        `<button class="btn btn-success btn-sm" disabled>PRENOTATO</button>` :
-                                        `<button class="btn btn-accent btn-sm" onclick="claimOffer(${offer.id})">APPROFITTA!</button>`
-                                    )
-                                }
-                            </div>
+                             <div style="display:flex; gap:10px;">
+                                 ${offer.is_own ? 
+                                     `<a href="/edit-offer/${offer.id}" class="btn btn-outline btn-sm">✏️</a>
+                                      <button onclick="deleteOffer(${offer.id})" class="btn btn-outline btn-sm" style="color:var(--error); border-color:var(--error);">🗑️</button>` : 
+                                     (offer.already_claimed ? 
+                                         `<button class="btn btn-success btn-sm" disabled>PRENOTATO</button>` :
+                                         (new Date(offer.data_ora) < new Date() ? 
+                                            `<button class="btn btn-outline btn-sm" disabled style="opacity: 0.7; border-color: var(--text-muted); color: var(--text-muted); pointer-events: none;">PASTO IN CORSO</button>` :
+                                            `<button class="btn btn-accent btn-sm" onclick="claimOffer(${offer.id})">APPROFITTA!</button>`
+                                         )
+                                     )
+                                 }
+                             </div>
                         </div>
                     `;
                     panel.appendChild(card);

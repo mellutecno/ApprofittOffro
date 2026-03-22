@@ -526,11 +526,11 @@ def api_get_offers():
     periodo = request.args.get("periodo", "oggi_domani")
     radius_str = request.args.get("radius", "")
     now = datetime.now()
-
+    threshold = now - timedelta(hours=3)
     query = Offer.query.filter(
         Offer.stato == "attiva",
         Offer.posti_disponibili > 0,
-        Offer.data_ora > now,
+        Offer.data_ora > threshold,
     )
 
     if tipo:
