@@ -180,6 +180,31 @@
         </div>
         {% endif %}
 
+        <h3 class="mb-2 mt-4">⭐ Recensioni Ricevute ({{ rating_info.count }})</h3>
+        {% if current_user.reviews_ricevute %}
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 40px;">
+            {% for review in current_user.reviews_ricevute|sort(attribute='created_at', reverse=True) %}
+            <div class="glass-card" style="padding: 16px; display: flex; gap: 16px; align-items: flex-start;">
+                <img src="/uploads/{{ review.reviewer.foto_filename }}" class="avatar" style="width: 48px; height: 48px;">
+                <div style="flex: 1;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <span style="font-weight: 800; color: var(--text-main);">{{ review.reviewer.nome }}</span>
+                        <div style="color: var(--warning); font-size: 0.9rem;">
+                            {% for i in range(review.rating) %}⭐{% endfor %}
+                        </div>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.4; font-style: italic;">"{{ review.commento }}"</p>
+                    <div style="font-size: 0.75rem; color: var(--text-light); margin-top: 8px;">Pasto: {{ review.offerta.nome_locale }} • {{ review.created_at.strftime('%d/%m/%Y') }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 30px; margin-bottom: 40px;">
+            <p>Non hai ancora ricevuto punteggi o commenti.</p>
+        </div>
+        {% endif %}
+
         <h3 class="mb-2">✨ Pasti a cui ho Approfittato</h3>
         {% if my_claims %}
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px;">
@@ -200,8 +225,18 @@
                     <div class="address">📍 {{ claim.offerta.indirizzo }}</div>
                     <div class="datetime-info" style="margin-top: 8px; font-weight: 500;">📅 {{ claim.offerta.data_ora.strftime('%d/%m/%Y alle ore %H:%M') }}</div>
                 </div>
-                <div class="offer-card-footer">
-                    <button onclick="if(confirm('Sei sicuro di voler annullare la partecipazione? L\'organizzatore verrà avvisato via email.')) unclaimOffer({{ claim.id }})" class="btn btn-outline btn-sm" style="width:100%; color:var(--error); border-color:var(--error);">🚫 Annulla la mia partecipazione</button>
+                <div class="offer-card-footer" style="flex-direction: column; gap: 8px;">
+                    {% set has_reviewed = claim.offerta.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|list %}
+                    
+                    {% if claim.offerta.data_ora < now and not has_reviewed and claim.offerta.stato != 'annullata' %}
+                    <button onclick="openReviewModal({{ claim.offerta.id }}, '{{ claim.offerta.nome_locale }}')" class="btn btn-primary btn-sm" style="width:100%;">🌟 Lascia Recensione</button>
+                    {% elif has_reviewed %}
+                    <div class="text-center" style="color: var(--success); font-weight: 700; font-size: 0.85rem; padding: 8px;">✨ Già Recensito</div>
+                    {% elif claim.offerta.data_ora < now %}
+                    <div class="text-center" style="color: var(--text-muted); font-size: 0.85rem; padding: 8px;">⏳ Concluso</div>
+                    {% else %}
+                    <button onclick="if(confirm('Sei sicuro di voler annullare la partecipazione? L\'organizzatore verrà avvisato via email.')) unclaimOffer({{ claim.id }})" class="btn btn-outline btn-sm" style="width:100%; color:var(--error); border-color:var(--error);">🚫 Annulla</button>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}
@@ -214,33 +249,135 @@
         {% endif %}
     </div>
 
-    <!-- Toast Container -->
-    <div class="toast-container" id="toast-container"></div>
+    <!-- Review Modal -->
+    <div id="review-modal" class="modal" style="display: none; align-items: center; justify-content: center;">
+        <div class="glass-card" style="width: 100%; max-width: 450px; position: relative;">
+            <button onclick="closeReviewModal()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+            <h2 class="text-center mb-1">Lascia un feedback</h2>
+            <p class="text-center text-muted mb-3" id="review-venue-name"></p>
+            
+            <form id="review-form">
+                <input type="hidden" id="review-offer-id">
+                <div class="form-group text-center">
+                    <label>Quanto ti è piaciuta l'esperienza?</label>
+                    <div id="star-rating" style="display: flex; justify-content: center; gap: 12px; font-size: 2.2rem; margin: 15px 0;">
+                        <span class="star" data-value="1" style="cursor: pointer; transition: transform 0.2s;">☆</span>
+                        <span class="star" data-value="2" style="cursor: pointer; transition: transform 0.2s;">☆</span>
+                        <span class="star" data-value="3" style="cursor: pointer; transition: transform 0.2s;">☆</span>
+                        <span class="star" data-value="4" style="cursor: pointer; transition: transform 0.2s;">☆</span>
+                        <span class="star" data-value="5" style="cursor: pointer; transition: transform 0.2s;">☆</span>
+                    </div>
+                    <input type="hidden" id="selected-rating" value="0">
+                </div>
+                
+                <div class="form-group">
+                    <label>Raccontaci com'è andata (opzionale)</label>
+                    <textarea id="review-commento" class="form-control" rows="3" placeholder="Es: Ottima compagnia e cibo delizioso!"></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block mt-3">Invia Recensione</button>
+            </form>
+        </div>
+    </div>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script src="/static/js/app.js"></script>
     <script>
-        // Data from server injected safely (fallback to Italy center if missing)
+        // --- Review Modal Logic ---
+        let selectedRating = 0;
+        const stars = document.querySelectorAll('#star-rating .star');
+        
+        stars.forEach(star => {
+            star.addEventListener('mouseover', () => highlightStars(star.dataset.value));
+            star.addEventListener('mouseout', () => highlightStars(selectedRating));
+            star.addEventListener('click', () => {
+                selectedRating = parseInt(star.dataset.value);
+                document.getElementById('selected-rating').value = selectedRating;
+                highlightStars(selectedRating);
+            });
+        });
+
+        function highlightStars(count) {
+            stars.forEach(s => {
+                if (parseInt(s.dataset.value) <= count) {
+                    s.innerHTML = '★';
+                    s.style.color = 'var(--warning)';
+                    s.style.transform = 'scale(1.1)';
+                } else {
+                    s.innerHTML = '☆';
+                    s.style.color = 'var(--text-light)';
+                    s.style.transform = 'scale(1)';
+                }
+            });
+        }
+
+        function openReviewModal(offerId, venueName) {
+            document.getElementById('review-offer-id').value = offerId;
+            document.getElementById('review-venue-name').innerHTML = `Pasto presso <b>${venueName}</b>`;
+            document.getElementById('review-modal').style.display = 'flex';
+            selectedRating = 0;
+            highlightStars(0);
+            document.getElementById('review-commento').value = '';
+        }
+
+        function closeReviewModal() {
+            document.getElementById('review-modal').style.display = 'none';
+        }
+
+        document.getElementById('review-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const rating = document.getElementById('selected-rating').value;
+            if (rating == 0) {
+                showToast("Scegli un numero di stelle per favore!", "error");
+                return;
+            }
+
+            const offerId = document.getElementById('review-offer-id').value;
+            const commento = document.getElementById('review-commento').value;
+
+            try {
+                const res = await fetch('/api/reviews', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ offer_id: offerId, rating, commento })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(data.message, "success");
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    showToast(data.error, "error");
+                }
+            } catch (err) {
+                showToast("Errore durante l'invio.", "error");
+            }
+        });
+
+        // --- Original Profile Logic (Map, Form, Delete) ---
         const currentLat = parseFloat('{{ current_user.latitudine or 41.9 }}') || 41.9;
         const currentLon = parseFloat('{{ current_user.longitudine or 12.5 }}') || 12.5;
 
-        // Mappa Logic
         let map;
         let marker;
 
         async function updateLocation(lat, lon) {
-            document.getElementById('lat').value = lat;
-            document.getElementById('lon').value = lon;
-            document.getElementById('location-name').innerHTML = `📍 Ricerca...`;
+            const latInput = document.getElementById('lat');
+            const lonInput = document.getElementById('lon');
+            if (latInput) latInput.value = lat;
+            if (lonInput) lonInput.value = lon;
+            
+            const locationNameEl = document.getElementById('location-name');
+            if (locationNameEl) locationNameEl.innerHTML = `📍 Ricerca...`;
 
             try {
                 const res = await fetch(`/api/geocode?lat=${lat}&lon=${lon}`);
                 const data = await res.json();
-                document.getElementById('citta').value = data.address;
-                document.getElementById('location-name').innerHTML = `📍 <b style="color:var(--success);">${data.address}</b>`;
+                const cittaEl = document.getElementById('citta');
+                if (cittaEl) cittaEl.value = data.address;
+                if (locationNameEl) locationNameEl.innerHTML = `📍 <b style="color:var(--success);">${data.address}</b>`;
             } catch (err) {
-                document.getElementById('location-name').innerHTML = `📍 Posizione Mappa`;
+                if (locationNameEl) locationNameEl.innerHTML = `📍 Posizione Mappa`;
             }
         }
 
@@ -249,15 +386,18 @@
                 navigator.geolocation.getCurrentPosition(pos => {
                     const lat = pos.coords.latitude;
                     const lon = pos.coords.longitude;
-                    map.setView([lat, lon], 16);
-                    marker.setLatLng([lat, lon]);
-                    updateLocation(lat, lon);
+                    if (map) {
+                        map.setView([lat, lon], 16);
+                        marker.setLatLng([lat, lon]);
+                        updateLocation(lat, lon);
+                    }
                 }, () => alert("GPS Negato o Timeout."));
             }
         }
 
         function initMap() {
-            if (!document.getElementById('profile-map')) return;
+            const mapContainer = document.getElementById('profile-map');
+            if (!mapContainer) return;
             map = L.map('profile-map').setView([currentLat, currentLon], 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap'
@@ -277,22 +417,25 @@
             });
         }
 
-        window.addEventListener('load', initMap);
+        if (document.getElementById('profile-map')) {
+            window.addEventListener('load', initMap);
+        }
 
-        // Preview Foto
         const fotoInput = document.getElementById('foto');
         if (fotoInput) {
             fotoInput.addEventListener('change', function() {
                 const file = this.files[0];
                 if (file) {
                     const reader = new FileReader();
-                    reader.onload = e => document.getElementById('photo-preview').src = e.target.result;
+                    reader.onload = e => {
+                        const preview = document.getElementById('photo-preview');
+                        if (preview) preview.src = e.target.result;
+                    };
                     reader.readAsDataURL(file);
                 }
             });
         }
 
-        // Delete/Unclaim
         async function deleteOfferProfile(id) {
             if (!confirm("Sei sicura/o?")) return;
             const motivo = prompt("Motivo:");
@@ -322,12 +465,12 @@
             } catch(e) { showToast('Errore tecnico', 'error'); }
         }
 
-        // Submit Form (Nuovo con FormData)
         const profileForm = document.getElementById('profile-form');
         if (profileForm) {
             profileForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const btn = document.getElementById('save-profile-btn');
+                if (!btn) return;
                 const originalText = btn.innerHTML;
                 btn.innerHTML = '<span class="spinner"></span> Salvataggio...';
                 btn.disabled = true;

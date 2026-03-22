@@ -36,6 +36,18 @@
                 <div style="flex: 1; min-width: 250px;">
                     <h1 style="margin-bottom: 4px;">{{ user.nome }}</h1>
                     <p style="color: var(--text-muted); font-size: 1.1rem; font-weight: 600;">{{ user.fascia_eta }} anni • {{ user.citta.split(',')[0] if user.citta else 'Luogo segreto' }}</p>
+                    
+                    <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                        <span style="color: var(--warning); font-size: 1.2rem; font-weight: 800;">
+                            {% if rating_info.average > 0 %}
+                                {{ rating_info.average }} ⭐
+                            {% else %}
+                                ☆ Nuova/o
+                            {% endif %}
+                        </span>
+                        <span style="color: var(--text-muted); font-size: 0.9rem;">({{ rating_info.count }} recensioni)</span>
+                    </div>
+
                     {% if user.verificato %}
                     <span style="background: var(--success); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; display: inline-block; margin-top: 12px; letter-spacing: 0.5px;">✓ VERIFICATO</span>
                     {% endif %}
@@ -87,10 +99,35 @@
             </div>
         </div>
 
-        <div id="reviews-placeholder" style="margin-top: 48px; text-align: center; color: var(--text-muted);">
-            <div style="font-size: 2rem; margin-bottom: 8px;">⭐</div>
-            <p>Le recensioni per gli utenti arriveranno con il prossimo aggiornamento!</p>
+        <h3 style="font-size: 1.3rem; font-family: 'Outfit', sans-serif; font-weight: 700; margin: 48px 0 16px; color: var(--text-main);">⭐ Cosa dicono gli altri ({{ rating_info.count }})</h3>
+        
+        {% if reviews %}
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            {% for review in reviews %}
+            <div class="glass-card" style="padding: 20px; display: flex; gap: 16px; align-items: flex-start; border: 1px solid var(--border-light);">
+                <img src="/uploads/{{ review.reviewer.foto_filename }}" class="avatar" style="width: 50px; height: 50px;">
+                <div style="flex: 1;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-weight: 800; color: var(--text-main); font-size: 1rem;">{{ review.reviewer.nome }}</span>
+                        <div style="color: var(--warning); font-size: 0.9rem;">
+                            {% for i in range(review.rating) %}★{% endfor %}
+                        </div>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 1rem; line-height: 1.5; font-style: italic;">"{{ review.commento }}"</p>
+                    <div style="font-size: 0.8rem; color: var(--text-light); margin-top: 12px; display: flex; justify-content: space-between;">
+                        <span>Pasto: {{ review.offerta.nome_locale }}</span>
+                        <span>{{ review.created_at.strftime('%d/%m/%Y') }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
         </div>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center; border: 1px dashed var(--border);">
+            <div style="font-size: 2.5rem; margin-bottom: 12px; opacity: 0.5;">🍽️</div>
+            <p style="color: var(--text-muted);">Non ci sono ancora recensioni per questo utente.</p>
+        </div>
+        {% endif %}
 
     </main>
 </body>

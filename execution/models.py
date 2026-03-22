@@ -116,3 +116,25 @@ class Claim(db.Model):
 
     def __repr__(self):
         return f"<Claim user={self.user_id} offer={self.offer_id}>"
+
+
+class Review(db.Model):
+    """Recensione lasciata da un partecipante all'host di un pasto."""
+    __tablename__ = "reviews"
+
+    id = db.Column(db.Integer, primary_key=True)
+    reviewer_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    reviewed_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    offer_id = db.Column(db.Integer, db.ForeignKey("offers.id"), nullable=False)
+    rating = db.Column(db.Integer, nullable=False)  # da 1 a 5
+    commento = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    # Relazioni
+    # reviewer = chi scrive, reviewed = chi riceve (l'host)
+    reviewer = db.relationship("User", foreign_keys=[reviewer_id], backref="reviews_scritte")
+    reviewed = db.relationship("User", foreign_keys=[reviewed_id], backref="reviews_ricevute")
+    offerta = db.relationship("Offer", backref="reviews")
+
+    def __repr__(self):
+        return f"<Review from={self.reviewer_id} to={self.reviewed_id} rating={self.rating}>"

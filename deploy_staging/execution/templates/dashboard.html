@@ -29,7 +29,7 @@
         <div class="nav-links">
             <a href="/new-offer" class="btn btn-primary btn-sm">Offri</a>
             <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
-            <a href="/logout" class="btn btn-ghost btn-sm" style="color:var(--text-muted)">Esci</a>
+            <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
         </div>
     </nav>
 
@@ -57,7 +57,7 @@
             <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                     <!-- Toggle Locali Vicini -->
-                    <button id="venues-toggle-btn" onclick="toggleVenues()" class="btn btn-sm" style="gap: 6px; font-weight: 800; background: var(--bg-body); border: 2px solid var(--border); border-radius: 100px; padding: 8px 16px; transition: all 0.2s;">
+                    <button id="venues-toggle-btn" onclick="toggleVenues()" class="btn btn-sm" style="gap: 6px; font-weight: 800; background: var(--bg-body); border: 2px solid var(--border); border-radius: 100px; padding: 8px 16px; transition: all 0.2s; color: var(--text-muted);">
                         🏪 Locali Vicini
                     </button>
                 </div>
@@ -212,7 +212,7 @@
                 loadVenues();
             } else {
                 btn.style.background = 'var(--bg-body)';
-                btn.style.color = '';
+                btn.style.color = 'var(--text-muted)';
                 btn.style.border = '2px solid var(--border)';
                 legend.style.display = 'none';
                 clearVenueMarkers();

@@ -228,7 +228,18 @@ def profile_page():
         my_offers=my_offers,
         my_claims=my_claims,
         fasce_eta=FASCE_ETA,
+        rating_info=get_user_rating(current_user.id),
+        now=datetime.now()
     )
+
+def get_user_rating(user_id):
+    """Calcola la media delle recensioni per un utente."""
+    from models import Review
+    reviews = Review.query.filter_by(reviewed_id=user_id).all()
+    if not reviews:
+        return {"average": 0, "count": 0}
+    avg = sum(r.rating for r in reviews) / len(reviews)
+    return {"average": round(avg, 1), "count": len(reviews)}
 
 
 # ===================================================================
@@ -236,26 +247,25 @@ def profile_page():
 # ===================================================================
 
 @app.route("/profile/<int:user_id>")
+@login_required
+@profile_completed_required
 def public_profile(user_id):
     """Schermata pubblica dove visito le preferenze di un utente che dona cibo."""
+    from models import Review, Offer, Claim
     user = User.query.get_or_404(user_id)
+    rating_info = get_user_rating(user_id)
+    reviews = Review.query.filter_by(reviewed_id=user_id).order_by(Review.created_at.desc()).all()
     
-    # Previene l'accesso se lui stesso non ha completato il suo profilo base
-    if not current_user.is_authenticated:
-        flash("Accedi prima per visualizzare i profili degli utenti.", "info")
-        return redirect(url_for('index'))
-    if not current_user.bio:
-        flash("Completa prima il tuo Profilo per poter vedere quello degli altri!", "warning")
-        return redirect(url_for('profile_page'))
-
-    # Visualizza quante offerte/richieste ha completato per dare un rating di affidabilità
+    # Statistiche affidabilità
     offerte_totali = Offer.query.filter_by(user_id=user.id).count()
     recuperi_effettuati = Claim.query.filter_by(user_id=user.id).count()
-
+    
     return render_template(
         "public_profile.html", 
         user=user, 
-        offerte_totali=offerte_totali, 
+        rating_info=rating_info,
+        reviews=reviews,
+        offerte_totali=offerte_totali,
         recuperi_effettuati=recuperi_effettuati
     )
 
