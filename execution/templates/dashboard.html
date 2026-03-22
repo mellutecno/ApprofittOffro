@@ -173,7 +173,7 @@
 
         function getParticipantsLabel(offer) {
             if (isAuthenticated) return `${offer.posti_disponibili}/${offer.posti_totali}`;
-            return offer.posti_totali === 1 ? '1 partecipante' : `${offer.posti_totali} partecipanti`;
+            return offer.posti_totali === 1 ? '1 posto' : `${offer.posti_totali} posti`;
         }
 
         function getParticipationHref() {
