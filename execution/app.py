@@ -37,7 +37,37 @@ from verify_photo import verifica_volto
 # ---------------------------------------------------------------------------
 # Configurazione
 # ---------------------------------------------------------------------------
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+EXECUTION_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(EXECUTION_DIR)
+
+
+def load_app_env():
+    """Carica il primo file .env disponibile, con override via APP_ENV_FILE."""
+    env_candidates = [
+        os.getenv("APP_ENV_FILE"),
+        os.path.join(EXECUTION_DIR, ".env"),
+        os.path.join(PROJECT_ROOT, ".env"),
+    ]
+    for env_path in env_candidates:
+        if env_path and os.path.exists(env_path):
+            load_dotenv(env_path)
+            return env_path
+    load_dotenv()
+    return None
+
+
+load_app_env()
+
+DATA_ROOT = os.path.abspath(os.getenv("APP_DATA_DIR", PROJECT_ROOT))
+SQLITE_PATH = os.path.abspath(
+    os.getenv("APP_DB_PATH", os.path.join(DATA_ROOT, "approfittoffro.db"))
+)
+UPLOAD_FOLDER = os.path.abspath(
+    os.getenv("APP_UPLOAD_FOLDER", os.path.join(DATA_ROOT, "uploads"))
+)
+
+# Garantisce che SQLite possa essere creato anche in deploy che puntano fuori repo.
+os.makedirs(os.path.dirname(SQLITE_PATH), exist_ok=True)
 
 app = Flask(
     __name__,
@@ -54,13 +84,13 @@ def add_header(response):
     return response
 
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "approfittoffro-dev-key-change-me")
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "approfittoffro.db"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
+    "DATABASE_URL",
+    "sqlite:///" + SQLITE_PATH,
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64 MB max upload (telefoni moderni)
 
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
@@ -72,7 +102,7 @@ app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', '')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', '')
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_USERNAME', '')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('MAIL_USERNAME', ''))
 
 from flask_mail import Mail, Message
 from threading import Thread
