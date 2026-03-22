@@ -440,7 +440,6 @@ def api_logout():
 def api_get_offers():
     """Recupera le offerte attualmente valide e visibili."""
     tipo = request.args.get("tipo", "")
-    periodo = request.args.get("periodo", "oggi_domani")
     radius_str = request.args.get("radius", "")
     now = datetime.now()
 
@@ -452,11 +451,6 @@ def api_get_offers():
 
     if tipo:
         query = query.filter(Offer.tipo_pasto == tipo)
-    
-    if periodo == "oggi_domani":
-        # Fine di domani: 23:59:59 del giorno dopo
-        fine_domani = (now + timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=999999)
-        query = query.filter(Offer.data_ora <= fine_domani)
 
     offers = query.order_by(Offer.data_ora.asc()).all()
 
