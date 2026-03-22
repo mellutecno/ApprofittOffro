@@ -122,6 +122,7 @@
     <script>
         let map;
         let markers = [];
+        let userLocationMarker = null;
         let currentFilter = '';
         let currentPeriod = '{{ 'oggi_domani' if is_authenticated else 'tutti' }}';
         const isAuthenticated = {{ is_authenticated|tojson }};
@@ -274,6 +275,30 @@
             });
         };
 
+        function updateUserLocationMarker(lat, lon) {
+            if (!mapEnabled || !map) return;
+
+            if (!userLocationMarker) {
+                userLocationMarker = L.circleMarker([lat, lon], {
+                    radius: 8,
+                    color: '#FFFFFF',
+                    weight: 3,
+                    fillColor: '#2563EB',
+                    fillOpacity: 1,
+                    opacity: 1
+                }).addTo(map);
+                userLocationMarker.bindTooltip('La tua posizione', {
+                    direction: 'top',
+                    offset: [0, -10],
+                    opacity: 0.95
+                });
+            } else {
+                userLocationMarker.setLatLng([lat, lon]);
+            }
+
+            userLocationMarker.openTooltip();
+        }
+
         function locateMeDashboard() {
             if (!mapEnabled) return;
             if ("geolocation" in navigator) {
@@ -281,6 +306,7 @@
                     searchLat = pos.coords.latitude;
                     searchLon = pos.coords.longitude;
                     hasActiveLocation = true;
+                    updateUserLocationMarker(searchLat, searchLon);
                     map.setView([searchLat, searchLon], GPS_BUTTON_ZOOM);
                     loadOffers();
                 }, err => {
@@ -313,6 +339,7 @@
                     searchLat = pos.coords.latitude;
                     searchLon = pos.coords.longitude;
                     hasActiveLocation = true;
+                    updateUserLocationMarker(searchLat, searchLon);
                     map.panTo([searchLat, searchLon]);
                     loadOffers(); // ricarica con le coordinate precise
                     if (venuesActive) loadVenues();
