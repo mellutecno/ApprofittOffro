@@ -182,6 +182,31 @@
                             {% if offer.stato == 'completata' %}✅ Completata{% elif offer.stato == 'annullata' %}❌ Annullata{% else %}🟢 Attiva{% endif %}
                         </span>
                     </div>
+
+                    <!-- Lista Partecipanti per Host -->
+                    {% if offer.claims %}
+                    <div style="background: var(--bg-body); padding: 12px; border-radius: 12px; margin-top: 4px;">
+                        <div style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">👥 Partecipanti:</div>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            {% for c in offer.claims %}
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <img src="/uploads/{{ c.utente.foto_filename }}" class="avatar" style="width: 28px; height: 28px;">
+                                    <span style="font-weight: 700; font-size: 0.85rem;">{{ c.utente.nome }}</span>
+                                </div>
+                                {% if offer.data_ora < now and offer.stato != 'annullata' %}
+                                    {% set host_reviewed_guest = offer.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|selectattr('reviewed_id', 'equalto', c.utente.id)|list %}
+                                    {% if not host_reviewed_guest %}
+                                    <button onclick="openReviewModal({{ offer.id }}, '{{ c.utente.nome }}', {{ c.utente.id }})" class="btn btn-accent btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">🌟 Recensisci</button>
+                                    {% else %}
+                                    <span style="font-size: 0.7rem; color: var(--success); font-weight: 700;">✨ Recensito</span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
                     
                     <div style="display:flex; gap:8px;">
                         <a href="/edit-offer/{{ offer.id }}" class="btn btn-outline btn-sm" style="flex: 1; text-align: center;">✏️ Modifica</a>
@@ -247,7 +272,7 @@
                     {% set has_reviewed = claim.offerta.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|list %}
                     
                     {% if claim.offerta.data_ora < now and not has_reviewed and claim.offerta.stato != 'annullata' %}
-                    <button onclick="openReviewModal({{ claim.offerta.id }}, '{{ claim.offerta.nome_locale }}')" class="btn btn-primary btn-sm" style="width:100%;">🌟 Lascia Recensione</button>
+                    <button onclick="openReviewModal({{ claim.offerta.id }}, '{{ claim.offerta.nome_locale }}', {{ claim.offerta.user_id }})" class="btn btn-primary btn-sm" style="width:100%;">🌟 Lascia Recensione</button>
                     {% elif has_reviewed %}
                     <div class="text-center" style="color: var(--success); font-weight: 700; font-size: 0.85rem; padding: 8px;">✨ Già Recensito</div>
                     {% elif claim.offerta.data_ora < now %}
@@ -276,6 +301,7 @@
             
             <form id="review-form">
                 <input type="hidden" id="review-offer-id">
+                <input type="hidden" id="review-reviewed-id">
                 <div class="form-group text-center">
                     <label>Quanto ti è piaciuta l'esperienza?</label>
                     <div id="star-rating" style="display: flex; justify-content: center; gap: 12px; font-size: 2.2rem; margin: 15px 0;">
@@ -330,8 +356,9 @@
             });
         }
 
-        function openReviewModal(offerId, venueName) {
+        function openReviewModal(offerId, venueName, reviewedId) {
             document.getElementById('review-offer-id').value = offerId;
+            document.getElementById('review-reviewed-id').value = reviewedId;
             document.getElementById('review-venue-name').innerHTML = `Pasto presso <b>${venueName}</b>`;
             document.getElementById('review-modal').style.display = 'flex';
             selectedRating = 0;
@@ -358,7 +385,7 @@
                 const res = await fetch('/api/reviews', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ offer_id: offerId, rating, commento })
+                    body: JSON.stringify({ offer_id: offerId, reviewed_id: reviewedId, rating, commento })
                 });
                 const data = await res.json();
                 if (data.success) {

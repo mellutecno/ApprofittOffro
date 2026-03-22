@@ -54,6 +54,14 @@
                 </div>
             </div>
 
+            {% if shared_offer %}
+            <div class="glass-card" style="margin: 20px 0; padding: 20px; text-align: center; border: 2px solid var(--primary);">
+                <h3 style="margin-bottom: 8px;">Hai condiviso un pasto con {{ user.nome }}!</h3>
+                <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">Il tuo feedback aiuta la community a restare sicura e amichevole.</p>
+                <button onclick="openReviewModal({{ shared_offer.id }}, '{{ shared_offer.nome_locale }}', {{ user.id }})" class="btn btn-primary">🌟 Lascia una Recensione</button>
+            </div>
+            {% endif %}
+
             <hr style="margin: 40px 0; border: none; border-top: 2px solid var(--border-light);">
 
             {% if user.bio %}
@@ -129,6 +137,111 @@
         </div>
         {% endif %}
 
-    </main>
+    <!-- Review Modal -->
+    <div id="review-modal" class="modal" style="display: none; align-items: center; justify-content: center;">
+        <div class="glass-card" style="width: 100%; max-width: 450px; position: relative;">
+            <button onclick="closeReviewModal()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+            <h2 class="text-center mb-1">Lascia un feedback</h2>
+            <p class="text-center text-muted mb-3" id="review-venue-name"></p>
+            
+            <form id="review-form">
+                <input type="hidden" id="review-offer-id">
+                <input type="hidden" id="review-reviewed-id">
+                <div class="form-group text-center">
+                    <label>Quanto ti è piaciuta l'esperienza?</label>
+                    <div id="star-rating" style="display: flex; justify-content: center; gap: 12px; font-size: 2.2rem; margin: 15px 0;">
+                        <span class="star" data-value="1" style="cursor: pointer; transition: transform 0.2s;">☆</span>
+                        <span class="star" data-value="2" style="cursor: pointer; transition: transform 0.2s;">☆</span>
+                        <span class="star" data-value="3" style="cursor: pointer; transition: transform 0.2s;">☆</span>
+                        <span class="star" data-value="4" style="cursor: pointer; transition: transform 0.2s;">☆</span>
+                        <span class="star" data-value="5" style="cursor: pointer; transition: transform 0.2s;">☆</span>
+                    </div>
+                    <input type="hidden" id="selected-rating" value="0">
+                </div>
+                
+                <div class="form-group">
+                    <label>Raccontaci com'è andata (opzionale)</label>
+                    <textarea id="review-commento" class="form-control" rows="3" placeholder="Es: Ottima compagnia e cibo delizioso!"></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block mt-3">Invia Recensione</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        // --- Review Modal Logic ---
+        let selectedRating = 0;
+        const stars = document.querySelectorAll('#star-rating .star');
+        
+        stars.forEach(star => {
+            star.addEventListener('mouseover', () => highlightStars(star.dataset.value));
+            star.addEventListener('mouseout', () => highlightStars(selectedRating));
+            star.addEventListener('click', () => {
+                selectedRating = parseInt(star.dataset.value);
+                document.getElementById('selected-rating').value = selectedRating;
+                highlightStars(selectedRating);
+            });
+        });
+
+        function highlightStars(count) {
+            stars.forEach(s => {
+                if (parseInt(s.dataset.value) <= count) {
+                    s.innerHTML = '★';
+                    s.style.color = 'var(--warning)';
+                    s.style.transform = 'scale(1.1)';
+                } else {
+                    s.innerHTML = '☆';
+                    s.style.color = 'var(--text-light)';
+                    s.style.transform = 'scale(1)';
+                }
+            });
+        }
+
+        function openReviewModal(offerId, venueName, reviewedId) {
+            document.getElementById('review-offer-id').value = offerId;
+            document.getElementById('review-reviewed-id').value = reviewedId;
+            document.getElementById('review-venue-name').innerHTML = `Pasto presso <b>${venueName}</b>`;
+            document.getElementById('review-modal').style.display = 'flex';
+            selectedRating = 0;
+            highlightStars(0);
+            document.getElementById('review-commento').value = '';
+        }
+
+        function closeReviewModal() {
+            document.getElementById('review-modal').style.display = 'none';
+        }
+
+        document.getElementById('review-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const rating = document.getElementById('selected-rating').value;
+            if (rating == 0) {
+                showToast("Scegli un numero di stelle per favore!", "error");
+                return;
+            }
+
+            const offerId = document.getElementById('review-offer-id').value;
+            const reviewedId = document.getElementById('review-reviewed-id').value;
+            const commento = document.getElementById('review-commento').value;
+
+            try {
+                const res = await fetch('/api/reviews', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ offer_id: offerId, reviewed_id: reviewedId, rating, commento })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(data.message, "success");
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    showToast(data.error, "error");
+                }
+            } catch (err) {
+                showToast("Errore durante l'invio.", "error");
+            }
+        });
+    </script>
 </body>
 </html>

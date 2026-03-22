@@ -276,6 +276,27 @@ def public_profile(user_id):
     # Statistiche affidabilità
     offerte_totali = Offer.query.filter_by(user_id=user.id).count()
     recuperi_effettuati = Claim.query.filter_by(user_id=user.id).count()
+
+    # Logica per il pulsante "Lascia Recensione" sul profilo pubblico
+    # Cerchiamo l'ultimo pasto condiviso tra me (visitatore) e lui (profilo visto) già concluso
+    shared_offer = None
+    if current_user.id != user_id:
+        now = datetime.now()
+        # Caso A: Io ero l'ospite, lui l'host
+        meal_as_guest = Offer.query.join(Claim).filter(
+            Claim.user_id == current_user.id,
+            Offer.user_id == user_id,
+            Offer.data_ora < now
+        ).order_by(Offer.data_ora.desc()).first()
+        
+        # Caso B: Io ero l'host, lui l'ospite
+        meal_as_host = Offer.query.join(Claim).filter(
+            Offer.user_id == current_user.id,
+            Claim.user_id == user_id,
+            Offer.data_ora < now
+        ).order_by(Offer.data_ora.desc()).first()
+        
+        shared_offer = meal_as_guest or meal_as_host
     
     return render_template(
         "public_profile.html", 
@@ -283,7 +304,8 @@ def public_profile(user_id):
         rating_info=rating_info,
         reviews=reviews,
         offerte_totali=offerte_totali,
-        recuperi_effettuati=recuperi_effettuati
+        recuperi_effettuati=recuperi_effettuati,
+        shared_offer=shared_offer
     )
 
 @app.errorhandler(413)
@@ -978,14 +1000,15 @@ def api_user_update():
 @app.route("/api/reviews", methods=["POST"])
 @login_required
 def api_create_review():
-    """Crea una nuova recensione per un host."""
+    """Crea una nuova recensione (Host -> Guest o Guest -> Host)."""
     data = request.get_json()
     offer_id = data.get("offer_id")
+    reviewed_id = data.get("reviewed_id") # Nuova specifica dell'utente da recensire
     rating = data.get("rating")
     commento = data.get("commento", "").strip()
 
-    if not offer_id or not rating:
-        return jsonify({"success": False, "error": "Dati mancanti (ID offerta o punteggio)."}), 400
+    if not offer_id or not rating or not reviewed_id:
+        return jsonify({"success": False, "error": "Dati mancanti (ID offerta, utente o punteggio)."}), 400
 
     try:
         rating = int(rating)
@@ -1000,28 +1023,41 @@ def api_create_review():
         return jsonify({"success": False, "error": "Offerta non trovata."}), 404
 
     # 2. Verifica che l'utente non stia recensendo se stesso
-    if offer.user_id == current_user.id:
-        return jsonify({"success": False, "error": "Non puoi recensire il tuo stesso pasto."}), 400
+    if reviewed_id == current_user.id:
+        return jsonify({"success": False, "error": "Non puoi recensire te stesso."}), 400
 
     # 3. Verifica che l'evento sia passato
     if offer.data_ora > datetime.now():
         return jsonify({"success": False, "error": "Puoi lasciare una recensione solo dopo il termine del pasto."}), 400
 
-    # 4. Verifica che l'utente abbia effettivamente partecipato (Claim)
-    claim = Claim.query.filter_by(user_id=current_user.id, offer_id=offer_id).first()
-    if not claim:
-        return jsonify({"success": False, "error": "Non hai partecipato a questo pasto, quindi non puoi recensirlo."}), 403
+    # 4. Validazione Ruoli (Bidirezionale)
+    # Casi ammessi: 
+    # A) Io sono Ospite (Claim), recensisco l'Host (offer.user_id)
+    # B) Io sono Host (offer.user_id), recensisco un Ospite (reviewed_id ha un Claim)
+    
+    is_guest_reviewing_host = (
+        Claim.query.filter_by(user_id=current_user.id, offer_id=offer_id).first() is not None
+        and reviewed_id == offer.user_id
+    )
+    
+    is_host_reviewing_guest = (
+        offer.user_id == current_user.id
+        and Claim.query.filter_by(user_id=reviewed_id, offer_id=offer_id).first() is not None
+    )
 
-    # 5. Verifica che non abbia già recensito questa offerta
+    if not is_guest_reviewing_host and not is_host_reviewing_guest:
+        return jsonify({"success": False, "error": "Non sei autorizzato a recensire questo utente per questo pasto."}), 403
+
+    # 5. Verifica che non abbia già recensito questa specifica interazione
     from models import Review
-    existing = Review.query.filter_by(reviewer_id=current_user.id, offer_id=offer_id).first()
+    existing = Review.query.filter_by(reviewer_id=current_user.id, reviewed_id=reviewed_id, offer_id=offer_id).first()
     if existing:
-        return jsonify({"success": False, "error": "Hai già lasciato una recensione per questo pasto."}), 400
+        return jsonify({"success": False, "error": "Hai già lasciato una recensione per questo utente in questo pasto."}), 400
 
     # 6. Creazione recensione
     new_review = Review(
         reviewer_id=current_user.id,
-        reviewed_id=offer.user_id,
+        reviewed_id=reviewed_id,
         offer_id=offer_id,
         rating=rating,
         commento=commento
