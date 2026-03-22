@@ -228,9 +228,8 @@
             const nomeField = document.getElementById('nome_locale');
             if(nomeField) nomeField.value = decodeURIComponent(name);
             
-            // Invece di usare l'indirizzo delle tag OSM (spesso incompleto e senza città), 
-            // forziamo un geocode dal nostro server per avere un indirizzo di qualità.
-            updateOfferLocation(lat, lon);
+            const indirField = document.getElementById('indirizzo');
+            if(indirField) indirField.value = decodeURIComponent(address);
             
             // Aggiorna marker offerta e centra
             if(offerMarker) offerMarker.setLatLng([lat, lon]);
@@ -343,11 +342,15 @@
             } catch (err) {}
         }
 
-        async function updateOfferLocation(lat, lon) {
+        async function updateOfferLocation(lat, lon, skipGeocodeIfFilled = false) {
             document.getElementById('offer-lat').value = lat;
             document.getElementById('offer-lon').value = lon;
             
             const indirizzoInput = document.getElementById('indirizzo');
+            if (skipGeocodeIfFilled && indirizzoInput.value.trim() !== '') {
+                document.getElementById('offer-location-label').innerHTML = `📍 <b style="color:var(--success);">Indirizzo locale importato</b>`;
+                return;
+            }
 
             document.getElementById('offer-location-label').innerHTML = `📍 Ricerca in corso...`;
 
@@ -424,7 +427,7 @@
             }).addTo(offerMap);
 
             offerMarker = L.marker(startLoc).addTo(offerMap);
-            updateOfferLocation(startLoc[0], startLoc[1]);
+            updateOfferLocation(startLoc[0], startLoc[1], isPrefilled);
 
             offerMap.on('move', function() {
                 offerMarker.setLatLng(offerMap.getCenter());
