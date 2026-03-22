@@ -164,7 +164,7 @@
                 moveTimer = setTimeout(() => {
                     loadOffers();
                     if (venuesActive) loadVenues();
-                }, 800);
+                }, 400); // Debounce ridotto per maggiore reattività
             });
         }
 
@@ -172,7 +172,9 @@
         // LOCALI VICINI — Overpass API (OpenStreetMap)
         // ============================================================
         let venuesActive = false;
-        let venueMarkers = [];
+        let lastFetchCenter = null;
+        let venueMarkersMap = new Map(); // ID -> Marker
+        let venueCacheIds = new Set();   // Set di ID già processati
 
         // Mappa tipo→emoji e colore
         const VENUE_STYLES = {
@@ -193,8 +195,10 @@
         }
 
         function clearVenueMarkers() {
-            venueMarkers.forEach(m => map.removeLayer(m));
-            venueMarkers = [];
+            venueMarkersMap.forEach(m => map.removeLayer(m));
+            venueMarkersMap.clear();
+            venueCacheIds.clear();
+            lastFetchCenter = null;
         }
 
         function toggleVenues() {
@@ -225,14 +229,22 @@
                 return;
             }
 
+            const center = map.getCenter();
+            
+            // Ottimizzazione: se ci siamo mossi di pochissimo, non rifacciamo la query Overpass (molto lenta)
+            if (lastFetchCenter) {
+                const dist = center.distanceTo(lastFetchCenter);
+                const bounds = map.getBounds();
+                const threshold = bounds.getNorthEast().distanceTo(bounds.getSouthWest()) * 0.15; // 15% della diagonale vista
+                if (dist < threshold) return;
+            }
+
             const bounds = map.getBounds();
             const s = bounds.getSouth();
             const w = bounds.getWest();
             const n = bounds.getNorth();
             const e = bounds.getEast();
 
-            // Usiamo nwr (node, way, relation) per pescare anche i palazzi oltre ai punti singoli
-            // e chiediamo "out center" per avere lat/lon uniche per i poligoni
             const query = `
                 [out:json][timeout:15];
                 (
@@ -248,11 +260,12 @@
                 });
                 const data = await res.json();
                 
-                // Pulisce i vecchi marker solo quando i nuovi dati sono pronti
-                clearVenueMarkers();
+                lastFetchCenter = center;
 
                 data.elements.forEach(el => {
-                    // Per poligoni o relazioni il centro è in el.center
+                    const id = el.id;
+                    if (venueCacheIds.has(id)) return; // Già presente sulla mappa
+                    
                     const lat = el.lat || (el.center && el.center.lat);
                     const lon = el.lon || (el.center && el.center.lon);
                     
@@ -270,7 +283,6 @@
                         const city = tags['addr:city'] || tags['addr:town'] || tags['addr:village'] || '';
                         if (city) fullAddress += ', ' + city;
                     } else {
-                        // Fallback se non c'è la strada
                         const city = tags['addr:city'] || tags['addr:town'] || tags['addr:village'] || '';
                         if (city) fullAddress = city;
                         else fullAddress = name;
@@ -293,29 +305,20 @@
                         popupAnchor: [0, -20]
                     });
 
-                    // Aggiungi indirizzo ai parametri
-                    const venueUrl = `/new-offer?nome=${encodeURIComponent(name)}&lat=${el.lat}&lon=${el.lon}${fullAddress ? '&indirizzo=' + encodeURIComponent(fullAddress) : ''}`;
-
-                    const marker = L.marker([el.lat, el.lon], { icon, zIndexOffset: -100 })
+                    const venueUrl = `/new-offer?nome=${encodeURIComponent(name)}&lat=${lat}&lon=${lon}${fullAddress ? '&indirizzo=' + encodeURIComponent(fullAddress) : ''}`;
+                    const marker = L.marker([lat, lon], { icon, zIndexOffset: -100 })
                         .addTo(map)
                         .bindPopup(`
-                            <div style="font-family: 'Outfit', sans-serif; min-width: 160px;">
-                                <div style="font-size: 1.4rem; text-align:center; margin-bottom: 4px;">${style.emoji}</div>
-                                <b style="font-size: 0.95rem;">${name}</b>
-                                <div style="font-size: 0.78rem; color: #999; margin: 2px 0 10px;">
-                                    ${tags.amenity ? tags.amenity.replace('_', ' ') : ''}
-                                    ${tags.cuisine ? ' · ' + tags.cuisine : ''}
-                                </div>
-                                <a href="${venueUrl}" style="
-                                    display: block; text-align: center;
-                                    background: #FF7043; color: white;
-                                    padding: 7px 0; border-radius: 20px;
-                                    font-weight: 800; font-size: 0.8rem;
-                                    text-decoration: none;
-                                ">🎉 Offri qui!</a>
+                            <div style="text-align:center; padding: 4px;">
+                                <strong style="font-size:1.1rem; display:block; margin-bottom:4px;">${name}</strong>
+                                <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:12px;">${fullAddress}</p>
+                                <a href="${venueUrl}" class="btn btn-primary btn-sm" style="display:inline-block; font-weight:800; padding: 6px 12px; border-radius:100px;">
+                                    🍽️ Offri qui
+                                </a>
                             </div>
                         `);
-                    venueMarkers.push(marker);
+                    venueMarkersMap.set(id, marker);
+                    venueCacheIds.add(id);
                 });
             } catch (err) {
                 console.warn('Overpass API non raggiungibile:', err);
