@@ -188,6 +188,21 @@
             return isAuthenticated && hasActiveLocation;
         }
 
+        function focusOfferCard(offerId) {
+            const card = document.getElementById(`offer-${offerId}`);
+            if (!card) return;
+
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            card.style.transition = 'box-shadow 0.2s ease, transform 0.2s ease';
+            card.style.boxShadow = '0 0 0 3px var(--primary), var(--shadow-lg)';
+            card.style.transform = 'translateY(-4px)';
+
+            window.setTimeout(() => {
+                card.style.boxShadow = '';
+                card.style.transform = '';
+            }, 1800);
+        }
+
         function getOfferActionMarkup(offer, isPast, isFull) {
             if (offer.is_own) {
                 return `
@@ -215,21 +230,10 @@
             return `<button class="btn btn-accent btn-sm" onclick="claimOffer(${offer.id})">APPROFITTA!</button>`;
         }
 
-        function getPopupActionMarkup(offer, isPast, isFull) {
-            if (isPast || isFull) {
-                return '';
-            }
-
-            if (!isAuthenticated || !canParticipate) {
-                return `
-                    <a href="${getParticipationHref()}" style="display:inline-block; font-weight:900; font-size: 1rem; color: var(--primary); text-decoration: none; border: 2px solid var(--primary); padding: 6px 16px; border-radius: 100px;">
-                        ${isAuthenticated ? 'Completa il profilo' : 'Accedi per partecipare'}
-                    </a>
-                `;
-            }
+        function getPopupActionMarkup(offer) {
 
             return `
-                <a href="#offer-${offer.id}" onclick="map.closePopup();" style="display:inline-block; font-weight:900; font-size: 1rem; color: var(--primary); text-decoration: none; border: 2px solid var(--primary); padding: 6px 16px; border-radius: 100px;">
+                <a href="#offer-${offer.id}" onclick="map.closePopup(); focusOfferCard(${offer.id}); return false;" style="display:inline-block; font-weight:900; font-size: 1rem; color: var(--primary); text-decoration: none; border: 2px solid var(--primary); padding: 6px 16px; border-radius: 100px;">
                     ðŸ½ï¸ Prenota qui
                 </a>
             `;
@@ -699,7 +703,29 @@
                     `);
                     marker.on('popupopen', () => {
                         const popupElement = marker.getPopup()?.getElement();
-                        popupElement?.querySelectorAll('a').forEach((anchor) => anchor.remove());
+                        if (!popupElement) return;
+
+                        popupElement.querySelectorAll('a').forEach((anchor) => anchor.remove());
+                        const popupBody = popupElement.querySelector('div');
+                        if (!popupBody) return;
+
+                        const actionLink = document.createElement('a');
+                        actionLink.href = `#offer-${offer.id}`;
+                        actionLink.textContent = "Vai all'offerta";
+                        actionLink.style.display = 'inline-block';
+                        actionLink.style.fontWeight = '900';
+                        actionLink.style.fontSize = '1rem';
+                        actionLink.style.color = 'var(--primary)';
+                        actionLink.style.textDecoration = 'none';
+                        actionLink.style.border = '2px solid var(--primary)';
+                        actionLink.style.padding = '6px 16px';
+                        actionLink.style.borderRadius = '100px';
+                        actionLink.onclick = (event) => {
+                            event.preventDefault();
+                            map.closePopup();
+                            focusOfferCard(offer.id);
+                        };
+                        popupBody.appendChild(actionLink);
                     });
                     marker.addTo(map);
                     markers.push(marker);
