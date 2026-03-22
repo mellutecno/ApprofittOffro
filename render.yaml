@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: approfittoffro
+    runtime: python
+    plan: starter
+    branch: codex/review-fix-tested
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd execution && gunicorn --bind 0.0.0.0:$PORT app:app
+    healthCheckPath: /
+    disk:
+      name: approfittoffro-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: APP_DATA_DIR
+        value: /var/data
+      - key: APP_DB_PATH
+        value: /var/data/approfittoffro.db
+      - key: APP_UPLOAD_FOLDER
+        value: /var/data/uploads
+      - key: SECRET_KEY
+        generateValue: true
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_DEFAULT_SENDER
+        sync: false
