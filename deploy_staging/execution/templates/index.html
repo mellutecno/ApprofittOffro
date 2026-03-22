@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benvenuti a Tavola — ApprofittOffro</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#FF7043">
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/static/sw.js');
+        });
+      }
+    </script>
+</head>
+<body class="split-layout-body">
+
+    <div class="split-layout">
+        <!-- Immagine Sinistra (IA Generated Premium Food) -->
+        <div class="split-image" style="background-image: url('{{ url_for('static', filename='img/hero.png') }}');">
+            <div class="split-image-overlay">
+                <div class="logo-icon-large mb-3">🍽️</div>
+                <h1>Condividi un pasto<span class="text-primary">.</span></h1>
+                <p style="color: #E5E7EB; font-size: 1.25rem; max-width: 400px;">La prima community in Italia che ti permette di offrire colazioni, pranzi e cene e conoscere persone fantastiche nella tua zona.</p>
+            </div>
+        </div>
+
+        <!-- Form Destra -->
+        <div class="split-form-container">
+            <div class="auth-card">
+                <h2>Bentornato</h2>
+                <p class="text-muted mb-3">Accedi per continuare su ApprofittOffro</p>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                  {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                  {% endif %}
+                {% endwith %}
+
+                <div id="login-alerts"></div>
+
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" class="form-control" placeholder="es. mario@email.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top: 16px; font-weight: 800; letter-spacing: 0.05em;">ACCEDI ORA</button>
+                    
+                    <p class="text-center mt-2" style="font-size: 0.95rem; color: var(--text-muted); margin-top: 32px;">
+                        Non sei ancora membro? <a href="/register?v=2" style="font-weight: 800; color: var(--primary);">Registrati gratis</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.innerHTML = '<div class="spinner"></div>';
+            btn.disabled = true;
+            
+            const formData = new FormData(e.target);
+            try {
+                const res = await fetch('/api/login', { method: 'POST', body: formData });
+                const data = await res.json();
+                
+                if (data.success) {
+                    window.location.href = data.redirect;
+                } else {
+                    const alertBox = document.getElementById('login-alerts');
+                    alertBox.innerHTML = '';
+                    data.errors.forEach(err => {
+                        alertBox.innerHTML += `<div class="alert alert-error">⚠️ ${err}</div>`;
+                    });
+                    btn.innerHTML = 'Accedi ora';
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                document.getElementById('login-alerts').innerHTML = `<div class="alert alert-error">⚠️ Errore connessione.</div>`;
+                btn.innerHTML = 'Accedi ora';
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
