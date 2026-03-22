@@ -131,7 +131,7 @@
         const defaultLon = parseFloat('{{ default_lon }}') || 12.5;
         const mapEnabled = {{ is_authenticated|tojson }};
         const DEFAULT_MAP_ZOOM = 8;
-        const USER_LOCATION_ZOOM = 9;
+        const GPS_BUTTON_ZOOM = 15;
         
         let searchLat = defaultLat;
         let searchLon = defaultLon;
@@ -281,7 +281,7 @@
                     searchLat = pos.coords.latitude;
                     searchLon = pos.coords.longitude;
                     hasActiveLocation = true;
-                    map.setView([searchLat, searchLon], USER_LOCATION_ZOOM);
+                    map.setView([searchLat, searchLon], GPS_BUTTON_ZOOM);
                     loadOffers();
                 }, err => {
                     alert("GPS negato. Usa https:// invece di http://");
@@ -313,7 +313,7 @@
                     searchLat = pos.coords.latitude;
                     searchLon = pos.coords.longitude;
                     hasActiveLocation = true;
-                    map.setView([searchLat, searchLon], USER_LOCATION_ZOOM);
+                    map.panTo([searchLat, searchLon]);
                     loadOffers(); // ricarica con le coordinate precise
                     if (venuesActive) loadVenues();
                 }, () => { 
