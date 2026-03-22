@@ -258,6 +258,19 @@ textarea.form-control {
     min-height: 100px;
 }
 
+/* Fix for Select Options Contrast on Desktop */
+.form-control option {
+    background-color: #35251B; /* Match var(--bg-surface) */
+    color: var(--text-main);
+}
+
+/* Fix for Date/Time Input Contrast and Visibility */
+.form-control[type="datetime-local"],
+.form-control[type="date"] {
+    color-scheme: dark;
+    color: var(--text-main);
+}
+
 /* --- Photo Upload --- */
 .photo-upload {
     position: relative;
