@@ -237,11 +237,24 @@ def profile_completed_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if current_user.is_authenticated:
-            if not current_user.cibi_preferiti or not current_user.intolleranze or not current_user.bio:
-                flash("Ciao! Completa il tuo identikit alimentare e la tua bio: sono obbligatori per poter esplorare le offerte e partecipare ai pasti. 🍽️", "warning")
+            if not is_profile_complete(current_user):
+                flash("Ciao! Completa il tuo identikit alimentare e la tua bio: sono obbligatori per poter pubblicare offerte, partecipare ai pasti e vedere i profili completi. 🍽️", "warning")
                 return redirect(url_for('profile_page'))
         return f(*args, **kwargs)
     return decorated_function
+
+
+def is_profile_complete(user):
+    return bool(user.cibi_preferiti and user.intolleranze and user.bio)
+
+
+def require_complete_profile_json():
+    if current_user.is_authenticated and not is_profile_complete(current_user):
+        return jsonify({
+            "success": False,
+            "error": "Completa il profilo prima di partecipare o pubblicare offerte.",
+        }), 403
+    return None
 
 # ===================================================================
 # PAGINE (Template)
@@ -249,9 +262,7 @@ def profile_completed_required(f):
 
 @app.route("/")
 def index():
-    if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
-    return render_template("index.html")
+    return redirect(url_for("dashboard"))
 
 @app.route("/register")
 def register_page():
@@ -262,10 +273,27 @@ def login_page():
     return render_template("index.html")
 
 @app.route("/dashboard")
-@login_required
-@profile_completed_required
 def dashboard():
-    return render_template("dashboard.html", tipi_pasto=TIPI_PASTO)
+    is_authenticated = current_user.is_authenticated
+    default_lat = (
+        current_user.latitudine
+        if is_authenticated and current_user.latitudine is not None
+        else 41.9
+    )
+    default_lon = (
+        current_user.longitudine
+        if is_authenticated and current_user.longitudine is not None
+        else 12.5
+    )
+    can_participate = is_authenticated and is_profile_complete(current_user)
+    return render_template(
+        "dashboard.html",
+        tipi_pasto=TIPI_PASTO,
+        is_authenticated=is_authenticated,
+        can_participate=can_participate,
+        default_lat=default_lat,
+        default_lon=default_lon,
+    )
 
 @app.route("/verify/<token>")
 def verify_email(token):
@@ -289,7 +317,7 @@ def verify_email(token):
         )
     
     flash("Email verificata con successo! Ora puoi accedere.", "success")
-    return redirect(url_for("index"))
+    return redirect(url_for("login_page"))
 
 @app.route("/new-offer")
 @login_required
@@ -613,7 +641,6 @@ def api_logout():
 # API — Offerte
 # ===================================================================
 @app.route("/api/offers", methods=["GET"])
-@login_required
 def api_get_offers():
     """Recupera le offerte attualmente valide e visibili."""
     tipo = request.args.get("tipo", "")
@@ -641,9 +668,13 @@ def api_get_offers():
     if radius_str and radius_str.isdigit():
         radius_km = float(radius_str)
 
-    # Centro di ricerca (predefinito: registrazione dell'utente)
-    search_lat = current_user.latitudine
-    search_lon = current_user.longitudine
+    # Centro di ricerca (predefinito: utente loggato, altrimenti Roma)
+    if current_user.is_authenticated:
+        search_lat = current_user.latitudine
+        search_lon = current_user.longitudine
+    else:
+        search_lat = 41.9
+        search_lon = 12.5
     
     req_lat = request.args.get("lat")
     req_lon = request.args.get("lon")
@@ -664,9 +695,13 @@ def api_get_offers():
                 continue
 
         # Controlla se l'utente corrente ha già approfittato
-        already_claimed = Claim.query.filter_by(
-            user_id=current_user.id, offer_id=o.id
-        ).first() is not None
+        already_claimed = False
+        is_own = False
+        if current_user.is_authenticated:
+            already_claimed = Claim.query.filter_by(
+                user_id=current_user.id, offer_id=o.id
+            ).first() is not None
+            is_own = o.user_id == current_user.id
 
         result.append({
             "id": o.id,
@@ -688,7 +723,7 @@ def api_get_offers():
             "autore_fascia_eta": o.autore.fascia_eta,
             "autore_cibi_preferiti": o.autore.cibi_preferiti or "",
             "autore_intolleranze": o.autore.intolleranze or "",
-            "is_own": o.user_id == current_user.id,
+            "is_own": is_own,
             "already_claimed": already_claimed,
         })
 
@@ -751,6 +786,10 @@ def edit_offer_page(offer_id):
 @login_required
 def api_edit_offer(offer_id):
     """Applica le modifiche a un'offerta pre-esistente."""
+    profile_error = require_complete_profile_json()
+    if profile_error:
+        return profile_error
+
     offer = Offer.query.get_or_404(offer_id)
     if offer.user_id != current_user.id:
         return jsonify({"success": False, "errors": ["Non autorizzato."]}), 403
@@ -817,6 +856,10 @@ def api_edit_offer(offer_id):
 @login_required
 def api_create_offer():
     """Crea una nuova offerta con foto del locale."""
+    profile_error = require_complete_profile_json()
+    if profile_error:
+        return profile_error
+
     tipo_pasto = request.form.get("tipo_pasto", "")
     nome_locale = request.form.get("nome_locale", "").strip()
     indirizzo = request.form.get("indirizzo", "").strip()
@@ -885,6 +928,10 @@ def api_create_offer():
 @login_required
 def api_claim_offer(offer_id):
     """Approfitta di un'offerta — decrementa posti disponibili."""
+    profile_error = require_complete_profile_json()
+    if profile_error:
+        return profile_error
+
     offer = db.session.get(Offer, offer_id)
 
     if not offer:
@@ -1138,6 +1185,10 @@ def api_create_review():
         return jsonify({"success": False, "error": "Dati recensione non validi."}), 400
 
     # 1. Verifica che l'offerta esista
+    profile_error = require_complete_profile_json()
+    if profile_error:
+        return profile_error
+
     offer = db.session.get(Offer, offer_id)
     if not offer:
         return jsonify({"success": False, "error": "Offerta non trovata."}), 404

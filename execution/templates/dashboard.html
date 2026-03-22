@@ -27,16 +27,27 @@
             <span>ApprofittOffro</span>
         </a>
         <div class="nav-links">
-            <a href="/new-offer" class="btn btn-primary btn-sm">Offri</a>
+            {% if is_authenticated %}
+            <a href="{{ '/new-offer' if can_participate else '/profile' }}" class="btn btn-primary btn-sm">{{ 'Offri' if can_participate else 'Completa Profilo' }}</a>
             <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
             <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
+            {% else %}
+            <a href="/login" class="btn btn-outline btn-sm">Accedi</a>
+            <a href="/register" class="btn btn-primary btn-sm">Registrati</a>
+            {% endif %}
         </div>
     </nav>
 
     <main class="main-content container">
         <div class="dashboard-header" style="text-align: center; margin-bottom: 40px;">
             <h1 style="font-size: 2.2rem; margin-bottom: 12px;">Benvenuti a Tavola 🥘</h1>
+            {% if not is_authenticated %}
+            <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 24px;">Scopri chi sta cucinando qualcosa di buono vicino a te. Accedi o registrati per partecipare ai pasti.</p>
+            {% elif not can_participate %}
+            <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 24px;">Esplora tutte le offerte. Per partecipare o pubblicare un pasto completa prima il tuo profilo.</p>
+            {% else %}
             <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 24px;">Scopri chi sta cucinando qualcosa di buono vicino a te.</p>
+            {% endif %}
             
             <div class="flex-center justify-center">
                 <div class="filter-bar">
@@ -93,11 +104,99 @@
         let markers = [];
         let currentFilter = '';
         let currentPeriod = 'oggi_domani';
-        const defaultLat = parseFloat('{{ current_user.latitudine or 41.9 }}') || 41.9;
-        const defaultLon = parseFloat('{{ current_user.longitudine or 12.5 }}') || 12.5;
+        const isAuthenticated = {{ is_authenticated|tojson }};
+        const canParticipate = {{ can_participate|tojson }};
+        const defaultLat = parseFloat('{{ default_lat }}') || 41.9;
+        const defaultLon = parseFloat('{{ default_lon }}') || 12.5;
         
         let searchLat = defaultLat;
         let searchLon = defaultLon;
+
+        function getCreateOfferHref() {
+            if (!isAuthenticated) return '/login';
+            if (!canParticipate) return '/profile';
+            return '/new-offer';
+        }
+
+        function getCreateOfferLabel() {
+            if (!isAuthenticated) return 'Registrati per offrire il primo pasto';
+            if (!canParticipate) return 'Completa il profilo per offrire';
+            return 'Offri tu per primo';
+        }
+
+        function getVenueOfferHref(venueUrl) {
+            if (!isAuthenticated) return '/login';
+            if (!canParticipate) return '/profile';
+            return venueUrl;
+        }
+
+        function getVenueOfferLabel() {
+            if (!isAuthenticated) return 'Accedi per offrire';
+            if (!canParticipate) return 'Completa il profilo';
+            return 'Offri qui';
+        }
+
+        function getAuthorProfileHref(offer) {
+            if (offer.is_own) return '/profile';
+            if (!isAuthenticated) return '/login';
+            if (!canParticipate) return '/profile';
+            return `/profile/${offer.autore_id}`;
+        }
+
+        function getParticipationHref() {
+            return isAuthenticated ? '/profile' : '/login';
+        }
+
+        function getParticipationLabel() {
+            return isAuthenticated ? 'COMPLETA IL PROFILO' : 'ACCEDI PER PARTECIPARE';
+        }
+
+        function getOfferActionMarkup(offer, isPast, isFull) {
+            if (offer.is_own) {
+                return `
+                    <a href="/edit-offer/${offer.id}" class="btn btn-outline btn-sm">Modifica</a>
+                    <button onclick="deleteOffer(${offer.id})" class="btn btn-outline btn-sm" style="color:var(--error); border-color:var(--error);">Elimina</button>
+                `;
+            }
+
+            if (offer.already_claimed) {
+                return `<button class="btn btn-success btn-sm" disabled>PRENOTATO</button>`;
+            }
+
+            if (isPast) {
+                return `<button class="btn btn-outline btn-sm" disabled style="opacity: 0.7; border-color: var(--text-muted); color: var(--text-muted); pointer-events: none;">PASTO IN CORSO</button>`;
+            }
+
+            if (isFull) {
+                return `<button class="btn btn-outline btn-sm" disabled style="opacity: 0.85; border-color: var(--warning); color: var(--warning); pointer-events: none;">COMPLETA</button>`;
+            }
+
+            if (!isAuthenticated || !canParticipate) {
+                return `<a href="${getParticipationHref()}" class="btn btn-outline btn-sm">${getParticipationLabel()}</a>`;
+            }
+
+            return `<button class="btn btn-accent btn-sm" onclick="claimOffer(${offer.id})">APPROFITTA!</button>`;
+        }
+
+        function getPopupActionMarkup(offer, isPast, isFull) {
+            if (isPast || isFull) {
+                return '';
+            }
+
+            if (!isAuthenticated || !canParticipate) {
+                return `
+                    <a href="${getParticipationHref()}" style="display:inline-block; font-weight:900; font-size: 1rem; color: var(--primary); text-decoration: none; border: 2px solid var(--primary); padding: 6px 16px; border-radius: 100px;">
+                        ${isAuthenticated ? 'Completa il profilo' : 'Accedi per partecipare'}
+                    </a>
+                `;
+            }
+
+            return `
+                <a href="#offer-${offer.id}" onclick="map.closePopup();" style="display:inline-block; font-weight:900; font-size: 1rem; color: var(--primary); text-decoration: none; border: 2px solid var(--primary); padding: 6px 16px; border-radius: 100px;">
+                    ðŸ½ï¸ Prenota qui
+                </a>
+            `;
+        }
 
         // Custom Leaflet Icons basate sul CSS
         const createCustomIcon = (type) => {
@@ -307,13 +406,15 @@
                     });
 
                     const venueUrl = `/new-offer?nome=${encodeURIComponent(name)}&lat=${lat}&lon=${lon}${fullAddress ? '&indirizzo=' + encodeURIComponent(fullAddress) : ''}`;
+                    const venueActionHref = getVenueOfferHref(venueUrl);
+                    const venueActionLabel = getVenueOfferLabel();
                     const marker = L.marker([lat, lon], { icon, zIndexOffset: -100 })
                         .addTo(map)
                         .bindPopup(`
                             <div style="text-align:center; padding: 4px;">
                                 <strong style="font-size:1.1rem; display:block; margin-bottom:4px; color: var(--text-main);">${name}</strong>
                                 <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:12px;">${fullAddress}</p>
-                                <a href="${venueUrl}" style="display:inline-block; font-weight:900; font-size: 1rem; color: var(--primary); text-decoration: none; border: 2px solid var(--primary); padding: 6px 16px; border-radius: 100px;">
+                                <a href="${venueActionHref}" style="display:inline-block; font-weight:900; font-size: 1rem; color: var(--primary); text-decoration: none; border: 2px solid var(--primary); padding: 6px 16px; border-radius: 100px;">
                                     🍽️ Offri qui
                                 </a>
                             </div>
@@ -414,7 +515,7 @@
                             <div style="font-size: 3rem; margin-bottom: 16px;">🍽️</div>
                             <h3>Nessuna offerta</h3>
                             <p>Non ci sono offerte disponibili ${filterName} al momento.</p>
-                            <a href="/new-offer" class="btn btn-primary mt-2">Offri tu per primo</a>
+                            <a href="${getCreateOfferHref()}" class="btn btn-primary mt-2">${getCreateOfferLabel()}</a>
                         </div>
                     `;
                     return;
@@ -434,6 +535,7 @@
 
                     const card = document.createElement('div');
                     card.className = 'offer-card';
+                    card.id = `offer-${offer.id}`;
                     card.innerHTML = `
                         <div class="offer-type-badge badge-${offer.tipo_pasto}" style="font-size: 1.1rem; padding: 10px 24px; margin-bottom: 20px; align-self: flex-start;">
                             ${iconEmoji} ${offer.tipo_pasto.toUpperCase()}
@@ -445,7 +547,7 @@
                             </div>` : ''}
                         
                         <div class="offer-card-header">
-                            <a href="${offer.is_own ? '/profile' : '/profile/' + offer.autore_id}" style="text-decoration: none; display: flex; align-items: center; gap: 14px; color: inherit;">
+                            <a href="${getAuthorProfileHref(offer)}" style="text-decoration: none; display: flex; align-items: center; gap: 14px; color: inherit;">
                                 <img src="/uploads/${offer.autore_foto}" alt="${offer.autore}" class="avatar" style="border: 2px solid white; box-shadow: var(--shadow-sm);">
                                 <div class="info">
                                     <div class="name" style="color: var(--text-main); font-weight: 800; font-size: 1.1rem;">${offer.autore}</div>
@@ -482,7 +584,7 @@
                                 </div>
                                 <span style="font-weight: 800;">${offer.posti_disponibili}/${offer.posti_totali}</span>
                             </div>
-                             <div style="display:flex; gap:10px;">
+                             <div data-offer-actions style="display:flex; gap:10px;">
                                  ${offer.is_own ? 
                                      `<a href="/edit-offer/${offer.id}" class="btn btn-outline btn-sm">✏️</a>
                                       <button onclick="deleteOffer(${offer.id})" class="btn btn-outline btn-sm" style="color:var(--error); border-color:var(--error);">🗑️</button>` : 
@@ -499,6 +601,10 @@
                              </div>
                         </div>
                     `;
+                    const actionSlot = card.querySelector('[data-offer-actions]');
+                    if (actionSlot) {
+                        actionSlot.innerHTML = getOfferActionMarkup(offer, isPast, isFull);
+                    }
                     panel.appendChild(card);
 
                     // Aggiungi marker su mappa
@@ -552,7 +658,7 @@
                     showToast('L\'offerta è stata eliminata e i partecipanti avvisati.', 'success');
                     loadOffers(); // ricarica la lista
                 } else {
-                    showToast(data.error || 'Impossibile eliminare l\'offerta.', 'error');
+                    showToast(data.error || data.errors?.[0] || 'Impossibile eliminare l\'offerta.', 'error');
                 }
             } catch (err) {
                 console.error(err);
@@ -568,7 +674,7 @@
                     showToast('Hai approfittato con successo!', 'success');
                     loadOffers(); // ricarica per aggiornare UI
                 } else {
-                    showToast(data.error || 'Impossibile approfittare.', 'error');
+                    showToast(data.error || data.errors?.[0] || 'Impossibile approfittare.', 'error');
                 }
             } catch (err) {
                 showToast('Errore di connessione.', 'error');
