@@ -88,8 +88,6 @@
         const defaultLat = parseFloat('{{ current_user.latitudine or 41.9 }}') || 41.9;
         const defaultLon = parseFloat('{{ current_user.longitudine or 12.5 }}') || 12.5;
         
-        let searchMarker;
-        let searchCircle;
         let searchLat = defaultLat;
         let searchLon = defaultLon;
 
@@ -115,7 +113,6 @@
                     searchLat = pos.coords.latitude;
                     searchLon = pos.coords.longitude;
                     map.setView([searchLat, searchLon], 14);
-                    searchMarker.setLatLng([searchLat, searchLon]);
                     loadOffers();
                 }, err => {
                     alert("GPS negato. Usa https:// invece di http://");
@@ -130,27 +127,8 @@
                 maxZoom: 19
             }).addTo(map);
 
-            // Aggiungi marker di ricerca centrale (draggable)
-            const searchIcon = L.divIcon({
-                className: 'custom-map-search-marker',
-                html: `<div style="background-color: var(--primary); width: 24px; height: 24px; border-radius: 50%; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.5);"></div>`,
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
-            });
-            searchMarker = L.marker([searchLat, searchLon], { icon: searchIcon, draggable: true, zIndexOffset: 1000 }).addTo(map);
-            searchMarker.bindPopup("<b>📍 Punto di Ricerca</b><br>Trascina per spostare il raggio d'azione").openPopup();
-
-            searchMarker.on('dragend', function() {
-                const pos = searchMarker.getLatLng();
-                searchLat = pos.lat;
-                searchLon = pos.lng;
-                
-                // Centra la mappa dolcemente sul nuovo punto di ricerca
-                map.panTo([searchLat, searchLon]);
-                
-                // Ricarica le offerte con le nuove coordinate
-                loadOffers();
-            });
+            // Centra la mappa dolcemente sul punto iniziale
+            map.setView([defaultLat, defaultLon], 14);
 
             // Caricamento Immediato delle offerte per prevenire freeze del browser (su HTTP)
             loadOffers();
@@ -161,7 +139,6 @@
                     searchLat = pos.coords.latitude;
                     searchLon = pos.coords.longitude;
                     map.setView([searchLat, searchLon], 14);
-                    searchMarker.setLatLng([searchLat, searchLon]);
                     loadOffers(); // ricarica con le coordinate precise
                     if (venuesActive) loadVenues();
                 }, () => { 
@@ -169,12 +146,18 @@
                 }, { timeout: 5000 });
             }
 
-            // Ricarica i locali quando si sposta la mappa (debounced 800ms)
-            let venueMoveTimer;
+            // Ricarica le offerte e i locali quando si sposta la mappa (debounced)
+            let moveTimer;
             map.on('moveend', () => {
-                if (!venuesActive) return;
-                clearTimeout(venueMoveTimer);
-                venueMoveTimer = setTimeout(() => loadVenues(), 800);
+                const center = map.getCenter();
+                searchLat = center.lat;
+                searchLon = center.lng;
+
+                clearTimeout(moveTimer);
+                moveTimer = setTimeout(() => {
+                    loadOffers();
+                    if (venuesActive) loadVenues();
+                }, 800);
             });
         }
 
