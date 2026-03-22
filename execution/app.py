@@ -272,19 +272,31 @@ def api_geocode():
             addr_data = data.get("address", {})
             
             road = addr_data.get("road", "")
-            hon = addr_data.get("house_number", "")
+            hon = addr_data.get("house_number") or addr_data.get("building") or ""
+            
+            # Se hon è ancora vuoto (es. in alcuni POI), proviamo a estrarlo dalle prime parti del display_name
+            display_name = data.get("display_name", "")
+            if not hon and display_name:
+                parts = [p.strip() for p in display_name.split(',')]
+                for p in parts[:2]:
+                    # Cerca una parte che inizi con un numero (es. "1", "1/A", "10 bis")
+                    if any(c.isdigit() for c in p) and len(p) < 10:
+                        hon = p
+                        break
             
             # Priorità per la città
             city = addr_data.get("city") or addr_data.get("town") or addr_data.get("village") or addr_data.get("hamlet") or addr_data.get("suburb") or ""
             
             if road:
+                # Formato Italiano: Via Strada Numero, Città
                 full_addr = f"{road}"
-                if hon: full_addr += f" {hon}"
-                if city: full_addr += f", {city}"
+                if hon and hon.lower() not in road.lower(): 
+                   full_addr += f" {hon}"
+                if city: 
+                   full_addr += f", {city}"
                 return jsonify({"address": full_addr})
             
-            # Fallback se non c'è la strada
-            display_name = data.get("display_name", "")
+            # Fallback se non c'è la strada (usa le prime 3 parti del display_name)
             if display_name:
                 parts = [p.strip() for p in display_name.split(',')]
                 return jsonify({"address": ", ".join(parts[:3])})
