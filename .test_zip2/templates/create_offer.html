@@ -6,35 +6,25 @@
     <meta name="description" content="Crea una nuova offerta di pasto su ApprofittOffro.">
     <title>Offri un Pasto — ApprofittOffro</title>
     <link rel="stylesheet" href="/static/css/styles.css">
-    <link rel="manifest" href="/static/manifest.json">
-    <meta name="theme-color" content="#FF7043">
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/static/sw.js');
-        });
-      }
-    </script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
     <!-- Navbar -->
     <nav class="navbar">
         <a href="/dashboard" class="navbar-brand">
-            <div class="logo-icon">🍽️</div>
-            <span>ApprofittOffro</span>
+            <span class="logo-icon">🍽️</span>
+            ApprofittOffro
         </a>
-        <div class="nav-links">
-            <a href="/dashboard" class="btn btn-outline btn-sm">Mappa</a>
-            <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
-            <a href="/logout" class="btn btn-ghost btn-sm" style="color:var(--text-muted)">Esci</a>
-        </div>
+        <ul class="navbar-nav">
+            <li><a href="/dashboard">← Dashboard</a></li>
+        </ul>
     </nav>
 
-    <div class="container main-content" style="max-width: 650px;">
-        <div class="glass-card" style="text-align: center; padding: 40px;">
-            <h2 id="page-title" style="margin-bottom: 8px;">Offri un Pasto 🎉</h2>
-            <p style="color: var(--text-muted); margin-bottom: 32px;">Condividi la tua tavola con la community.</p>
+    <!-- Create Offer Form -->
+    <div class="auth-container main-content">
+        <div class="glass-card auth-card" style="max-width: 600px;">
+            <h2>Offri un Pasto 🎉</h2>
+            <p class="subtitle">Scegli il tipo, il posto e quante persone vuoi invitare.</p>
 
             <div id="offer-errors"></div>
 
@@ -64,22 +54,15 @@
 
                 <!-- Mappa per posizione locale -->
                 <div class="form-group">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 8px;">
-                        <label style="margin:0;">📍 Dove si trova il locale?</label>
-                        <button type="button" id="toggle-venues-btn" onclick="toggleVenues()" class="btn btn-outline" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 100px;">
-                            <span id="venue-icon">👁️</span> Locali vicini
-                        </button>
-                    </div>
-                    <div style="border-radius: var(--radius-md); overflow: hidden; border: 2px solid var(--border); height: 280px; margin-bottom: 12px; position: relative;">
-                        <div id="offer-map" style="height: 100%;"></div>
+                    <label>Posizione del locale (clicca sulla mappa)</label>
+                    <div class="map-container map-small">
+                        <div id="offer-map"></div>
                     </div>
                     <input type="hidden" id="offer-lat" name="latitudine">
                     <input type="hidden" id="offer-lon" name="longitudine">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <p class="text-muted" id="offer-location-label" style="font-size: 0.85rem; font-weight: 700; color: var(--primary); margin:0;">
-                            📍 Trascina per posizionare il pin
-                        </p>
-                    </div>
+                    <p class="text-muted mt-1" id="offer-location-label" style="font-size: 0.85rem;">
+                        📍 <b>Trascina la mappa</b> per posizionare il pin sul locale.
+                    </p>
                 </div>
 
                 <!-- Numero Posti -->
@@ -101,30 +84,33 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Foto del Locale <span style="font-weight:normal; font-size:0.8rem; color:var(--text-muted);">(Opzionale)</span></label>
+                    <label>Foto del Locale / Cibo <span style="font-weight:normal; font-size:0.8rem; color:var(--text-muted);">(Opzionale)</span></label>
                     
+                    <!-- Trigger nascosti per aprire camera o galleria (questi conservano il file!) -->
                     <input type="file" id="trigger_camera" accept="image/*" capture="environment" style="display:none;" onchange="handleFotoSelect(this)">
                     <input type="file" id="trigger_galleria" accept="image/*" style="display:none;" onchange="handleFotoSelect(this)">
                     
-                    <div style="display:flex; gap:12px; margin-top:12px;">
-                        <button type="button" onclick="document.getElementById('trigger_camera').click()" class="btn btn-outline" style="flex:1; font-weight: 700;">
-                            📷 Scatta
+                    <!-- Pulsanti visibili -->
+                    <div style="display:flex; gap:10px; margin-top:6px;">
+                        <button type="button" onclick="document.getElementById('trigger_camera').click()" class="btn btn-outline" style="flex:1;">
+                            📷 Scatta Foto
                         </button>
-                        <button type="button" onclick="document.getElementById('trigger_galleria').click()" class="btn btn-outline" style="flex:1; font-weight: 700;">
-                            🖼️ Galleria
+                        <button type="button" onclick="document.getElementById('trigger_galleria').click()" class="btn btn-outline" style="flex:1;">
+                            🖼️ Scegli Galleria
                         </button>
                     </div>
                     
-                    <div id="foto-preview" style="margin-top:20px; display:none; text-align:center;">
-                        <img id="foto-preview-img" style="max-width:100%; height: 200px; border-radius:var(--radius-md); object-fit:cover; box-shadow: var(--shadow-md);">
-                        <div style="font-size:0.85rem; color:var(--primary); margin-top:8px; font-weight: 800;" id="foto-preview-name"></div>
+                    <!-- Anteprima foto selezionata -->
+                    <div id="foto-preview" style="margin-top:10px; display:none; text-align:center;">
+                        <img id="foto-preview-img" style="max-height:160px; border-radius:12px; object-fit:cover; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                        <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;" id="foto-preview-name"></div>
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-accent btn-block btn-lg" id="offer-btn" style="margin-top: 40px;">
-                    PUBBLICA OFFERTA
+
+                <button type="submit" class="btn btn-primary btn-block btn-lg" id="offer-btn">
+                    🎉 Pubblica Offerta
                 </button>
-                <a href="/dashboard" class="btn btn-ghost btn-block mt-2">Annulla</a>
             </form>
         </div>
     </div>
@@ -158,197 +144,22 @@
         });
         {% endif %}
 
-        // ---- Pre-compilazione da "Offri qui!" (URL params) ----
-        (function prefillFromVenue() {
-            const params = new URLSearchParams(window.location.search);
-            const nome = params.get('nome');
-            const indir = params.get('indirizzo');
-            const lat  = params.get('lat');
-            const lon  = params.get('lon');
-            
-            // Salva subito le coordinate per initOfferMap()
-            if (lat && lon) {
-                window._prefillLat = parseFloat(lat);
-                window._prefillLon = parseFloat(lon);
-            }
-            
-            if (nome) {
-                const nomeField = document.getElementById('nome_locale');
-                if (nomeField && !nomeField.value) nomeField.value = nome;
-            }
-            if (indir) {
-                const indirField = document.getElementById('indirizzo');
-                if (indirField && !indirField.value) indirField.value = indir;
-            }
-        })();
-
         // ---- Mappa offerta ----
         let offerMap, offerMarker;
 
-        // ---- Locali Vicini (Overpass API) ----
-        let venuesActive = false;
-        let venueMarkers = [];
-
-        function toggleVenues() {
-            venuesActive = !venuesActive;
-            const btn = document.getElementById('toggle-venues-btn');
-            const icon = document.getElementById('venue-icon');
-            if (venuesActive) {
-                btn.style.background = 'var(--primary)';
-                btn.style.color = 'white';
-                icon.innerText = '✅';
-                loadVenues();
-            } else {
-                btn.style.background = '';
-                btn.style.color = '';
-                icon.innerText = '👁️';
-                clearVenueMarkers();
-            }
-        }
-
-        function clearVenueMarkers() {
-            venueMarkers.forEach(m => offerMap.removeLayer(m));
-            venueMarkers = [];
-        }
-
-        function getVenueStyle(tags) {
-            let color = '#999';
-            let emoji = '📍';
-            if (tags.amenity === 'pizza' || tags.cuisine === 'pizza') { color = '#E53935'; emoji = '🍕'; }
-            else if (tags.amenity === 'restaurant') { color = '#FB8C00'; emoji = '🍽️'; }
-            else if (tags.amenity === 'cafe') { color = '#6D4C41'; emoji = '☕'; }
-            else if (tags.amenity === 'bar' || tags.amenity === 'pub') { color = '#8E24AA'; emoji = '🍺'; }
-            else if (tags.amenity === 'fast_food') { color = '#FDD835'; emoji = '🍔'; }
-            else if (tags.amenity === 'ice_cream') { color = '#F48FB1'; emoji = '🍦'; }
-            else if (tags.amenity === 'bakery') { color = '#F57C00'; emoji = '🥐'; }
-            return { color, emoji };
-        }
-
-        window.selectVenueFromMap = function(name, address, lat, lon) {
-            const nomeField = document.getElementById('nome_locale');
-            if(nomeField) nomeField.value = decodeURIComponent(name);
-            
-            const indirField = document.getElementById('indirizzo');
-            if(indirField) indirField.value = decodeURIComponent(address);
-            
-            // Aggiorna marker offerta e centra
-            if(offerMarker) offerMarker.setLatLng([lat, lon]);
-            if(offerMap) offerMap.setView([lat, lon], 17);
-            
-            // Imposta coordinate
+        async function updateOfferLocation(lat, lon) {
             document.getElementById('offer-lat').value = lat;
             document.getElementById('offer-lon').value = lon;
-            
-            document.getElementById('offer-location-label').innerHTML = `📍 <b style="color:var(--success);">Indirizzo locale importato</b>`;
-            
-            // Chiudi il popup
-            if(offerMap) offerMap.closePopup();
-        };
-
-        async function loadVenues() {
-            if (!venuesActive || !offerMap) return;
-
-            const center = offerMap.getCenter();
-            const lat = center.lat;
-            const lon = center.lng;
-            const radius = 1000;
-
-            const query = `
-                [out:json][timeout:10];
-                (
-                  node["amenity"~"^(restaurant|cafe|bar|pub|fast_food|ice_cream|bakery)$"](around:${radius},${lat},${lon});
-                );
-                out body;
-            `;
-
-            try {
-                const res = await fetch('https://overpass-api.de/api/interpreter', {
-                    method: 'POST',
-                    body: query
-                });
-                const data = await res.json();
-                
-                clearVenueMarkers();
-
-                data.elements.forEach(el => {
-                    if (!el.lat || !el.lon) return;
-                    const tags = el.tags || {};
-                    const name = tags.name || tags.amenity || 'Locale';
-                    const style = getVenueStyle(tags);
-                    
-                    let fullAddress = '';
-                    if (tags['addr:street']) {
-                        fullAddress = tags['addr:street'];
-                        if (tags['addr:housenumber']) fullAddress += ' ' + tags['addr:housenumber'];
-                        if (tags['addr:city']) fullAddress += ', ' + tags['addr:city'];
-                    }
-
-                    const icon = L.divIcon({
-                        className: '',
-                        html: `<div style="
-                            background: white;
-                            border: 3px solid ${style.color};
-                            width: 32px; height: 32px;
-                            border-radius: 50%;
-                            display: flex; align-items: center; justify-content: center;
-                            font-size: 15px;
-                            box-shadow: 0 2px 5px rgba(0,0,0,0.25);
-                            cursor: pointer;
-                        ">${style.emoji}</div>`,
-                        iconSize: [32, 32],
-                        iconAnchor: [16, 16],
-                        popupAnchor: [0, -18]
-                    });
-
-                    const btnHtml = `<button type="button" onclick="selectVenueFromMap(
-                        '${encodeURIComponent(name).replace(/'/g, "\\'")}', 
-                        '${encodeURIComponent(fullAddress).replace(/'/g, "\\'")}', 
-                        ${el.lat}, ${el.lon})" 
-                        style="
-                            display: block; width: 100%; text-align: center; border: none;
-                            background: #FF7043; color: white; cursor: pointer;
-                            padding: 6px 0; border-radius: 20px;
-                            font-weight: 800; font-size: 0.8rem;
-                            margin-top: 8px;
-                        ">🎉 Seleziona Qui!</button>`;
-
-                    const marker = L.marker([el.lat, el.lon], { icon, zIndexOffset: -100 })
-                        .addTo(offerMap)
-                        .bindPopup(`
-                            <div style="font-family: 'Outfit', sans-serif; min-width: 150px; text-align:center;">
-                                <div style="font-size: 1.3rem; margin-bottom: 2px;">${style.emoji}</div>
-                                <b style="font-size: 0.9rem;">${name}</b>
-                                <div style="font-size: 0.75rem; color: #999; margin: 2px 0;">
-                                    ${fullAddress ? fullAddress : (tags.amenity ? tags.amenity.replace('_', ' ') : '')}
-                                </div>
-                                ${btnHtml}
-                            </div>
-                        `);
-                    venueMarkers.push(marker);
-                });
-            } catch (err) {}
-        }
-
-        async function updateOfferLocation(lat, lon, skipGeocodeIfFilled = false) {
-            document.getElementById('offer-lat').value = lat;
-            document.getElementById('offer-lon').value = lon;
-            
-            const indirizzoInput = document.getElementById('indirizzo');
-            if (skipGeocodeIfFilled && indirizzoInput.value.trim() !== '') {
-                document.getElementById('offer-location-label').innerHTML = `📍 <b style="color:var(--success);">Indirizzo locale importato</b>`;
-                return;
-            }
-
-            document.getElementById('offer-location-label').innerHTML = `📍 Ricerca in corso...`;
+            document.getElementById('offer-location-label').innerHTML = `📍 Ricerca indirizzo in corso...`;
 
             try {
                 const res = await fetch(`/api/geocode?lat=${lat}&lon=${lon}`);
                 const data = await res.json();
                 
-                indirizzoInput.value = data.address;
+                document.getElementById('indirizzo').value = data.address;
                 document.getElementById('offer-location-label').innerHTML = `📍 <b style="color:var(--success);">Posizione selezionata</b>`;
             } catch {
-                indirizzoInput.value = "Posizione Geografica";
+                document.getElementById('indirizzo').value = "Posizione Geografica";
                 document.getElementById('offer-location-label').innerHTML = `📍 <b style="color:var(--success);">Posizione Mappa</b>`;
             }
         }
@@ -371,15 +182,9 @@
             let startLoc = [41.9028, 12.4964];
             let startZoom = 16;
             
-            let isPrefilled = false;
-            
             if (typeof offerEditLat !== 'undefined' && offerEditLat) {
                 // Modalità modifica: usa le coordinate dell'offerta esistente
                 startLoc = [offerEditLat, offerEditLon];
-            } else if (window._prefillLat && window._prefillLon) {
-                // Da "Offri qui!": usa le coordinate del locale cliccato
-                startLoc = [window._prefillLat, window._prefillLon];
-                isPrefilled = true;
             } else {
                 // Nuova offerta: prova prima il GPS live del dispositivo
                 const gpsPosition = await new Promise((resolve) => {
@@ -414,7 +219,7 @@
             }).addTo(offerMap);
 
             offerMarker = L.marker(startLoc).addTo(offerMap);
-            updateOfferLocation(startLoc[0], startLoc[1], isPrefilled);
+            updateOfferLocation(startLoc[0], startLoc[1]);
 
             offerMap.on('move', function() {
                 offerMarker.setLatLng(offerMap.getCenter());
@@ -426,7 +231,6 @@
                 otId = setTimeout(() => {
                     const center = offerMap.getCenter();
                     updateOfferLocation(center.lat, center.lng);
-                    if (venuesActive) loadVenues();
                 }, 600);
             });
         }

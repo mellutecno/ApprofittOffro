@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Il tuo profilo su ApprofittOffro.">
+    <title>Profilo — ApprofittOffro</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="/dashboard" class="navbar-brand">
+            <span class="logo-icon">🍽️</span>
+            ApprofittOffro
+        </a>
+        <div class="nav-links">
+            <ul style="display:flex; list-style:none; gap:16px;">
+                <li><a href="/dashboard" class="btn btn-outline btn-sm">Torna alla Mappa</a></li>
+                <li><a href="/new-offer" class="btn btn-primary btn-sm">Offri un Pasto</a></li>
+                <li><a href="/logout" class="btn btn-ghost btn-sm" style="color:var(--text-muted)">Esci</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Profile Content -->
+    <div class="container main-content">
+        <!-- Wrapper per layout mobile-style -->
+        <div style="max-width: 600px; margin: 0 auto;">
+            
+            <!-- Alerts and Messages -->
+            <div id="profile-alerts">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                  {% if messages %}
+                    {% for category, message in messages %}
+                      <div class="alert alert-{{ category }} mb-4" style="border-radius: 12px; text-align: center;">
+                          {{ message }}
+                      </div>
+                    {% endfor %}
+                  {% endif %}
+                {% endwith %}
+            </div>
+
+            <!-- Identikit Alimentare Form -->
+            <div class="glass-card mb-4" style="padding: 32px; margin-bottom: 40px; border-radius: 16px;">
+                <h3 style="margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px; color:var(--text); font-size:1.2rem; text-align: center;">👤 Modifica il tuo Profilo</h3>
+                
+                <form id="profile-form" enctype="multipart/form-data">
+                    <!-- Sezione 1: Dati Base -->
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 20px; margin-bottom: 32px;">
+                        <div class="form-group" style="text-align: center;">
+                            <label style="font-weight:600; font-size:0.95rem;">La tua Foto (Clicca per cambiarla)</label>
+                            <div class="photo-upload" id="photo-upload-btn" style="width: 120px; height: 120px; margin: 0 auto;">
+                                <img id="photo-preview" src="/uploads/{{ current_user.foto_filename }}" alt="{{ current_user.nome }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                                <input type="file" id="foto" name="foto" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-4">
+                        <label style="font-weight:600; font-size:0.95rem;">Nome o Nickname</label>
+                        <input type="text" name="nome" class="form-control" value="{{ current_user.nome }}" required style="padding: 12px;">
+                    </div>
+
+                    <div class="form-group mb-4">
+                        <label style="font-weight:600; font-size:0.95rem;">Email</label>
+                        <input type="email" name="email" class="form-control" value="{{ current_user.email }}" required style="padding: 12px;">
+                    </div>
+
+                    <div class="form-group mb-4">
+                        <label style="font-weight:600; font-size:0.95rem;">Fascia d'età</label>
+                        <select name="fascia_eta" class="form-control" required style="padding: 12px;">
+                            {% for val, label in fasce_eta %}
+                                <option value="{{ val }}" {% if current_user.fascia_eta == val %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Sezione 2: Località -->
+                    <div class="form-group mb-4">
+                        <label style="font-weight:600; font-size:0.95rem;">La tua Posizione (Trascina per spostare)</label>
+                        <div style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border); height: 250px; margin-bottom: 12px;">
+                            <div id="profile-map" style="height: 100%;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                            <button type="button" class="btn btn-sm btn-outline" style="font-weight:600;" onclick="locateMe()">📍 Usa GPS</button>
+                            <span id="location-name" class="text-muted" style="font-size: 0.82rem; font-weight: 500; text-align: right;">{{ current_user.citta or 'Posizione Mappa' }}</span>
+                        </div>
+                        <input type="hidden" id="lat" name="latitudine" value="{{ current_user.latitudine }}">
+                        <input type="hidden" id="lon" name="longitudine" value="{{ current_user.longitudine }}">
+                        <input type="hidden" id="citta" name="citta" value="{{ current_user.citta or '' }}">
+                    </div>
+
+                    <hr style="border: none; border-top: 1px solid var(--border); margin: 32px 0;">
+
+                    <h3 style="margin-bottom: 24px; color:var(--text); font-size:1.1rem; text-align: center;">🍽️ Identikit Alimentare</h3>
+
+                    <div class="form-group mb-4">
+                        <label style="font-weight:600; font-size:0.95rem;">Cibi preferiti</label>
+                        <input type="text" name="cibi_preferiti" class="form-control" value="{{ current_user.cibi_preferiti or '' }}" placeholder="Es: Carne, Pizza, Sushi..." required style="padding: 12px;">
+                    </div>
+                    <div class="form-group mb-4">
+                        <label style="font-weight:600; font-size:0.95rem;">Intolleranze o allergie</label>
+                        <input type="text" name="intolleranze" class="form-control" value="{{ current_user.intolleranze or '' }}" placeholder="Es: Nessuna" required style="padding: 12px;">
+                    </div>
+                    <div class="form-group mb-4">
+                        <label style="font-weight:600; font-size:0.95rem;">Bio</label>
+                        <textarea name="bio" class="form-control" rows="3" placeholder="Raccontaci qualcosa di te..." required style="padding: 12px;">{{ current_user.bio or '' }}</textarea>
+                    </div>
+                    <div class="form-group mb-4">
+                        <label style="font-weight:600; font-size:0.95rem;">Raggio d'azione (Km)</label>
+                        <select name="raggio_azione" class="form-control" required style="padding: 12px;">
+                            <option value="5" {% if current_user.raggio_azione == 5 %}selected{% endif %}>Entro 5 km</option>
+                            <option value="10" {% if current_user.raggio_azione == 10 or not current_user.raggio_azione %}selected{% endif %}>Entro 10 km</option>
+                            <option value="20" {% if current_user.raggio_azione == 20 %}selected{% endif %}>Entro 20 km</option>
+                            <option value="50" {% if current_user.raggio_azione == 50 %}selected{% endif %}>Fino a 50 km</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="save-profile-btn" style="width: 100%; padding: 14px; font-size: 1.05rem;">Aggiorna Profilo</button>
+                    <a href="/dashboard" class="btn btn-ghost btn-block mt-2">Annulla</a>
+                </form>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="glass-card stat-card">
+                <div class="number" id="stat-offerte">{{ my_offers | length }}</div>
+                <div class="label">Offerte Create</div>
+            </div>
+            <div class="glass-card stat-card">
+                <div class="number" id="stat-claims">{{ my_claims | length }}</div>
+                <div class="label">Pasti Approfittati</div>
+            </div>
+            <div class="glass-card stat-card">
+                <div class="number" id="stat-posti">
+                    {% set ns = namespace(total=0) %}
+                    {% for o in my_offers %}
+                        {% set ns.total = ns.total + o.posti_totali %}
+                    {% endfor %}
+                    {{ ns.total }}
+                </div>
+                <div class="label">Posti Offerti Totali</div>
+            </div>
+        </div>
+
+        <!-- Le Mie Offerte e Claims (Restano invariati per brevità ma inclusi) -->
+        <h3 class="mb-2">🎁 Le Mie Offerte</h3>
+        {% if my_offers %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-bottom: 40px;">
+            {% for offer in my_offers %}
+            <div class="offer-card" style="opacity: 1;">
+                <div class="offer-card-body">
+                    <span class="offer-type-badge badge-{{ offer.tipo_pasto }}">
+                        {% if offer.tipo_pasto == 'colazione' %}☕{% elif offer.tipo_pasto == 'pranzo' %}🍝{% else %}🌙{% endif %}
+                        {{ offer.tipo_pasto }}
+                    </span>
+                    <h4 class="mt-1">{{ offer.nome_locale }}</h4>
+                    <div class="address">📍 {{ offer.indirizzo }}</div>
+                    <div class="datetime-info">📅 {{ offer.data_ora.strftime('%d/%m/%Y %H:%M') }}</div>
+                    {% if offer.descrizione %}
+                    <div class="description">{{ offer.descrizione }}</div>
+                    {% endif %}
+                </div>
+                <div class="offer-card-footer" style="flex-direction: column; align-items: stretch; gap: 12px;">
+                    <div style="display:flex; justify-content: space-between; align-items:center;">
+                        <div class="spots-indicator" style="margin-bottom:0;">
+                            <div class="spots-bar">
+                                {% set pct = (offer.posti_disponibili / offer.posti_totali * 100) if offer.posti_totali > 0 else 0 %}
+                                <div class="spots-bar-fill {{ 'critical' if pct <= 20 else 'low' if pct <= 50 else '' }}" style="width: {{ pct }}%"></div>
+                            </div>
+                            <span>{{ offer.posti_disponibili }}/{{ offer.posti_totali }} posti</span>
+                        </div>
+                        <span class="text-muted" style="font-size: 0.8rem;">
+                            {% if offer.stato == 'completata' %}✅ Completata{% elif offer.stato == 'annullata' %}❌ Annullata{% else %}🟢 Attiva{% endif %}
+                        </span>
+                    </div>
+                    
+                    <div style="display:flex; gap:8px;">
+                        <a href="/edit-offer/{{ offer.id }}" class="btn btn-outline btn-sm" style="flex: 1; text-align: center;">✏️ Modifica</a>
+                        <button onclick="deleteOfferProfile({{ offer.id }})" class="btn btn-outline btn-sm" style="flex: 1; color:var(--error); border-color:var(--error);">🗑️ Elimina</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 30px;">
+            <p>Non hai ancora creato nessuna offerta.</p>
+            <a href="/new-offer" class="btn btn-primary btn-sm mt-2">+ Crea la tua prima offerta</a>
+        </div>
+        {% endif %}
+
+        <h3 class="mb-2">✨ Pasti a cui ho Approfittato</h3>
+        {% if my_claims %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px;">
+            {% for claim in my_claims %}
+            <div class="offer-card" style="opacity: 1;">
+                <div class="offer-card-header">
+                    <img src="/uploads/{{ claim.offerta.autore.foto_filename }}" alt="{{ claim.offerta.autore.nome }}" class="avatar">
+                    <div class="info">
+                        <div class="name">Offerto da {{ claim.offerta.autore.nome }}</div>
+                    </div>
+                </div>
+                <div class="offer-card-body">
+                    <span class="offer-type-badge badge-{{ claim.offerta.tipo_pasto }}">
+                        {% if claim.offerta.tipo_pasto == 'colazione' %}☕{% elif claim.offerta.tipo_pasto == 'pranzo' %}🍝{% else %}🌙{% endif %}
+                        {{ claim.offerta.tipo_pasto }}
+                    </span>
+                    <h4 class="mt-1">{{ claim.offerta.nome_locale }}</h4>
+                    <div class="address">📍 {{ claim.offerta.indirizzo }}</div>
+                    <div class="datetime-info" style="margin-top: 8px; font-weight: 500;">📅 {{ claim.offerta.data_ora.strftime('%d/%m/%Y alle ore %H:%M') }}</div>
+                </div>
+                <div class="offer-card-footer">
+                    <button onclick="if(confirm('Sei sicuro di voler annullare la partecipazione? L\'organizzatore verrà avvisato via email.')) unclaimOffer({{ claim.id }})" class="btn btn-outline btn-sm" style="width:100%; color:var(--error); border-color:var(--error);">🚫 Annulla la mia partecipazione</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 30px;">
+            <p>Non hai ancora approfittato di nessun pasto.</p>
+            <a href="/dashboard" class="btn btn-primary btn-sm mt-2">Scopri le offerte</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="/static/js/app.js"></script>
+    <script>
+        // Data from server injected safely (fallback to Italy center if missing)
+        const currentLat = parseFloat('{{ current_user.latitudine or 41.9 }}') || 41.9;
+        const currentLon = parseFloat('{{ current_user.longitudine or 12.5 }}') || 12.5;
+
+        // Mappa Logic
+        let map;
+        let marker;
+
+        async function updateLocation(lat, lon) {
+            document.getElementById('lat').value = lat;
+            document.getElementById('lon').value = lon;
+            document.getElementById('location-name').innerHTML = `📍 Ricerca...`;
+
+            try {
+                const res = await fetch(`/api/geocode?lat=${lat}&lon=${lon}`);
+                const data = await res.json();
+                document.getElementById('citta').value = data.address;
+                document.getElementById('location-name').innerHTML = `📍 <b style="color:var(--success);">${data.address}</b>`;
+            } catch (err) {
+                document.getElementById('location-name').innerHTML = `📍 Posizione Mappa`;
+            }
+        }
+
+        function locateMe() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    map.setView([lat, lon], 16);
+                    marker.setLatLng([lat, lon]);
+                    updateLocation(lat, lon);
+                }, () => alert("GPS Negato o Timeout."));
+            }
+        }
+
+        function initMap() {
+            if (!document.getElementById('profile-map')) return;
+            map = L.map('profile-map').setView([currentLat, currentLon], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+
+            marker = L.marker([currentLat, currentLon]).addTo(map);
+
+            map.on('move', () => marker.setLatLng(map.getCenter()));
+            
+            let tId;
+            map.on('moveend', () => {
+                clearTimeout(tId);
+                tId = setTimeout(() => {
+                    const center = map.getCenter();
+                    updateLocation(center.lat, center.lng);
+                }, 800);
+            });
+        }
+
+        window.addEventListener('load', initMap);
+
+        // Preview Foto
+        const fotoInput = document.getElementById('foto');
+        if (fotoInput) {
+            fotoInput.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = e => document.getElementById('photo-preview').src = e.target.result;
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        // Delete/Unclaim
+        async function deleteOfferProfile(id) {
+            if (!confirm("Sei sicura/o?")) return;
+            const motivo = prompt("Motivo:");
+            if (!motivo) return;
+            try {
+                const res = await fetch(`/api/offers/${id}`, { 
+                    method: 'DELETE', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ motivazione: motivo })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Eliminata.', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                }
+            } catch(e) { showToast('Errore tecnico', 'error'); }
+        }
+
+        async function unclaimOffer(claimId) {
+            try {
+                const res = await fetch(`/api/claims/${claimId}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Annullata.', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                }
+            } catch(e) { showToast('Errore tecnico', 'error'); }
+        }
+
+        // Submit Form (Nuovo con FormData)
+        const profileForm = document.getElementById('profile-form');
+        if (profileForm) {
+            profileForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = document.getElementById('save-profile-btn');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<span class="spinner"></span> Salvataggio...';
+                btn.disabled = true;
+
+                const formData = new FormData(e.target);
+
+                try {
+                    const res = await fetch('/api/user/update', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        showToast('Profilo aggiornato con successo!', 'success');
+                        setTimeout(() => window.location.href = '/dashboard', 1500);
+                    } else {
+                        showToast(data.errors.join(' '), 'error');
+                    }
+                } catch (err) {
+                    showToast('Errore di connessione', 'error');
+                } finally {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            });
+        }
+    </script>
+</body>
+</html>

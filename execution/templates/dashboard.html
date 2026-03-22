@@ -18,6 +18,9 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
 <body>
+    <!-- Titolo che sparisce con lo scroll -->
+    <div class="page-top-title" id="page-top-title">ApprofittOffro</div>
+
     <nav class="navbar">
         <a href="/dashboard" class="navbar-brand">
             <div class="logo-icon">🍽️</div>
@@ -45,32 +48,45 @@
             </div>
         </div>
 
-        <div id="offers-panel" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 28px; margin-bottom: 60px;">
-            <!-- Caricate via JS -->
-        </div>
-
-        <section class="map-section glass-card" style="padding: 24px; margin-bottom: 60px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 24px;">
-                <h3 style="margin: 0;">🗺️ Mappa D'Azione</h3>
-                <div style="display: flex; align-items: center; gap: 12px; background: var(--bg-body); padding: 8px 16px; border-radius: 100px;">
-                    <label style="font-weight: 700; color:var(--text-muted); font-size:0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Raggio:</label>
-                    <select id="radius-filter" class="form-control" style="width: auto; border:none; background:transparent; padding: 0; min-height: 0; font-weight:700; color:var(--primary);" onchange="setRadius(this.value)">
-                        <option value="">Ovunque</option>
-                        <option value="5">5 km</option>
-                        <option value="10">10 km</option>
-                        <option value="25">25 km</option>
-                        <option value="50">50 km</option>
-                    </select>
+        <section class="map-section glass-card" style="padding: 24px; margin-left: auto; margin-right: auto; margin-bottom: 60px; max-width: 900px;">
+            <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                    <!-- Toggle Locali Vicini -->
+                    <button id="venues-toggle-btn" onclick="toggleVenues()" class="btn btn-sm" style="gap: 6px; font-weight: 800; background: var(--bg-body); border: 2px solid var(--border); border-radius: 100px; padding: 8px 16px; transition: all 0.2s;">
+                        🏪 Locali Vicini
+                    </button>
+                    <div style="display: flex; align-items: center; gap: 12px; background: var(--bg-body); padding: 8px 16px; border-radius: 100px;">
+                        <label style="font-weight: 700; color:var(--text-muted); font-size:0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Raggio:</label>
+                        <select id="radius-filter" class="form-control" style="width: auto; border:none; background:transparent; padding: 0; min-height: 0; font-weight:700; color:var(--primary);" onchange="setRadius(this.value)">
+                            <option value="">Ovunque</option>
+                            <option value="5">5 km</option>
+                            <option value="10">10 km</option>
+                            <option value="25">25 km</option>
+                            <option value="50">50 km</option>
+                        </select>
+                    </div>
                 </div>
+            </div>
+            <!-- Legenda categorie (appare quando i locali sono attivi) -->
+            <div id="venues-legend" style="display:none; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; font-size: 0.82rem; font-weight: 800; color: var(--text-muted);">
+                <span>🍽️ Ristorante</span>
+                <span>☕ Bar/Cafè</span>
+                <span>🍕 Pizzeria</span>
+                <span>🍔 Fast Food</span>
+                <span>🍺 Pub</span>
             </div>
             
             <div style="border-radius: var(--radius-md); overflow: hidden; position: relative;">
                 <button onclick="locateMeDashboard()" class="btn btn-sm" style="position: absolute; top: 12px; right: 12px; z-index: 1000; background: white; box-shadow: var(--shadow-md); font-weight:700; border-radius: 100px;">
                     📍 La mia Posizione
                 </button>
-                <div id="map" style="height: 400px; width: 100%;"></div>
+                <div id="map" style="height: 320px; width: 100%;"></div>
             </div>
         </section>
+
+        <div id="offers-panel" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 28px; margin-bottom: 60px;">
+            <!-- Caricate via JS -->
+        </div>
     </main>
 
     <div id="toast-container" class="toast-container"></div>
@@ -160,16 +176,162 @@
                     searchMarker.setLatLng([searchLat, searchLon]);
                     updateRadar();
                     loadOffers(); // ricarica con le coordinate precise
+                    if (venuesActive) loadVenues();
                 }, () => { 
                     /* fallback silenzioso */ 
                 }, { timeout: 5000 });
             }
+
+            // Ricarica i locali quando si sposta la mappa (debounced 800ms)
+            let venueMoveTimer;
+            map.on('moveend', () => {
+                if (!venuesActive) return;
+                clearTimeout(venueMoveTimer);
+                venueMoveTimer = setTimeout(() => loadVenues(), 800);
+            });
         }
 
         function setRadius(radius) {
             currentRadius = radius;
             loadOffers();
         }
+
+        // ============================================================
+        // LOCALI VICINI — Overpass API (OpenStreetMap)
+        // ============================================================
+        let venuesActive = false;
+        let venueMarkers = [];
+
+        // Mappa tipo→emoji e colore
+        const VENUE_STYLES = {
+            restaurant: { emoji: '🍽️', color: '#FF7043' },
+            cafe:       { emoji: '☕',  color: '#795548' },
+            bar:        { emoji: '🍺',  color: '#FFA726' },
+            pub:        { emoji: '🍺',  color: '#6D4C41' },
+            pizza:      { emoji: '🍕',  color: '#E53935' },
+            fast_food:  { emoji: '🍔',  color: '#F4511E' },
+            ice_cream:  { emoji: '🍦',  color: '#EC407A' },
+            bakery:     { emoji: '🥐',  color: '#8D6E63' },
+        };
+
+        function getVenueStyle(tags) {
+            if (tags.cuisine && tags.cuisine.includes('pizza')) return VENUE_STYLES.pizza;
+            const type = tags.amenity || '';
+            return VENUE_STYLES[type] || { emoji: '📍', color: '#9E9E9E' };
+        }
+
+        function clearVenueMarkers() {
+            venueMarkers.forEach(m => map.removeLayer(m));
+            venueMarkers = [];
+        }
+
+        function toggleVenues() {
+            const btn = document.getElementById('venues-toggle-btn');
+            const legend = document.getElementById('venues-legend');
+            venuesActive = !venuesActive;
+            if (venuesActive) {
+                btn.style.background = 'var(--primary)';
+                btn.style.color = 'white';
+                btn.style.border = '2px solid var(--primary)';
+                legend.style.display = 'flex';
+                loadVenues();
+            } else {
+                btn.style.background = 'var(--bg-body)';
+                btn.style.color = '';
+                btn.style.border = '2px solid var(--border)';
+                legend.style.display = 'none';
+                clearVenueMarkers();
+            }
+        }
+
+        async function loadVenues() {
+            if (!venuesActive) return;
+
+            const center = map.getCenter();
+            const lat = center.lat;
+            const lon = center.lng;
+            const radius = 1500; // 1.5km dal centro mappa
+
+            const query = `
+                [out:json][timeout:10];
+                (
+                  node["amenity"~"^(restaurant|cafe|bar|pub|fast_food|ice_cream|bakery)$"](around:${radius},${lat},${lon});
+                );
+                out body;
+            `;
+
+            try {
+                const res = await fetch('https://overpass-api.de/api/interpreter', {
+                    method: 'POST',
+                    body: query
+                });
+                const data = await res.json();
+                
+                // Pulisce i vecchi marker solo quando i nuovi dati sono pronti
+                clearVenueMarkers();
+
+                data.elements.forEach(el => {
+                    if (!el.lat || !el.lon) return;
+                    const tags = el.tags || {};
+                    const name = tags.name || tags.amenity || 'Locale';
+                    const style = getVenueStyle(tags);
+                    
+                    // Componi l'indirizzo dai tag OSM (se disponibili)
+                    let fullAddress = '';
+                    if (tags['addr:street']) {
+                        fullAddress = tags['addr:street'];
+                        if (tags['addr:housenumber']) fullAddress += ' ' + tags['addr:housenumber'];
+                        if (tags['addr:city']) fullAddress += ', ' + tags['addr:city'];
+                    }
+
+                    const icon = L.divIcon({
+                        className: '',
+                        html: `<div style="
+                            background: white;
+                            border: 3px solid ${style.color};
+                            width: 36px; height: 36px;
+                            border-radius: 50%;
+                            display: flex; align-items: center; justify-content: center;
+                            font-size: 17px;
+                            box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+                            cursor: pointer;
+                        ">${style.emoji}</div>`,
+                        iconSize: [36, 36],
+                        iconAnchor: [18, 18],
+                        popupAnchor: [0, -20]
+                    });
+
+                    // Aggiungi indirizzo ai parametri
+                    const venueUrl = `/new-offer?nome=${encodeURIComponent(name)}&lat=${el.lat}&lon=${el.lon}${fullAddress ? '&indirizzo=' + encodeURIComponent(fullAddress) : ''}`;
+
+                    const marker = L.marker([el.lat, el.lon], { icon, zIndexOffset: -100 })
+                        .addTo(map)
+                        .bindPopup(`
+                            <div style="font-family: 'Outfit', sans-serif; min-width: 160px;">
+                                <div style="font-size: 1.4rem; text-align:center; margin-bottom: 4px;">${style.emoji}</div>
+                                <b style="font-size: 0.95rem;">${name}</b>
+                                <div style="font-size: 0.78rem; color: #999; margin: 2px 0 10px;">
+                                    ${tags.amenity ? tags.amenity.replace('_', ' ') : ''}
+                                    ${tags.cuisine ? ' · ' + tags.cuisine : ''}
+                                </div>
+                                <a href="${venueUrl}" style="
+                                    display: block; text-align: center;
+                                    background: #FF7043; color: white;
+                                    padding: 7px 0; border-radius: 20px;
+                                    font-weight: 800; font-size: 0.8rem;
+                                    text-decoration: none;
+                                ">🎉 Offri qui!</a>
+                            </div>
+                        `);
+                    venueMarkers.push(marker);
+                });
+            } catch (err) {
+                console.warn('Overpass API non raggiungibile:', err);
+            }
+        }
+
+        // Ricarica i locali quando la mappa si sposta (se attivi)
+        // (aggiunto dentro initMap, dopo map.on('dragend'…))
 
         function setFilter(type) {
             currentFilter = type;
@@ -259,6 +421,11 @@
                             <h4 style="margin-bottom: 4px; font-weight: 800;">${offer.nome_locale}</h4>
                             <div class="address" style="font-weight: 600; color: var(--text-muted); font-size: 0.85rem;">
                                 📍 ${offer.indirizzo} <span style="color:var(--primary); margin-left:4px;">(a ${offer.distance_km} km)</span>
+                                <div style="margin-top: 6px;">
+                                    <a href="https://www.google.com/maps/dir/?api=1&destination=${offer.lat},${offer.lon}" target="_blank" style="display:inline-flex; align-items:center; gap:4px; font-weight:800; font-size:0.8rem; color:white; background:var(--primary); padding:4px 12px; border-radius:100px; text-decoration:none; transition:opacity 0.2s;">
+                                        🧭 Apri nel navigatore
+                                    </a>
+                                </div>
                             </div>
                             
                             <div class="datetime-info" style="margin-top: 12px; background: var(--bg-body); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px dashed var(--border);">
@@ -352,6 +519,25 @@
         }
 
         window.onload = initMap;
+
+        // --- Titolo che sparisce con lo scroll (solo mobile) ---
+        const pageTitle = document.getElementById('page-top-title');
+        function handleScroll(scrollTop) {
+            if (scrollTop > 20) {
+                pageTitle.style.opacity = '0';
+                pageTitle.style.transform = 'translateY(-100%)';
+            } else {
+                pageTitle.style.opacity = '1';
+                pageTitle.style.transform = 'translateY(0)';
+            }
+        }
+        // Ascolta lo scroll della finestra (per tutti i browser)
+        window.addEventListener('scroll', () => handleScroll(window.scrollY), { passive: true });
+        // Ascolta anche lo scroll del pannello offerte (su mobile è lui che scrolla)
+        document.addEventListener('DOMContentLoaded', () => {
+            const panel = document.querySelector('.offers-panel');
+            if (panel) panel.addEventListener('scroll', () => handleScroll(panel.scrollTop), { passive: true });
+        });
     </script>
 </body>
 </html>

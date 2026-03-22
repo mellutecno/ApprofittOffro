@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: 'Arial', sans-serif; background-color: #F2EEEC; padding: 20px; text-align: center; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 20px; padding: 40px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #E5E0DC; }
+        .logo { font-size: 48px; margin-bottom: 16px; }
+        h1 { color: #2B2D42; font-size: 26px; margin-bottom: 8px; }
+        p { color: #4B5563; font-size: 16px; line-height: 1.6; margin-bottom: 32px; }
+        .btn { display: inline-block; background: #0EA5E9; color: white !important; padding: 14px 32px; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 16px; transition: background 0.3s; }
+        .footer { margin-top: 40px; font-size: 13px; color: #B8C0CC; }
+        .highlight { color: #0EA5E9; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🍽️</div>
+        <h1>Benvenuto in ApprofittOffro, <span class="highlight">{{ user.nome }}</span>!</h1>
+        <p>Siamo felicissimi di averti a bordo. Per iniziare subito a offrire o approfittare in sicurezza, ti chiediamo solo di verificare questo indirizzo email.</p>
+        <a href="{{ link_verifica }}" class="btn">Conferma la mia Email</a>
+        <p style="margin-top: 32px; font-size: 13px; color: #8D99AE;">Se non hai richiesto tu l'iscrizione ad ApprofittOffro, ignora semplicemente questa email.</p>
+        <div class="footer">© 2026 ApprofittOffro. Costruito con ❤️ in Italia.</div>
+    </div>
+</body>
+</html>
