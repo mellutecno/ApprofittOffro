@@ -198,7 +198,7 @@
                                     <img src="/uploads/{{ c.utente.foto_filename }}" class="avatar" style="width: 28px; height: 28px;">
                                     <span style="font-weight: 700; font-size: 0.85rem;">{{ c.utente.nome }}</span>
                                 </div>
-                                {% if offer.data_ora < now and offer.stato != 'annullata' %}
+                                {% if offer.data_ora < completion_threshold and offer.stato != 'annullata' %}
                                     {% set host_reviewed_guest = offer.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|selectattr('reviewed_id', 'equalto', c.utente.id)|list %}
                                     {% if not host_reviewed_guest %}
                                     <button onclick="openReviewModal({{ offer.id }}, '{{ c.utente.nome }}', {{ c.utente.id }})" class="btn btn-accent btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">🌟 Recensisci</button>

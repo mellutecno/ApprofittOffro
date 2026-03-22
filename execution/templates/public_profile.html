@@ -60,6 +60,11 @@
                 <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">Il tuo feedback aiuta la community a restare sicura e amichevole.</p>
                 <button onclick="openReviewModal({{ shared_offer.id }}, '{{ shared_offer.nome_locale }}', {{ user.id }})" class="btn btn-primary">🌟 Lascia una Recensione</button>
             </div>
+            {% elif pending_offer %}
+            <div class="glass-card" style="margin: 20px 0; padding: 20px; text-align: center; border: 1px dashed var(--primary);">
+                <h4 style="margin-bottom: 8px; color: var(--primary);">Pasto appena concluso o in corso ✨</h4>
+                <p style="font-size: 0.9rem; color: var(--text-muted);">Abbiamo impostato un tempo di attesa di 3 ore per permetterti di goderti il pasto con calma. Torna qui tra poco per lasciare la tua recensione!</p>
+            </div>
             {% endif %}
 
             <hr style="margin: 40px 0; border: none; border-top: 2px solid var(--border-light);">

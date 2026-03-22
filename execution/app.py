@@ -246,7 +246,8 @@ def profile_page():
         met_users=met_users_dict.values(),
         fasce_eta=FASCE_ETA,
         rating_info=get_user_rating(current_user.id),
-        now=datetime.now()
+        now=datetime.now(),
+        completion_threshold=datetime.now() - timedelta(hours=3)
     )
 
 def get_user_rating(user_id):
@@ -278,25 +279,45 @@ def public_profile(user_id):
     recuperi_effettuati = Claim.query.filter_by(user_id=user.id).count()
 
     # Logica per il pulsante "Lascia Recensione" sul profilo pubblico
-    # Cerchiamo l'ultimo pasto condiviso tra me (visitatore) e lui (profilo visto) già concluso
+    # Cerchiamo l'ultimo pasto condiviso concluso (almeno 3 ore fa)
     shared_offer = None
+    pending_offer = None
     if current_user.id != user_id:
+        from datetime import timedelta
         now = datetime.now()
+        threshold = now - timedelta(hours=3)
+        
         # Caso A: Io ero l'ospite, lui l'host
         meal_as_guest = Offer.query.join(Claim).filter(
             Claim.user_id == current_user.id,
             Offer.user_id == user_id,
-            Offer.data_ora < now
+            Offer.data_ora < threshold
         ).order_by(Offer.data_ora.desc()).first()
         
         # Caso B: Io ero l'host, lui l'ospite
         meal_as_host = Offer.query.join(Claim).filter(
             Offer.user_id == current_user.id,
             Claim.user_id == user_id,
-            Offer.data_ora < now
+            Offer.data_ora < threshold
         ).order_by(Offer.data_ora.desc()).first()
         
         shared_offer = meal_as_guest or meal_as_host
+
+        # Se non c'è una shared_offer già conclusa, cerchiamo una "pending" (pasto appena avvenuto o in corso)
+        if not shared_offer:
+            pending_as_guest = Offer.query.join(Claim).filter(
+                Claim.user_id == current_user.id,
+                Offer.user_id == user_id,
+                Offer.data_ora < now,
+                Offer.data_ora >= threshold
+            ).first()
+            pending_as_host = Offer.query.join(Claim).filter(
+                Offer.user_id == current_user.id,
+                Claim.user_id == user_id,
+                Offer.data_ora < now,
+                Offer.data_ora >= threshold
+            ).first()
+            pending_offer = pending_as_guest or pending_as_host
     
     return render_template(
         "public_profile.html", 
@@ -305,7 +326,8 @@ def public_profile(user_id):
         reviews=reviews,
         offerte_totali=offerte_totali,
         recuperi_effettuati=recuperi_effettuati,
-        shared_offer=shared_offer
+        shared_offer=shared_offer,
+        pending_offer=pending_offer
     )
 
 @app.errorhandler(413)
@@ -1026,9 +1048,10 @@ def api_create_review():
     if reviewed_id == current_user.id:
         return jsonify({"success": False, "error": "Non puoi recensire te stesso."}), 400
 
-    # 3. Verifica che l'evento sia passato
-    if offer.data_ora > datetime.now():
-        return jsonify({"success": False, "error": "Puoi lasciare una recensione solo dopo il termine del pasto."}), 400
+    # 3. Verifica che l'evento sia passato (buffer 3 ore)
+    from datetime import timedelta
+    if offer.data_ora + timedelta(hours=3) > datetime.now():
+        return jsonify({"success": False, "error": "Puoi lasciare una recensione solo 3 ore dopo l'inizio del pasto."}), 400
 
     # 4. Validazione Ruoli (Bidirezionale)
     # Casi ammessi: 
