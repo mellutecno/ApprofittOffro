@@ -340,6 +340,39 @@
             loadOffers();
         }
 
+        function downloadIcs(offer) {
+            const dateStr = offer.data_ora.replace(' ', 'T');
+            const d = new Date(dateStr);
+            const start = d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+            const end = new Date(d.getTime() + 2 * 60 * 60 * 1000).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+            
+            const icsContent = [
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                'PRODID:-//ApprofittOffro//NONSGML v1.0//EN',
+                'BEGIN:VEVENT',
+                `UID:offer-${offer.id}@approfittoffro.com`,
+                `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
+                `DTSTART:${start}`,
+                `DTEND:${end}`,
+                `SUMMARY:${offer.tipo_pasto.toUpperCase()} presso ${offer.nome_locale}`,
+                `DESCRIPTION:Condividi un pasto con ${offer.autore}. Per favore arrivare puntuale.`,
+                `LOCATION:${offer.indirizzo}`,
+                'END:VEVENT',
+                'END:VCALENDAR'
+            ].join('\r\n');
+
+            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `appuntamento-${offer.id}.ics`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
         function setFilter(type) {
             // Logica di Toggle (Deselezione)
             if (currentFilter === type) {
@@ -428,8 +461,11 @@
                                 </div>
                             </div>
                             
-                            <div class="datetime-info" style="margin-top: 12px; background: var(--bg-body); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px dashed var(--border);">
+                            <div class="datetime-info" 
+                                 onclick="${(offer.already_claimed || offer.is_own) ? `event.stopPropagation(); downloadIcs(${JSON.stringify(offer).replace(/"/g, '&quot;')})` : ''}"
+                                 style="margin-top: 12px; background: var(--bg-body); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px dashed var(--border); ${(offer.already_claimed || offer.is_own) ? 'cursor: pointer; border: 1px solid var(--success);' : ''}">
                                 🕒 ${formatDate(offer.data_ora)}
+                                ${(offer.already_claimed || offer.is_own) ? '<span style="float:right; font-size:0.75rem; color:var(--success); font-weight:800;">🗓️ CALENDARIO</span>' : ''}
                             </div>
 
                             ${offer.descrizione ? `<p style="margin-top: 16px; font-style: italic; color: var(--text-main); line-height: 1.4;">"${offer.descrizione}"</p>` : ''}

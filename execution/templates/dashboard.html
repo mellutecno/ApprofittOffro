@@ -309,9 +309,9 @@
                         .addTo(map)
                         .bindPopup(`
                             <div style="text-align:center; padding: 4px;">
-                                <strong style="font-size:1.1rem; display:block; margin-bottom:4px;">${name}</strong>
+                                <strong style="font-size:1.1rem; display:block; margin-bottom:4px; color: #000;">${name}</strong>
                                 <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:12px;">${fullAddress}</p>
-                                <a href="${venueUrl}" class="btn btn-primary btn-sm" style="display:inline-block; font-weight:800; padding: 6px 12px; border-radius:100px;">
+                                <a href="${venueUrl}" style="display:inline-block; font-weight:900; font-size: 1rem; color: #000; text-decoration: none; border: 2px solid #000; padding: 6px 16px; border-radius: 100px;">
                                     🍽️ Offri qui
                                 </a>
                             </div>
@@ -494,7 +494,18 @@
 
                     // Aggiungi marker su mappa
                     const marker = L.marker([offer.lat, offer.lon], { icon: createCustomIcon(offer.tipo_pasto) });
-                    marker.bindPopup(`<b>${offer.nome_locale}</b><br>${offer.posti_disponibili} posti disponibili<br>${formatDate(offer.data_ora)}`);
+                    marker.bindPopup(`
+                        <div style="text-align:center; padding: 4px;">
+                            <strong style="font-size:1.1rem; display:block; margin-bottom:4px; color: #000;">${offer.nome_locale}</strong>
+                            <p style="font-size:0.9rem; font-weight: 700; color: #000; margin-bottom:12px;">
+                                ${offer.posti_disponibili} posti disponibili<br>
+                                🕒 ${formatDate(offer.data_ora)}
+                            </p>
+                            <a href="#offer-${offer.id}" onclick="map.closePopup();" style="display:inline-block; font-weight:900; font-size: 1rem; color: #000; text-decoration: none; border: 2px solid #000; padding: 6px 16px; border-radius: 100px;">
+                                🍽️ Prenota qui
+                            </a>
+                        </div>
+                    `);
                     marker.addTo(map);
                     markers.push(marker);
                 });
