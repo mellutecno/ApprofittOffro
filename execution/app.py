@@ -612,8 +612,7 @@ def api_get_offers():
     now = datetime.now()
     threshold = now - timedelta(hours=3)
     query = Offer.query.filter(
-        Offer.stato == "attiva",
-        Offer.posti_disponibili > 0,
+        Offer.stato.in_(["attiva", "completata"]),
         Offer.data_ora > threshold,
     )
 
@@ -669,6 +668,7 @@ def api_get_offers():
             "distance_km": round(dist, 1),
             "posti_totali": o.posti_totali,
             "posti_disponibili": o.posti_disponibili,
+            "stato": o.stato,
             "data_ora": o.data_ora.isoformat(),
             "descrizione": o.descrizione or "",
             "foto_locale": getattr(o, "foto_locale", "nessuna.jpg"),
