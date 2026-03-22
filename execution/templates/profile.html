@@ -86,7 +86,11 @@
                         <label>📍 La Tua Posizione</label>
                         <div style="border-radius: var(--radius-md); overflow: hidden; border: 2px solid var(--border); height: 280px; margin-bottom: 12px; position: relative;">
                             <div id="profile-map" style="height: 100%;"></div>
-                            <button type="button" class="btn btn-sm" style="position: absolute; top: 12px; right: 12px; z-index: 1000; background: white; box-shadow: var(--shadow-md); font-weight: 800; border-radius: 100px;" onclick="locateMe()">📍 USA GPS</button>
+                            <button type="button" onclick="locateMe()" class="btn-map-control" title="La mia Posizione" style="position: absolute; top: 12px; right: 12px; z-index: 1000;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>
+                                </svg>
+                            </button>
                         </div>
                         <div style="text-align: right;">
                             <span id="location-name" style="font-size: 0.9rem; font-weight: 700; color: var(--primary);">{{ current_user.citta or 'Posizione Mappa' }}</span>
