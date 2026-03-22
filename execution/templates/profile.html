@@ -275,12 +275,12 @@
                 <div class="offer-card-footer" style="flex-direction: column; gap: 8px;">
                     {% set has_reviewed = claim.offerta.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|list %}
                     
-                    {% if claim.offerta.data_ora < now and not has_reviewed and claim.offerta.stato != 'annullata' %}
+                    {% if claim.offerta.data_ora < completion_threshold and not has_reviewed and claim.offerta.stato != 'annullata' %}
                     <button onclick="openReviewModal({{ claim.offerta.id }}, '{{ claim.offerta.nome_locale }}', {{ claim.offerta.user_id }})" class="btn btn-primary btn-sm" style="width:100%;">🌟 Lascia Recensione</button>
                     {% elif has_reviewed %}
                     <div class="text-center" style="color: var(--success); font-weight: 700; font-size: 0.85rem; padding: 8px;">✨ Già Recensito</div>
                     {% elif claim.offerta.data_ora < now %}
-                    <div class="text-center" style="color: var(--text-muted); font-size: 0.85rem; padding: 8px;">⏳ Concluso</div>
+                    <div class="text-center" style="color: var(--text-muted); font-size: 0.85rem; padding: 8px;">⏳ Recensione disponibile 3 ore dopo il pasto</div>
                     {% else %}
                     <button onclick="if(confirm('Sei sicuro di voler annullare la partecipazione? L\'organizzatore verrà avvisato via email.')) unclaimOffer({{ claim.id }})" class="btn btn-outline btn-sm" style="width:100%; color:var(--error); border-color:var(--error);">🚫 Annulla</button>
                     {% endif %}
@@ -383,6 +383,7 @@
             }
 
             const offerId = document.getElementById('review-offer-id').value;
+            const reviewedId = document.getElementById('review-reviewed-id').value;
             const commento = document.getElementById('review-commento').value;
 
             try {

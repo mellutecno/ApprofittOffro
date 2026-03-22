@@ -367,25 +367,35 @@ def public_profile(user_id):
     shared_offer = None
     pending_offer = None
     if current_user.id != user_id:
-        from datetime import timedelta
         now = datetime.now()
         threshold = now - timedelta(hours=3)
+        
+        def first_unreviewed_offer(query):
+            for offer in query.order_by(Offer.data_ora.desc()).all():
+                existing_review = Review.query.filter_by(
+                    reviewer_id=current_user.id,
+                    reviewed_id=user_id,
+                    offer_id=offer.id,
+                ).first()
+                if not existing_review:
+                    return offer
+            return None
         
         # Caso A: Io ero l'ospite, lui l'host
         meal_as_guest = Offer.query.join(Claim).filter(
             Claim.user_id == current_user.id,
             Offer.user_id == user_id,
             Offer.data_ora < threshold
-        ).order_by(Offer.data_ora.desc()).first()
+        )
         
         # Caso B: Io ero l'host, lui l'ospite
         meal_as_host = Offer.query.join(Claim).filter(
             Offer.user_id == current_user.id,
             Claim.user_id == user_id,
             Offer.data_ora < threshold
-        ).order_by(Offer.data_ora.desc()).first()
+        )
         
-        shared_offer = meal_as_guest or meal_as_host
+        shared_offer = first_unreviewed_offer(meal_as_guest) or first_unreviewed_offer(meal_as_host)
 
         # Se non c'è una shared_offer già conclusa, cerchiamo una "pending" (pasto appena avvenuto o in corso)
         if not shared_offer:
@@ -394,13 +404,13 @@ def public_profile(user_id):
                 Offer.user_id == user_id,
                 Offer.data_ora < now,
                 Offer.data_ora >= threshold
-            ).first()
+            ).order_by(Offer.data_ora.desc()).first()
             pending_as_host = Offer.query.join(Claim).filter(
                 Offer.user_id == current_user.id,
                 Claim.user_id == user_id,
                 Offer.data_ora < now,
                 Offer.data_ora >= threshold
-            ).first()
+            ).order_by(Offer.data_ora.desc()).first()
             pending_offer = pending_as_guest or pending_as_host
     
     return render_template(
@@ -1109,24 +1119,26 @@ def api_user_update():
 @login_required
 def api_create_review():
     """Crea una nuova recensione (Host -> Guest o Guest -> Host)."""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     offer_id = data.get("offer_id")
-    reviewed_id = data.get("reviewed_id") # Nuova specifica dell'utente da recensire
+    reviewed_id = data.get("reviewed_id")
     rating = data.get("rating")
-    commento = data.get("commento", "").strip()
+    commento = str(data.get("commento", "")).strip()
 
-    if not offer_id or not rating or not reviewed_id:
+    if offer_id in (None, "") or rating in (None, "") or reviewed_id in (None, ""):
         return jsonify({"success": False, "error": "Dati mancanti (ID offerta, utente o punteggio)."}), 400
 
     try:
+        offer_id = int(offer_id)
+        reviewed_id = int(reviewed_id)
         rating = int(rating)
         if rating < 1 or rating > 5:
             raise ValueError()
     except ValueError:
-        return jsonify({"success": False, "error": "Punteggio non valido (1-5)."}), 400
+        return jsonify({"success": False, "error": "Dati recensione non validi."}), 400
 
     # 1. Verifica che l'offerta esista
-    offer = Offer.query.get(offer_id)
+    offer = db.session.get(Offer, offer_id)
     if not offer:
         return jsonify({"success": False, "error": "Offerta non trovata."}), 404
 
@@ -1135,7 +1147,6 @@ def api_create_review():
         return jsonify({"success": False, "error": "Non puoi recensire te stesso."}), 400
 
     # 3. Verifica che l'evento sia passato (buffer 3 ore)
-    from datetime import timedelta
     if offer.data_ora + timedelta(hours=3) > datetime.now():
         return jsonify({"success": False, "error": "Puoi lasciare una recensione solo 3 ore dopo l'inizio del pasto."}), 400
 
