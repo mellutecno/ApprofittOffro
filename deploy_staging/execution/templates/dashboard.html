@@ -398,8 +398,12 @@
                     const card = document.createElement('div');
                     card.className = 'offer-card';
                     card.innerHTML = `
+                        <div class="offer-type-badge badge-${offer.tipo_pasto}" style="font-size: 1.1rem; padding: 10px 24px; margin-bottom: 20px; align-self: flex-start;">
+                            ${iconEmoji} ${offer.tipo_pasto.toUpperCase()}
+                        </div>
+
                         ${offer.foto_locale && offer.foto_locale !== 'nessuna.jpg' ? 
-                            `<div style="margin: -28px -28px 20px -28px; height: 200px; overflow: hidden; border-radius: var(--radius-lg) var(--radius-lg) 0 0;">
+                            `<div style="margin: 0 -28px 20px -28px; height: 230px; overflow: hidden; border-radius: var(--radius-md);">
                                 <img src="/uploads/${offer.foto_locale}" alt="Foto Locale" style="width: 100%; height: 100%; object-fit: cover;">
                             </div>` : ''}
                         
@@ -411,9 +415,6 @@
                                     <div class="meta" style="color: var(--primary); font-weight: 700; font-size: 0.85rem;">${offer.autore_fascia_eta} anni • ⭐ 4.9</div>
                                 </div>
                             </a>
-                            <div class="offer-type-badge badge-${offer.tipo_pasto}">
-                                ${iconEmoji} ${offer.tipo_pasto.toUpperCase()}
-                            </div>
                         </div>
 
                         <div class="offer-card-body">
