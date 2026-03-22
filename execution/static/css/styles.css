@@ -13,6 +13,8 @@
     --primary-dark: #F4511E;
     --primary-light: #FFAB91;
     --primary-glow: rgba(255, 112, 67, 0.3);
+    
+    color-scheme: dark; /* Helps browser-native icons (like calendar) adapt to dark theme */
 
     /* Accenti (Sage Green - Naturale, fresco e sostenibile) */
     --accent: #81C784;
@@ -197,7 +199,7 @@ a:hover { color: var(--primary-dark); }
 .glass-card:hover {
     box-shadow: var(--shadow-lg);
     border-color: var(--border-hover);
-    background: rgba(28, 18, 10, 0.8);
+    background: rgba(45, 32, 22, 0.85); /* Slightly lighter on hover to avoid over-darkening */
 }
 
 /* --- Form Elements --- */
@@ -229,8 +231,13 @@ a:hover { color: var(--primary-dark); }
 
 .form-control:focus {
     border-color: var(--primary);
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(255, 255, 255, 0.05); /* Lighter on focus to improve icon visibility */
     box-shadow: 0 0 0 4px var(--primary-glow);
+}
+
+.form-control:hover {
+    border-color: var(--border-hover);
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .form-control::placeholder {

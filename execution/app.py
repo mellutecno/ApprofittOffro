@@ -617,10 +617,10 @@ def api_edit_offer(offer_id):
         errors.append("L'indirizzo è obbligatorio.")
     if not lat or not lon:
         errors.append("Seleziona la posizione del locale sulla mappa.")
-    if not posti or int(posti) < 1:
-        errors.append("Indica almeno 1 posto disponibile.")
     if not data_ora_str:
         errors.append("Seleziona data e ora.")
+    if not descrizione or len(descrizione) < 30:
+        errors.append("La descrizione è obbligatoria e deve contenere almeno 30 caratteri.")
 
     if foto_locale and foto_locale.filename:
         if not allowed_file(foto_locale.filename):
@@ -680,10 +680,10 @@ def api_create_offer():
         errors.append("L'indirizzo è obbligatorio.")
     if not lat or not lon:
         errors.append("Seleziona la posizione del locale sulla mappa.")
-    if not posti or int(posti) < 1:
-        errors.append("Indica almeno 1 posto disponibile.")
     if not data_ora_str:
         errors.append("Seleziona data e ora.")
+    if not descrizione or len(descrizione) < 30:
+        errors.append("La descrizione è obbligatoria e deve contenere almeno 30 caratteri.")
     if foto_locale and foto_locale.filename:
         if not allowed_file(foto_locale.filename):
             errors.append("Formato foto non valido (usa JPG, PNG o WEBP).")
