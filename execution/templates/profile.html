@@ -116,7 +116,7 @@
                 </form>
             </div>
 
-            <div class="stats-grid" id="stats-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 60px;">
+            <div class="stats-grid" id="stats-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 30px;">
                 <div class="glass-card" style="padding: 20px; text-align: center;">
                     <div style="font-family: 'Outfit', sans-serif; font-size: 1.8rem; font-weight: 800; color: var(--primary);">{{ my_offers | length }}</div>
                     <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Offerte</div>
@@ -132,6 +132,24 @@
                     <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Posti</div>
                 </div>
             </div>
+
+            <!-- Community: Persone incontrate -->
+            <h3 class="mb-2">👥 Persone che ho incontrato</h3>
+            {% if met_users %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; margin-bottom: 40px;">
+                {% for u in met_users %}
+                <a href="/profile/{{ u.id }}" class="glass-card" style="padding: 12px; text-align: center; text-decoration: none; transition: transform 0.2s; display: block; border-radius: 16px;">
+                    <img src="/uploads/{{ u.foto_filename }}" class="avatar" style="width: 50px; height: 50px; margin: 0 auto 8px; border: 2px solid var(--primary);">
+                    <div style="font-weight: 700; font-size: 0.8rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ u.nome }}</div>
+                    <div style="font-size: 0.65rem; color: var(--primary); font-weight: 700; margin-top: 4px; text-transform: uppercase;">Profilo →</div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 20px; margin-bottom: 40px; border-style: dotted;">
+                <p style="font-size: 0.85rem; color: var(--text-muted);">Non hai ancora incontrato nessuno. <br><small>Interagisci con la community per vedere qui i profili!</small></p>
+            </div>
+            {% endif %}
 
         <!-- Le Mie Offerte e Claims (Restano invariati per brevità ma inclusi) -->
         <h3 class="mb-2">🎁 Le Mie Offerte</h3>

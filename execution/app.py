@@ -223,10 +223,27 @@ def profile_page():
     my_claims = Claim.query.filter_by(user_id=current_user.id).order_by(
         Claim.created_at.desc()
     ).all()
+
+    # Logica "Persone incontrate": raccogliamo utenti unici con cui c'è stata interazione
+    # 1. Host che ho incontrato (da miei claims)
+    met_users_dict = {}
+    for c in my_claims:
+        host = c.offerta.autore
+        if host.id not in met_users_dict:
+            met_users_dict[host.id] = host
+
+    # 2. Ospiti che mi hanno fatto visita (da mie offerte)
+    for o in my_offers:
+        for c in o.claims:
+            guest = c.utente
+            if guest.id not in met_users_dict:
+                met_users_dict[guest.id] = guest
+
     return render_template(
         "profile.html",
         my_offers=my_offers,
         my_claims=my_claims,
+        met_users=met_users_dict.values(),
         fasce_eta=FASCE_ETA,
         rating_info=get_user_rating(current_user.id),
         now=datetime.now()
@@ -952,6 +969,68 @@ def api_user_update():
 
     db.session.commit()
     return jsonify({"success": True, "message": "Profilo aggiornato con successo!"})
+
+
+# ===================================================================
+# API — Recensioni
+# ===================================================================
+
+@app.route("/api/reviews", methods=["POST"])
+@login_required
+def api_create_review():
+    """Crea una nuova recensione per un host."""
+    data = request.get_json()
+    offer_id = data.get("offer_id")
+    rating = data.get("rating")
+    commento = data.get("commento", "").strip()
+
+    if not offer_id or not rating:
+        return jsonify({"success": False, "error": "Dati mancanti (ID offerta o punteggio)."}), 400
+
+    try:
+        rating = int(rating)
+        if rating < 1 or rating > 5:
+            raise ValueError()
+    except ValueError:
+        return jsonify({"success": False, "error": "Punteggio non valido (1-5)."}), 400
+
+    # 1. Verifica che l'offerta esista
+    offer = Offer.query.get(offer_id)
+    if not offer:
+        return jsonify({"success": False, "error": "Offerta non trovata."}), 404
+
+    # 2. Verifica che l'utente non stia recensendo se stesso
+    if offer.user_id == current_user.id:
+        return jsonify({"success": False, "error": "Non puoi recensire il tuo stesso pasto."}), 400
+
+    # 3. Verifica che l'evento sia passato
+    if offer.data_ora > datetime.now():
+        return jsonify({"success": False, "error": "Puoi lasciare una recensione solo dopo il termine del pasto."}), 400
+
+    # 4. Verifica che l'utente abbia effettivamente partecipato (Claim)
+    claim = Claim.query.filter_by(user_id=current_user.id, offer_id=offer_id).first()
+    if not claim:
+        return jsonify({"success": False, "error": "Non hai partecipato a questo pasto, quindi non puoi recensirlo."}), 403
+
+    # 5. Verifica che non abbia già recensito questa offerta
+    from models import Review
+    existing = Review.query.filter_by(reviewer_id=current_user.id, offer_id=offer_id).first()
+    if existing:
+        return jsonify({"success": False, "error": "Hai già lasciato una recensione per questo pasto."}), 400
+
+    # 6. Creazione recensione
+    new_review = Review(
+        reviewer_id=current_user.id,
+        reviewed_id=offer.user_id,
+        offer_id=offer_id,
+        rating=rating,
+        commento=commento
+    )
+
+    db.session.add(new_review)
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Grazie! La tua recensione è stata pubblicata."})
 
 
 # ===================================================================
