@@ -46,6 +46,12 @@
                     <button class="filter-chip" onclick="setFilter('cena')">Cena</button>
                 </div>
             </div>
+            <div class="flex-center justify-center" style="margin-top: 12px;">
+                <div class="filter-bar" id="period-filter-bar">
+                    <button class="filter-chip active" onclick="setPeriod('oggi_domani')">Oggi e Domani</button>
+                    <button class="filter-chip" onclick="setPeriod('tutti')">Tutte le date</button>
+                </div>
+            </div>
         </div>
 
         <section class="map-section glass-card" style="padding: 24px; margin-left: auto; margin-right: auto; margin-bottom: 60px; max-width: 900px;">
@@ -85,6 +91,7 @@
         let map;
         let markers = [];
         let currentFilter = '';
+        let currentPeriod = 'oggi_domani';
         const defaultLat = parseFloat('{{ current_user.latitudine or 41.9 }}') || 41.9;
         const defaultLon = parseFloat('{{ current_user.longitudine or 12.5 }}') || 12.5;
         
@@ -318,6 +325,19 @@
         // Ricarica i locali quando la mappa si sposta (se attivi)
         // (aggiunto dentro initMap, dopo map.on('dragend'…))
 
+        function setPeriod(p) {
+            currentPeriod = p;
+            document.querySelectorAll('#period-filter-bar .filter-chip').forEach(el => {
+                const text = el.textContent.toLowerCase();
+                if ((p === 'oggi_domani' && text.includes('oggi')) || (p === 'tutti' && text.includes('tutte'))) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+            loadOffers();
+        }
+
         function setFilter(type) {
             currentFilter = type;
             document.querySelectorAll('.filter-chip').forEach(el => {
@@ -332,7 +352,7 @@
 
         async function loadOffers() {
             try {
-                const url = `/api/offers?tipo=${currentFilter}&lat=${searchLat}&lon=${searchLon}`;
+                const url = `/api/offers?tipo=${currentFilter}&periodo=${currentPeriod}&lat=${searchLat}&lon=${searchLon}`;
                 const res = await fetch(url);
                 const data = await res.json();
                 

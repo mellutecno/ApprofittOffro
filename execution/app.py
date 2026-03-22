@@ -193,6 +193,16 @@ def verify_email(token):
     user.verificato = True
     user.verification_token = None
     db.session.commit()
+
+    # Notifica Amministratore
+    admin_email = os.getenv("ADMIN_EMAIL")
+    if admin_email:
+        send_email(
+            subject=f"Nuovo Utente Verificato: {user.nome}",
+            recipients=[admin_email],
+            template="new_user_notification.html",
+            user=user
+        )
     
     flash("Email verificata con successo! Ora puoi accedere.", "success")
     return redirect(url_for("index"))
