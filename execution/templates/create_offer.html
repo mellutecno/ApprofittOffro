@@ -283,10 +283,17 @@
                     const style = getVenueStyle(tags);
                     
                     let fullAddress = '';
-                    if (tags['addr:street']) {
-                        fullAddress = tags['addr:street'];
+                    const street = tags['addr:street'] || tags['addr:place'] || '';
+                    if (street) {
+                        fullAddress = street;
                         if (tags['addr:housenumber']) fullAddress += ' ' + tags['addr:housenumber'];
-                        if (tags['addr:city']) fullAddress += ', ' + tags['addr:city'];
+                        const city = tags['addr:city'] || tags['addr:town'] || tags['addr:village'] || '';
+                        if (city) fullAddress += ', ' + city;
+                    } else {
+                        // Fallback se non c'è la strada
+                        const city = tags['addr:city'] || tags['addr:town'] || tags['addr:village'] || '';
+                        if (city) fullAddress = city;
+                        else fullAddress = name;
                     }
 
                     const icon = L.divIcon({

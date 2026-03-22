@@ -267,13 +267,27 @@ def api_geocode():
     url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}&zoom=18&addressdetails=1"
     req = urllib.request.Request(url, headers={'User-Agent': 'ApprofittOffro/1.0 (approfittoffro_utente@test.com)'})
     try:
-        with urllib.request.urlopen(req, timeout=8) as response:
+        with urllib.request.urlopen(req, timeout=12) as response:
             data = json.loads(response.read().decode())
+            addr_data = data.get("address", {})
+            
+            road = addr_data.get("road", "")
+            hon = addr_data.get("house_number", "")
+            
+            # Priorità per la città
+            city = addr_data.get("city") or addr_data.get("town") or addr_data.get("village") or addr_data.get("hamlet") or addr_data.get("suburb") or ""
+            
+            if road:
+                full_addr = f"{road}"
+                if hon: full_addr += f" {hon}"
+                if city: full_addr += f", {city}"
+                return jsonify({"address": full_addr})
+            
+            # Fallback se non c'è la strada
             display_name = data.get("display_name", "")
             if display_name:
                 parts = [p.strip() for p in display_name.split(',')]
-                nome_luogo = ", ".join(parts[:2]) # Tipicamente contiene Via e Numero Civico
-                return jsonify({"address": nome_luogo})
+                return jsonify({"address": ", ".join(parts[:3])})
     except Exception:
         pass
     
