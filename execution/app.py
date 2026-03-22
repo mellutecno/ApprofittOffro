@@ -153,7 +153,7 @@ def profile_completed_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if current_user.is_authenticated:
-            if not current_user.cibi_preferiti or not current_user.intolleranze or not current_user.bio or not current_user.raggio_azione:
+            if not current_user.cibi_preferiti or not current_user.intolleranze or not current_user.bio:
                 flash("Ciao! Completa il tuo identikit alimentare e la tua bio: sono obbligatori per poter esplorare le offerte e partecipare ai pasti. 🍽️", "warning")
                 return redirect(url_for('profile_page'))
         return f(*args, **kwargs)
@@ -234,7 +234,7 @@ def public_profile(user_id):
     if not current_user.is_authenticated:
         flash("Accedi prima per visualizzare i profili degli utenti.", "info")
         return redirect(url_for('index'))
-    if not current_user.bio or not current_user.raggio_azione:
+    if not current_user.bio:
         flash("Completa prima il tuo Profilo per poter vedere quello degli altri!", "warning")
         return redirect(url_for('profile_page'))
 
@@ -843,7 +843,6 @@ def api_user_update():
     pref = data.get("cibi_preferiti", current_user.cibi_preferiti or "").strip()
     intoll = data.get("intolleranze", current_user.intolleranze or "").strip()
     bio = data.get("bio", current_user.bio or "").strip()
-    raggio = data.get("raggio_azione", str(current_user.raggio_azione or "10")).strip()
 
     errors = []
     if not nome:
@@ -898,11 +897,6 @@ def api_user_update():
     current_user.cibi_preferiti = pref
     current_user.intolleranze = intoll
     current_user.bio = bio
-    
-    try:
-        current_user.raggio_azione = int(raggio)
-    except (ValueError, TypeError):
-        pass
 
     db.session.commit()
     return jsonify({"success": True, "message": "Profilo aggiornato con successo!"})

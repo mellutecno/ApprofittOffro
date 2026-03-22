@@ -55,16 +55,6 @@
                     <button id="venues-toggle-btn" onclick="toggleVenues()" class="btn btn-sm" style="gap: 6px; font-weight: 800; background: var(--bg-body); border: 2px solid var(--border); border-radius: 100px; padding: 8px 16px; transition: all 0.2s;">
                         🏪 Locali Vicini
                     </button>
-                    <div style="display: flex; align-items: center; gap: 12px; background: var(--bg-body); padding: 8px 16px; border-radius: 100px;">
-                        <label style="font-weight: 700; color:var(--text-muted); font-size:0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Raggio:</label>
-                        <select id="radius-filter" class="form-control" style="width: auto; border:none; background:transparent; padding: 0; min-height: 0; font-weight:700; color:var(--primary);" onchange="setRadius(this.value)">
-                            <option value="">Ovunque</option>
-                            <option value="5">5 km</option>
-                            <option value="10">10 km</option>
-                            <option value="25">25 km</option>
-                            <option value="50">50 km</option>
-                        </select>
-                    </div>
                 </div>
             </div>
             <!-- Legenda categorie (appare quando i locali sono attivi) -->
@@ -95,7 +85,6 @@
         let map;
         let markers = [];
         let currentFilter = '';
-        let currentRadius = '';
         const defaultLat = parseFloat('{{ current_user.latitudine or 41.9 }}') || 41.9;
         const defaultLon = parseFloat('{{ current_user.longitudine or 12.5 }}') || 12.5;
         
@@ -127,7 +116,6 @@
                     searchLon = pos.coords.longitude;
                     map.setView([searchLat, searchLon], 14);
                     searchMarker.setLatLng([searchLat, searchLon]);
-                    updateRadar();
                     loadOffers();
                 }, err => {
                     alert("GPS negato. Usa https:// invece di http://");
@@ -174,7 +162,6 @@
                     searchLon = pos.coords.longitude;
                     map.setView([searchLat, searchLon], 14);
                     searchMarker.setLatLng([searchLat, searchLon]);
-                    updateRadar();
                     loadOffers(); // ricarica con le coordinate precise
                     if (venuesActive) loadVenues();
                 }, () => { 
@@ -189,11 +176,6 @@
                 clearTimeout(venueMoveTimer);
                 venueMoveTimer = setTimeout(() => loadVenues(), 800);
             });
-        }
-
-        function setRadius(radius) {
-            currentRadius = radius;
-            loadOffers();
         }
 
         // ============================================================
@@ -247,17 +229,26 @@
         async function loadVenues() {
             if (!venuesActive) return;
 
-            const center = map.getCenter();
-            const lat = center.lat;
-            const lon = center.lng;
-            const radius = 1500; // 1.5km dal centro mappa
+            // Se l'utente è troppo lontano (es. vede l'intera regione), evitiamo query enormi
+            if (map.getZoom() < 12) {
+                console.log("Zoom troppo distante per i locali.");
+                return;
+            }
 
+            const bounds = map.getBounds();
+            const s = bounds.getSouth();
+            const w = bounds.getWest();
+            const n = bounds.getNorth();
+            const e = bounds.getEast();
+
+            // Usiamo nwr (node, way, relation) per pescare anche i palazzi oltre ai punti singoli
+            // e chiediamo "out center" per avere lat/lon uniche per i poligoni
             const query = `
-                [out:json][timeout:10];
+                [out:json][timeout:15];
                 (
-                  node["amenity"~"^(restaurant|cafe|bar|pub|fast_food|ice_cream|bakery)$"](around:${radius},${lat},${lon});
+                  nwr["amenity"~"^(restaurant|cafe|bar|pub|fast_food|ice_cream|bakery)$"](${s},${w},${n},${e});
                 );
-                out body;
+                out center;
             `;
 
             try {
@@ -271,7 +262,12 @@
                 clearVenueMarkers();
 
                 data.elements.forEach(el => {
-                    if (!el.lat || !el.lon) return;
+                    // Per poligoni o relazioni il centro è in el.center
+                    const lat = el.lat || (el.center && el.center.lat);
+                    const lon = el.lon || (el.center && el.center.lon);
+                    
+                    if (!lat || !lon) return;
+
                     const tags = el.tags || {};
                     const name = tags.name || tags.amenity || 'Locale';
                     const style = getVenueStyle(tags);
@@ -347,7 +343,7 @@
 
         async function loadOffers() {
             try {
-                const url = `/api/offers?tipo=${currentFilter}&radius=${currentRadius}&lat=${searchLat}&lon=${searchLon}`;
+                const url = `/api/offers?tipo=${currentFilter}&lat=${searchLat}&lon=${searchLon}`;
                 const res = await fetch(url);
                 const data = await res.json();
                 
@@ -358,21 +354,6 @@
                 markers.forEach(m => map.removeLayer(m));
                 markers = [];
                 
-                // Aggiorna il Cerchio di Ricerca (Raggio)
-                if (searchCircle) {
-                    map.removeLayer(searchCircle);
-                }
-                if (currentRadius) {
-                    searchCircle = L.circle([searchLat, searchLon], {
-                        radius: currentRadius * 1000,
-                        color: 'var(--primary)',
-                        fillColor: 'var(--primary)',
-                        fillOpacity: 0.08,
-                        weight: 2,
-                        dashArray: '5, 5'
-                    }).addTo(map);
-                }
-
                 if (!data.success || data.offers.length === 0) {
                     const filterName = currentFilter ? `per ${currentFilter}` : "";
                     panel.innerHTML = `

@@ -248,17 +248,20 @@
         async function loadVenues() {
             if (!venuesActive || !offerMap) return;
 
-            const center = offerMap.getCenter();
-            const lat = center.lat;
-            const lon = center.lng;
-            const radius = 1000;
+            if (offerMap.getZoom() < 12) return;
+
+            const bounds = offerMap.getBounds();
+            const s = bounds.getSouth();
+            const w = bounds.getWest();
+            const n = bounds.getNorth();
+            const e = bounds.getEast();
 
             const query = `
-                [out:json][timeout:10];
+                [out:json][timeout:15];
                 (
-                  node["amenity"~"^(restaurant|cafe|bar|pub|fast_food|ice_cream|bakery)$"](around:${radius},${lat},${lon});
+                  nwr["amenity"~"^(restaurant|cafe|bar|pub|fast_food|ice_cream|bakery)$"](${s},${w},${n},${e});
                 );
-                out body;
+                out center;
             `;
 
             try {
@@ -271,7 +274,10 @@
                 clearVenueMarkers();
 
                 data.elements.forEach(el => {
-                    if (!el.lat || !el.lon) return;
+                    const lat = el.lat || (el.center && el.center.lat);
+                    const lon = el.lon || (el.center && el.center.lon);
+                    
+                    if (!lat || !lon) return;
                     const tags = el.tags || {};
                     const name = tags.name || tags.amenity || 'Locale';
                     const style = getVenueStyle(tags);
