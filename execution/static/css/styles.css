@@ -382,7 +382,7 @@ textarea.form-control {
     right: 0;
     z-index: 1001;
     text-align: center;
-    padding: 8px 16px 4px;
+    padding: 6px 16px 2px;
     font-family: 'Outfit', sans-serif;
     font-size: 1rem;
     font-weight: 900;
@@ -395,8 +395,10 @@ textarea.form-control {
 
 .page-top-title img {
     display: block;
-    width: min(300px, calc(100vw - 44px));
+    width: min(250px, calc(100vw - 56px));
+    max-height: 40px;
     height: auto;
+    object-fit: contain;
     margin: 0 auto;
     filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.28));
 }
@@ -752,18 +754,21 @@ textarea.form-control {
 
     /* Mostra il titolo solo su mobile */
     .page-top-title {
-        display: block;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 46px;
     }
 
     /* Riduce dimensioni navbar su mobile e la abbassa sotto il titolo */
     .navbar {
         width: calc(100% - 24px);
         padding: 8px 14px;
-        top: 50px; /* Sotto il titolo */
+        top: 58px; /* Sotto il titolo */
     }
 
     .main-content {
-        padding-top: 110px; /* Compensa navbar + titolo */
+        padding-top: 122px; /* Compensa navbar + titolo */
     }
 
     .navbar-brand > span {
