@@ -1,9 +1,10 @@
-const CACHE_NAME = 'approfittoffro-v38';
+const CACHE_NAME = 'approfittoffro-v39';
 const ASSETS = [
     '/',
     '/dashboard',
-    '/static/css/styles.css?v=8',
+    '/static/css/styles.css?v=9',
     '/static/js/app.js',
+    '/static/img/approfittoffro-topmark-test.svg',
     '/static/img/icon-512.png',
     'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
     'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'

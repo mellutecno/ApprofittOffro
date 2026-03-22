@@ -382,21 +382,23 @@ textarea.form-control {
     right: 0;
     z-index: 1001;
     text-align: center;
-    padding: 12px 16px 8px;
+    padding: 8px 16px 4px;
     font-family: 'Outfit', sans-serif;
     font-size: 1rem;
     font-weight: 900;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: transparent;
-    background-image: linear-gradient(135deg, #FFF7EE 0%, #FFD5AE 52%, #FFF0E4 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    text-shadow: none;
     pointer-events: none;
     background-color: var(--bg-body);
     transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.page-top-title img {
+    display: block;
+    width: min(300px, calc(100vw - 44px));
+    height: auto;
+    margin: 0 auto;
+    filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.28));
 }
 
 /* --- Navbar (Sleek Apple style) --- */
@@ -757,7 +759,7 @@ textarea.form-control {
     .navbar {
         width: calc(100% - 24px);
         padding: 8px 14px;
-        top: 42px; /* Sotto il titolo */
+        top: 50px; /* Sotto il titolo */
     }
 
     .main-content {
