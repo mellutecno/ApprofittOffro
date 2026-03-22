@@ -316,20 +316,32 @@ def public_profile(user_id):
         from datetime import timedelta
         now = datetime.now()
         threshold = now - timedelta(hours=3)
+
+        def first_unreviewed_offer(query):
+            """Restituisce il pasto condiviso piu' recente non ancora recensito."""
+            for candidate in query.order_by(Offer.data_ora.desc()).all():
+                existing_review = Review.query.filter_by(
+                    reviewer_id=current_user.id,
+                    reviewed_id=user_id,
+                    offer_id=candidate.id,
+                ).first()
+                if not existing_review:
+                    return candidate
+            return None
         
         # Caso A: Io ero l'ospite, lui l'host
-        meal_as_guest = Offer.query.join(Claim).filter(
+        meal_as_guest = first_unreviewed_offer(Offer.query.join(Claim).filter(
             Claim.user_id == current_user.id,
             Offer.user_id == user_id,
             Offer.data_ora < threshold
-        ).order_by(Offer.data_ora.desc()).first()
+        ))
         
         # Caso B: Io ero l'host, lui l'ospite
-        meal_as_host = Offer.query.join(Claim).filter(
+        meal_as_host = first_unreviewed_offer(Offer.query.join(Claim).filter(
             Offer.user_id == current_user.id,
             Claim.user_id == user_id,
             Offer.data_ora < threshold
-        ).order_by(Offer.data_ora.desc()).first()
+        ))
         
         shared_offer = meal_as_guest or meal_as_host
 
@@ -1055,24 +1067,26 @@ def api_user_update():
 @login_required
 def api_create_review():
     """Crea una nuova recensione (Host -> Guest o Guest -> Host)."""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     offer_id = data.get("offer_id")
-    reviewed_id = data.get("reviewed_id") # Nuova specifica dell'utente da recensire
+    reviewed_id = data.get("reviewed_id")  # Nuova specifica dell'utente da recensire
     rating = data.get("rating")
-    commento = data.get("commento", "").strip()
+    commento = str(data.get("commento", "")).strip()
 
     if not offer_id or not rating or not reviewed_id:
         return jsonify({"success": False, "error": "Dati mancanti (ID offerta, utente o punteggio)."}), 400
 
     try:
+        offer_id = int(offer_id)
+        reviewed_id = int(reviewed_id)
         rating = int(rating)
         if rating < 1 or rating > 5:
             raise ValueError()
     except ValueError:
-        return jsonify({"success": False, "error": "Punteggio non valido (1-5)."}), 400
+        return jsonify({"success": False, "error": "Dati recensione non validi."}), 400
 
     # 1. Verifica che l'offerta esista
-    offer = Offer.query.get(offer_id)
+    offer = db.session.get(Offer, offer_id)
     if not offer:
         return jsonify({"success": False, "error": "Offerta non trovata."}), 404
 
