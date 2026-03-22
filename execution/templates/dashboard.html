@@ -106,11 +106,13 @@
         let currentPeriod = 'oggi_domani';
         const isAuthenticated = {{ is_authenticated|tojson }};
         const canParticipate = {{ can_participate|tojson }};
+        const hasInitialUserLocation = {{ has_user_location|tojson }};
         const defaultLat = parseFloat('{{ default_lat }}') || 41.9;
         const defaultLon = parseFloat('{{ default_lon }}') || 12.5;
         
         let searchLat = defaultLat;
         let searchLon = defaultLon;
+        let hasActiveLocation = hasInitialUserLocation;
 
         function getCreateOfferHref() {
             if (!isAuthenticated) return '/login';
@@ -149,6 +151,10 @@
 
         function getParticipationLabel() {
             return isAuthenticated ? 'COMPLETA IL PROFILO' : 'ACCEDI PER PARTECIPARE';
+        }
+
+        function shouldShowNavigatorLink() {
+            return hasActiveLocation;
         }
 
         function getOfferActionMarkup(offer, isPast, isFull) {
@@ -219,6 +225,7 @@
                 navigator.geolocation.getCurrentPosition(pos => {
                     searchLat = pos.coords.latitude;
                     searchLon = pos.coords.longitude;
+                    hasActiveLocation = true;
                     map.setView([searchLat, searchLon], 14);
                     loadOffers();
                 }, err => {
@@ -245,6 +252,7 @@
                 navigator.geolocation.getCurrentPosition(pos => {
                     searchLat = pos.coords.latitude;
                     searchLon = pos.coords.longitude;
+                    hasActiveLocation = true;
                     map.setView([searchLat, searchLon], 14);
                     loadOffers(); // ricarica con le coordinate precise
                     if (venuesActive) loadVenues();
@@ -560,11 +568,11 @@
                             <h4 style="margin-bottom: 4px; font-weight: 800;">${offer.nome_locale}</h4>
                             <div class="address" style="font-weight: 600; color: var(--text-muted); font-size: 0.85rem;">
                                 📍 ${offer.indirizzo} <span style="color:var(--primary); margin-left:4px;">(a ${offer.distance_km} km)</span>
-                                <div style="margin-top: 6px;">
+                                ${shouldShowNavigatorLink() ? `<div style="margin-top: 6px;">
                                     <a href="https://www.google.com/maps/dir/?api=1&destination=${offer.lat},${offer.lon}" target="_blank" style="display:inline-flex; align-items:center; gap:4px; font-weight:800; font-size:0.8rem; color:white; background:var(--primary); padding:4px 12px; border-radius:100px; text-decoration:none; transition:opacity 0.2s;">
                                         🧭 Apri nel navigatore
                                     </a>
-                                </div>
+                                </div>` : ''}
                             </div>
                             
                             <div class="datetime-info" 

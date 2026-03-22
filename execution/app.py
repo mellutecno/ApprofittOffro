@@ -275,6 +275,11 @@ def login_page():
 @app.route("/dashboard")
 def dashboard():
     is_authenticated = current_user.is_authenticated
+    has_user_location = (
+        is_authenticated
+        and current_user.latitudine is not None
+        and current_user.longitudine is not None
+    )
     default_lat = (
         current_user.latitudine
         if is_authenticated and current_user.latitudine is not None
@@ -291,6 +296,7 @@ def dashboard():
         tipi_pasto=TIPI_PASTO,
         is_authenticated=is_authenticated,
         can_participate=can_participate,
+        has_user_location=has_user_location,
         default_lat=default_lat,
         default_lon=default_lon,
     )
