@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - ApprofittOffro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=5">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#FF7043">
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/static/sw.js');
+        });
+      }
+    </script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+</head>
+<body>
+    <!-- Titolo che sparisce con lo scroll -->
+    <div class="page-top-title" id="page-top-title">ApprofittOffro</div>
+
+    <nav class="navbar">
+        <a href="/dashboard" class="navbar-brand">
+            <div class="logo-icon">🍽️</div>
+            <span>ApprofittOffro</span>
+        </a>
+        <div class="nav-links">
+            <a href="/new-offer" class="btn btn-primary btn-sm">Offri</a>
+            <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
+            <a href="/logout" class="btn btn-ghost btn-sm" style="color:var(--text-muted)">Esci</a>
+        </div>
+    </nav>
+
+    <main class="main-content container">
+        <div class="dashboard-header" style="text-align: center; margin-bottom: 40px;">
+            <h1 style="font-size: 2.2rem; margin-bottom: 12px;">Benvenuti a Tavola 🥘</h1>
+            <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 24px;">Scopri chi sta cucinando qualcosa di buono vicino a te.</p>
+            
+            <div class="flex-center justify-center">
+                <div class="filter-bar">
+                    <button class="filter-chip active" onclick="setFilter('')">Tutte</button>
+                    <button class="filter-chip" onclick="setFilter('colazione')">Colazione</button>
+                    <button class="filter-chip" onclick="setFilter('pranzo')">Pranzo</button>
+                    <button class="filter-chip" onclick="setFilter('cena')">Cena</button>
+                </div>
+            </div>
+        </div>
+
+        <section class="map-section glass-card" style="padding: 24px; margin-left: auto; margin-right: auto; margin-bottom: 60px; max-width: 900px;">
+            <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                    <!-- Toggle Locali Vicini -->
+                    <button id="venues-toggle-btn" onclick="toggleVenues()" class="btn btn-sm" style="gap: 6px; font-weight: 800; background: var(--bg-body); border: 2px solid var(--border); border-radius: 100px; padding: 8px 16px; transition: all 0.2s;">
+                        🏪 Locali Vicini
+                    </button>
+                </div>
+            </div>
+            <!-- Legenda categorie (appare quando i locali sono attivi) -->
+            <div id="venues-legend" style="display:none; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; font-size: 0.82rem; font-weight: 800; color: var(--text-muted);">
+                <span>🍽️ Ristorante</span>
+                <span>☕ Bar/Cafè</span>
+                <span>🍕 Pizzeria</span>
+                <span>🍔 Fast Food</span>
+                <span>🍺 Pub</span>
+            </div>
+            
+            <div style="border-radius: var(--radius-md); overflow: hidden; position: relative;">
+                <button onclick="locateMeDashboard()" class="btn btn-sm" style="position: absolute; top: 12px; right: 12px; z-index: 1000; background: white; box-shadow: var(--shadow-md); font-weight:700; border-radius: 100px;">
+                    📍 La mia Posizione
+                </button>
+                <div id="map" style="height: 320px; width: 100%;"></div>
+            </div>
+        </section>
+
+        <div id="offers-panel" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 28px; margin-bottom: 60px;">
+            <!-- Caricate via JS -->
+        </div>
+    </main>
+
+    <div id="toast-container" class="toast-container"></div>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        let map;
+        let markers = [];
+        let currentFilter = '';
+        const defaultLat = parseFloat('{{ current_user.latitudine or 41.9 }}') || 41.9;
+        const defaultLon = parseFloat('{{ current_user.longitudine or 12.5 }}') || 12.5;
+        
+        let searchLat = defaultLat;
+        let searchLon = defaultLon;
+
+        // Custom Leaflet Icons basate sul CSS
+        const createCustomIcon = (type) => {
+            let color = '#3B82F6';
+            if (type === 'colazione') color = '#F59E0B'; // Amber
+            if (type === 'pranzo') color = '#10B981'; // Emerald
+            if (type === 'cena') color = '#8B5CF6'; // Violet
+            
+            return L.divIcon({
+                className: 'custom-map-marker',
+                html: `<div style="background-color: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10],
+                popupAnchor: [0, -10]
+            });
+        };
+
+        function locateMeDashboard() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    searchLat = pos.coords.latitude;
+                    searchLon = pos.coords.longitude;
+                    map.setView([searchLat, searchLon], 14);
+                    loadOffers();
+                }, err => {
+                    alert("GPS negato. Usa https:// invece di http://");
+                }, { enableHighAccuracy: true });
+            }
+        }
+
+        function initMap() {
+            map = L.map('map').setView([defaultLat, defaultLon], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Centra la mappa dolcemente sul punto iniziale
+            map.setView([defaultLat, defaultLon], 14);
+
+            // Caricamento Immediato delle offerte per prevenire freeze del browser (su HTTP)
+            loadOffers();
+
+            // Se il GPS funziona (in HTTPS), centra la mappa in background e riaggiorna
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    searchLat = pos.coords.latitude;
+                    searchLon = pos.coords.longitude;
+                    map.setView([searchLat, searchLon], 14);
+                    loadOffers(); // ricarica con le coordinate precise
+                    if (venuesActive) loadVenues();
+                }, () => { 
+                    /* fallback silenzioso */ 
+                }, { timeout: 5000 });
+            }
+
+            // Ricarica le offerte e i locali quando si sposta la mappa (debounced)
+            let moveTimer;
+            map.on('moveend', () => {
+                const center = map.getCenter();
+                searchLat = center.lat;
+                searchLon = center.lng;
+
+                clearTimeout(moveTimer);
+                moveTimer = setTimeout(() => {
+                    loadOffers();
+                    if (venuesActive) loadVenues();
+                }, 800);
+            });
+        }
+
+        // ============================================================
+        // LOCALI VICINI — Overpass API (OpenStreetMap)
+        // ============================================================
+        let venuesActive = false;
+        let venueMarkers = [];
+
+        // Mappa tipo→emoji e colore
+        const VENUE_STYLES = {
+            restaurant: { emoji: '🍽️', color: '#FF7043' },
+            cafe:       { emoji: '☕',  color: '#795548' },
+            bar:        { emoji: '🍺',  color: '#FFA726' },
+            pub:        { emoji: '🍺',  color: '#6D4C41' },
+            pizza:      { emoji: '🍕',  color: '#E53935' },
+            fast_food:  { emoji: '🍔',  color: '#F4511E' },
+            ice_cream:  { emoji: '🍦',  color: '#EC407A' },
+            bakery:     { emoji: '🥐',  color: '#8D6E63' },
+        };
+
+        function getVenueStyle(tags) {
+            if (tags.cuisine && tags.cuisine.includes('pizza')) return VENUE_STYLES.pizza;
+            const type = tags.amenity || '';
+            return VENUE_STYLES[type] || { emoji: '📍', color: '#9E9E9E' };
+        }
+
+        function clearVenueMarkers() {
+            venueMarkers.forEach(m => map.removeLayer(m));
+            venueMarkers = [];
+        }
+
+        function toggleVenues() {
+            const btn = document.getElementById('venues-toggle-btn');
+            const legend = document.getElementById('venues-legend');
+            venuesActive = !venuesActive;
+            if (venuesActive) {
+                btn.style.background = 'var(--primary)';
+                btn.style.color = 'white';
+                btn.style.border = '2px solid var(--primary)';
+                legend.style.display = 'flex';
+                loadVenues();
+            } else {
+                btn.style.background = 'var(--bg-body)';
+                btn.style.color = '';
+                btn.style.border = '2px solid var(--border)';
+                legend.style.display = 'none';
+                clearVenueMarkers();
+            }
+        }
+
+        async function loadVenues() {
+            if (!venuesActive) return;
+
+            // Se l'utente è troppo lontano (es. vede l'intera regione), evitiamo query enormi
+            if (map.getZoom() < 12) {
+                console.log("Zoom troppo distante per i locali.");
+                return;
+            }
+
+            const bounds = map.getBounds();
+            const s = bounds.getSouth();
+            const w = bounds.getWest();
+            const n = bounds.getNorth();
+            const e = bounds.getEast();
+
+            // Usiamo nwr (node, way, relation) per pescare anche i palazzi oltre ai punti singoli
+            // e chiediamo "out center" per avere lat/lon uniche per i poligoni
+            const query = `
+                [out:json][timeout:15];
+                (
+                  nwr["amenity"~"^(restaurant|cafe|bar|pub|fast_food|ice_cream|bakery)$"](${s},${w},${n},${e});
+                );
+                out center;
+            `;
+
+            try {
+                const res = await fetch('https://overpass-api.de/api/interpreter', {
+                    method: 'POST',
+                    body: query
+                });
+                const data = await res.json();
+                
+                // Pulisce i vecchi marker solo quando i nuovi dati sono pronti
+                clearVenueMarkers();
+
+                data.elements.forEach(el => {
+                    // Per poligoni o relazioni il centro è in el.center
+                    const lat = el.lat || (el.center && el.center.lat);
+                    const lon = el.lon || (el.center && el.center.lon);
+                    
+                    if (!lat || !lon) return;
+
+                    const tags = el.tags || {};
+                    const name = tags.name || tags.amenity || 'Locale';
+                    const style = getVenueStyle(tags);
+                    
+                    // Componi l'indirizzo dai tag OSM (se disponibili)
+                    let fullAddress = '';
+                    if (tags['addr:street']) {
+                        fullAddress = tags['addr:street'];
+                        if (tags['addr:housenumber']) fullAddress += ' ' + tags['addr:housenumber'];
+                        if (tags['addr:city']) fullAddress += ', ' + tags['addr:city'];
+                    }
+
+                    const icon = L.divIcon({
+                        className: '',
+                        html: `<div style="
+                            background: white;
+                            border: 3px solid ${style.color};
+                            width: 36px; height: 36px;
+                            border-radius: 50%;
+                            display: flex; align-items: center; justify-content: center;
+                            font-size: 17px;
+                            box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+                            cursor: pointer;
+                        ">${style.emoji}</div>`,
+                        iconSize: [36, 36],
+                        iconAnchor: [18, 18],
+                        popupAnchor: [0, -20]
+                    });
+
+                    // Aggiungi indirizzo ai parametri
+                    const venueUrl = `/new-offer?nome=${encodeURIComponent(name)}&lat=${el.lat}&lon=${el.lon}${fullAddress ? '&indirizzo=' + encodeURIComponent(fullAddress) : ''}`;
+
+                    const marker = L.marker([el.lat, el.lon], { icon, zIndexOffset: -100 })
+                        .addTo(map)
+                        .bindPopup(`
+                            <div style="font-family: 'Outfit', sans-serif; min-width: 160px;">
+                                <div style="font-size: 1.4rem; text-align:center; margin-bottom: 4px;">${style.emoji}</div>
+                                <b style="font-size: 0.95rem;">${name}</b>
+                                <div style="font-size: 0.78rem; color: #999; margin: 2px 0 10px;">
+                                    ${tags.amenity ? tags.amenity.replace('_', ' ') : ''}
+                                    ${tags.cuisine ? ' · ' + tags.cuisine : ''}
+                                </div>
+                                <a href="${venueUrl}" style="
+                                    display: block; text-align: center;
+                                    background: #FF7043; color: white;
+                                    padding: 7px 0; border-radius: 20px;
+                                    font-weight: 800; font-size: 0.8rem;
+                                    text-decoration: none;
+                                ">🎉 Offri qui!</a>
+                            </div>
+                        `);
+                    venueMarkers.push(marker);
+                });
+            } catch (err) {
+                console.warn('Overpass API non raggiungibile:', err);
+            }
+        }
+
+        // Ricarica i locali quando la mappa si sposta (se attivi)
+        // (aggiunto dentro initMap, dopo map.on('dragend'…))
+
+        function setFilter(type) {
+            currentFilter = type;
+            document.querySelectorAll('.filter-chip').forEach(el => {
+                if (el.textContent.toLowerCase() === type || (type === '' && el.textContent === 'Tutte')) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+            loadOffers();
+        }
+
+        async function loadOffers() {
+            try {
+                const url = `/api/offers?tipo=${currentFilter}&lat=${searchLat}&lon=${searchLon}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                const panel = document.getElementById('offers-panel');
+                panel.innerHTML = '';
+                
+                // Clear markers
+                markers.forEach(m => map.removeLayer(m));
+                markers = [];
+                
+                if (!data.success || data.offers.length === 0) {
+                    const filterName = currentFilter ? `per ${currentFilter}` : "";
+                    panel.innerHTML = `
+                        <div style="text-align: center; padding: 60px 24px; color: var(--text-muted); background: var(--bg-card); border-radius: var(--radius-lg); border: 1px dashed var(--border);">
+                            <div style="font-size: 3rem; margin-bottom: 16px;">🍽️</div>
+                            <h3>Nessuna offerta</h3>
+                            <p>Non ci sono offerte disponibili ${filterName} al momento.</p>
+                            <a href="/new-offer" class="btn btn-primary mt-2">Offri tu per primo</a>
+                        </div>
+                    `;
+                    return;
+                }
+
+                data.offers.forEach(offer => {
+                    const isColazione = offer.tipo_pasto === 'colazione';
+                    const isPranzo = offer.tipo_pasto === 'pranzo';
+                    const iconEmoji = isColazione ? '☕' : (isPranzo ? '🍝' : '🌙');
+                    
+                    const progress = (offer.posti_disponibili / offer.posti_totali) * 100;
+                    let barClass = '';
+                    if (progress < 30) barClass = 'critical';
+                    else if (progress < 60) barClass = 'low';
+
+                    const card = document.createElement('div');
+                    card.className = 'offer-card';
+                    card.innerHTML = `
+                        ${offer.foto_locale && offer.foto_locale !== 'nessuna.jpg' ? 
+                            `<div style="margin: -28px -28px 20px -28px; height: 200px; overflow: hidden; border-radius: var(--radius-lg) var(--radius-lg) 0 0;">
+                                <img src="/uploads/${offer.foto_locale}" alt="Foto Locale" style="width: 100%; height: 100%; object-fit: cover;">
+                            </div>` : ''}
+                        
+                        <div class="offer-card-header">
+                            <a href="${offer.is_own ? '/profile' : '/profile/' + offer.autore_id}" style="text-decoration: none; display: flex; align-items: center; gap: 14px; color: inherit;">
+                                <img src="/uploads/${offer.autore_foto}" alt="${offer.autore}" class="avatar" style="border: 2px solid white; box-shadow: var(--shadow-sm);">
+                                <div class="info">
+                                    <div class="name" style="color: var(--text-main); font-weight: 800; font-size: 1.1rem;">${offer.autore}</div>
+                                    <div class="meta" style="color: var(--primary); font-weight: 700; font-size: 0.85rem;">${offer.autore_fascia_eta} anni • ⭐ 4.9</div>
+                                </div>
+                            </a>
+                            <div class="offer-type-badge badge-${offer.tipo_pasto}">
+                                ${iconEmoji} ${offer.tipo_pasto.toUpperCase()}
+                            </div>
+                        </div>
+
+                        <div class="offer-card-body">
+                            <h4 style="margin-bottom: 4px; font-weight: 800;">${offer.nome_locale}</h4>
+                            <div class="address" style="font-weight: 600; color: var(--text-muted); font-size: 0.85rem;">
+                                📍 ${offer.indirizzo} <span style="color:var(--primary); margin-left:4px;">(a ${offer.distance_km} km)</span>
+                                <div style="margin-top: 6px;">
+                                    <a href="https://www.google.com/maps/dir/?api=1&destination=${offer.lat},${offer.lon}" target="_blank" style="display:inline-flex; align-items:center; gap:4px; font-weight:800; font-size:0.8rem; color:white; background:var(--primary); padding:4px 12px; border-radius:100px; text-decoration:none; transition:opacity 0.2s;">
+                                        🧭 Apri nel navigatore
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <div class="datetime-info" style="margin-top: 12px; background: var(--bg-body); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px dashed var(--border);">
+                                🕒 ${formatDate(offer.data_ora)}
+                            </div>
+
+                            ${offer.descrizione ? `<p style="margin-top: 16px; font-style: italic; color: var(--text-main); line-height: 1.4;">"${offer.descrizione}"</p>` : ''}
+                        </div>
+
+                        <div class="offer-card-footer" style="padding-top: 20px; border-top: 1px solid var(--border);">
+                            <div class="spots-indicator">
+                                <div class="spots-bar">
+                                    <div class="spots-bar-fill ${barClass}" style="width: ${progress}%"></div>
+                                </div>
+                                <span style="font-weight: 800;">${offer.posti_disponibili}/${offer.posti_totali}</span>
+                            </div>
+                            <div style="display:flex; gap:10px;">
+                                ${offer.is_own ? 
+                                    `<a href="/edit-offer/${offer.id}" class="btn btn-outline btn-sm">✏️</a>
+                                     <button onclick="deleteOffer(${offer.id})" class="btn btn-outline btn-sm" style="color:var(--error); border-color:var(--error);">🗑️</button>` : 
+                                    (offer.already_claimed ? 
+                                        `<button class="btn btn-success btn-sm" disabled>PRENOTATO</button>` :
+                                        `<button class="btn btn-accent btn-sm" onclick="claimOffer(${offer.id})">APPROFITTA!</button>`
+                                    )
+                                }
+                            </div>
+                        </div>
+                    `;
+                    panel.appendChild(card);
+
+                    // Aggiungi marker su mappa
+                    const marker = L.marker([offer.lat, offer.lon], { icon: createCustomIcon(offer.tipo_pasto) });
+                    marker.bindPopup(`<b>${offer.nome_locale}</b><br>${offer.posti_disponibili} posti disponibili<br>${formatDate(offer.data_ora)}`);
+                    marker.addTo(map);
+                    markers.push(marker);
+                });
+                
+            } catch (err) {
+                console.error(err);
+                document.getElementById('offers-panel').innerHTML = `
+                    <div class="alert alert-error">⚠️ Si è verificato un errore nel caricamento delle offerte.</div>
+                `;
+            }
+        }
+
+        async function deleteOffer(id) {
+            // Conferma iniziale
+            if (!confirm("Sei sicura/o di voler eliminare questa offerta irreperabilmente?")) return;
+
+            // Richiesta motivo
+            const motivo = prompt("Indica il motivo della cancellazione (verrà inviato via email ai partecipanti prenotati):");
+            if (motivo === null) return; 
+            
+            if (!motivo.trim()) {
+                showToast('Inserimento motivo obbligatorio per procedere con l\'annullamento.', 'warning');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/offers/${id}`, { 
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ motivazione: motivo })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('L\'offerta è stata eliminata e i partecipanti avvisati.', 'success');
+                    loadOffers(); // ricarica la lista
+                } else {
+                    showToast(data.error || 'Impossibile eliminare l\'offerta.', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Errore di connessione. Riprova o ricarica la pagina.', 'error');
+            }
+        }
+
+        async function claimOffer(offerId) {
+            try {
+                const res = await fetch(`/api/offers/${offerId}/claim`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Hai approfittato con successo!', 'success');
+                    loadOffers(); // ricarica per aggiornare UI
+                } else {
+                    showToast(data.error || 'Impossibile approfittare.', 'error');
+                }
+            } catch (err) {
+                showToast('Errore di connessione.', 'error');
+            }
+        }
+
+        window.onload = initMap;
+
+        // --- Titolo che sparisce con lo scroll (solo mobile) ---
+        const pageTitle = document.getElementById('page-top-title');
+        function handleScroll(scrollTop) {
+            if (scrollTop > 20) {
+                pageTitle.style.opacity = '0';
+                pageTitle.style.transform = 'translateY(-100%)';
+            } else {
+                pageTitle.style.opacity = '1';
+                pageTitle.style.transform = 'translateY(0)';
+            }
+        }
+        // Ascolta lo scroll della finestra (per tutti i browser)
+        window.addEventListener('scroll', () => handleScroll(window.scrollY), { passive: true });
+        // Ascolta anche lo scroll del pannello offerte (su mobile è lui che scrolla)
+        document.addEventListener('DOMContentLoaded', () => {
+            const panel = document.querySelector('.offers-panel');
+            if (panel) panel.addEventListener('scroll', () => handleScroll(panel.scrollTop), { passive: true });
+        });
+    </script>
+</body>
+</html>
