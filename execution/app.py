@@ -6,6 +6,7 @@ Applicazione web per offrire e approfittare di pasti.
 import os
 import uuid
 import math
+import sqlite3
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -95,6 +96,59 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+
+
+def ensure_legacy_sqlite_compatibility(sqlite_path):
+    """Aggiunge le colonne legacy mancanti per evitare crash su vecchi DB SQLite."""
+    conn = sqlite3.connect(sqlite_path)
+    try:
+        cur = conn.cursor()
+
+        def table_exists(table_name):
+            cur.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (table_name,),
+            )
+            return cur.fetchone() is not None
+
+        def columns_for(table_name):
+            cur.execute(f"PRAGMA table_info({table_name})")
+            return {row[1] for row in cur.fetchall()}
+
+        def ensure_column(table_name, column_name, ddl):
+            if not table_exists(table_name):
+                return
+            if column_name in columns_for(table_name):
+                return
+            cur.execute(ddl)
+
+        legacy_columns = {
+            "users": [
+                ("citta", "ALTER TABLE users ADD COLUMN citta VARCHAR(200)"),
+                ("cibi_preferiti", "ALTER TABLE users ADD COLUMN cibi_preferiti VARCHAR(300)"),
+                ("intolleranze", "ALTER TABLE users ADD COLUMN intolleranze VARCHAR(300)"),
+                ("bio", "ALTER TABLE users ADD COLUMN bio VARCHAR(500)"),
+                ("raggio_azione", "ALTER TABLE users ADD COLUMN raggio_azione INTEGER DEFAULT 10"),
+                ("verificato", "ALTER TABLE users ADD COLUMN verificato INTEGER DEFAULT 0"),
+                ("verification_token", "ALTER TABLE users ADD COLUMN verification_token VARCHAR(100)"),
+            ],
+            "offers": [
+                ("foto_locale", "ALTER TABLE offers ADD COLUMN foto_locale VARCHAR(256)"),
+                ("stato", "ALTER TABLE offers ADD COLUMN stato VARCHAR(20) DEFAULT 'attiva'"),
+            ],
+        }
+
+        for table_name, columns in legacy_columns.items():
+            for column_name, ddl in columns:
+                ensure_column(table_name, column_name, ddl)
+
+        conn.commit()
+    finally:
+        conn.close()
+
+
+if app.config["SQLALCHEMY_DATABASE_URI"].startswith("sqlite:///"):
+    ensure_legacy_sqlite_compatibility(SQLITE_PATH)
 
 # --- Email Config (Motore Flask-Mail) ---
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
