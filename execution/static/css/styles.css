@@ -184,6 +184,36 @@ a:hover { color: var(--primary-dark); }
 
 .btn-block { width: 100%; }
 
+/* --- Map Control Buttons (Leaflet typical overlay buttons) --- */
+.btn-map-control {
+    background: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: var(--primary) !important;
+    border: 1px solid var(--border) !important;
+    padding: 10px !important;
+    font-size: 1.2rem !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+    transition: all var(--transition) !important;
+}
+
+.btn-map-control:hover {
+    background: white !important;
+    transform: scale(1.1) !important;
+    color: var(--primary-dark) !important;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.3) !important;
+}
+
+.btn-map-control svg {
+    width: 24px;
+    height: 24px;
+    stroke-width: 2.5px;
+}
+
 /* --- Glass Card / White Card --- */
 .glass-card {
     background: var(--bg-card);
