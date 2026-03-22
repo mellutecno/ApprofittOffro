@@ -49,6 +49,7 @@
             <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 24px;">Scopri chi sta cucinando qualcosa di buono vicino a te.</p>
             {% endif %}
             
+            {% if is_authenticated %}
             <div class="flex-center justify-center">
                 <div class="filter-bar">
                     <button class="filter-chip" onclick="setFilter('colazione')">Colazione</button>
@@ -62,8 +63,10 @@
                     <button class="filter-chip" onclick="setPeriod('tutti')">Tutte le date</button>
                 </div>
             </div>
+            {% endif %}
         </div>
 
+        {% if is_authenticated %}
         <section class="map-section glass-card" style="padding: 24px; margin-left: auto; margin-right: auto; margin-bottom: 60px; max-width: 900px;">
             <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
@@ -91,6 +94,7 @@
                 <div id="map" style="height: 320px; width: 100%;"></div>
             </div>
         </section>
+        {% endif %}
 
         <div id="offers-panel" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 28px; margin-bottom: 60px;">
             <!-- Caricate via JS -->
@@ -103,12 +107,13 @@
         let map;
         let markers = [];
         let currentFilter = '';
-        let currentPeriod = 'oggi_domani';
+        let currentPeriod = '{{ 'oggi_domani' if is_authenticated else 'tutti' }}';
         const isAuthenticated = {{ is_authenticated|tojson }};
         const canParticipate = {{ can_participate|tojson }};
         const hasInitialUserLocation = {{ has_user_location|tojson }};
         const defaultLat = parseFloat('{{ default_lat }}') || 41.9;
         const defaultLon = parseFloat('{{ default_lon }}') || 12.5;
+        const mapEnabled = {{ is_authenticated|tojson }};
         
         let searchLat = defaultLat;
         let searchLon = defaultLon;
@@ -145,6 +150,32 @@
             return `/profile/${offer.autore_id}`;
         }
 
+        function getAuthorMeta(offer) {
+            if (!isAuthenticated) return `${offer.autore_fascia_eta} anni`;
+            return `${offer.autore_fascia_eta} anni • ⭐ 4.9`;
+        }
+
+        function getAddressLine(offer) {
+            if (!isAuthenticated) return `📍 ${offer.indirizzo}`;
+            return `📍 ${offer.indirizzo} <span style="color:var(--primary); margin-left:4px;">(a ${offer.distance_km} km)</span>`;
+        }
+
+        function getNavigatorMarkup(offer) {
+            if (!shouldShowNavigatorLink()) return '';
+            return `
+                <div style="margin-top: 6px;">
+                    <a href="https://www.google.com/maps/dir/?api=1&destination=${offer.lat},${offer.lon}" target="_blank" style="display:inline-flex; align-items:center; gap:4px; font-weight:800; font-size:0.8rem; color:white; background:var(--primary); padding:4px 12px; border-radius:100px; text-decoration:none; transition:opacity 0.2s;">
+                        🧭 Apri nel navigatore
+                    </a>
+                </div>
+            `;
+        }
+
+        function getParticipantsLabel(offer) {
+            if (isAuthenticated) return `${offer.posti_disponibili}/${offer.posti_totali}`;
+            return offer.posti_totali === 1 ? '1 partecipante' : `${offer.posti_totali} partecipanti`;
+        }
+
         function getParticipationHref() {
             return isAuthenticated ? '/profile' : '/login';
         }
@@ -154,7 +185,7 @@
         }
 
         function shouldShowNavigatorLink() {
-            return hasActiveLocation;
+            return isAuthenticated && hasActiveLocation;
         }
 
         function getOfferActionMarkup(offer, isPast, isFull) {
@@ -221,6 +252,7 @@
         };
 
         function locateMeDashboard() {
+            if (!mapEnabled) return;
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(pos => {
                     searchLat = pos.coords.latitude;
@@ -235,6 +267,11 @@
         }
 
         function initMap() {
+            if (!mapEnabled) {
+                loadOffers();
+                return;
+            }
+
             map = L.map('map').setView([defaultLat, defaultLon], 14);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap',
@@ -329,6 +366,7 @@
         }
 
         async function loadVenues() {
+            if (!mapEnabled) return;
             if (!venuesActive) return;
 
             // Se l'utente è troppo lontano (es. vede l'intera regione), evitiamo query enormi
@@ -513,7 +551,9 @@
                 panel.innerHTML = '';
                 
                 // Clear markers
-                markers.forEach(m => map.removeLayer(m));
+                if (mapEnabled && map) {
+                    markers.forEach(m => map.removeLayer(m));
+                }
                 markers = [];
                 
                 if (!data.success || data.offers.length === 0) {
@@ -609,11 +649,38 @@
                              </div>
                         </div>
                     `;
+                    const authorLink = card.querySelector('.offer-card-header a');
+                    const authorMeta = card.querySelector('.offer-card-header .meta');
+                    const addressEl = card.querySelector('.address');
+                    const descriptionEl = card.querySelector('.offer-card-body p');
+                    const participantsLabel = card.querySelector('.spots-indicator span');
                     const actionSlot = card.querySelector('[data-offer-actions]');
+
+                    if (authorMeta) {
+                        authorMeta.textContent = getAuthorMeta(offer);
+                    }
+                    if (addressEl) {
+                        addressEl.innerHTML = `${getAddressLine(offer)}${getNavigatorMarkup(offer)}`;
+                    }
+                    if (participantsLabel) {
+                        participantsLabel.textContent = getParticipantsLabel(offer);
+                    }
+                    if (!isAuthenticated && authorLink) {
+                        authorLink.removeAttribute('href');
+                        authorLink.style.pointerEvents = 'none';
+                        authorLink.style.cursor = 'default';
+                    }
+                    if (!isAuthenticated && descriptionEl) {
+                        descriptionEl.remove();
+                    }
                     if (actionSlot) {
                         actionSlot.innerHTML = getOfferActionMarkup(offer, isPast, isFull);
                     }
                     panel.appendChild(card);
+
+                    if (!(mapEnabled && map)) {
+                        return;
+                    }
 
                     // Aggiungi marker su mappa
                     const marker = L.marker([offer.lat, offer.lon], { icon: createCustomIcon(offer.tipo_pasto) });
