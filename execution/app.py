@@ -389,7 +389,9 @@ def api_geocode():
 
 @app.route("/api/register", methods=["POST"])
 def api_register():
-    """Registra un nuovo utente con verifica foto."""
+    """Registra un nuovo utente con verifica foto. Forza il logout di sessioni esistenti."""
+    from flask_login import logout_user
+    logout_user() # Assicura che la registrazione parta da un contesto pulito (Shared Device Fix)
     try:
         nome = request.form.get("nome", "").strip()
         email = request.form.get("email", "").strip().lower()

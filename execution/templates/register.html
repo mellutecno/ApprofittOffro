@@ -242,11 +242,15 @@
                 alertBox.innerHTML = '';
                 
                 if (data.success) {
-                    alertBox.innerHTML = `<div class="alert alert-success">✅ ${data.message}</div>`;
+                    alertBox.innerHTML = `<div class="alert alert-success">✅ ${data.message}<br><small>Verrai reindirizzato al login tra 3 secondi...</small></div>`;
                     e.target.reset();
                     preview.classList.add('hidden');
                     placeholder.classList.remove('hidden');
-                    window.scrollTo(0,0);
+                    window.scrollTo(0, 0);
+                    // Forza il redirect per assicurarsi che l'utente acceda col nuovo account
+                    setTimeout(() => {
+                        window.location.href = "/";
+                    }, 3000);
                 } else {
                     data.errors.forEach(err => {
                         alertBox.innerHTML += `<div class="alert alert-error">⚠️ ${err}</div>`;
