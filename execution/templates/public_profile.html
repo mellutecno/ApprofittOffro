@@ -58,7 +58,7 @@
             <div class="glass-card" style="margin: 20px 0; padding: 20px; text-align: center; border: 2px solid var(--primary);">
                 <h3 style="margin-bottom: 8px;">Hai condiviso un pasto con {{ user.nome }}!</h3>
                 <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">Il tuo feedback aiuta la community a restare sicura e amichevole.</p>
-                <button onclick="openReviewModal({{ shared_offer.id }}, '{{ shared_offer.nome_locale }}', {{ user.id }})" class="btn btn-primary">🌟 Lascia una Recensione</button>
+                <button type="button" onclick='openReviewModal({{ shared_offer.id }}, {{ shared_offer.nome_locale|tojson }}, {{ user.id }})' class="btn btn-primary">🌟 Lascia una Recensione</button>
             </div>
             {% elif pending_offer %}
             <div class="glass-card" style="margin: 20px 0; padding: 20px; text-align: center; border: 1px dashed var(--primary);">

@@ -201,7 +201,7 @@
                                 {% if offer.data_ora < completion_threshold and offer.stato != 'annullata' %}
                                     {% set host_reviewed_guest = offer.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|selectattr('reviewed_id', 'equalto', c.utente.id)|list %}
                                     {% if not host_reviewed_guest %}
-                                    <button onclick="openReviewModal({{ offer.id }}, '{{ c.utente.nome }}', {{ c.utente.id }})" class="btn btn-accent btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">🌟 Recensisci</button>
+                                    <button type="button" onclick='openReviewModal({{ offer.id }}, {{ c.utente.nome|tojson }}, {{ c.utente.id }})' class="btn btn-accent btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">🌟 Recensisci</button>
                                     {% else %}
                                     <span style="font-size: 0.7rem; color: var(--success); font-weight: 700;">✨ Recensito</span>
                                     {% endif %}
@@ -276,7 +276,7 @@
                     {% set has_reviewed = claim.offerta.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|list %}
                     
                     {% if claim.offerta.data_ora < completion_threshold and not has_reviewed and claim.offerta.stato != 'annullata' %}
-                    <button onclick="openReviewModal({{ claim.offerta.id }}, '{{ claim.offerta.nome_locale }}', {{ claim.offerta.user_id }})" class="btn btn-primary btn-sm" style="width:100%;">🌟 Lascia Recensione</button>
+                    <button type="button" onclick='openReviewModal({{ claim.offerta.id }}, {{ claim.offerta.nome_locale|tojson }}, {{ claim.offerta.user_id }})' class="btn btn-primary btn-sm" style="width:100%;">🌟 Lascia Recensione</button>
                     {% elif has_reviewed %}
                     <div class="text-center" style="color: var(--success); font-weight: 700; font-size: 0.85rem; padding: 8px;">✨ Già Recensito</div>
                     {% elif claim.offerta.data_ora < now %}
