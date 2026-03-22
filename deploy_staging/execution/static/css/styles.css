@@ -18,16 +18,16 @@
     --accent: #81C784;
     --accent-dark: #66BB6A;
 
-    /* Sfondo (Gourmet Night - Profondo e Raffinato) */
-    --bg-body: #0C0703; /* Quasi Nero Cocoa */
-    --bg-card: rgba(28, 18, 10, 0.65); /* Vetro Scuro Caldo */
-    --bg-surface: #1C120A;
-    --bg-gradient: linear-gradient(135deg, #0C0703 0%, #1C120A 100%);
+    /* Sfondo (Gourmet Night - Profondo ma Luminoso) */
+    --bg-body: #160D06; /* Un po' più chiaro e caldo */
+    --bg-card: rgba(45, 30, 20, 0.75); /* Più vibrante */
+    --bg-surface: #26180F;
+    --bg-gradient: linear-gradient(135deg, #160D06 0%, #26180F 100%);
 
     /* Testo (Creamy White - contrasto morbido) */
     --text-main: #FDF4E3; /* Crema chiaro */
-    --text-muted: #BCAAA4;
-    --text-light: #8D6E63;
+    --text-muted: #D7CCC8; /* MOLTO più chiaro per la leggibilità */
+    --text-light: #A1887F;
 
     /* Bordi e Elementi */
     --border: rgba(255, 255, 255, 0.1);
@@ -339,7 +339,7 @@ textarea.form-control {
 }
 
 .navbar:hover {
-    background: rgba(12, 7, 3, 0.9);
+    background: rgba(22, 13, 6, 0.9);
     box-shadow: 0 15px 50px rgba(0,0,0,0.7);
     border-color: var(--primary-glow);
 }
