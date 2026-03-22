@@ -697,6 +697,10 @@
                             </a>` : ''}
                         </div>
                     `);
+                    marker.on('popupopen', () => {
+                        const popupElement = marker.getPopup()?.getElement();
+                        popupElement?.querySelectorAll('a').forEach((anchor) => anchor.remove());
+                    });
                     marker.addTo(map);
                     markers.push(marker);
                 });
