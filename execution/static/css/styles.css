@@ -451,13 +451,33 @@ textarea.form-control {
     white-space: nowrap;
 }
 
+.navbar-brand .brand-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    object-fit: cover;
+    display: block;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow:
+        0 10px 20px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.navbar-brand .brand-wordmark {
+    display: block;
+    width: 184px;
+    max-width: 36vw;
+    height: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.16));
+}
+
 .navbar-brand .logo-icon,
 .navbar-brand div.logo-icon {
     width: 42px;
     height: 42px;
-    background:
-        radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.34), transparent 30%),
-        linear-gradient(145deg, #FFB86B 0%, #FF8A4D 42%, #E05B32 100%);
+    background: url('/static/img/icon-512.png') center/cover no-repeat;
     border-radius: 14px;
     display: flex;
     align-items: center;
@@ -466,15 +486,23 @@ textarea.form-control {
     color: transparent;
     border: 1px solid rgba(255, 255, 255, 0.16);
     box-shadow:
-        0 10px 20px rgba(224, 91, 50, 0.24),
-        inset 0 1px 0 rgba(255, 255, 255, 0.28);
+        0 10px 20px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
     flex-shrink: 0;
     position: relative;
     overflow: hidden;
 }
 
 .navbar-brand .logo-icon::before,
-.navbar-brand div.logo-icon::before,
+.navbar-brand div.logo-icon::before {
+    content: none;
+}
+
+.navbar-brand .logo-icon::after,
+.navbar-brand div.logo-icon::after {
+    content: none;
+}
+
 .logo-icon-large::before {
     content: '';
     position: absolute;
@@ -483,8 +511,6 @@ textarea.form-control {
     pointer-events: none;
 }
 
-.navbar-brand .logo-icon::after,
-.navbar-brand div.logo-icon::after,
 .logo-icon-large::after {
     content: '';
     position: absolute;
@@ -498,14 +524,16 @@ textarea.form-control {
 
 .navbar-brand > span {
     display: inline-block;
-    font-weight: 900;
-    letter-spacing: -0.05em;
+    width: 184px;
+    max-width: 36vw;
+    height: 32px;
+    background: url('/static/img/approfitto.png') center/contain no-repeat;
     color: transparent;
-    background: linear-gradient(135deg, #FFF7EE 0%, #FFD4B0 52%, #FFF1E6 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+    font-size: 0;
+    line-height: 0;
+    text-shadow: none;
+    flex-shrink: 0;
 }
 
 .navbar-nav {
@@ -771,8 +799,9 @@ textarea.form-control {
         padding-top: 122px; /* Compensa navbar + titolo */
     }
 
-    .navbar-brand > span {
-        display: none; /* Nasconde il testo del logo, resta solo l'icona */
+    .navbar-brand > span,
+    .navbar-brand .brand-wordmark {
+        display: none; /* Nasconde il testo/wordmark, resta solo l'icona */
     }
 
     .nav-links .btn {
