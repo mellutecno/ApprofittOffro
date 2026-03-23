@@ -1216,10 +1216,10 @@ textarea.form-control {
     margin: 12vh auto 0;
     padding: 28px 24px 22px;
     border-radius: 28px;
-    background: linear-gradient(180deg, #FFF8EF 0%, #F6E9D6 100%);
-    border: 1px solid rgba(151, 75, 26, 0.16);
-    box-shadow: 0 24px 80px rgba(35, 19, 9, 0.34);
-    color: #4A2B17;
+    background: linear-gradient(180deg, #FFF6EA 0%, #F1DFC7 100%);
+    border: 1px solid rgba(113, 53, 18, 0.2);
+    box-shadow: 0 24px 80px rgba(35, 19, 9, 0.38);
+    color: #3A1E0E !important;
 }
 
 .offer-error-close {
@@ -1230,8 +1230,8 @@ textarea.form-control {
     height: 36px;
     border: 0;
     border-radius: 50%;
-    background: rgba(144, 68, 24, 0.08);
-    color: #8A4B26;
+    background: rgba(120, 54, 16, 0.12);
+    color: #713512 !important;
     font-size: 1.5rem;
     line-height: 1;
     cursor: pointer;
@@ -1243,8 +1243,8 @@ textarea.form-control {
     justify-content: center;
     padding: 8px 14px;
     border-radius: 999px;
-    background: rgba(255, 112, 67, 0.14);
-    color: #C8582B;
+    background: rgba(255, 112, 67, 0.18);
+    color: #A4421C !important;
     font-size: 0.82rem;
     font-weight: 800;
     text-transform: uppercase;
@@ -1256,18 +1256,19 @@ textarea.form-control {
     margin-bottom: 12px;
     font-size: 1.5rem;
     font-weight: 900;
-    color: #3B2415;
+    color: #2E160A !important;
 }
 
 .offer-error-message {
     margin-bottom: 20px;
     font-size: 1rem;
     line-height: 1.55;
-    color: #6A3A21;
+    color: #4B2511 !important;
 }
 
 .offer-error-message p {
     margin: 0 0 10px;
+    color: #4B2511 !important;
 }
 
 .offer-error-message p:last-child {
