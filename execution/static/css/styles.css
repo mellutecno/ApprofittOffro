@@ -527,7 +527,7 @@ textarea.form-control {
     width: 184px;
     max-width: 36vw;
     height: 32px;
-    background: url('/static/img/approfitto.png') center/contain no-repeat;
+    background: url('/static/img/approfitto.png?v=2') center/contain no-repeat;
     color: transparent;
     -webkit-text-fill-color: transparent;
     font-size: 0;
