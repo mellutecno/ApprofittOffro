@@ -1,0 +1,12 @@
+<div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#fff7ed; padding:32px; border-radius:16px; border:1px solid #fdba74;">
+    <h2 style="color:#c2410c;">Il tuo account è stato rimosso</h2>
+    <p>Ciao <b>{{ user_name }}</b>, il tuo profilo su ApprofittOffro è stato rimosso da un amministratore.</p>
+
+    <div style="background:white; padding:20px; border-radius:12px; margin:16px 0; border-left:4px solid #f97316;">
+        <b>Motivazione comunicata:</b><br>
+        <i style="color:#6b7280;">"{{ motivazione }}"</i>
+    </div>
+
+    <p style="font-size:0.95rem; color:#4b5563;">Se pensi che si tratti di un errore o vuoi chiarire la situazione, puoi rispondere a questa email o contattare il team di moderazione.</p>
+    <p style="color:#9ca3af; font-size:0.8rem; margin-top:24px;">— {{ admin_user.nome }} • Team ApprofittOffro</p>
+</div>

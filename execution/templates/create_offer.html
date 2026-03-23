@@ -26,6 +26,9 @@
         </a>
         <div class="nav-links">
             <a href="/dashboard" class="btn btn-outline btn-sm">Home</a>
+            {% if current_user.is_admin %}
+            <a href="/admin" class="btn btn-outline btn-sm">Admin</a>
+            {% endif %}
             <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
             <a href="/logout" class="btn btn-ghost btn-sm" style="color:var(--text-muted)">Esci</a>
         </div>
@@ -124,7 +127,7 @@
                 <button type="submit" class="btn btn-accent btn-block btn-lg" id="offer-btn" style="margin-top: 40px;">
                     PUBBLICA OFFERTA
                 </button>
-                <a href="/dashboard" class="btn btn-ghost btn-block mt-2">Annulla</a>
+                <a href="{{ return_url|default('/dashboard') }}" class="btn btn-ghost btn-block mt-2">Annulla</a>
             </form>
         </div>
     </div>
@@ -212,6 +215,8 @@
                 if (indirField && !indirField.value) indirField.value = indir;
             }
         })();
+
+        const returnUrl = {{ (return_url or '/dashboard')|tojson }};
 
         // ---- Mappa offerta ----
         let offerMap, offerMarker;
@@ -475,7 +480,9 @@
         // Data minima = ora corrente
         const now = new Date();
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        document.getElementById('data_ora').min = now.toISOString().slice(0, 16);
+        const nowIso = now.toISOString().slice(0, 16);
+        const currentFieldValue = document.getElementById('data_ora').value;
+        document.getElementById('data_ora').min = currentFieldValue && currentFieldValue < nowIso ? currentFieldValue : nowIso;
 
         // ---- Invio offerta ----
         document.getElementById('offer-form').addEventListener('submit', async (e) => {
@@ -523,7 +530,7 @@
                 const data = await res.json();
                 
                 if (data.success) {
-                    window.location.href = '/dashboard';
+                    window.location.href = returnUrl;
                 } else {
                     const errors = data.errors || [data.error || 'Non è stato possibile pubblicare l\'offerta.'];
                     errorsDiv.innerHTML = `<div class="alert alert-error">${errors.join('<br>')}</div>`;

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Area amministrazione ApprofittOffro.">
+    <title>Admin - ApprofittOffro</title>
+    <link rel="stylesheet" href="/static/css/styles.css?v=17">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#FF7043">
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/static/sw.js');
+        });
+      }
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/dashboard" class="navbar-brand">
+            <div class="logo-icon">🍽️</div>
+            <span>ApprofittOffro</span>
+        </a>
+        <div class="nav-links">
+            <a href="/dashboard" class="btn btn-outline btn-sm">Dashboard</a>
+            <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
+            <a href="/logout" class="btn btn-ghost btn-sm" style="color:var(--text-muted)">Esci</a>
+        </div>
+    </nav>
+
+    <main class="container main-content" style="max-width: 1280px;">
+        <section class="glass-card" style="padding: 28px; margin-bottom: 28px;">
+            <div style="display:flex; justify-content:space-between; gap:20px; align-items:flex-start; flex-wrap:wrap;">
+                <div>
+                    <div style="display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:999px; background:rgba(255,112,67,0.14); color:var(--primary); font-size:0.8rem; font-weight:900; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px;">Area Admin</div>
+                    <h1 style="margin-bottom: 10px;">Controllo completo della piattaforma</h1>
+                    <p style="color: var(--text-muted); max-width: 760px; margin: 0;">Da qui puoi moderare utenti, controllare eventi passati e futuri, modificare le offerte e rimuovere profili non convincenti con comunicazione motivata via email.</p>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(2, minmax(130px, 1fr)); gap:12px; min-width:min(100%, 380px);">
+                    <div class="glass-card" style="padding:16px; text-align:center;">
+                        <div style="font-size:1.7rem; font-weight:900; color:var(--primary);">{{ stats.users }}</div>
+                        <div style="font-size:0.74rem; text-transform:uppercase; color:var(--text-muted); font-weight:800;">Utenti</div>
+                    </div>
+                    <div class="glass-card" style="padding:16px; text-align:center;">
+                        <div style="font-size:1.7rem; font-weight:900; color:var(--primary);">{{ stats.admins }}</div>
+                        <div style="font-size:0.74rem; text-transform:uppercase; color:var(--text-muted); font-weight:800;">Admin</div>
+                    </div>
+                    <div class="glass-card" style="padding:16px; text-align:center;">
+                        <div style="font-size:1.7rem; font-weight:900; color:var(--primary);">{{ stats.future_offers }}</div>
+                        <div style="font-size:0.74rem; text-transform:uppercase; color:var(--text-muted); font-weight:800;">Eventi Futuri</div>
+                    </div>
+                    <div class="glass-card" style="padding:16px; text-align:center;">
+                        <div style="font-size:1.7rem; font-weight:900; color:var(--primary);">{{ stats.past_offers }}</div>
+                        <div style="font-size:0.74rem; text-transform:uppercase; color:var(--text-muted); font-weight:800;">Eventi Passati</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section style="margin-bottom: 34px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom: 16px; flex-wrap:wrap;">
+                <div>
+                    <h2 style="margin-bottom: 6px;">Utenti registrati</h2>
+                    <p style="margin:0; color:var(--text-muted);">Controlla foto, profilo, verifiche e rimuovi gli account che non rispettano gli standard.</p>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:18px;">
+                {% for user in users %}
+                <article class="glass-card" style="padding:20px; display:flex; flex-direction:column; gap:16px;">
+                    <div style="display:flex; gap:14px; align-items:center;">
+                        <img src="/uploads/{{ user.foto_filename }}" alt="{{ user.nome }}" class="avatar" style="width:64px; height:64px; flex-shrink:0;">
+                        <div style="min-width:0;">
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                <strong style="font-size:1rem;">{{ user.nome }}</strong>
+                                {% if user.is_admin %}
+                                <span class="pill-badge" style="background:rgba(255,112,67,0.16); color:var(--primary);">Admin</span>
+                                {% endif %}
+                                {% if user.verificato %}
+                                <span class="pill-badge" style="background:rgba(16,185,129,0.15); color:var(--success);">Verificato</span>
+                                {% else %}
+                                <span class="pill-badge" style="background:rgba(245,158,11,0.15); color:var(--warning);">Non verificato</span>
+                                {% endif %}
+                            </div>
+                            <div style="font-size:0.9rem; color:var(--text-muted); word-break:break-word;">{{ user.email }}</div>
+                            <div style="font-size:0.88rem; color:var(--text-muted); margin-top:4px;">{{ user.eta_display }} anni • {{ user.citta or 'Posizione non definita' }}</div>
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;">
+                        <div style="padding:12px; border-radius:16px; background:rgba(255,255,255,0.05); text-align:center;">
+                            <div style="font-weight:900; color:var(--primary);">{{ user.offerte|length }}</div>
+                            <div style="font-size:0.74rem; color:var(--text-muted); font-weight:800;">Offerte</div>
+                        </div>
+                        <div style="padding:12px; border-radius:16px; background:rgba(255,255,255,0.05); text-align:center;">
+                            <div style="font-weight:900; color:var(--primary);">{{ user.claims|length }}</div>
+                            <div style="font-size:0.74rem; color:var(--text-muted); font-weight:800;">Partecipazioni</div>
+                        </div>
+                        <div style="padding:12px; border-radius:16px; background:rgba(255,255,255,0.05); text-align:center;">
+                            <div style="font-weight:900; color:var(--primary);">{{ user.reviews_ricevute|length }}</div>
+                            <div style="font-size:0.74rem; color:var(--text-muted); font-weight:800;">Recensioni</div>
+                        </div>
+                    </div>
+
+                    <div style="padding:14px; border-radius:18px; background:rgba(255,255,255,0.04); border:1px solid var(--border);">
+                        <div style="font-size:0.76rem; text-transform:uppercase; color:var(--text-muted); font-weight:900; margin-bottom:8px;">Profilo</div>
+                        <div style="font-size:0.92rem; color:var(--text-main); line-height:1.5;">
+                            <div><strong>Bio:</strong> {{ user.bio or 'Mancante' }}</div>
+                            <div><strong>Gusti:</strong> {{ user.cibi_preferiti or 'Mancanti' }}</div>
+                            <div><strong>Intolleranze:</strong> {{ user.intolleranze or 'Mancanti' }}</div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        {% if user.id != current_user.id %}
+                        <button type="button" class="btn btn-outline btn-sm" style="color:var(--error); border-color:rgba(244,63,94,0.5);" onclick='openDeleteUserModal({{ user.id }}, {{ user.nome|tojson }}, {{ user.email|tojson }})'>Elimina account</button>
+                        {% else %}
+                        <span class="pill-badge" style="background:rgba(255,255,255,0.08); color:var(--text-muted);">Account attuale</span>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section style="margin-bottom: 34px;">
+            <div style="margin-bottom: 16px;">
+                <h2 style="margin-bottom: 6px;">Eventi futuri</h2>
+                <p style="margin:0; color:var(--text-muted);">Tutti i pasti ancora programmati, con accesso rapido a modifica ed eliminazione.</p>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:18px;">
+                {% for offer in upcoming_offers %}
+                <article class="offer-card">
+                    <div class="offer-card-body">
+                        <span class="offer-type-badge badge-{{ offer.tipo_pasto }}">{{ offer.tipo_pasto|upper }}</span>
+                        <h3 class="mt-1">{{ offer.nome_locale }}</h3>
+                        <div class="address">👤 {{ offer.autore.nome }} • {{ offer.autore.email }}</div>
+                        <div class="address">📍 {{ offer.indirizzo }}</div>
+                        <div class="datetime-info">🗓️ {{ offer.data_ora.strftime('%d/%m/%Y %H:%M') }}</div>
+                        {% if offer.descrizione %}
+                        <div class="description">{{ offer.descrizione }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="offer-card-footer" style="flex-direction:column; align-items:stretch; gap:12px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <div class="spots-indicator" style="margin-bottom:0;">
+                                <div class="spots-bar">
+                                    {% set pct = (offer.posti_disponibili / offer.posti_totali * 100) if offer.posti_totali > 0 else 0 %}
+                                    <div class="spots-bar-fill {{ 'critical' if pct <= 20 else 'low' if pct <= 50 else '' }}" style="width: {{ pct }}%"></div>
+                                </div>
+                                <span>{{ offer.posti_disponibili }}/{{ offer.posti_totali }} posti</span>
+                            </div>
+                            <span class="pill-badge" style="background:rgba(255,255,255,0.08); color:var(--text-muted);">{{ offer.stato }}</span>
+                        </div>
+                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                            <a href="/edit-offer/{{ offer.id }}?from=admin" class="btn btn-outline btn-sm">Modifica</a>
+                            <button type="button" class="btn btn-outline btn-sm" style="color:var(--error); border-color:rgba(244,63,94,0.5);" onclick='openDeleteOfferModal({{ offer.id }}, {{ offer.nome_locale|tojson }}, {{ offer.autore.nome|tojson }})'>Elimina evento</button>
+                        </div>
+                    </div>
+                </article>
+                {% else %}
+                <div class="empty-state" style="grid-column:1 / -1; padding:32px;">
+                    <p>Nessun evento futuro da gestire.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section style="margin-bottom: 34px;">
+            <div style="margin-bottom: 16px;">
+                <h2 style="margin-bottom: 6px;">Eventi passati</h2>
+                <p style="margin:0; color:var(--text-muted);">Storico completo dei pasti già avvenuti, ancora modificabili o eliminabili dall’amministrazione.</p>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:18px;">
+                {% for offer in past_offers %}
+                <article class="glass-card" style="padding:20px; display:flex; flex-direction:column; gap:14px; border-color:rgba(255,255,255,0.08);">
+                    <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+                        <div>
+                            <span class="offer-type-badge badge-{{ offer.tipo_pasto }}">{{ offer.tipo_pasto|upper }}</span>
+                            <h3 style="margin-top:10px; margin-bottom:8px;">{{ offer.nome_locale }}</h3>
+                        </div>
+                        <span class="pill-badge" style="background:rgba(255,255,255,0.08); color:var(--text-muted);">{{ offer.stato }}</span>
+                    </div>
+                    <div style="color:var(--text-muted); line-height:1.55;">
+                        <div>👤 {{ offer.autore.nome }} • {{ offer.autore.email }}</div>
+                        <div>📍 {{ offer.indirizzo }}</div>
+                        <div>🗓️ {{ offer.data_ora.strftime('%d/%m/%Y %H:%M') }}</div>
+                        <div>👥 {{ offer.posti_totali - offer.posti_disponibili }} partecipanti registrati</div>
+                    </div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <a href="/edit-offer/{{ offer.id }}?from=admin" class="btn btn-outline btn-sm">Modifica</a>
+                        <button type="button" class="btn btn-outline btn-sm" style="color:var(--error); border-color:rgba(244,63,94,0.5);" onclick='openDeleteOfferModal({{ offer.id }}, {{ offer.nome_locale|tojson }}, {{ offer.autore.nome|tojson }})'>Elimina evento</button>
+                    </div>
+                </article>
+                {% else %}
+                <div class="empty-state" style="grid-column:1 / -1; padding:32px;">
+                    <p>Nessun evento passato presente nello storico.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+
+    <div id="toast-container" class="toast-container"></div>
+
+    <div id="admin-user-modal" class="offer-error-modal" aria-hidden="true">
+        <div class="offer-error-backdrop" onclick="closeDeleteUserModal()"></div>
+        <div class="offer-error-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-user-title">
+            <button type="button" class="offer-error-close" onclick="closeDeleteUserModal()" aria-label="Chiudi avviso">×</button>
+            <div class="offer-error-badge">Moderazione account</div>
+            <h3 id="admin-user-title">Elimina account</h3>
+            <p id="admin-user-copy" style="color:var(--text-muted); line-height:1.6;"></p>
+            <div class="form-group" style="text-align:left;">
+                <label for="admin-user-reason">Motivazione da inviare via email</label>
+                <textarea id="admin-user-reason" class="form-control" rows="4" placeholder="Spiega con chiarezza perché il profilo è stato rimosso."></textarea>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button type="button" class="btn btn-ghost btn-block" onclick="closeDeleteUserModal()">Annulla</button>
+                <button type="button" class="btn btn-accent btn-block" onclick="submitDeleteUser()">Elimina account</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-offer-modal" class="offer-error-modal" aria-hidden="true">
+        <div class="offer-error-backdrop" onclick="closeDeleteOfferModal()"></div>
+        <div class="offer-error-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-offer-title">
+            <button type="button" class="offer-error-close" onclick="closeDeleteOfferModal()" aria-label="Chiudi avviso">×</button>
+            <div class="offer-error-badge">Moderazione evento</div>
+            <h3 id="admin-offer-title">Elimina evento</h3>
+            <p id="admin-offer-copy" style="color:var(--text-muted); line-height:1.6;"></p>
+            <div class="form-group" style="text-align:left;">
+                <label for="admin-offer-reason">Motivazione da inviare</label>
+                <textarea id="admin-offer-reason" class="form-control" rows="4" placeholder="Spiega perché l'evento viene rimosso."></textarea>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button type="button" class="btn btn-ghost btn-block" onclick="closeDeleteOfferModal()">Annulla</button>
+                <button type="button" class="btn btn-accent btn-block" onclick="submitDeleteOffer()">Elimina evento</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        let deleteUserState = { id: null, name: '', email: '' };
+        let deleteOfferState = { id: null, name: '', owner: '' };
+
+        function openDeleteUserModal(id, name, email) {
+            deleteUserState = { id, name, email };
+            document.getElementById('admin-user-copy').textContent = `Stai per eliminare l'account di ${name} (${email}). L'utente riceverà una mail con la motivazione che inserisci qui sotto.`;
+            document.getElementById('admin-user-reason').value = '';
+            const modal = document.getElementById('admin-user-modal');
+            modal.classList.add('is-visible');
+            modal.setAttribute('aria-hidden', 'false');
+            document.getElementById('admin-user-reason').focus();
+        }
+
+        function closeDeleteUserModal() {
+            const modal = document.getElementById('admin-user-modal');
+            modal.classList.remove('is-visible');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        async function submitDeleteUser() {
+            const reason = document.getElementById('admin-user-reason').value.trim();
+            if (reason.length < 8) {
+                showToast('Scrivi una motivazione più chiara da inviare all’utente.', 'warning');
+                return;
+            }
+
+            const res = await fetch(`/api/admin/users/${deleteUserState.id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ motivazione: reason }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                showToast(data.error || 'Non sono riuscito a eliminare l’account.', 'error');
+                return;
+            }
+
+            showToast(data.message || 'Account eliminato.', 'success');
+            closeDeleteUserModal();
+            window.setTimeout(() => window.location.reload(), 600);
+        }
+
+        function openDeleteOfferModal(id, name, owner) {
+            deleteOfferState = { id, name, owner };
+            document.getElementById('admin-offer-copy').textContent = `Stai per eliminare l'evento "${name}" pubblicato da ${owner}. Inserisci una motivazione: verrà usata per avvisare i partecipanti e l'organizzatore.`;
+            document.getElementById('admin-offer-reason').value = '';
+            const modal = document.getElementById('admin-offer-modal');
+            modal.classList.add('is-visible');
+            modal.setAttribute('aria-hidden', 'false');
+            document.getElementById('admin-offer-reason').focus();
+        }
+
+        function closeDeleteOfferModal() {
+            const modal = document.getElementById('admin-offer-modal');
+            modal.classList.remove('is-visible');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        async function submitDeleteOffer() {
+            const reason = document.getElementById('admin-offer-reason').value.trim();
+            if (reason.length < 5) {
+                showToast('Inserisci una motivazione prima di eliminare l’evento.', 'warning');
+                return;
+            }
+
+            const res = await fetch(`/api/offers/${deleteOfferState.id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ motivazione: reason }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                showToast(data.error || 'Non sono riuscito a eliminare l’evento.', 'error');
+                return;
+            }
+
+            showToast(data.message || 'Evento eliminato.', 'success');
+            closeDeleteOfferModal();
+            window.setTimeout(() => window.location.reload(), 600);
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeDeleteUserModal();
+                closeDeleteOfferModal();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+<div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#fff7ed; padding:32px; border-radius:16px; border:1px solid #fdba74;">
+    <h2 style="color:#c2410c;">La tua offerta è stata rimossa</h2>
+    <p>Ciao <b>{{ user.nome }}</b>, un amministratore ha rimosso una tua offerta da ApprofittOffro.</p>
+
+    <div style="background:white; padding:20px; border-radius:12px; margin:16px 0; border-left:4px solid #f97316;">
+        <b>Evento:</b> {{ offer.nome_locale }}<br>
+        <b>Data:</b> {{ data_evento }}<br>
+        <b>Motivazione:</b><br>
+        <i style="color:#6b7280;">"{{ motivazione }}"</i>
+    </div>
+
+    <p style="font-size:0.95rem; color:#4b5563;">Se vuoi chiarire o correggere il profilo/offerta, puoi rispondere a questa email e spiegare la situazione.</p>
+    <p style="color:#9ca3af; font-size:0.8rem; margin-top:24px;">— {{ admin_user.nome }} • Team ApprofittOffro</p>
+</div>

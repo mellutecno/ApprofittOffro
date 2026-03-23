@@ -23,6 +23,7 @@ from flask import (
     jsonify,
     session,
 )
+from sqlalchemy import or_
 from flask_login import (
     LoginManager,
     login_user,
@@ -34,7 +35,7 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 from PIL import Image
 
-from models import db, User, Offer, Claim, TIPI_PASTO
+from models import db, User, Offer, Claim, Review, TIPI_PASTO
 from verify_photo import verifica_volto
 
 # ---------------------------------------------------------------------------
@@ -200,6 +201,7 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("raggio_azione", "ALTER TABLE users ADD COLUMN raggio_azione INTEGER DEFAULT 10"),
                 ("verificato", "ALTER TABLE users ADD COLUMN verificato INTEGER DEFAULT 0"),
                 ("verification_token", "ALTER TABLE users ADD COLUMN verification_token VARCHAR(100)"),
+                ("is_admin", "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"),
             ],
             "offers": [
                 ("foto_locale", "ALTER TABLE offers ADD COLUMN foto_locale VARCHAR(256)"),
@@ -306,6 +308,8 @@ def profile_completed_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if current_user.is_authenticated:
+            if is_admin_user(current_user):
+                return f(*args, **kwargs)
             if not is_profile_complete(current_user):
                 flash("Ciao! Completa il tuo identikit alimentare e la tua bio: sono obbligatori per poter pubblicare offerte, partecipare ai pasti e vedere i profili completi. 🍽️", "warning")
                 return redirect(url_for('profile_page'))
@@ -317,8 +321,26 @@ def is_profile_complete(user):
     return bool(user.cibi_preferiti and user.intolleranze and user.bio)
 
 
+def is_admin_user(user):
+    return bool(getattr(user, "is_admin", False))
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return login_manager.unauthorized()
+        if not is_admin_user(current_user):
+            if request.path.startswith("/api/"):
+                return jsonify({"success": False, "error": "Area riservata agli amministratori."}), 403
+            flash("Area riservata agli amministratori.", "error")
+            return redirect(url_for("dashboard"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 def require_complete_profile_json():
-    if current_user.is_authenticated and not is_profile_complete(current_user):
+    if current_user.is_authenticated and not is_admin_user(current_user) and not is_profile_complete(current_user):
         return jsonify({
             "success": False,
             "error": "Completa il profilo prima di partecipare o pubblicare offerte.",
@@ -385,6 +407,32 @@ def dashboard():
         has_user_location=has_user_location,
         default_lat=default_lat,
         default_lon=default_lon,
+    )
+
+
+@app.route("/admin")
+@admin_required
+def admin_dashboard():
+    now = local_now()
+    all_offers = Offer.query.order_by(Offer.data_ora.desc()).all()
+    upcoming_offers = [offer for offer in all_offers if offer.data_ora >= now]
+    past_offers = [offer for offer in all_offers if offer.data_ora < now]
+    users = User.query.order_by(User.created_at.desc()).all()
+
+    stats = {
+        "users": len(users),
+        "admins": sum(1 for user in users if is_admin_user(user)),
+        "future_offers": len(upcoming_offers),
+        "past_offers": len(past_offers),
+    }
+
+    return render_template(
+        "admin.html",
+        users=users,
+        upcoming_offers=upcoming_offers,
+        past_offers=past_offers,
+        stats=stats,
+        now=now,
     )
 
 @app.route("/verify/<token>")
@@ -455,12 +503,114 @@ def profile_page():
 
 def get_user_rating(user_id):
     """Calcola la media delle recensioni per un utente."""
-    from models import Review
     reviews = Review.query.filter_by(reviewed_id=user_id).all()
     if not reviews:
         return {"average": 0, "count": 0}
     avg = sum(r.rating for r in reviews) / len(reviews)
     return {"average": round(avg, 1), "count": len(reviews)}
+
+
+def can_manage_offer(offer, user):
+    return bool(
+        user.is_authenticated
+        and (offer.user_id == user.id or is_admin_user(user))
+    )
+
+
+def remove_offer_with_notifications(offer, motivazione, acting_admin=None, notify_owner=False):
+    """Elimina un'offerta, avvisando i partecipanti e opzionalmente l'host."""
+    claims = Claim.query.filter_by(offer_id=offer.id).all()
+    data_evento = offer.data_ora.strftime('%d/%m/%Y alle %H:%M')
+    motivazione = motivazione.strip() or "Nessuna motivazione specificata."
+
+    for claim in claims:
+        send_email(
+            f"⚠️ Evento Annullato: {offer.nome_locale}",
+            [claim.utente.email],
+            "cancellation.html",
+            user=claim.utente,
+            offer=offer,
+            data_evento=data_evento,
+            motivazione=motivazione
+        )
+
+    if notify_owner and acting_admin and offer.autore.email:
+        send_email(
+            f"⚠️ La tua offerta è stata rimossa: {offer.nome_locale}",
+            [offer.autore.email],
+            "offer_removed_admin.html",
+            user=offer.autore,
+            offer=offer,
+            data_evento=data_evento,
+            motivazione=motivazione,
+            admin_user=acting_admin,
+        )
+
+    Review.query.filter_by(offer_id=offer.id).delete(synchronize_session=False)
+    Claim.query.filter_by(offer_id=offer.id).delete(synchronize_session=False)
+    db.session.delete(offer)
+
+
+def remove_user_with_cleanup(user, motivazione, acting_admin):
+    """Elimina un account e tutti i dati collegati, con notifiche amministrative."""
+    motivazione = motivazione.strip()
+    user_email = user.email
+    user_nome = user.nome
+    owned_offers = Offer.query.filter_by(user_id=user.id).all()
+    owned_offer_ids = [offer.id for offer in owned_offers]
+    now = local_now()
+
+    if owned_offer_ids:
+        claims_on_other_offers = Claim.query.filter(
+            Claim.user_id == user.id,
+            Claim.offer_id.notin_(owned_offer_ids),
+        ).all()
+    else:
+        claims_on_other_offers = Claim.query.filter_by(user_id=user.id).all()
+
+    for claim in claims_on_other_offers:
+        offer = claim.offerta
+        if offer:
+            offer.posti_disponibili = min(offer.posti_totali, offer.posti_disponibili + 1)
+            if offer.data_ora > now and offer.stato == "completata":
+                offer.stato = "attiva"
+            send_email(
+                f"⚠️ Partecipazione rimossa: {offer.nome_locale}",
+                [offer.autore.email],
+                "claim_removed_admin.html",
+                user=offer.autore,
+                removed_user=user,
+                offer=offer,
+                data_evento=offer.data_ora.strftime('%d/%m/%Y alle %H:%M'),
+                motivazione=motivazione,
+                admin_user=acting_admin,
+            )
+        db.session.delete(claim)
+
+    for offer in owned_offers:
+        remove_offer_with_notifications(
+            offer,
+            motivazione,
+            acting_admin=acting_admin,
+            notify_owner=False,
+        )
+
+    Review.query.filter(
+        or_(Review.reviewer_id == user.id, Review.reviewed_id == user.id)
+    ).delete(synchronize_session=False)
+
+    db.session.delete(user)
+    db.session.commit()
+
+    if user_email:
+        send_email(
+            "Il tuo account ApprofittOffro è stato rimosso",
+            [user_email],
+            "account_deleted.html",
+            user_name=user_nome,
+            motivazione=motivazione,
+            admin_user=acting_admin,
+        )
 
 
 # ===================================================================
@@ -715,7 +865,10 @@ def api_login():
         return jsonify({"success": False, "errors": ["Devi prima confermare la tua email! Controlla la posta."]}), 401
 
     login_user(user, remember=True)
-    return jsonify({"success": True, "redirect": url_for("dashboard")})
+    return jsonify({
+        "success": True,
+        "redirect": url_for("admin_dashboard") if is_admin_user(user) else url_for("dashboard"),
+    })
 
 
 @app.route("/logout", methods=["GET"])
@@ -835,12 +988,22 @@ def api_delete_offer(offer_id):
     if not offer:
         return jsonify({"success": False, "error": "Offerta non trovata."}), 404
     
-    if offer.user_id != current_user.id:
+    if not can_manage_offer(offer, current_user):
         return jsonify({"success": False, "error": "Non autorizzato."}), 403
     
     # Riceve la motivazione dal corpo della richiesta (JSON)
     data = request.get_json(silent=True) or {}
     motivazione = data.get("motivazione", "Nessuna motivazione specificata.").strip() or "Nessuna motivazione specificata."
+
+    remove_offer_with_notifications(
+        offer,
+        motivazione,
+        acting_admin=current_user if is_admin_user(current_user) else None,
+        notify_owner=is_admin_user(current_user) and offer.user_id != current_user.id,
+    )
+    db.session.commit()
+    
+    return jsonify({"success": True, "message": "Offerta eliminata e partecipanti notificati."})
     
     # Trova tutti i partecipanti (Claims)
     claims = Claim.query.filter_by(offer_id=offer.id).all()
@@ -873,10 +1036,11 @@ def api_delete_offer(offer_id):
 def edit_offer_page(offer_id):
     """Schermata per la modifica di un'offerta esistente."""
     offer = Offer.query.get_or_404(offer_id)
-    if offer.user_id != current_user.id:
+    if not can_manage_offer(offer, current_user):
         flash("Non puoi modificare le offerte altrui.", "error")
         return redirect(url_for("dashboard"))
-    return render_template("create_offer.html", offer=offer, tipi_pasto=TIPI_PASTO)
+    return_url = url_for("admin_dashboard") if is_admin_user(current_user) and request.args.get("from") == "admin" else url_for("dashboard")
+    return render_template("create_offer.html", offer=offer, tipi_pasto=TIPI_PASTO, return_url=return_url)
 
 
 @app.route("/api/offers/<int:offer_id>", methods=["PUT"])
@@ -888,7 +1052,7 @@ def api_edit_offer(offer_id):
         return profile_error
 
     offer = Offer.query.get_or_404(offer_id)
-    if offer.user_id != current_user.id:
+    if not can_manage_offer(offer, current_user):
         return jsonify({"success": False, "errors": ["Non autorizzato."]}), 403
 
     tipo_pasto = request.form.get("tipo_pasto", "")
@@ -928,7 +1092,7 @@ def api_edit_offer(offer_id):
         return jsonify({"success": False, "errors": ["Formato data non valido."]}), 400
 
     conflicting_offer = get_same_day_offer_conflict(
-        current_user.id,
+        offer.user_id,
         tipo_pasto,
         data_ora,
         exclude_offer_id=offer.id,
@@ -945,7 +1109,7 @@ def api_edit_offer(offer_id):
 
     if foto_locale and foto_locale.filename:
         ext = foto_locale.filename.rsplit(".", 1)[1].lower()
-        filename = f"offer_{current_user.id}_{int(datetime.now().timestamp())}.{ext}"
+        filename = f"offer_{offer.user_id}_{int(datetime.now().timestamp())}.{ext}"
         offer.foto_locale = process_image(foto_locale, filename)
 
     offer.tipo_pasto = tipo_pasto
@@ -1202,6 +1366,7 @@ def api_user_me():
             "id": current_user.id,
             "nome": current_user.nome,
             "email": current_user.email,
+            "is_admin": is_admin_user(current_user),
             "foto": current_user.foto_filename,
             "eta": current_user.eta,
             "eta_display": current_user.eta_display,
@@ -1213,6 +1378,29 @@ def api_user_me():
             "intolleranze": current_user.intolleranze or "",
         },
     })
+
+
+@app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
+@admin_required
+def api_admin_delete_user(user_id):
+    """Elimina un account utente con motivazione obbligatoria e pulizia dati correlati."""
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"success": False, "error": "Utente non trovato."}), 404
+
+    if user.id == current_user.id:
+        return jsonify({"success": False, "error": "Non puoi eliminare l'account con cui sei entrato."}), 400
+
+    if is_admin_user(user) and User.query.filter_by(is_admin=True).count() <= 1:
+        return jsonify({"success": False, "error": "Non puoi eliminare l'ultimo amministratore rimasto."}), 400
+
+    data = request.get_json(silent=True) or {}
+    motivazione = str(data.get("motivazione", "")).strip()
+    if len(motivazione) < 8:
+        return jsonify({"success": False, "error": "Inserisci una motivazione chiara da inviare all'utente."}), 400
+
+    remove_user_with_cleanup(user, motivazione, current_user)
+    return jsonify({"success": True, "message": "Account eliminato e utente avvisato via email."})
 
 @app.route("/api/user/update", methods=["POST"])
 @login_required
