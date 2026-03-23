@@ -74,12 +74,8 @@
                     </div>
 
                     <div class="form-group" style="text-align: left; margin-bottom: 24px;">
-                        <label>Fascia d'età</label>
-                        <select name="fascia_eta" class="form-control" required>
-                            {% for val, label in fasce_eta %}
-                                <option value="{{ val }}" {% if current_user.fascia_eta == val %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
+                        <label>Età</label>
+                        <input type="number" name="eta" class="form-control" min="18" max="120" value="{{ current_user.eta if current_user.eta is not none else current_user.fascia_eta.split('-')[0].replace('+', '') }}" required>
                     </div>
 
                     <div class="form-group" style="text-align: left;">

@@ -68,6 +68,35 @@
             {% endif %}
         </div>
 
+        {% if not is_authenticated %}
+        <section class="glass-card" style="padding: 28px; margin: 0 auto 42px auto; max-width: 980px; background: linear-gradient(180deg, rgba(255,248,238,0.98) 0%, rgba(246,232,210,0.98) 100%); border-color: rgba(130, 74, 31, 0.12);">
+            <div style="display: flex; flex-direction: column; gap: 18px;">
+                <div style="text-align: left;">
+                    <div style="display:inline-flex; align-items:center; gap:8px; padding: 8px 14px; border-radius: 999px; background: rgba(255,112,67,0.12); color: #B24E26; font-size: 0.8rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px;">Come funziona</div>
+                    <h2 style="margin-bottom: 10px; color: #3B2415;">ApprofittOffro ti aiuta a conoscere persone attorno a un pasto, ma la fiducia nasce da un profilo fatto bene.</h2>
+                    <p style="color: #5B3721; font-size: 1rem; line-height: 1.65; margin: 0;">Quando ti registri, usa una foto profilo chiara dove il viso si vede bene, indica la tua età reale e racconta qualcosa di te. Bio, gusti alimentari e intolleranze aiutano a evitare incontri sgradevoli e rendono ogni invito più sereno.</p>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+                    <div style="padding: 18px; border-radius: 22px; background: rgba(255,255,255,0.72); border: 1px solid rgba(130,74,31,0.1); text-align: left;">
+                        <div style="font-size: 1.35rem; margin-bottom: 8px;">📸</div>
+                        <div style="font-weight: 800; color: #3B2415; margin-bottom: 6px;">Foto visibile</div>
+                        <p style="margin: 0; color: #6A4330; font-size: 0.95rem;">Scegli una foto frontale, nitida e luminosa. È il primo elemento che trasmette fiducia.</p>
+                    </div>
+                    <div style="padding: 18px; border-radius: 22px; background: rgba(255,255,255,0.72); border: 1px solid rgba(130,74,31,0.1); text-align: left;">
+                        <div style="font-size: 1.35rem; margin-bottom: 8px;">🪪</div>
+                        <div style="font-weight: 800; color: #3B2415; margin-bottom: 6px;">Età e bio sincere</div>
+                        <p style="margin: 0; color: #6A4330; font-size: 0.95rem;">Un profilo curato aiuta gli altri a capire chi sei davvero prima di accettare un invito.</p>
+                    </div>
+                    <div style="padding: 18px; border-radius: 22px; background: rgba(255,255,255,0.72); border: 1px solid rgba(130,74,31,0.1); text-align: left;">
+                        <div style="font-size: 1.35rem; margin-bottom: 8px;">🍽️</div>
+                        <div style="font-weight: 800; color: #3B2415; margin-bottom: 6px;">Gusti e intolleranze</div>
+                        <p style="margin: 0; color: #6A4330; font-size: 0.95rem;">Più informazioni dai, più è facile creare incontri piacevoli, adatti e senza sorprese.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
         {% if is_authenticated %}
         <section class="map-section glass-card" style="padding: 24px; margin-left: auto; margin-right: auto; margin-bottom: 60px; max-width: 900px;">
             <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
@@ -172,8 +201,8 @@
         }
 
         function getAuthorMeta(offer) {
-            if (!isAuthenticated) return `${offer.autore_fascia_eta} anni`;
-            return `${offer.autore_fascia_eta} anni • ⭐ 4.9`;
+            if (!isAuthenticated) return `${offer.autore_eta} anni`;
+            return `${offer.autore_eta} anni • ⭐ 4.9`;
         }
 
         function getAddressLine(offer) {
@@ -697,7 +726,7 @@
                                 <img src="/uploads/${offer.autore_foto}" alt="${offer.autore}" class="avatar" style="border: 2px solid white; box-shadow: var(--shadow-sm);">
                                 <div class="info">
                                     <div class="name" style="color: var(--text-main); font-weight: 800; font-size: 1.1rem;">${offer.autore}</div>
-                                    <div class="meta" style="color: var(--primary); font-weight: 700; font-size: 0.85rem;">${offer.autore_fascia_eta} anni • ⭐ 4.9</div>
+                                    <div class="meta" style="color: var(--primary); font-weight: 700; font-size: 0.85rem;">${offer.autore_eta} anni • ⭐ 4.9</div>
                                 </div>
                             </a>
                         </div>

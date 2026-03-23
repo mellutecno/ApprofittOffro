@@ -38,6 +38,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     foto_filename = db.Column(db.String(256), nullable=False)
     fascia_eta = db.Column(db.String(10), nullable=False)
+    eta = db.Column(db.Integer, nullable=True)
     latitudine = db.Column(db.Float, nullable=False)
     longitudine = db.Column(db.Float, nullable=False)
     citta = db.Column(db.String(200), nullable=True) # Aggiunta colonna mancante per l'indirizzo testuale
@@ -59,6 +60,13 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    @property
+    def eta_display(self):
+        """Età leggibile con fallback ai vecchi profili a fasce."""
+        if self.eta is not None:
+            return str(self.eta)
+        return self.fascia_eta
 
     def __repr__(self):
         return f"<User {self.nome} ({self.email})>"

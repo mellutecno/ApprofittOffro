@@ -6,6 +6,7 @@ Applicazione web per offrire e approfittare di pasti.
 import os
 import uuid
 import math
+import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -33,7 +34,7 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 from PIL import Image
 
-from models import db, User, Offer, Claim, FASCE_ETA, TIPI_PASTO
+from models import db, User, Offer, Claim, TIPI_PASTO
 from verify_photo import verifica_volto
 
 # ---------------------------------------------------------------------------
@@ -191,6 +192,7 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
 
         legacy_columns = {
             "users": [
+                ("eta", "ALTER TABLE users ADD COLUMN eta INTEGER"),
                 ("citta", "ALTER TABLE users ADD COLUMN citta VARCHAR(200)"),
                 ("cibi_preferiti", "ALTER TABLE users ADD COLUMN cibi_preferiti VARCHAR(300)"),
                 ("intolleranze", "ALTER TABLE users ADD COLUMN intolleranze VARCHAR(300)"),
@@ -323,6 +325,23 @@ def require_complete_profile_json():
         }), 403
     return None
 
+
+def parse_age_value(age_raw):
+    """Valida e converte l'età inserita dall'utente."""
+    normalized_age = str(age_raw).strip()
+    legacy_match = re.match(r"^(\d{1,3})", normalized_age)
+
+    try:
+        age = int(legacy_match.group(1) if legacy_match else normalized_age)
+    except (TypeError, ValueError, AttributeError):
+        return None, "Inserisci un'età valida."
+
+    if age < 18:
+        return None, "Per usare ApprofittOffro devi avere almeno 18 anni."
+    if age > 120:
+        return None, "Inserisci un'età realistica."
+    return age, None
+
 # ===================================================================
 # PAGINE (Template)
 # ===================================================================
@@ -333,7 +352,7 @@ def index():
 
 @app.route("/register")
 def register_page():
-    return render_template("register.html", fasce_eta=FASCE_ETA)
+    return render_template("register.html")
 
 @app.route("/login")
 def login_page():
@@ -429,7 +448,6 @@ def profile_page():
         my_offers=my_offers,
         my_claims=my_claims,
         met_users=met_users_dict.values(),
-        fasce_eta=FASCE_ETA,
         rating_info=get_user_rating(current_user.id),
         now=local_now(),
         completion_threshold=local_now() - timedelta(hours=3)
@@ -592,10 +610,11 @@ def api_register():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         conferma_password = request.form.get("conferma_password", "")
-        fascia_eta = request.form.get("fascia_eta", "")
+        eta_raw = request.form.get("eta", "")
         lat = request.form.get("latitudine")
         lon = request.form.get("longitudine")
         citta = request.form.get("citta", "").strip()
+        eta, eta_error = parse_age_value(eta_raw)
 
         # Validazione campi
         errors = []
@@ -607,8 +626,8 @@ def api_register():
             errors.append("La password deve avere almeno 6 caratteri.")
         if password != conferma_password:
             errors.append("Le due password non coincidono.")
-        if fascia_eta not in [f[0] for f in FASCE_ETA]:
-            errors.append("Seleziona una fascia d'età valida.")
+        if eta_error:
+            errors.append(eta_error)
         if not lat or not lon:
             errors.append("Seleziona la tua posizione sulla mappa.")
 
@@ -648,7 +667,8 @@ def api_register():
             nome=nome,
             email=email,
             foto_filename=foto_filename,
-            fascia_eta=fascia_eta,
+            fascia_eta=str(eta),
+            eta=eta,
             latitudine=float(lat),
             longitudine=float(lon),
             citta=citta,
@@ -797,7 +817,7 @@ def api_get_offers():
             "autore": o.autore.nome,
             "autore_id": o.autore.id,
             "autore_foto": o.autore.foto_filename,
-            "autore_fascia_eta": o.autore.fascia_eta,
+            "autore_eta": o.autore.eta_display,
             "autore_cibi_preferiti": o.autore.cibi_preferiti or "",
             "autore_intolleranze": o.autore.intolleranze or "",
             "is_own": is_own,
@@ -1183,7 +1203,8 @@ def api_user_me():
             "nome": current_user.nome,
             "email": current_user.email,
             "foto": current_user.foto_filename,
-            "fascia_eta": current_user.fascia_eta,
+            "eta": current_user.eta,
+            "eta_display": current_user.eta_display,
             "lat": current_user.latitudine,
             "lon": current_user.longitudine,
             "citta": current_user.citta,
@@ -1206,7 +1227,7 @@ def api_user_update():
     # 1. Dati Anagrafici (Opzionali per l'update, ma validati se presenti)
     nome = data.get("nome", current_user.nome).strip()
     email = data.get("email", current_user.email).strip().lower()
-    fascia_eta = data.get("fascia_eta", current_user.fascia_eta)
+    eta_raw = data.get("eta", current_user.eta if current_user.eta is not None else current_user.fascia_eta)
     lat = data.get("latitudine")
     lon = data.get("longitudine")
     citta = data.get("citta", current_user.citta)
@@ -1221,6 +1242,9 @@ def api_user_update():
         errors.append("Il nome non può essere vuoto.")
     if not email or "@" not in email:
         errors.append("Inserisci un'email valida.")
+    eta, eta_error = parse_age_value(eta_raw)
+    if eta_error:
+        errors.append(eta_error)
     if email != current_user.email and User.query.filter_by(email=email).first():
         errors.append("Questa email è già associata a un altro account.")
     
@@ -1257,7 +1281,8 @@ def api_user_update():
     # 4. Salvataggio modifiche
     current_user.nome = nome
     current_user.email = email
-    current_user.fascia_eta = fascia_eta
+    current_user.fascia_eta = str(eta)
+    current_user.eta = eta
     if lat and lon:
         try:
             current_user.latitudine = float(lat)
