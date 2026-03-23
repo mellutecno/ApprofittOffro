@@ -8,6 +8,7 @@ import uuid
 import math
 import sqlite3
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from functools import wraps
 
 from dotenv import load_dotenv
@@ -66,6 +67,12 @@ SQLITE_PATH = os.path.abspath(
 UPLOAD_FOLDER = os.path.abspath(
     os.getenv("APP_UPLOAD_FOLDER", os.path.join(DATA_ROOT, "uploads"))
 )
+APP_TIMEZONE_NAME = os.getenv("APP_TIMEZONE", "Europe/Rome")
+
+try:
+    APP_TIMEZONE = ZoneInfo(APP_TIMEZONE_NAME)
+except ZoneInfoNotFoundError:
+    APP_TIMEZONE = ZoneInfo("UTC")
 
 # Garantisce che SQLite possa essere creato anche in deploy che puntano fuori repo.
 os.makedirs(os.path.dirname(SQLITE_PATH), exist_ok=True)
@@ -96,6 +103,11 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+
+
+def local_now():
+    """Restituisce l'ora locale dell'app come datetime naive coerente con i dati salvati."""
+    return datetime.now(APP_TIMEZONE).replace(tzinfo=None)
 
 
 def ensure_legacy_sqlite_compatibility(sqlite_path):
@@ -364,8 +376,8 @@ def profile_page():
         met_users=met_users_dict.values(),
         fasce_eta=FASCE_ETA,
         rating_info=get_user_rating(current_user.id),
-        now=datetime.now(),
-        completion_threshold=datetime.now() - timedelta(hours=3)
+        now=local_now(),
+        completion_threshold=local_now() - timedelta(hours=3)
     )
 
 def get_user_rating(user_id):
@@ -401,7 +413,7 @@ def public_profile(user_id):
     shared_offer = None
     pending_offer = None
     if current_user.id != user_id:
-        now = datetime.now()
+        now = local_now()
         threshold = now - timedelta(hours=3)
         
         def first_unreviewed_offer(query):
@@ -652,7 +664,7 @@ def api_get_offers():
     tipo = request.args.get("tipo", "")
     periodo = request.args.get("periodo", "oggi_domani")
     radius_str = request.args.get("radius", "")
-    now = datetime.now()
+    now = local_now()
     threshold = now - timedelta(hours=3)
     query = Offer.query.filter(
         Offer.stato.in_(["attiva", "completata"]),
@@ -1204,7 +1216,7 @@ def api_create_review():
         return jsonify({"success": False, "error": "Non puoi recensire te stesso."}), 400
 
     # 3. Verifica che l'evento sia passato (buffer 3 ore)
-    if offer.data_ora + timedelta(hours=3) > datetime.now():
+    if offer.data_ora + timedelta(hours=3) > local_now():
         return jsonify({"success": False, "error": "Puoi lasciare una recensione solo 3 ore dopo l'inizio del pasto."}), 400
 
     # 4. Validazione Ruoli (Bidirezionale)
