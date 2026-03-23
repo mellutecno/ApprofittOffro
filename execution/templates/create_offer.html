@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Crea una nuova offerta di pasto su ApprofittOffro.">
     <title>Offri un Pasto — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=11">
+    <link rel="stylesheet" href="/static/css/styles.css?v=12">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -131,10 +131,41 @@
 
     <!-- Toast Container -->
     <div class="toast-container" id="toast-container"></div>
+    <div id="offer-error-modal" class="offer-error-modal" aria-hidden="true">
+        <div class="offer-error-backdrop" onclick="closeOfferErrorModal()"></div>
+        <div class="offer-error-dialog" role="dialog" aria-modal="true" aria-labelledby="offer-error-title">
+            <button type="button" class="offer-error-close" onclick="closeOfferErrorModal()" aria-label="Chiudi avviso">×</button>
+            <div class="offer-error-badge">Attenzione</div>
+            <h3 id="offer-error-title">Offerta non pubblicata</h3>
+            <div id="offer-error-message" class="offer-error-message"></div>
+            <button type="button" class="btn btn-accent btn-block" onclick="closeOfferErrorModal()">Ho capito</button>
+        </div>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="/static/js/app.js"></script>
     <script>
+        function showOfferErrorModal(messages) {
+            const modal = document.getElementById('offer-error-modal');
+            const messageBox = document.getElementById('offer-error-message');
+            const normalizedMessages = Array.isArray(messages) ? messages : [messages];
+            messageBox.innerHTML = normalizedMessages.map(msg => `<p>${msg}</p>`).join('');
+            modal.classList.add('is-visible');
+            modal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeOfferErrorModal() {
+            const modal = document.getElementById('offer-error-modal');
+            modal.classList.remove('is-visible');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeOfferErrorModal();
+            }
+        });
+
         // Auto-fill in caso di Modifica (Edit Mode)
         {% if offer %}
         const offerEditId = {{ offer.id }};
@@ -494,12 +525,16 @@
                 if (data.success) {
                     window.location.href = '/dashboard';
                 } else {
-                    errorsDiv.innerHTML = `<div class="alert alert-error">${data.errors.join('<br>')}</div>`;
+                    const errors = data.errors || [data.error || 'Non è stato possibile pubblicare l\'offerta.'];
+                    errorsDiv.innerHTML = `<div class="alert alert-error">${errors.join('<br>')}</div>`;
+                    showOfferErrorModal(errors);
                     btn.disabled = false;
                     btn.innerHTML = originalBtnHtml;
                 }
             } catch (err) {
-                errorsDiv.innerHTML = `<div class="alert alert-error">Errore di connessione al server.</div>`;
+                const connectionError = 'Errore di connessione al server.';
+                errorsDiv.innerHTML = `<div class="alert alert-error">${connectionError}</div>`;
+                showOfferErrorModal(connectionError);
                 btn.disabled = false;
                 btn.innerHTML = originalBtnHtml;
             }
