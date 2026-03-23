@@ -7,7 +7,7 @@ import os
 import uuid
 import math
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from functools import wraps
 
@@ -72,7 +72,7 @@ APP_TIMEZONE_NAME = os.getenv("APP_TIMEZONE", "Europe/Rome")
 try:
     APP_TIMEZONE = ZoneInfo(APP_TIMEZONE_NAME)
 except ZoneInfoNotFoundError:
-    APP_TIMEZONE = ZoneInfo("UTC")
+    APP_TIMEZONE = timezone.utc
 
 # Garantisce che SQLite possa essere creato anche in deploy che puntano fuori repo.
 os.makedirs(os.path.dirname(SQLITE_PATH), exist_ok=True)
@@ -103,11 +103,37 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+BREAKFAST_BOOKING_LEAD_HOURS = 1
+MEAL_BOOKING_LEAD_HOURS = 12
 
 
 def local_now():
     """Restituisce l'ora locale dell'app come datetime naive coerente con i dati salvati."""
     return datetime.now(APP_TIMEZONE).replace(tzinfo=None)
+
+
+def get_offer_booking_lead_hours(offer):
+    """Restituisce l'anticipo minimo richiesto per prenotare un'offerta."""
+    return BREAKFAST_BOOKING_LEAD_HOURS if offer.tipo_pasto == "colazione" else MEAL_BOOKING_LEAD_HOURS
+
+
+def get_offer_booking_deadline(offer):
+    """Calcola il momento oltre il quale non si puo' piu' approfittare dell'offerta."""
+    return offer.data_ora - timedelta(hours=get_offer_booking_lead_hours(offer))
+
+
+def is_offer_booking_closed(offer, now=None):
+    """Indica se la finestra per approfittare dell'offerta e' gia' chiusa."""
+    if now is None:
+        now = local_now()
+    return now >= get_offer_booking_deadline(offer)
+
+
+def get_offer_booking_closed_message(offer):
+    """Messaggio esplicativo per la chiusura delle prenotazioni."""
+    if offer.tipo_pasto == "colazione":
+        return "Le colazioni si possono approfittare solo fino a 1 ora prima dell'inizio."
+    return "Pranzi e cene si possono approfittare solo fino a 12 ore prima dell'inizio."
 
 
 def ensure_legacy_sqlite_compatibility(sqlite_path):
@@ -706,6 +732,8 @@ def api_get_offers():
     result = []
     for o in offers:
         dist = calculate_distance(search_lat, search_lon, o.latitudine, o.longitudine)
+        booking_deadline = get_offer_booking_deadline(o)
+        booking_closed = is_offer_booking_closed(o, now)
         
         # Scarta l'offerta se si trova oltre il raggio specificato dal filtro
         if radius_km is not None:
@@ -733,6 +761,8 @@ def api_get_offers():
             "posti_disponibili": o.posti_disponibili,
             "stato": o.stato,
             "data_ora": o.data_ora.isoformat(),
+            "booking_deadline": booking_deadline.isoformat(),
+            "booking_closed": booking_closed,
             "descrizione": o.descrizione or "",
             "foto_locale": getattr(o, "foto_locale", "nessuna.jpg"),
             "autore": o.autore.nome,
@@ -959,13 +989,21 @@ def api_claim_offer(offer_id):
     if offer.user_id == current_user.id:
         return jsonify({"success": False, "errors": ["Non puoi approfittare della tua stessa offerta."]}), 400
 
-    if not offer.is_disponibile:
-        return jsonify({"success": False, "errors": ["Offerta non più disponibile."]}), 400
-
     # Controlla se ha già approfittato
     existing = Claim.query.filter_by(user_id=current_user.id, offer_id=offer_id).first()
     if existing:
         return jsonify({"success": False, "errors": ["Hai già approfittato di questa offerta."]}), 400
+
+    now = local_now()
+
+    if offer.stato != "attiva" or offer.posti_disponibili <= 0:
+        return jsonify({"success": False, "errors": ["Offerta non più disponibile."]}), 400
+
+    if offer.data_ora <= now:
+        return jsonify({"success": False, "errors": ["Il pasto è già iniziato o concluso."]}), 400
+
+    if is_offer_booking_closed(offer, now):
+        return jsonify({"success": False, "errors": [get_offer_booking_closed_message(offer)]}), 400
     # Crea il claim e decrementa i posti
     claim = Claim(user_id=current_user.id, offer_id=offer_id)
     offer.posti_disponibili -= 1

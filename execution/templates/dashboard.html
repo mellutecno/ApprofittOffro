@@ -206,6 +206,10 @@
             return isAuthenticated ? 'COMPLETA IL PROFILO' : 'ACCEDI PER PARTECIPARE';
         }
 
+        function getBookingClosedLabel() {
+            return 'NON PIÙ PRENOTABILE';
+        }
+
         function shouldShowNavigatorLink() {
             return isAuthenticated && hasActiveLocation;
         }
@@ -243,6 +247,10 @@
 
             if (isFull) {
                 return `<button class="btn btn-outline btn-sm" disabled style="opacity: 0.85; border-color: var(--warning); color: var(--warning); pointer-events: none;">COMPLETA</button>`;
+            }
+
+            if (offer.booking_closed) {
+                return `<button class="btn btn-outline btn-sm" disabled style="opacity: 0.85; border-color: var(--primary); color: var(--primary); pointer-events: none;">${getBookingClosedLabel()}</button>`;
             }
 
             if (!isAuthenticated || !canParticipate) {
@@ -722,21 +730,7 @@
                                 </div>
                                 <span style="font-weight: 800;">${offer.posti_disponibili}/${offer.posti_totali}</span>
                             </div>
-                             <div data-offer-actions style="display:flex; gap:10px;">
-                                 ${offer.is_own ? 
-                                     `<a href="/edit-offer/${offer.id}" class="btn btn-outline btn-sm">✏️</a>
-                                      <button onclick="deleteOffer(${offer.id})" class="btn btn-outline btn-sm" style="color:var(--error); border-color:var(--error);">🗑️</button>` : 
-                                     (offer.already_claimed ? 
-                                         `<button class="btn btn-success btn-sm" disabled>PRENOTATO</button>` :
-                                         (isPast ? 
-                                            `<button class="btn btn-outline btn-sm" disabled style="opacity: 0.7; border-color: var(--text-muted); color: var(--text-muted); pointer-events: none;">PASTO IN CORSO</button>` :
-                                         (isFull ?
-                                            `<button class="btn btn-outline btn-sm" disabled style="opacity: 0.85; border-color: var(--warning); color: var(--warning); pointer-events: none;">COMPLETA</button>` :
-                                            `<button class="btn btn-accent btn-sm" onclick="claimOffer(${offer.id})">APPROFITTA!</button>`
-                                         ))
-                                     )
-                                 }
-                             </div>
+                            <div data-offer-actions style="display:flex; gap:10px;"></div>
                         </div>
                     `;
                     const authorLink = card.querySelector('.offer-card-header a');
