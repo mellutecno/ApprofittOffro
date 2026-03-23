@@ -136,6 +136,35 @@ def get_offer_booking_closed_message(offer):
     return "Pranzi e cene si possono approfittare solo fino a 12 ore prima dell'inizio."
 
 
+def get_same_day_offer_conflict(user_id, tipo_pasto, data_ora, exclude_offer_id=None):
+    """Trova un'altra offerta dello stesso utente, stesso pasto e stessa data."""
+    day_start = data_ora.replace(hour=0, minute=0, second=0, microsecond=0)
+    next_day = day_start + timedelta(days=1)
+
+    query = Offer.query.filter(
+        Offer.user_id == user_id,
+        Offer.tipo_pasto == tipo_pasto,
+        Offer.stato != "annullata",
+        Offer.data_ora >= day_start,
+        Offer.data_ora < next_day,
+    )
+
+    if exclude_offer_id is not None:
+        query = query.filter(Offer.id != exclude_offer_id)
+
+    return query.order_by(Offer.data_ora.asc()).first()
+
+
+def get_meal_type_copy(tipo_pasto):
+    """Etichette testuali per messaggi UX sul tipo di pasto."""
+    labels = {
+        "colazione": {"singular": "colazione", "plural": "colazioni"},
+        "pranzo": {"singular": "pranzo", "plural": "pranzi"},
+        "cena": {"singular": "cena", "plural": "cene"},
+    }
+    return labels.get(tipo_pasto, {"singular": tipo_pasto, "plural": tipo_pasto})
+
+
 def ensure_legacy_sqlite_compatibility(sqlite_path):
     """Aggiunge le colonne legacy mancanti per evitare crash su vecchi DB SQLite."""
     conn = sqlite3.connect(sqlite_path)
@@ -878,6 +907,22 @@ def api_edit_offer(offer_id):
     except (ValueError, TypeError):
         return jsonify({"success": False, "errors": ["Formato data non valido."]}), 400
 
+    conflicting_offer = get_same_day_offer_conflict(
+        current_user.id,
+        tipo_pasto,
+        data_ora,
+        exclude_offer_id=offer.id,
+    )
+    if conflicting_offer:
+        data_conflitto = conflicting_offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+        meal_copy = get_meal_type_copy(tipo_pasto)
+        return jsonify({
+            "success": False,
+            "errors": [
+                f"Hai già pubblicato un'offerta di {meal_copy['singular']} per questa data ({data_conflitto}). Non puoi offrire due {meal_copy['plural']} nello stesso giorno."
+            ],
+        }), 400
+
     if foto_locale and foto_locale.filename:
         ext = foto_locale.filename.rsplit(".", 1)[1].lower()
         filename = f"offer_{current_user.id}_{int(datetime.now().timestamp())}.{ext}"
@@ -944,6 +989,21 @@ def api_create_offer():
         data_ora = datetime.fromisoformat(data_ora_str)
     except (ValueError, TypeError):
         return jsonify({"success": False, "errors": ["Formato data non valido."]}), 400
+
+    conflicting_offer = get_same_day_offer_conflict(
+        current_user.id,
+        tipo_pasto,
+        data_ora,
+    )
+    if conflicting_offer:
+        data_conflitto = conflicting_offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+        meal_copy = get_meal_type_copy(tipo_pasto)
+        return jsonify({
+            "success": False,
+            "errors": [
+                f"Hai già pubblicato un'offerta di {meal_copy['singular']} per questa data ({data_conflitto}). Non puoi offrire due {meal_copy['plural']} nello stesso giorno."
+            ],
+        }), 400
 
     # Salvataggio Immagine locale (opzionale)
     filename = 'nessuna.jpg'
