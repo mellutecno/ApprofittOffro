@@ -114,14 +114,24 @@ def local_now():
     return datetime.now(APP_TIMEZONE).replace(tzinfo=None)
 
 
+def get_booking_lead_hours_for_meal_type(tipo_pasto):
+    """Restituisce l'anticipo minimo richiesto per il tipo di pasto."""
+    return BREAKFAST_BOOKING_LEAD_HOURS if tipo_pasto == "colazione" else MEAL_BOOKING_LEAD_HOURS
+
+
 def get_offer_booking_lead_hours(offer):
     """Restituisce l'anticipo minimo richiesto per prenotare un'offerta."""
-    return BREAKFAST_BOOKING_LEAD_HOURS if offer.tipo_pasto == "colazione" else MEAL_BOOKING_LEAD_HOURS
+    return get_booking_lead_hours_for_meal_type(offer.tipo_pasto)
 
 
 def get_offer_booking_deadline(offer):
     """Calcola il momento oltre il quale non si puo' piu' approfittare dell'offerta."""
     return offer.data_ora - timedelta(hours=get_offer_booking_lead_hours(offer))
+
+
+def get_booking_deadline_for_meal_type(tipo_pasto, data_ora):
+    """Calcola la scadenza prenotazioni per un nuovo evento non ancora persistito."""
+    return data_ora - timedelta(hours=get_booking_lead_hours_for_meal_type(tipo_pasto))
 
 
 def is_offer_booking_closed(offer, now=None):
@@ -131,11 +141,27 @@ def is_offer_booking_closed(offer, now=None):
     return now >= get_offer_booking_deadline(offer)
 
 
+def is_new_offer_publication_too_late(tipo_pasto, data_ora, now=None):
+    """Indica se l'offerta nascerebbe gia' con prenotazioni chiuse."""
+    if now is None:
+        now = local_now()
+    return now >= get_booking_deadline_for_meal_type(tipo_pasto, data_ora)
+
+
 def get_offer_booking_closed_message(offer):
     """Messaggio esplicativo per la chiusura delle prenotazioni."""
     if offer.tipo_pasto == "colazione":
         return "Le colazioni si possono approfittare solo fino a 1 ora prima dell'inizio."
     return "Pranzi e cene si possono approfittare solo fino a 12 ore prima dell'inizio."
+
+
+def get_offer_publication_too_late_message(tipo_pasto):
+    """Messaggio esplicativo quando si tenta di pubblicare troppo tardi."""
+    if tipo_pasto == "colazione":
+        return "Questa colazione verrebbe pubblicata troppo tardi: deve essere inserita almeno 1 ora prima dell'inizio."
+    if tipo_pasto == "pranzo":
+        return "Questo pranzo verrebbe pubblicato troppo tardi: i pranzi devono essere inseriti almeno 12 ore prima dell'inizio."
+    return "Questa cena verrebbe pubblicata troppo tardi: le cene devono essere inserite almeno 12 ore prima dell'inizio."
 
 
 def get_same_day_offer_conflict(user_id, tipo_pasto, data_ora, exclude_offer_id=None):
@@ -463,7 +489,7 @@ def verify_email(token):
 @login_required
 @profile_completed_required
 def new_offer_page():
-    return render_template("create_offer.html", tipi_pasto=TIPI_PASTO)
+    return render_template("create_offer.html", tipi_pasto=TIPI_PASTO, allow_admin_timing_bypass=False)
 
 
 @app.route("/profile")
@@ -1039,8 +1065,15 @@ def edit_offer_page(offer_id):
     if not can_manage_offer(offer, current_user):
         flash("Non puoi modificare le offerte altrui.", "error")
         return redirect(url_for("dashboard"))
-    return_url = url_for("admin_dashboard") if is_admin_user(current_user) and request.args.get("from") == "admin" else url_for("dashboard")
-    return render_template("create_offer.html", offer=offer, tipi_pasto=TIPI_PASTO, return_url=return_url)
+    allow_admin_timing_bypass = is_admin_user(current_user) and request.args.get("from") == "admin"
+    return_url = url_for("admin_dashboard") if allow_admin_timing_bypass else url_for("dashboard")
+    return render_template(
+        "create_offer.html",
+        offer=offer,
+        tipi_pasto=TIPI_PASTO,
+        return_url=return_url,
+        allow_admin_timing_bypass=allow_admin_timing_bypass,
+    )
 
 
 @app.route("/api/offers/<int:offer_id>", methods=["PUT"])
@@ -1105,6 +1138,12 @@ def api_edit_offer(offer_id):
             "errors": [
                 f"Hai già pubblicato un'offerta di {meal_copy['singular']} per questa data ({data_conflitto}). Non puoi offrire due {meal_copy['plural']} nello stesso giorno."
             ],
+        }), 400
+
+    if (not is_admin_user(current_user)) and is_new_offer_publication_too_late(tipo_pasto, data_ora):
+        return jsonify({
+            "success": False,
+            "errors": [get_offer_publication_too_late_message(tipo_pasto)],
         }), 400
 
     if foto_locale and foto_locale.filename:
@@ -1187,6 +1226,12 @@ def api_create_offer():
             "errors": [
                 f"Hai già pubblicato un'offerta di {meal_copy['singular']} per questa data ({data_conflitto}). Non puoi offrire due {meal_copy['plural']} nello stesso giorno."
             ],
+        }), 400
+
+    if is_new_offer_publication_too_late(tipo_pasto, data_ora):
+        return jsonify({
+            "success": False,
+            "errors": [get_offer_publication_too_late_message(tipo_pasto)],
         }), 400
 
     # Salvataggio Immagine locale (opzionale)

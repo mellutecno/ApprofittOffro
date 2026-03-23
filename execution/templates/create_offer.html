@@ -95,6 +95,7 @@
                 <div class="form-group">
                     <label for="data_ora">Data e ora</label>
                     <input type="datetime-local" id="data_ora" name="data_ora" class="form-control" required>
+                    <div id="booking-window-hint" style="display:none; margin-top:10px; padding:12px 14px; border-radius:14px; font-size:0.88rem; font-weight:700;"></div>
                 </div>
 
                 <!-- Descrizione -->
@@ -189,6 +190,7 @@
             }
             
             document.getElementById('offer-btn').innerHTML = '💾 Salva Modifiche';
+            updateBookingWindowHint();
         });
         {% endif %}
 
@@ -217,6 +219,7 @@
         })();
 
         const returnUrl = {{ (return_url or '/dashboard')|tojson }};
+        const allowAdminTimingBypass = {{ allow_admin_timing_bypass|default(false)|tojson }};
 
         // ---- Mappa offerta ----
         let offerMap, offerMarker;
@@ -484,12 +487,80 @@
         const currentFieldValue = document.getElementById('data_ora').value;
         document.getElementById('data_ora').min = currentFieldValue && currentFieldValue < nowIso ? currentFieldValue : nowIso;
 
+        function getBookingPublicationLeadHours(mealType) {
+            return mealType === 'colazione' ? 1 : 12;
+        }
+
+        function getBookingPublicationMessage(mealType) {
+            if (mealType === 'colazione') {
+                return 'Le colazioni devono essere pubblicate almeno 1 ora prima dell’inizio.';
+            }
+            return 'Pranzi e cene devono essere pubblicati almeno 12 ore prima dell’inizio.';
+        }
+
+        function isPublicationTooLateClient(mealType, dateTimeValue) {
+            if (!mealType || !dateTimeValue) return false;
+            const selectedDate = new Date(dateTimeValue);
+            if (Number.isNaN(selectedDate.getTime())) return false;
+            const deadline = new Date(selectedDate.getTime() - getBookingPublicationLeadHours(mealType) * 60 * 60 * 1000);
+            return new Date() >= deadline;
+        }
+
+        function updateBookingWindowHint() {
+            const mealType = document.getElementById('tipo_pasto').value;
+            const dateTimeValue = document.getElementById('data_ora').value;
+            const hintBox = document.getElementById('booking-window-hint');
+            if (!mealType || !dateTimeValue) {
+                hintBox.style.display = 'none';
+                hintBox.textContent = '';
+                return false;
+            }
+
+            const tooLate = isPublicationTooLateClient(mealType, dateTimeValue);
+            hintBox.style.display = 'block';
+
+            if (allowAdminTimingBypass) {
+                hintBox.style.background = 'rgba(59, 130, 246, 0.10)';
+                hintBox.style.border = '1px solid rgba(59, 130, 246, 0.24)';
+                hintBox.style.color = '#1E3A8A';
+                hintBox.textContent = `Admin: stai modificando un evento esistente. ${getBookingPublicationMessage(mealType)}`;
+                return false;
+            }
+
+            if (tooLate) {
+                hintBox.style.background = 'rgba(244, 63, 94, 0.12)';
+                hintBox.style.border = '1px solid rgba(244, 63, 94, 0.28)';
+                hintBox.style.color = '#7F1D1D';
+                hintBox.textContent = getBookingPublicationMessage(mealType);
+                return true;
+            }
+
+            hintBox.style.background = 'rgba(16, 185, 129, 0.10)';
+            hintBox.style.border = '1px solid rgba(16, 185, 129, 0.22)';
+            hintBox.style.color = '#14532D';
+            hintBox.textContent = getBookingPublicationMessage(mealType);
+            return false;
+        }
+
+        document.getElementById('tipo_pasto').addEventListener('change', updateBookingWindowHint);
+        document.getElementById('data_ora').addEventListener('input', updateBookingWindowHint);
+        updateBookingWindowHint();
+
         // ---- Invio offerta ----
         document.getElementById('offer-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('offer-btn');
             const errorsDiv = document.getElementById('offer-errors');
             errorsDiv.innerHTML = '';
+
+            const clientTooLate = updateBookingWindowHint();
+            if (clientTooLate) {
+                const mealType = document.getElementById('tipo_pasto').value;
+                const timingMessage = getBookingPublicationMessage(mealType);
+                errorsDiv.innerHTML = `<div class="alert alert-error">${timingMessage}</div>`;
+                showOfferErrorModal(timingMessage);
+                return;
+            }
 
             btn.disabled = true;
             const originalBtnHtml = btn.innerHTML;
