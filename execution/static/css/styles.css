@@ -2965,7 +2965,7 @@ body.modal-open {
         width: 100%;
         min-width: 0;
         max-width: none;
-        padding: 8px 18px;
+        padding: 10px 24px;
         border-radius: 100px;
         align-items: center;
         justify-content: center;
@@ -2974,7 +2974,7 @@ body.modal-open {
     }
 
     .member-map-toggle #map-toggle-label {
-        font-size: 0.82rem;
+        font-size: 1.1rem;
         font-weight: 700;
         letter-spacing: 0.05em;
     }
