@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Area amministrazione ApprofittOffro.">
     <title>Admin - ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=17">
+    <link rel="stylesheet" href="/static/css/styles.css?v=18">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -249,6 +249,7 @@
             <div class="offer-error-badge">Comunicazione admin</div>
             <h3 id="admin-message-title">Invia email all'utente</h3>
             <p id="admin-message-copy" style="color:#5B3721; line-height:1.6;"></p>
+            <div id="admin-message-feedback" class="modal-feedback" aria-live="polite"></div>
             <div class="form-group" style="text-align:left;">
                 <label for="admin-message-subject" style="color:#3B2415; font-weight:800;">Oggetto</label>
                 <input id="admin-message-subject" class="form-control" type="text" placeholder="Oggetto della comunicazione" style="background:#FFFDF9; color:#2E160A; border:1px solid rgba(120,54,16,0.22);">
@@ -259,7 +260,7 @@
             </div>
             <div style="display:flex; gap:10px;">
                 <button type="button" class="btn btn-outline btn-block" style="color:#4B2511; border-color:rgba(120,54,16,0.25);" onclick="closeMessageUserModal()">Annulla</button>
-                <button type="button" class="btn btn-accent btn-block" onclick="submitAdminMessage()">Invia comunicazione</button>
+                <button type="button" id="admin-message-submit" class="btn btn-accent btn-block" onclick="submitAdminMessage()">Invia comunicazione</button>
             </div>
         </div>
     </div>
@@ -269,21 +270,69 @@
         let deleteUserState = { id: null, name: '', email: '' };
         let deleteOfferState = { id: null, name: '', owner: '' };
         let messageUserState = { id: null, name: '', email: '' };
+        let lastFocusedElement = null;
+
+        function hasVisibleAdminModal() {
+            return document.querySelector('.offer-error-modal.is-visible') !== null;
+        }
+
+        function openAdminModal(modalId, focusTargetId = null) {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+
+            lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            document.body.classList.add('modal-open');
+            modal.classList.add('is-visible');
+            modal.setAttribute('aria-hidden', 'false');
+            modal.scrollTop = 0;
+
+            window.requestAnimationFrame(() => {
+                const focusTarget = focusTargetId ? document.getElementById(focusTargetId) : null;
+                if (focusTarget) {
+                    focusTarget.focus({ preventScroll: true });
+                    focusTarget.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }
+            });
+        }
+
+        function closeAdminModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+
+            modal.classList.remove('is-visible');
+            modal.setAttribute('aria-hidden', 'true');
+
+            if (!hasVisibleAdminModal()) {
+                document.body.classList.remove('modal-open');
+                if (lastFocusedElement) {
+                    lastFocusedElement.focus({ preventScroll: true });
+                }
+            }
+        }
+
+        function setAdminMessageFeedback(message = '', type = 'error') {
+            const feedback = document.getElementById('admin-message-feedback');
+            if (!feedback) return;
+
+            if (!message) {
+                feedback.className = 'modal-feedback';
+                feedback.textContent = '';
+                return;
+            }
+
+            feedback.className = `modal-feedback is-visible ${type}`;
+            feedback.textContent = message;
+        }
 
         function openDeleteUserModal(id, name, email) {
             deleteUserState = { id, name, email };
             document.getElementById('admin-user-copy').textContent = `Stai per eliminare l'account di ${name} (${email}). L'utente riceverà una mail con la motivazione che inserisci qui sotto.`;
             document.getElementById('admin-user-reason').value = '';
-            const modal = document.getElementById('admin-user-modal');
-            modal.classList.add('is-visible');
-            modal.setAttribute('aria-hidden', 'false');
-            document.getElementById('admin-user-reason').focus();
+            openAdminModal('admin-user-modal', 'admin-user-reason');
         }
 
         function closeDeleteUserModal() {
-            const modal = document.getElementById('admin-user-modal');
-            modal.classList.remove('is-visible');
-            modal.setAttribute('aria-hidden', 'true');
+            closeAdminModal('admin-user-modal');
         }
 
         function openMessageUserModal(id, name, email) {
@@ -291,16 +340,13 @@
             document.getElementById('admin-message-copy').textContent = `Stai scrivendo a ${name} (${email}). Il messaggio verrà inviato via email a nome dell'amministrazione.`;
             document.getElementById('admin-message-subject').value = '';
             document.getElementById('admin-message-body').value = '';
-            const modal = document.getElementById('admin-message-modal');
-            modal.classList.add('is-visible');
-            modal.setAttribute('aria-hidden', 'false');
-            document.getElementById('admin-message-subject').focus();
+            setAdminMessageFeedback();
+            openAdminModal('admin-message-modal', 'admin-message-subject');
         }
 
         function closeMessageUserModal() {
-            const modal = document.getElementById('admin-message-modal');
-            modal.classList.remove('is-visible');
-            modal.setAttribute('aria-hidden', 'true');
+            setAdminMessageFeedback();
+            closeAdminModal('admin-message-modal');
         }
 
         async function submitAdminMessage() {
@@ -331,6 +377,58 @@
             closeMessageUserModal();
         }
 
+        async function submitAdminMessage() {
+            const subject = document.getElementById('admin-message-subject').value.trim();
+            const message = document.getElementById('admin-message-body').value.trim();
+            const submitButton = document.getElementById('admin-message-submit');
+
+            if (subject.length < 4) {
+                const warningMessage = 'Inserisci un oggetto piu chiaro per la comunicazione.';
+                setAdminMessageFeedback(warningMessage, 'warning');
+                showToast(warningMessage, 'warning');
+                return;
+            }
+            if (message.length < 10) {
+                const warningMessage = 'Scrivi un messaggio un po piu dettagliato.';
+                setAdminMessageFeedback(warningMessage, 'warning');
+                showToast(warningMessage, 'warning');
+                return;
+            }
+
+            setAdminMessageFeedback();
+            const originalLabel = submitButton.textContent;
+            submitButton.disabled = true;
+            submitButton.textContent = 'Invio in corso...';
+
+            try {
+                const res = await fetch(`/api/admin/users/${messageUserState.id}/message`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subject, message }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    const errors = data.errors || [data.error || 'Non sono riuscito a inviare la comunicazione.'];
+                    setAdminMessageFeedback(errors[0], 'error');
+                    showToast(errors[0], 'error');
+                    return;
+                }
+
+                setAdminMessageFeedback(data.message || 'Comunicazione inviata.', 'success');
+                showToast(data.message || 'Comunicazione inviata.', 'success');
+                window.setTimeout(() => {
+                    closeMessageUserModal();
+                }, 260);
+            } catch (error) {
+                const fallbackMessage = 'Errore di connessione durante l invio della comunicazione.';
+                setAdminMessageFeedback(fallbackMessage, 'error');
+                showToast(fallbackMessage, 'error');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = originalLabel;
+            }
+        }
+
         async function submitDeleteUser() {
             const reason = document.getElementById('admin-user-reason').value.trim();
             if (reason.length < 8) {
@@ -358,16 +456,11 @@
             deleteOfferState = { id, name, owner };
             document.getElementById('admin-offer-copy').textContent = `Stai per eliminare l'evento "${name}" pubblicato da ${owner}. Inserisci una motivazione: verrà usata per avvisare i partecipanti e l'organizzatore.`;
             document.getElementById('admin-offer-reason').value = '';
-            const modal = document.getElementById('admin-offer-modal');
-            modal.classList.add('is-visible');
-            modal.setAttribute('aria-hidden', 'false');
-            document.getElementById('admin-offer-reason').focus();
+            openAdminModal('admin-offer-modal', 'admin-offer-reason');
         }
 
         function closeDeleteOfferModal() {
-            const modal = document.getElementById('admin-offer-modal');
-            modal.classList.remove('is-visible');
-            modal.setAttribute('aria-hidden', 'true');
+            closeAdminModal('admin-offer-modal');
         }
 
         async function submitDeleteOffer() {
