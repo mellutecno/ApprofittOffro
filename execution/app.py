@@ -1063,6 +1063,7 @@ def api_logout():
 @app.route("/api/offers", methods=["GET"])
 def api_get_offers():
     """Recupera le offerte attualmente valide e visibili."""
+    tipo = request.args.get("tipo", "")
     radius_str = request.args.get("radius", "")
     now = local_now()
     threshold = now - timedelta(hours=3)
@@ -1070,6 +1071,9 @@ def api_get_offers():
         Offer.stato.in_(["attiva", "completata"]),
         Offer.data_ora > threshold,
     )
+
+    if tipo:
+        query = query.filter(Offer.tipo_pasto == tipo)
 
     offers = query.order_by(Offer.data_ora.asc()).all()
 

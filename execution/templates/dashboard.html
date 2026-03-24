@@ -53,7 +53,16 @@
             {% else %}
             <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 24px;">Scopri chi sta cucinando qualcosa di buono vicino a te.</p>
             {% endif %}
-            
+
+            {% if is_authenticated %}
+            <div class="flex-center justify-center">
+                <div class="filter-bar">
+                    <button class="filter-chip" onclick="setFilter('colazione')">Colazione</button>
+                    <button class="filter-chip" onclick="setFilter('pranzo')">Pranzo</button>
+                    <button class="filter-chip" onclick="setFilter('cena')">Cena</button>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         {% if not is_authenticated %}
@@ -237,6 +246,7 @@
         let map;
         let markers = [];
         let userLocationMarker = null;
+        let currentFilter = '';
         const isAuthenticated = {{ is_authenticated|tojson }};
         const canParticipate = {{ can_participate|tojson }};
         const hasInitialUserLocation = {{ has_user_location|tojson }};
@@ -717,9 +727,24 @@
             }
         }
 
+        function setFilter(type) {
+            currentFilter = currentFilter === type ? '' : type;
+
+            document.querySelectorAll('.filter-bar .filter-chip').forEach(el => {
+                const text = el.textContent.toLowerCase();
+                if (currentFilter !== '' && text === currentFilter) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+
+            loadOffers();
+        }
+
         async function loadOffers() {
             try {
-                const url = `/api/offers?lat=${searchLat}&lon=${searchLon}`;
+                const url = `/api/offers?tipo=${currentFilter}&lat=${searchLat}&lon=${searchLon}`;
                 const res = await fetch(url);
                 const data = await res.json();
                 
@@ -733,11 +758,12 @@
                 markers = [];
                 
                 if (!data.success || data.offers.length === 0) {
+                    const filterName = currentFilter ? ` per ${currentFilter}` : "";
                     panel.innerHTML = `
                         <div style="text-align: center; padding: 60px 24px; color: var(--text-muted); background: var(--bg-card); border-radius: var(--radius-lg); border: 1px dashed var(--border);">
                             <div style="font-size: 3rem; margin-bottom: 16px;">🍽️</div>
                             <h3>Nessuna offerta</h3>
-                            <p>Non ci sono offerte disponibili al momento.</p>
+                            <p>Non ci sono offerte disponibili${filterName} al momento.</p>
                             <a href="${getCreateOfferHref()}" class="btn btn-primary mt-2">${getCreateOfferLabel()}</a>
                         </div>
                     `;
