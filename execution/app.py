@@ -107,7 +107,7 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 BREAKFAST_BOOKING_LEAD_HOURS = 1
 MEAL_BOOKING_LEAD_HOURS = 12
-DEFAULT_NEARBY_NOTIFICATION_RADIUS_KM = 10
+NEARBY_OFFER_NOTIFICATION_RADIUS_KM = 15
 
 
 def local_now():
@@ -216,20 +216,8 @@ def get_new_offer_notification_subject(offer):
     return f"Nuova {offer.tipo_pasto} vicino a te: {offer.nome_locale}"
 
 
-def get_user_action_radius_km(user):
-    """Normalizza il raggio di azione dell'utente con fallback sicuro."""
-    try:
-        radius_km = float(user.raggio_azione or DEFAULT_NEARBY_NOTIFICATION_RADIUS_KM)
-    except (TypeError, ValueError):
-        radius_km = float(DEFAULT_NEARBY_NOTIFICATION_RADIUS_KM)
-
-    if radius_km <= 0:
-        return float(DEFAULT_NEARBY_NOTIFICATION_RADIUS_KM)
-    return radius_km
-
-
 def get_nearby_offer_notification_targets(offer):
-    """Trova gli utenti verificati da avvisare per una nuova offerta vicina."""
+    """Trova gli utenti verificati da avvisare entro il raggio fisso dell'offerta."""
     candidates = User.query.filter(
         User.id != offer.user_id,
         User.verificato.is_(True),
@@ -248,12 +236,10 @@ def get_nearby_offer_notification_targets(offer):
             user.latitudine,
             user.longitudine,
         )
-        radius_km = get_user_action_radius_km(user)
-        if distance_km <= radius_km:
+        if distance_km <= NEARBY_OFFER_NOTIFICATION_RADIUS_KM:
             nearby_targets.append({
                 "user": user,
                 "distance_km": round(distance_km, 1),
-                "radius_km": round(radius_km, 1),
             })
 
     return nearby_targets
@@ -288,7 +274,7 @@ def notify_nearby_users_for_new_offer(offer):
             meal_label=meal_label,
             data_evento=data_evento,
             distance_km=target["distance_km"],
-            radius_km=target["radius_km"],
+            radius_km=NEARBY_OFFER_NOTIFICATION_RADIUS_KM,
             spots_copy=spots_copy,
             booking_rule_copy=booking_rule_copy,
         )
