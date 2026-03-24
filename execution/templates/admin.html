@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Area amministrazione ApprofittOffro.">
     <title>Admin - ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=55">
+    <link rel="stylesheet" href="/static/css/styles.css?v=58">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -17,14 +17,22 @@
     </script>
 </head>
 <body class="admin-page member-discovery">
-    <nav class="navbar">
-        <a href="/dashboard" class="navbar-brand">
-            <div class="logo-icon">🍽️</div>
-            <span>ApprofittOffro</span>
-        </a>
-        <div class="nav-links">
-            <span class="pill-badge" style="background:rgba(255,112,67,0.14); color:var(--primary);">Solo gestione</span>
-            <a href="/logout" class="btn btn-ghost btn-sm" style="color:var(--text-muted)">Esci</a>
+    <div class="page-top-title" id="page-top-title" aria-label="ApprofittOffro">
+        <img src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
+    </div>
+    <nav class="navbar toast-navbar">
+        <div class="guest-toast-menu" id="toast-nav-menu">
+            <button type="button" class="toast-menu-trigger" id="toast-nav-trigger" aria-expanded="false" aria-controls="toast-nav-links" aria-label="Apri menu" onclick="toggleToastNavMenu()">
+                <span class="toast-menu-trigger-icon" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </span>
+            </button>
+            <div class="guest-toast-links" id="toast-nav-links" hidden>
+                <span class="pill-badge" style="display:flex; justify-content:center; width:100%; background:rgba(255,112,67,0.14); color:var(--primary);">Solo gestione</span>
+                <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
+            </div>
         </div>
     </nav>
 
@@ -271,6 +279,28 @@
 
     <script src="/static/js/app.js"></script>
     <script>
+        function toggleToastNavMenu(forceOpen) {
+            const trigger = document.getElementById('toast-nav-trigger');
+            const menu = document.getElementById('toast-nav-links');
+            if (!trigger || !menu) return;
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : menu.hidden;
+            menu.hidden = !shouldOpen;
+            trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
+
+        document.addEventListener('click', (event) => {
+            const menu = document.getElementById('toast-nav-menu');
+            if (menu && !menu.contains(event.target)) {
+                toggleToastNavMenu(false);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                toggleToastNavMenu(false);
+            }
+        });
+
         let deleteUserState = { id: null, name: '', email: '' };
         let deleteOfferState = { id: null, name: '', owner: '' };
         let messageUserState = { id: null, name: '', email: '' };

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Crea una nuova offerta di pasto su ApprofittOffro.">
     <title>Offri un Pasto — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=55">
+    <link rel="stylesheet" href="/static/css/styles.css?v=58">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -18,19 +18,27 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body class="offer-editor-page">
+    <div class="page-top-title" id="page-top-title" aria-label="ApprofittOffro">
+        <img src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
+    </div>
     <!-- Navbar -->
-    <nav class="navbar">
-        <a href="/dashboard" class="navbar-brand">
-            <div class="logo-icon">🍽️</div>
-            <span>ApprofittOffro</span>
-        </a>
-        <div class="nav-links">
-            <a href="/dashboard" class="btn btn-outline btn-sm">Home</a>
-            {% if current_user.is_admin %}
-            <a href="/admin" class="btn btn-outline btn-sm">Admin</a>
-            {% endif %}
-            <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
-            <a href="/logout" class="btn btn-ghost btn-sm" style="color:var(--text-muted)">Esci</a>
+    <nav class="navbar toast-navbar">
+        <div class="guest-toast-menu" id="toast-nav-menu">
+            <button type="button" class="toast-menu-trigger" id="toast-nav-trigger" aria-expanded="false" aria-controls="toast-nav-links" aria-label="Apri menu" onclick="toggleToastNavMenu()">
+                <span class="toast-menu-trigger-icon" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </span>
+            </button>
+            <div class="guest-toast-links" id="toast-nav-links" hidden>
+                <a href="/dashboard" class="btn btn-outline btn-sm">Home</a>
+                {% if current_user.is_admin %}
+                <a href="/admin" class="btn btn-outline btn-sm">Admin</a>
+                {% endif %}
+                <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
+                <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
+            </div>
         </div>
     </nav>
 
@@ -149,6 +157,28 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="/static/js/app.js"></script>
     <script>
+        function toggleToastNavMenu(forceOpen) {
+            const trigger = document.getElementById('toast-nav-trigger');
+            const menu = document.getElementById('toast-nav-links');
+            if (!trigger || !menu) return;
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : menu.hidden;
+            menu.hidden = !shouldOpen;
+            trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
+
+        document.addEventListener('click', (event) => {
+            const menu = document.getElementById('toast-nav-menu');
+            if (menu && !menu.contains(event.target)) {
+                toggleToastNavMenu(false);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                toggleToastNavMenu(false);
+            }
+        });
+
         function showOfferErrorModal(messages) {
             const modal = document.getElementById('offer-error-modal');
             const messageBox = document.getElementById('offer-error-message');

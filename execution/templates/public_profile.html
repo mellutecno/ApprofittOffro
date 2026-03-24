@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profilo di {{ user.nome }} — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=55">
+    <link rel="stylesheet" href="/static/css/styles.css?v=58">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -16,16 +16,24 @@
     </script>
 </head>
 <body class="profile-page member-discovery public-profile-page">
-    <nav class="navbar">
-        <a href="/dashboard" class="navbar-brand">
-            <div class="logo-icon">🍽️</div>
-            <span>ApprofittOffro</span>
-        </a>
-        <div class="nav-links">
-            <a href="/dashboard" class="btn btn-outline btn-sm">Home</a>
-            {% if user.id == current_user.id %}
-            <a href="/profile" class="btn btn-accent btn-sm">Il Mio Profilo</a>
-            {% endif %}
+    <div class="page-top-title" id="page-top-title" aria-label="ApprofittOffro">
+        <img src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
+    </div>
+    <nav class="navbar toast-navbar">
+        <div class="guest-toast-menu" id="toast-nav-menu">
+            <button type="button" class="toast-menu-trigger" id="toast-nav-trigger" aria-expanded="false" aria-controls="toast-nav-links" aria-label="Apri menu" onclick="toggleToastNavMenu()">
+                <span class="toast-menu-trigger-icon" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </span>
+            </button>
+            <div class="guest-toast-links" id="toast-nav-links" hidden>
+                <a href="/dashboard" class="btn btn-outline btn-sm">Home</a>
+                {% if user.id == current_user.id %}
+                <a href="/profile" class="btn btn-accent btn-sm">Il Mio Profilo</a>
+                {% endif %}
+            </div>
         </div>
     </nav>
 
@@ -176,6 +184,28 @@
 
     <script src="/static/js/app.js"></script>
     <script>
+        function toggleToastNavMenu(forceOpen) {
+            const trigger = document.getElementById('toast-nav-trigger');
+            const menu = document.getElementById('toast-nav-links');
+            if (!trigger || !menu) return;
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : menu.hidden;
+            menu.hidden = !shouldOpen;
+            trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
+
+        document.addEventListener('click', (event) => {
+            const menu = document.getElementById('toast-nav-menu');
+            if (menu && !menu.contains(event.target)) {
+                toggleToastNavMenu(false);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                toggleToastNavMenu(false);
+            }
+        });
+
         // --- Review Modal Logic ---
         let selectedRating = 0;
         const stars = document.querySelectorAll('#star-rating .star');

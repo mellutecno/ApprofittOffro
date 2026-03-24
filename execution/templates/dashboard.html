@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=57">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=58">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -23,21 +23,7 @@
         <img src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
     </div>
 
-    <nav class="navbar {% if not is_authenticated %}guest-toast-navbar{% endif %}">
-        {% if is_authenticated %}
-        <a href="/dashboard" class="navbar-brand">
-            <div class="logo-icon">🍽️</div>
-            <span>ApprofittOffro</span>
-        </a>
-        <div class="nav-links">
-            {% if current_user.is_admin %}
-            <a href="/admin" class="btn btn-outline btn-sm">Admin</a>
-            {% endif %}
-            <a href="{{ '/new-offer' if can_participate else '/profile' }}" class="btn btn-outline btn-sm">{{ 'Offri' if can_participate else 'Completa Profilo' }}</a>
-            <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
-            <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
-        </div>
-        {% else %}
+    <nav class="navbar {% if not is_authenticated %}guest-toast-navbar{% else %}toast-navbar{% endif %}">
         <div class="guest-toast-menu" id="guest-toast-menu">
             <button type="button" class="toast-menu-trigger" id="guest-toast-trigger" aria-expanded="false" aria-controls="guest-toast-links" aria-label="Apri menu" onclick="toggleGuestToastMenu()">
                 <span class="toast-menu-trigger-icon" aria-hidden="true">
@@ -47,11 +33,19 @@
                 </span>
             </button>
             <div class="guest-toast-links" id="guest-toast-links" hidden>
+                {% if is_authenticated %}
+                {% if current_user.is_admin %}
+                <a href="/admin" class="btn btn-outline btn-sm">Admin</a>
+                {% endif %}
+                <a href="{{ '/new-offer' if can_participate else '/profile' }}" class="btn btn-outline btn-sm">{{ 'Offri' if can_participate else 'Completa Profilo' }}</a>
+                <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
+                <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
+                {% else %}
                 <a href="/login" class="btn btn-outline btn-sm">Accedi</a>
                 <a href="/register" class="btn btn-outline btn-sm">Registrati</a>
+                {% endif %}
             </div>
         </div>
-        {% endif %}
     </nav>
 
     <main class="main-content container">
