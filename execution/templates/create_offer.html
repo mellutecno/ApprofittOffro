@@ -480,10 +480,33 @@
             });
         }
 
-        // Data minima = ora corrente
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        const nowIso = now.toISOString().slice(0, 16);
+        function toLocalDateTimeValue(date) {
+            const localDate = new Date(date);
+            localDate.setMinutes(localDate.getMinutes() - localDate.getTimezoneOffset());
+            return localDate.toISOString().slice(0, 16);
+        }
+
+        function roundDateUpToQuarterHour(date) {
+            const roundedDate = new Date(date);
+            roundedDate.setSeconds(0, 0);
+            const minutes = roundedDate.getMinutes();
+            const remainder = minutes % 15;
+            if (remainder !== 0) {
+                roundedDate.setMinutes(minutes + (15 - remainder));
+            }
+            return roundedDate;
+        }
+
+        function snapDateTimeFieldToQuarterHour() {
+            const dateTimeField = document.getElementById('data_ora');
+            if (!dateTimeField || !dateTimeField.value) return;
+            const selectedDate = new Date(dateTimeField.value);
+            if (Number.isNaN(selectedDate.getTime())) return;
+            dateTimeField.value = toLocalDateTimeValue(roundDateUpToQuarterHour(selectedDate));
+        }
+
+        // Data minima = ora corrente, arrotondata al quarto d'ora successivo
+        const nowIso = toLocalDateTimeValue(roundDateUpToQuarterHour(new Date()));
         const currentFieldValue = document.getElementById('data_ora').value;
         document.getElementById('data_ora').min = currentFieldValue && currentFieldValue < nowIso ? currentFieldValue : nowIso;
 
@@ -537,7 +560,11 @@
         }
 
         document.getElementById('tipo_pasto').addEventListener('change', updateBookingWindowHint);
-        document.getElementById('data_ora').addEventListener('input', updateBookingWindowHint);
+        document.getElementById('data_ora').addEventListener('change', () => {
+            snapDateTimeFieldToQuarterHour();
+            updateBookingWindowHint();
+        });
+        document.getElementById('data_ora').addEventListener('blur', snapDateTimeFieldToQuarterHour);
         updateBookingWindowHint();
 
         // ---- Invio offerta ----
