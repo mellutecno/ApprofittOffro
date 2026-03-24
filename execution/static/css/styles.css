@@ -492,36 +492,46 @@ textarea.form-control {
 .navbar {
     position: fixed;
     top: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: calc(100% - 32px);
-    max-width: 960px;
+    left: 16px;
+    right: 16px;
+    transform: none;
+    width: auto;
+    max-width: none;
     z-index: 2000;
-    background: rgba(255, 248, 241, 0.82);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid rgba(122, 77, 48, 0.12);
-    border-radius: var(--radius-md);
-    padding: 10px 24px;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: none;
+    border-radius: 0;
+    padding: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    box-shadow: 0 16px 38px rgba(67, 38, 22, 0.12);
+    gap: 14px;
+    box-shadow: none;
     transition: var(--transition);
 }
 
 .navbar:hover {
-    background: rgba(255, 251, 246, 0.94);
-    box-shadow: 0 20px 42px rgba(67, 38, 22, 0.16);
-    border-color: rgba(206, 110, 65, 0.2);
+    background: transparent;
+    box-shadow: none;
+    border-color: transparent;
 }
 
 .nav-links {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
     gap: 8px;
     flex-wrap: nowrap;
+    margin-left: auto;
+    padding: 8px;
+    border-radius: 999px;
+    background: rgba(255, 248, 241, 0.88);
+    border: 1px solid rgba(122, 77, 48, 0.12);
+    box-shadow: 0 16px 38px rgba(67, 38, 22, 0.12);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 
 .navbar-brand {
@@ -534,6 +544,13 @@ textarea.form-control {
     color: #2f1b12 !important;
     letter-spacing: -0.035em;
     white-space: nowrap;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: rgba(255, 248, 241, 0.88);
+    border: 1px solid rgba(122, 77, 48, 0.12);
+    box-shadow: 0 16px 38px rgba(67, 38, 22, 0.12);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 
 .navbar-brand .brand-icon {
@@ -2086,9 +2103,12 @@ body.admin-page {
 
     /* Riduce dimensioni navbar su mobile e la abbassa sotto il titolo */
     .navbar {
-        width: calc(100% - 24px);
-        padding: 8px 14px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        padding: 0;
         top: 58px; /* Sotto il titolo */
+        gap: 10px;
     }
 
     .main-content {
@@ -2156,6 +2176,15 @@ body.admin-page {
     .nav-links .btn {
         font-size: 0.8rem;
         padding: 6px 12px;
+    }
+
+    .navbar-brand {
+        padding: 9px 14px;
+    }
+
+    .nav-links {
+        padding: 7px;
+        gap: 6px;
     }
 }
 
