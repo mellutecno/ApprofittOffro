@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=29">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=30">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -56,10 +56,10 @@
 
             {% if is_authenticated %}
             <div class="flex-center justify-center">
-                <div class="filter-bar">
-                    <button class="filter-chip" onclick="setFilter('colazione')">Colazione</button>
-                    <button class="filter-chip" onclick="setFilter('pranzo')">Pranzo</button>
-                    <button class="filter-chip" onclick="setFilter('cena')">Cena</button>
+                <div class="filter-bar member-meal-filters">
+                    <button class="filter-chip" type="button" data-filter="colazione" onclick="setFilter('colazione', this)">Colazione</button>
+                    <button class="filter-chip" type="button" data-filter="pranzo" onclick="setFilter('pranzo', this)">Pranzo</button>
+                    <button class="filter-chip" type="button" data-filter="cena" onclick="setFilter('cena', this)">Cena</button>
                 </div>
             </div>
             {% endif %}
@@ -190,7 +190,13 @@
         {% endif %}
 
         {% if is_authenticated %}
-        <section class="map-section glass-card member-map-section" style="padding: 24px; margin-left: auto; margin-right: auto; margin-bottom: 60px; max-width: 900px;">
+        <section class="member-map-shell" style="margin-left: auto; margin-right: auto; margin-bottom: 60px; max-width: 900px;">
+            <button id="map-toggle-btn" type="button" class="member-map-toggle" onclick="toggleMapSection()" aria-expanded="false" aria-controls="member-map-panel">
+                <span id="map-toggle-label">Prenota scegliendo dalla mappa</span>
+                <span id="map-toggle-hint">Tocca per aprirla quando vuoi vedere i tavoli sulla zona.</span>
+            </button>
+
+        <section id="member-map-panel" class="map-section glass-card member-map-section" hidden style="padding: 24px; margin-left: auto; margin-right: auto; max-width: 900px;">
             <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                     <!-- Toggle Locali Vicini -->
@@ -233,6 +239,7 @@
                 <div id="map" style="height: 320px; width: 100%;"></div>
             </div>
         </section>
+        </section>
         {% endif %}
 
         <div id="offers-panel" class="{{ 'public-offers-panel' if not is_authenticated else '' }}" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 28px; margin-bottom: 60px;">
@@ -247,6 +254,8 @@
         let markers = [];
         let userLocationMarker = null;
         let currentFilter = '';
+        let mapSectionOpen = false;
+        let mapInitialized = false;
         const isAuthenticated = {{ is_authenticated|tojson }};
         const canParticipate = {{ can_participate|tojson }};
         const hasInitialUserLocation = {{ has_user_location|tojson }};
@@ -445,7 +454,89 @@
             }
         }
 
-        function initMap() {
+        function updateMapToggleUI() {
+            const btn = document.getElementById('map-toggle-btn');
+            const label = document.getElementById('map-toggle-label');
+            const hint = document.getElementById('map-toggle-hint');
+            const panel = document.getElementById('member-map-panel');
+
+            if (!btn || !label || !hint || !panel) return;
+
+            btn.classList.toggle('open', mapSectionOpen);
+            btn.setAttribute('aria-expanded', mapSectionOpen ? 'true' : 'false');
+            panel.hidden = !mapSectionOpen;
+
+            if (mapSectionOpen) {
+                label.textContent = 'Chiudi la mappa';
+                hint.textContent = 'Richiudila quando hai finito di scegliere dalla zona.';
+            } else {
+                label.textContent = 'Prenota scegliendo dalla mappa';
+                hint.textContent = 'Tocca per aprirla quando vuoi vedere i tavoli sulla zona.';
+            }
+        }
+
+        function ensureMapInitialized() {
+            if (!mapEnabled || mapInitialized) return;
+
+            map = L.map('map').setView([defaultLat, defaultLon], DEFAULT_MAP_ZOOM);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap',
+                maxZoom: 19
+            }).addTo(map);
+
+            map.setView([defaultLat, defaultLon], DEFAULT_MAP_ZOOM);
+            mapInitialized = true;
+            loadOffers();
+
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    searchLat = pos.coords.latitude;
+                    searchLon = pos.coords.longitude;
+                    hasActiveLocation = true;
+                    updateUserLocationMarker(searchLat, searchLon);
+                    map.panTo([searchLat, searchLon]);
+                    loadOffers();
+                    if (venuesActive) loadVenues();
+                }, () => {
+                    /* fallback silenzioso */
+                }, { timeout: 5000 });
+            }
+
+            let moveTimer;
+            map.on('moveend', () => {
+                const center = map.getCenter();
+                searchLat = center.lat;
+                searchLon = center.lng;
+
+                clearTimeout(moveTimer);
+                moveTimer = setTimeout(() => {
+                    loadOffers();
+                    if (venuesActive) loadVenues();
+                }, 400);
+            });
+        }
+
+        function toggleMapSection(forceOpen) {
+            if (!mapEnabled) return;
+
+            mapSectionOpen = typeof forceOpen === 'boolean' ? forceOpen : !mapSectionOpen;
+            updateMapToggleUI();
+
+            if (!mapSectionOpen) return;
+
+            ensureMapInitialized();
+            loadOffers();
+            window.requestAnimationFrame(() => {
+                window.setTimeout(() => {
+                    if (map) {
+                        map.invalidateSize();
+                        if (userLocationMarker) userLocationMarker.bringToFront();
+                    }
+                }, 180);
+            });
+        }
+
+        function initMapLegacy() {
             if (!mapEnabled) {
                 loadOffers();
                 return;
@@ -491,6 +582,12 @@
                     if (venuesActive) loadVenues();
                 }, 400); // Debounce ridotto per maggiore reattività
             });
+        }
+
+        function initMap() {
+            loadOffers();
+            if (!mapEnabled) return;
+            updateMapToggleUI();
         }
 
         // ============================================================
@@ -727,7 +824,7 @@
             }
         }
 
-        function setFilter(type) {
+        function setFilterLegacy(type) {
             currentFilter = currentFilter === type ? '' : type;
 
             document.querySelectorAll('.filter-bar .filter-chip').forEach(el => {
@@ -739,6 +836,17 @@
                 }
             });
 
+            loadOffers();
+        }
+
+        function setFilter(type, clickedButton) {
+            currentFilter = currentFilter === type ? '' : type;
+
+            document.querySelectorAll('.member-meal-filters .filter-chip').forEach(el => {
+                el.classList.toggle('active', currentFilter !== '' && el.dataset.filter === currentFilter);
+            });
+
+            if (clickedButton) clickedButton.blur();
             loadOffers();
         }
 
