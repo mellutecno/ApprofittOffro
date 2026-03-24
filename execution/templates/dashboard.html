@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=39">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=40">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -892,6 +892,13 @@
                     card.innerHTML = `
                         <div class="offer-type-badge badge-${offer.tipo_pasto}" style="font-size: 1.1rem; padding: 10px 24px; margin: 0 auto 20px auto; align-self: center;">
                             ${iconEmoji} ${offer.tipo_pasto.toUpperCase()}
+                        </div>
+
+                        <div class="datetime-info offer-priority-datetime"
+                             onclick="${(offer.already_claimed || offer.is_own) ? `event.stopPropagation(); downloadIcs(${JSON.stringify(offer).replace(/"/g, '&quot;')})` : ''}"
+                             style="${(offer.already_claimed || offer.is_own) ? 'cursor: pointer; border: 1px solid var(--success);' : ''}">
+                            <span>🕒 ${formatDate(offer.data_ora)}</span>
+                            ${(offer.already_claimed || offer.is_own) ? '<span class="offer-priority-datetime-action">🗓️ AGGIUNGI</span>' : ''}
                         </div>
 
                         ${offer.foto_locale && offer.foto_locale !== 'nessuna.jpg' ? 
