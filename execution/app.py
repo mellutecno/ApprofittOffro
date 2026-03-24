@@ -108,6 +108,8 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 BREAKFAST_BOOKING_LEAD_HOURS = 1
 MEAL_BOOKING_LEAD_HOURS = 12
 NEARBY_OFFER_NOTIFICATION_RADIUS_KM = 15
+USER_SESSION_IDLE_TIMEOUT_MINUTES = 60
+ADMIN_SESSION_IDLE_TIMEOUT_MINUTES = 30
 
 
 def local_now():
@@ -214,6 +216,16 @@ def get_new_offer_notification_subject(offer):
     if offer.tipo_pasto == "pranzo":
         return f"Nuovo pranzo vicino a te: {offer.nome_locale}"
     return f"Nuova {offer.tipo_pasto} vicino a te: {offer.nome_locale}"
+
+
+def get_session_idle_timeout_seconds(user):
+    """Restituisce il timeout inattivita' per il tipo di utente."""
+    timeout_minutes = (
+        ADMIN_SESSION_IDLE_TIMEOUT_MINUTES
+        if is_admin_user(user)
+        else USER_SESSION_IDLE_TIMEOUT_MINUTES
+    )
+    return timeout_minutes * 60
 
 
 def get_nearby_offer_notification_targets(offer):
@@ -438,6 +450,38 @@ def is_profile_complete(user):
 
 def is_admin_user(user):
     return bool(getattr(user, "is_admin", False))
+
+
+@app.before_request
+def enforce_session_timeout():
+    if request.endpoint == "static":
+        return None
+
+    if not current_user.is_authenticated:
+        session.pop("last_activity_at", None)
+        session.pop("login_at", None)
+        return None
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    last_activity_at = session.get("last_activity_at")
+    timeout_seconds = get_session_idle_timeout_seconds(current_user)
+
+    if last_activity_at and now_ts - int(last_activity_at) > timeout_seconds:
+        logout_user()
+        session.clear()
+        message = "Sessione scaduta per inattivita'. Effettua di nuovo il login."
+        if request.path.startswith("/api/"):
+            return jsonify({
+                "success": False,
+                "error": message,
+                "redirect": url_for("login_page"),
+            }), 401
+        flash(message, "warning")
+        return redirect(url_for("login_page"))
+
+    session["last_activity_at"] = now_ts
+    session.setdefault("login_at", now_ts)
+    return None
 
 
 def admin_required(f):
@@ -988,7 +1032,11 @@ def api_login():
     if not user.verificato:
         return jsonify({"success": False, "errors": ["Devi prima confermare la tua email! Controlla la posta."]}), 401
 
-    login_user(user, remember=True)
+    session.clear()
+    login_user(user, remember=False)
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    session["last_activity_at"] = now_ts
+    session["login_at"] = now_ts
     return jsonify({
         "success": True,
         "redirect": url_for("admin_dashboard") if is_admin_user(user) else url_for("dashboard"),
@@ -999,11 +1047,13 @@ def api_login():
 @login_required
 def web_logout():
     logout_user()
+    session.clear()
     return redirect(url_for('index'))
 
 @app.route("/api/logout", methods=["POST"])
 def api_logout():
     logout_user()
+    session.clear()
     return jsonify({"success": True, "redirect": url_for("index")})
 
 
