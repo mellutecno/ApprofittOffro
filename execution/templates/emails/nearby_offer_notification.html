@@ -1,0 +1,24 @@
+<div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#fffaf4; padding:32px; border-radius:16px; border:1px solid #fed7aa;">
+    <h2 style="color:#9a3412;">Nuova {{ meal_label }} vicino a te</h2>
+    <p>Ciao <b>{{ user.nome }}</b>, c'e una nuova proposta su <b>ApprofittOffro</b> che potrebbe interessarti.</p>
+
+    <div style="background:white; padding:20px; border-radius:12px; margin:16px 0; border-left:4px solid #f97316;">
+        <b style="font-size:1.15rem;">{{ offer.nome_locale }}</b><br>
+        {{ offer.indirizzo }}<br><br>
+        <b>Quando:</b> {{ data_evento }}<br>
+        <b>Pubblicata da:</b> {{ autore.nome }}<br>
+        <b>Disponibilita':</b> {{ spots_copy }}<br>
+        <b>Distanza dal tuo profilo:</b> {{ distance_km }} km (raggio attuale: {{ radius_km }} km)
+    </div>
+
+    <div style="background:rgba(249,115,22,0.08); padding:16px; border-radius:12px; color:#7c2d12; margin-bottom:16px;">
+        <b>Nota importante:</b> {{ booking_rule_copy }}
+    </div>
+
+    {% if offer.descrizione %}
+    <p style="color:#4b5563; line-height:1.6; margin:0 0 16px 0;"><b>Descrizione:</b> {{ offer.descrizione }}</p>
+    {% endif %}
+
+    <p style="font-size:0.95rem; color:#4b5563;">Apri ApprofittOffro per vedere l'offerta e decidere se approfittarne in tempo.</p>
+    <p style="color:#9ca3af; font-size:0.8rem; margin-top:24px;">- Team ApprofittOffro</p>
+</div>

@@ -107,6 +107,7 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 BREAKFAST_BOOKING_LEAD_HOURS = 1
 MEAL_BOOKING_LEAD_HOURS = 12
+DEFAULT_NEARBY_NOTIFICATION_RADIUS_KM = 10
 
 
 def local_now():
@@ -191,6 +192,108 @@ def get_meal_type_copy(tipo_pasto):
         "cena": {"singular": "cena", "plural": "cene"},
     }
     return labels.get(tipo_pasto, {"singular": tipo_pasto, "plural": tipo_pasto})
+
+
+def get_meal_type_label(tipo_pasto):
+    """Restituisce il nome leggibile del tipo di pasto."""
+    for value, label in TIPI_PASTO:
+        if value == tipo_pasto:
+            return label
+    return tipo_pasto.title()
+
+
+def get_spots_copy(spots_count):
+    """Restituisce una label leggibile per i posti disponibili."""
+    if spots_count == 1:
+        return "1 posto disponibile"
+    return f"{spots_count} posti disponibili"
+
+
+def get_new_offer_notification_subject(offer):
+    """Costruisce un oggetto mail naturale per la nuova offerta."""
+    if offer.tipo_pasto == "pranzo":
+        return f"Nuovo pranzo vicino a te: {offer.nome_locale}"
+    return f"Nuova {offer.tipo_pasto} vicino a te: {offer.nome_locale}"
+
+
+def get_user_action_radius_km(user):
+    """Normalizza il raggio di azione dell'utente con fallback sicuro."""
+    try:
+        radius_km = float(user.raggio_azione or DEFAULT_NEARBY_NOTIFICATION_RADIUS_KM)
+    except (TypeError, ValueError):
+        radius_km = float(DEFAULT_NEARBY_NOTIFICATION_RADIUS_KM)
+
+    if radius_km <= 0:
+        return float(DEFAULT_NEARBY_NOTIFICATION_RADIUS_KM)
+    return radius_km
+
+
+def get_nearby_offer_notification_targets(offer):
+    """Trova gli utenti verificati da avvisare per una nuova offerta vicina."""
+    candidates = User.query.filter(
+        User.id != offer.user_id,
+        User.verificato.is_(True),
+        User.is_admin.is_(False),
+        User.email.isnot(None),
+        User.email != "",
+        User.latitudine.isnot(None),
+        User.longitudine.isnot(None),
+    ).all()
+
+    nearby_targets = []
+    for user in candidates:
+        distance_km = calculate_distance(
+            offer.latitudine,
+            offer.longitudine,
+            user.latitudine,
+            user.longitudine,
+        )
+        radius_km = get_user_action_radius_km(user)
+        if distance_km <= radius_km:
+            nearby_targets.append({
+                "user": user,
+                "distance_km": round(distance_km, 1),
+                "radius_km": round(radius_km, 1),
+            })
+
+    return nearby_targets
+
+
+def notify_nearby_users_for_new_offer(offer):
+    """Invia una mail agli utenti vicini quando nasce una nuova offerta."""
+    if offer.data_ora <= local_now():
+        return 0
+
+    nearby_targets = get_nearby_offer_notification_targets(offer)
+    if not nearby_targets:
+        return 0
+
+    data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    booking_rule_copy = (
+        "Le colazioni si possono approfittare fino a 1 ora prima."
+        if offer.tipo_pasto == "colazione"
+        else "Pranzi e cene si possono approfittare fino a 12 ore prima."
+    )
+    meal_label = get_meal_type_label(offer.tipo_pasto)
+    spots_copy = get_spots_copy(offer.posti_disponibili)
+
+    for target in nearby_targets:
+        send_email(
+            get_new_offer_notification_subject(offer),
+            [target["user"].email],
+            "nearby_offer_notification.html",
+            user=target["user"],
+            offer=offer,
+            autore=offer.autore,
+            meal_label=meal_label,
+            data_evento=data_evento,
+            distance_km=target["distance_km"],
+            radius_km=target["radius_km"],
+            spots_copy=spots_copy,
+            booking_rule_copy=booking_rule_copy,
+        )
+
+    return len(nearby_targets)
 
 
 def ensure_legacy_sqlite_compatibility(sqlite_path):
@@ -1266,8 +1369,20 @@ def api_create_offer():
 
     db.session.add(offer)
     db.session.commit()
+    notified_users = notify_nearby_users_for_new_offer(offer)
 
-    return jsonify({"success": True, "message": "Offerta creata con successo!", "offer_id": offer.id})
+    message = "Offerta creata con successo!"
+    if notified_users == 1:
+        message += " Abbiamo avvisato 1 utente vicino via email."
+    elif notified_users > 1:
+        message += f" Abbiamo avvisato {notified_users} utenti vicini via email."
+
+    return jsonify({
+        "success": True,
+        "message": message,
+        "offer_id": offer.id,
+        "notified_users": notified_users,
+    })
 
 
 @app.route("/api/offers/<int:offer_id>/claim", methods=["POST"])
