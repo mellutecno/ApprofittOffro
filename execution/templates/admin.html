@@ -112,12 +112,12 @@
                         </div>
                     </div>
 
-                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                        <button type="button" class="btn btn-outline btn-sm" onclick='openMessageUserModal({{ user.id }}, {{ user.nome|tojson }}, {{ user.email|tojson }})'>Invia comunicazione</button>
+                    <div style="display:flex; gap:10px; flex-wrap:nowrap; align-items:stretch;">
+                        <button type="button" class="btn btn-outline btn-sm" style="flex:1;" onclick='openMessageUserModal({{ user.id }}, {{ user.nome|tojson }}, {{ user.email|tojson }})'>Contatta</button>
                         {% if user.id != current_user.id %}
-                        <button type="button" class="btn btn-outline btn-sm" style="color:var(--error); border-color:rgba(244,63,94,0.5);" onclick='openDeleteUserModal({{ user.id }}, {{ user.nome|tojson }}, {{ user.email|tojson }})'>Elimina account</button>
+                        <button type="button" class="btn btn-outline btn-sm" style="flex:1; color:var(--error); border-color:rgba(244,63,94,0.5);" onclick='openDeleteUserModal({{ user.id }}, {{ user.nome|tojson }}, {{ user.email|tojson }})'>Elimina account</button>
                         {% else %}
-                        <span class="pill-badge" style="background:rgba(255,255,255,0.08); color:var(--text-muted);">Account attuale</span>
+                        <span class="pill-badge" style="flex:1; display:flex; justify-content:center; align-items:center; background:rgba(255,255,255,0.08); color:var(--text-muted);">Account attuale</span>
                         {% endif %}
                     </div>
                 </article>
