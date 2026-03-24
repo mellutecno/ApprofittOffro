@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=55">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=56">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -23,24 +23,31 @@
         <img src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
     </div>
 
-    <nav class="navbar">
+    <nav class="navbar {% if not is_authenticated %}guest-toast-navbar{% endif %}">
+        {% if is_authenticated %}
         <a href="/dashboard" class="navbar-brand">
             <div class="logo-icon">🍽️</div>
             <span>ApprofittOffro</span>
         </a>
         <div class="nav-links">
-            {% if is_authenticated %}
             {% if current_user.is_admin %}
             <a href="/admin" class="btn btn-outline btn-sm">Admin</a>
             {% endif %}
             <a href="{{ '/new-offer' if can_participate else '/profile' }}" class="btn btn-outline btn-sm">{{ 'Offri' if can_participate else 'Completa Profilo' }}</a>
             <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
             <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
-            {% else %}
-            <a href="/login" class="btn btn-outline btn-sm">Accedi</a>
-            <a href="/register" class="btn btn-outline btn-sm">Registrati</a>
-            {% endif %}
         </div>
+        {% else %}
+        <div class="guest-toast-menu" id="guest-toast-menu">
+            <button type="button" class="toast-menu-trigger" id="guest-toast-trigger" aria-expanded="false" aria-controls="guest-toast-links" onclick="toggleGuestToastMenu()">
+                Menu
+            </button>
+            <div class="guest-toast-links" id="guest-toast-links" hidden>
+                <a href="/login" class="btn btn-outline btn-sm">Accedi</a>
+                <a href="/register" class="btn btn-outline btn-sm">Registrati</a>
+            </div>
+        </div>
+        {% endif %}
     </nav>
 
     <main class="main-content container">
@@ -1083,6 +1090,16 @@
 
         window.onload = initMap;
 
+        function toggleGuestToastMenu(forceOpen) {
+            const trigger = document.getElementById('guest-toast-trigger');
+            const menu = document.getElementById('guest-toast-links');
+            if (!trigger || !menu) return;
+
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : menu.hidden;
+            menu.hidden = !shouldOpen;
+            trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
+
         // --- Titolo che sparisce con lo scroll (solo mobile) ---
         const pageTitle = document.getElementById('page-top-title');
         function handleScroll(scrollTop) {
@@ -1100,6 +1117,20 @@
         document.addEventListener('DOMContentLoaded', () => {
             const panel = document.querySelector('.offers-panel');
             if (panel) panel.addEventListener('scroll', () => handleScroll(panel.scrollTop), { passive: true });
+
+            const guestToastMenu = document.getElementById('guest-toast-menu');
+            if (guestToastMenu) {
+                document.addEventListener('click', (event) => {
+                    if (!guestToastMenu.contains(event.target)) {
+                        toggleGuestToastMenu(false);
+                    }
+                });
+                document.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') {
+                        toggleGuestToastMenu(false);
+                    }
+                });
+            }
         });
     </script>
 </body>
