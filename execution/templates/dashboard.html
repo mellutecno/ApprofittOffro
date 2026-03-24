@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=20">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=21">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
-<body class="{{ 'public-discovery' if not is_authenticated else '' }}">
+<body class="{{ 'public-discovery' if not is_authenticated else 'member-discovery' }}">
     <!-- Titolo che sparisce con lo scroll -->
     <div class="page-top-title" id="page-top-title" aria-label="ApprofittOffro">
         <img src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
@@ -44,7 +44,7 @@
     </nav>
 
     <main class="main-content container">
-        <div class="dashboard-header" style="text-align: center; margin-bottom: 40px;">
+        <div class="dashboard-header member-dashboard-header" style="text-align: center; margin-bottom: 40px;">
             <h1 style="font-size: 2.2rem; margin-bottom: 12px;">Benvenuti a Tavola 🥘</h1>
             {% if not is_authenticated %}
             <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 24px;">Scopri chi sta cucinando qualcosa di buono vicino a te. Accedi o registrati per partecipare ai pasti.</p>
@@ -186,7 +186,7 @@
         {% endif %}
 
         {% if is_authenticated %}
-        <section class="map-section glass-card" style="padding: 24px; margin-left: auto; margin-right: auto; margin-bottom: 60px; max-width: 900px;">
+        <section class="map-section glass-card member-map-section" style="padding: 24px; margin-left: auto; margin-right: auto; margin-bottom: 60px; max-width: 900px;">
             <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                     <!-- Toggle Locali Vicini -->

@@ -580,7 +580,29 @@ body.public-discovery {
     color: #382116;
 }
 
+body.member-discovery {
+    --bg-body: #f6ede3;
+    --bg-card: rgba(255, 248, 241, 0.82);
+    --bg-surface: #fff9f1;
+    --text-main: #2f1b12;
+    --text-muted: #6b4b38;
+    --text-light: #9e7b67;
+    --border: rgba(122, 77, 48, 0.14);
+    --border-hover: rgba(206, 110, 65, 0.24);
+    background-color: #f6ede3;
+    background-image:
+        radial-gradient(circle at 12% 10%, rgba(255, 181, 120, 0.28), transparent 24%),
+        radial-gradient(circle at 86% 8%, rgba(191, 125, 83, 0.14), transparent 20%),
+        linear-gradient(180deg, #fbf4eb 0%, #f5ecdf 42%, #efe1ce 100%);
+    color: #382116;
+}
+
 .public-discovery .page-top-title {
+    background: rgba(248, 240, 231, 0.96);
+    box-shadow: 0 10px 22px rgba(56, 33, 22, 0.08);
+}
+
+.member-discovery .page-top-title {
     background: rgba(248, 240, 231, 0.96);
     box-shadow: 0 10px 22px rgba(56, 33, 22, 0.08);
 }
@@ -590,9 +612,94 @@ body.public-discovery {
     padding-bottom: 88px;
 }
 
+.member-discovery .main-content {
+    padding-top: 152px;
+    padding-bottom: 88px;
+}
+
 .public-discovery .dashboard-header,
 .public-discovery .legacy-public-intro {
     display: none;
+}
+
+.member-discovery .navbar {
+    background: rgba(255, 248, 241, 0.82);
+    border-color: rgba(122, 77, 48, 0.12);
+    box-shadow: 0 16px 38px rgba(67, 38, 22, 0.12);
+}
+
+.member-discovery .navbar:hover {
+    background: rgba(255, 251, 246, 0.94);
+    box-shadow: 0 20px 42px rgba(67, 38, 22, 0.16);
+    border-color: rgba(206, 110, 65, 0.2);
+}
+
+.member-discovery .member-dashboard-header {
+    margin-bottom: 28px !important;
+    padding: 34px 34px 28px;
+    border-radius: 34px;
+    background:
+        radial-gradient(circle at top left, rgba(255, 205, 161, 0.36), transparent 28%),
+        linear-gradient(180deg, rgba(255, 252, 247, 0.98) 0%, rgba(247, 237, 223, 0.98) 100%);
+    border: 1px solid rgba(122, 77, 48, 0.12);
+    box-shadow:
+        0 28px 60px rgba(58, 31, 18, 0.12),
+        0 10px 24px rgba(192, 116, 69, 0.08);
+}
+
+.member-discovery .member-dashboard-header h1 {
+    color: #2f1b12;
+    letter-spacing: -0.04em;
+}
+
+.member-discovery .member-dashboard-header p {
+    color: #6c4d3a !important;
+    max-width: 680px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.member-discovery .filter-bar {
+    background: rgba(255, 255, 255, 0.74);
+    border-color: rgba(122, 77, 48, 0.12);
+    box-shadow:
+        0 18px 28px rgba(84, 50, 30, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.56);
+}
+
+.member-discovery .filter-chip {
+    color: #6e4b37;
+}
+
+.member-discovery .filter-chip:hover {
+    background: rgba(216, 106, 62, 0.14);
+    color: #a8532f;
+}
+
+.member-discovery .filter-chip.active {
+    box-shadow: 0 10px 18px rgba(216, 106, 62, 0.2);
+}
+
+.member-discovery .member-map-section {
+    background:
+        radial-gradient(circle at top left, rgba(255, 210, 176, 0.28), transparent 26%),
+        linear-gradient(180deg, rgba(255, 252, 247, 0.98) 0%, rgba(246, 235, 221, 0.98) 100%);
+    border-color: rgba(122, 77, 48, 0.12);
+    box-shadow:
+        0 30px 62px rgba(56, 31, 18, 0.12),
+        0 10px 24px rgba(192, 116, 69, 0.08);
+}
+
+.member-discovery .member-map-section #venues-legend,
+.member-discovery .member-map-section span,
+.member-discovery .member-map-section p {
+    color: #6c4d3a;
+}
+
+.member-discovery .offer-card {
+    box-shadow:
+        0 30px 64px rgba(55, 29, 16, 0.12),
+        0 10px 24px rgba(202, 121, 72, 0.08);
 }
 
 .public-discovery .public-eyebrow {
@@ -1168,13 +1275,24 @@ body.public-discovery {
         padding-top: 122px; /* Compensa navbar + titolo */
     }
 
-    .public-discovery .main-content {
+    .public-discovery .main-content,
+    .member-discovery .main-content {
         padding-top: 134px;
     }
 
     .public-hero-shell,
     .public-trust-band {
         grid-template-columns: 1fr;
+    }
+
+    .member-discovery .member-dashboard-header {
+        padding: 24px 22px 22px;
+        border-radius: 28px;
+    }
+
+    .member-discovery .member-map-section {
+        padding: 20px !important;
+        border-radius: 28px;
     }
 
     .public-hero-visual {
@@ -1828,6 +1946,10 @@ body.modal-open {
 
     .public-offers-panel {
         grid-template-columns: 1fr !important;
+    }
+
+    .member-discovery .member-dashboard-header h1 {
+        font-size: clamp(2rem, 10vw, 3rem);
     }
 }
 
