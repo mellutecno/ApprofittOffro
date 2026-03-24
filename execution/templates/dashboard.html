@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=56">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=57">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -39,8 +39,12 @@
         </div>
         {% else %}
         <div class="guest-toast-menu" id="guest-toast-menu">
-            <button type="button" class="toast-menu-trigger" id="guest-toast-trigger" aria-expanded="false" aria-controls="guest-toast-links" onclick="toggleGuestToastMenu()">
-                Menu
+            <button type="button" class="toast-menu-trigger" id="guest-toast-trigger" aria-expanded="false" aria-controls="guest-toast-links" aria-label="Apri menu" onclick="toggleGuestToastMenu()">
+                <span class="toast-menu-trigger-icon" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </span>
             </button>
             <div class="guest-toast-links" id="guest-toast-links" hidden>
                 <a href="/login" class="btn btn-outline btn-sm">Accedi</a>

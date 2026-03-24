@@ -488,6 +488,19 @@ textarea.form-control {
     filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.28));
 }
 
+.public-discovery .page-top-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 72px;
+    padding: 12px 16px 6px;
+}
+
+.public-discovery .page-top-title img {
+    width: min(360px, calc(100vw - 72px));
+    max-height: 58px;
+}
+
 /* --- Navbar (Sleek Apple style) --- */
 .navbar {
     position: fixed;
@@ -549,8 +562,9 @@ textarea.form-control {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 112px;
-    padding: 12px 20px;
+    min-width: 68px;
+    min-height: 52px;
+    padding: 12px 18px;
     border-radius: 999px;
     border: 1px solid rgba(122, 77, 48, 0.12);
     background: rgba(255, 248, 241, 0.9);
@@ -571,6 +585,23 @@ textarea.form-control {
     background: rgba(255, 251, 246, 0.96);
     border-color: rgba(206, 110, 65, 0.22);
     box-shadow: 0 20px 42px rgba(67, 38, 22, 0.16);
+}
+
+.toast-menu-trigger-icon {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.toast-menu-trigger-icon span {
+    display: block;
+    width: 20px;
+    height: 2.5px;
+    border-radius: 999px;
+    background: #2f1b12;
+    transition: var(--transition);
 }
 
 .guest-toast-links {
@@ -787,13 +818,17 @@ body.admin-page {
     box-shadow: 0 10px 22px rgba(56, 33, 22, 0.08);
 }
 
+.public-discovery .navbar {
+    top: 88px;
+}
+
 .member-discovery .page-top-title {
     background: rgba(248, 240, 231, 0.96);
     box-shadow: 0 10px 22px rgba(56, 33, 22, 0.08);
 }
 
 .public-discovery .main-content {
-    padding-top: 152px;
+    padding-top: 204px;
     padding-bottom: 88px;
 }
 
@@ -2253,14 +2288,25 @@ body.admin-page {
     }
 
     .toast-menu-trigger {
-        min-width: 104px;
-        padding: 10px 18px;
+        min-width: 62px;
+        min-height: 46px;
+        padding: 10px 16px;
         font-size: 0.88rem;
     }
 
     .guest-toast-links {
         width: min(210px, calc(100vw - 24px));
         padding: 10px;
+    }
+
+    .public-discovery .page-top-title {
+        min-height: 46px;
+        padding: 6px 16px 2px;
+    }
+
+    .public-discovery .page-top-title img {
+        width: min(250px, calc(100vw - 56px));
+        max-height: 40px;
     }
 }
 
