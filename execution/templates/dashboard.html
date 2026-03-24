@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=26">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=27">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -104,11 +104,19 @@
                     <div class="public-floating-shot public-shot-sm public-shot-left" style="background-image:url('{{ url_for('static', filename='img/hero.png') }}'); background-position:center 74%;"></div>
                     <div class="public-floating-shot public-shot-wide" style="background-image:url('{{ url_for('static', filename='img/hero.png') }}'); background-position:center 44%;"></div>
                 </div>
-                <div class="public-visual-card">
+                <div class="public-visual-card public-visual-card-desktop">
                     <div class="public-visual-card-title">Il tavolo è solo l’inizio.</div>
                     <p>Guarda chi organizza, senti il mood dell’evento e scegli se sederti con persone che si presentano davvero.</p>
                 </div>
                 <div class="public-visual-chip public-chip-bottom">Più identità, meno improvvisazione</div>
+            </div>
+            <div class="public-visual-card public-visual-card-mobile">
+                <div class="public-visual-card-mobile-copy" aria-hidden="true">
+                    <div class="public-visual-card-title">Il tavolo e solo l'inizio.</div>
+                    <p>Guarda chi organizza, senti il mood dell'evento e scegli se sederti con persone che si presentano davvero.</p>
+                </div>
+                <div class="public-visual-card-title">Il tavolo Ã¨ solo lâ€™inizio.</div>
+                <p>Guarda chi organizza, senti il mood dellâ€™evento e scegli se sederti con persone che si presentano davvero.</p>
             </div>
         </section>
 
