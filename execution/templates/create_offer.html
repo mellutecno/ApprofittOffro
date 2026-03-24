@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Crea una nuova offerta di pasto su ApprofittOffro.">
     <title>Offri un Pasto — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=21">
+    <link rel="stylesheet" href="/static/css/styles.css?v=22">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -95,7 +95,7 @@
                 <div class="form-group">
                     <label for="data_ora">Data e ora</label>
                     <input type="datetime-local" id="data_ora" name="data_ora" class="form-control" required>
-                    <div id="booking-window-hint" style="display:none; margin-top:10px; padding:12px 14px; border-radius:14px; font-size:0.88rem; font-weight:700;"></div>
+                    <div id="booking-window-hint" class="booking-window-hint" aria-live="polite"></div>
                 </div>
 
                 <!-- Descrizione -->
@@ -511,34 +511,28 @@
             const dateTimeValue = document.getElementById('data_ora').value;
             const hintBox = document.getElementById('booking-window-hint');
             if (!mealType || !dateTimeValue) {
-                hintBox.style.display = 'none';
-                hintBox.textContent = '';
+                hintBox.className = 'booking-window-hint';
+                hintBox.innerHTML = '';
                 return false;
             }
 
             const tooLate = isPublicationTooLateClient(mealType, dateTimeValue);
-            hintBox.style.display = 'block';
+            hintBox.className = 'booking-window-hint is-visible';
 
             if (allowAdminTimingBypass) {
-                hintBox.style.background = 'rgba(59, 130, 246, 0.10)';
-                hintBox.style.border = '1px solid rgba(59, 130, 246, 0.24)';
-                hintBox.style.color = '#1E3A8A';
-                hintBox.textContent = `Admin: stai modificando un evento esistente. ${getBookingPublicationMessage(mealType)}`;
+                hintBox.classList.add('is-admin');
+                hintBox.innerHTML = `<strong>Info admin</strong><span>Stai modificando un evento esistente. ${getBookingPublicationMessage(mealType)}</span>`;
                 return false;
             }
 
             if (tooLate) {
-                hintBox.style.background = 'rgba(244, 63, 94, 0.12)';
-                hintBox.style.border = '1px solid rgba(244, 63, 94, 0.28)';
-                hintBox.style.color = '#7F1D1D';
-                hintBox.textContent = getBookingPublicationMessage(mealType);
+                hintBox.classList.add('is-error');
+                hintBox.innerHTML = `<strong>Attenzione</strong><span>${getBookingPublicationMessage(mealType)}</span>`;
                 return true;
             }
 
-            hintBox.style.background = 'rgba(16, 185, 129, 0.10)';
-            hintBox.style.border = '1px solid rgba(16, 185, 129, 0.22)';
-            hintBox.style.color = '#14532D';
-            hintBox.textContent = getBookingPublicationMessage(mealType);
+            hintBox.classList.add('is-success');
+            hintBox.innerHTML = `<strong>Regola oraria</strong><span>${getBookingPublicationMessage(mealType)}</span>`;
             return false;
         }
 
