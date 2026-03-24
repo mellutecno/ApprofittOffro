@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=17">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=20">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
-<body>
+<body class="{{ 'public-discovery' if not is_authenticated else '' }}">
     <!-- Titolo che sparisce con lo scroll -->
     <div class="page-top-title" id="page-top-title" aria-label="ApprofittOffro">
         <img src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
@@ -72,7 +72,87 @@
         </div>
 
         {% if not is_authenticated %}
-        <section class="glass-card" style="padding: 28px; margin: 0 auto 42px auto; max-width: 980px; background: linear-gradient(180deg, rgba(255,248,238,0.98) 0%, rgba(246,232,210,0.98) 100%); border-color: rgba(130, 74, 31, 0.12);">
+        <section class="public-hero-shell">
+            <div class="public-hero-copy">
+                <div class="public-eyebrow">Nuove persone, tavoli veri</div>
+                <h2 class="public-hero-title">Non una semplice lista di offerte: una vetrina di inviti sociali pensati bene.</h2>
+                <p class="public-hero-text">ApprofittOffro prende ispirazione dalle piattaforme di social eating più curate, ma resta concreto: guardi chi propone un tavolo, capisci il tono dell’incontro e decidi se entrare in gioco.</p>
+                <div class="public-hero-actions">
+                    <a href="/register" class="btn btn-primary btn-lg">Registrati e partecipa</a>
+                    <a href="/login" class="btn btn-outline btn-lg">Accedi</a>
+                </div>
+                <div class="public-hero-metrics">
+                    <div class="public-metric-card">
+                        <span class="public-metric-value">Profili curati</span>
+                        <span class="public-metric-label">foto chiara, bio e gusti alimentari contano davvero</span>
+                    </div>
+                    <div class="public-metric-card">
+                        <span class="public-metric-value">Regole chiare</span>
+                        <span class="public-metric-label">colazioni entro 1 ora, pranzi e cene entro 12 ore</span>
+                    </div>
+                    <div class="public-metric-card">
+                        <span class="public-metric-value">Più atmosfera</span>
+                        <span class="public-metric-label">card più calde, inviti leggibili, tono più premium</span>
+                    </div>
+                </div>
+            </div>
+            <div class="public-hero-visual" style="background-image: linear-gradient(180deg, rgba(28, 16, 8, 0.12), rgba(28, 16, 8, 0.66)), url('{{ url_for('static', filename='img/hero.png') }}');">
+                <div class="public-visual-chip public-chip-top">Cibo, persone, atmosfera</div>
+                <div class="public-visual-card">
+                    <div class="public-visual-card-title">Il tavolo è solo l’inizio.</div>
+                    <p>Guarda chi organizza, senti il mood dell’evento e scegli se sederti con persone che si presentano davvero.</p>
+                </div>
+                <div class="public-visual-chip public-chip-bottom">Più identità, meno improvvisazione</div>
+            </div>
+        </section>
+
+        <section class="public-story-grid">
+            <article class="public-story-card">
+                <div class="public-story-icon">🍷</div>
+                <h3>Eventi con un contesto</h3>
+                <p>Ogni invito nasce da un locale, un orario e un numero preciso di posti. Il tavolo ha già una sua personalità.</p>
+            </article>
+            <article class="public-story-card">
+                <div class="public-story-icon">👤</div>
+                <h3>Conta anche chi invita</h3>
+                <p>Età, foto e stile del profilo aiutano a capire subito se l’energia di quella proposta è giusta per te.</p>
+            </article>
+            <article class="public-story-card">
+                <div class="public-story-icon">✨</div>
+                <h3>Una vetrina più boutique</h3>
+                <p>Vogliamo che ogni card sembri più un invito da scoprire che un annuncio freddo da scorrere in fretta.</p>
+            </article>
+        </section>
+
+        <section class="public-trust-band">
+            <div class="public-trust-copy">
+                <div class="public-eyebrow">Per partire bene</div>
+                <h2>La fiducia nasce prima dell’incontro.</h2>
+                <p>Quando ti registri, usa una foto profilo chiara dove il viso si vede bene, racconta qualcosa di te e compila gusti e intolleranze. Più il profilo è vero, più l’esperienza parte già bene.</p>
+            </div>
+            <div class="public-trust-points">
+                <div class="public-trust-point">
+                    <strong>Foto visibile</strong>
+                    <span>La prima impressione conta, soprattutto quando ci si incontra a tavola.</span>
+                </div>
+                <div class="public-trust-point">
+                    <strong>Bio e gusti reali</strong>
+                    <span>Aiutano a evitare incontri fuori tono e rendono le scelte più serene.</span>
+                </div>
+                <div class="public-trust-point">
+                    <strong>Tempi chiari</strong>
+                    <span>Le finestre di prenotazione restano nette, così gli inviti sono davvero organizzabili.</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="public-section-heading">
+            <div class="public-eyebrow">Eventi aperti</div>
+            <h2>Questa è la vetrina attiva di ApprofittOffro.</h2>
+            <p>Guarda chi sta organizzando un tavolo adesso. Per partecipare basta registrarsi e completare il profilo.</p>
+        </div>
+
+        <section class="glass-card legacy-public-intro" style="padding: 28px; margin: 0 auto 42px auto; max-width: 980px; background: linear-gradient(180deg, rgba(255,248,238,0.98) 0%, rgba(246,232,210,0.98) 100%); border-color: rgba(130, 74, 31, 0.12);">
             <div style="display: flex; flex-direction: column; gap: 18px;">
                 <div style="text-align: left;">
                     <div style="display:inline-flex; align-items:center; gap:8px; padding: 8px 14px; border-radius: 999px; background: rgba(255,112,67,0.12); color: #B24E26; font-size: 0.8rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px;">Come funziona</div>
@@ -151,7 +231,7 @@
         </section>
         {% endif %}
 
-        <div id="offers-panel" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 28px; margin-bottom: 60px;">
+        <div id="offers-panel" class="{{ 'public-offers-panel' if not is_authenticated else '' }}" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 28px; margin-bottom: 60px;">
             <!-- Caricate via JS -->
         </div>
     </main>
@@ -717,7 +797,7 @@
                     else if (progress < 60) barClass = 'low';
 
                     const card = document.createElement('div');
-                    card.className = 'offer-card';
+                    card.className = isAuthenticated ? 'offer-card' : 'offer-card public-offer-card';
                     card.id = `offer-${offer.id}`;
                     card.innerHTML = `
                         <div class="offer-type-badge badge-${offer.tipo_pasto}" style="font-size: 1.1rem; padding: 10px 24px; margin: 0 auto 20px auto; align-self: center;">
