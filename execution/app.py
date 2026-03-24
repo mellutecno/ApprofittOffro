@@ -408,6 +408,9 @@ def login_page():
 
 @app.route("/dashboard")
 def dashboard():
+    if current_user.is_authenticated and is_admin_user(current_user):
+        return redirect(url_for("admin_dashboard"))
+
     is_authenticated = current_user.is_authenticated
     has_user_location = (
         is_authenticated
@@ -443,11 +446,12 @@ def admin_dashboard():
     all_offers = Offer.query.order_by(Offer.data_ora.desc()).all()
     upcoming_offers = [offer for offer in all_offers if offer.data_ora >= now]
     past_offers = [offer for offer in all_offers if offer.data_ora < now]
-    users = User.query.order_by(User.created_at.desc()).all()
+    users = User.query.filter_by(is_admin=False).order_by(User.created_at.desc()).all()
+    admins = User.query.filter_by(is_admin=True).order_by(User.created_at.desc()).all()
 
     stats = {
         "users": len(users),
-        "admins": sum(1 for user in users if is_admin_user(user)),
+        "admins": len(admins),
         "future_offers": len(upcoming_offers),
         "past_offers": len(past_offers),
     }
@@ -489,12 +493,17 @@ def verify_email(token):
 @login_required
 @profile_completed_required
 def new_offer_page():
+    if is_admin_user(current_user):
+        return redirect(url_for("admin_dashboard"))
     return render_template("create_offer.html", tipi_pasto=TIPI_PASTO, allow_admin_timing_bypass=False)
 
 
 @app.route("/profile")
 @login_required
 def profile_page():
+    if is_admin_user(current_user):
+        return redirect(url_for("admin_dashboard"))
+
     my_offers = Offer.query.filter_by(user_id=current_user.id).order_by(
         Offer.created_at.desc()
     ).all()
