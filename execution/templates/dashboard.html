@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=34">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=35">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -192,7 +192,7 @@
         {% if is_authenticated %}
         <section class="member-map-shell" style="margin-left: auto; margin-right: auto; margin-bottom: 60px; max-width: 900px;">
             <button id="map-toggle-btn" type="button" class="member-map-toggle" onclick="toggleMapSection()" aria-expanded="false" aria-controls="member-map-panel">
-                <span id="map-toggle-label">Prenota scegliendo dalla mappa</span>
+                <span id="map-toggle-label">Offri scegliendo dalla mappa</span>
                 <span id="map-toggle-hint">Tocca per aprirla quando vuoi vedere i tavoli sulla zona.</span>
             </button>
 
@@ -470,7 +470,7 @@
                 label.textContent = 'Chiudi la mappa';
                 hint.textContent = 'Richiudila quando hai finito di scegliere dalla zona.';
             } else {
-                label.textContent = 'Prenota scegliendo dalla mappa';
+                label.textContent = 'Offri scegliendo dalla mappa';
                 hint.textContent = 'Tocca per aprirla quando vuoi vedere i tavoli sulla zona.';
             }
         }
@@ -844,9 +844,15 @@
 
             document.querySelectorAll('.member-meal-filters .filter-chip').forEach(el => {
                 el.classList.toggle('active', currentFilter !== '' && el.dataset.filter === currentFilter);
+                el.setAttribute('aria-pressed', currentFilter !== '' && el.dataset.filter === currentFilter ? 'true' : 'false');
             });
 
-            if (clickedButton) clickedButton.blur();
+            if (clickedButton) {
+                window.requestAnimationFrame(() => clickedButton.blur());
+            }
+            if (document.activeElement && typeof document.activeElement.blur === 'function') {
+                window.requestAnimationFrame(() => document.activeElement.blur());
+            }
             loadOffers();
         }
 

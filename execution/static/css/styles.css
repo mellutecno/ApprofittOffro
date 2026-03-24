@@ -864,6 +864,9 @@ body.admin-page {
 
 .member-discovery .filter-chip {
     color: #6e4b37;
+    background: transparent !important;
+    box-shadow: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .member-discovery .filter-chip:hover {
@@ -872,7 +875,38 @@ body.admin-page {
 }
 
 .member-discovery .filter-chip.active {
+    background: var(--primary);
+    color: white;
     box-shadow: 0 10px 18px rgba(216, 106, 62, 0.2);
+}
+
+.member-discovery .filter-chip:not(.active) {
+    background: transparent !important;
+    color: #6e4b37 !important;
+    box-shadow: none !important;
+}
+
+.member-discovery .filter-chip:focus,
+.member-discovery .filter-chip:focus-visible,
+.member-discovery .filter-chip:active {
+    outline: none;
+}
+
+.member-discovery .filter-chip:focus-visible:not(.active),
+.member-discovery .filter-chip:active:not(.active) {
+    background: transparent !important;
+    color: #6e4b37 !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+@media (hover: none) {
+    .member-discovery .filter-chip:hover:not(.active) {
+        background: transparent !important;
+        color: #6e4b37 !important;
+        transform: none !important;
+        box-shadow: none !important;
+    }
 }
 
 .member-map-shell {
