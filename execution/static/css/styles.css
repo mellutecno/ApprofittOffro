@@ -2436,6 +2436,10 @@ body.admin-page {
     display: none;
 }
 
+.offer-card-body > .offer-priority-datetime {
+    display: flex;
+}
+
 .offer-priority-datetime {
     display: flex;
     align-items: center;
