@@ -57,7 +57,7 @@
             {% if is_authenticated %}
             <div class="flex-center justify-center">
                 <div class="member-meal-filters-wrap">
-                    <div class="member-meal-filters-label">Filtra per</div>
+                    <div class="member-meal-filters-label">Seleziona</div>
                     <div class="filter-bar member-meal-filters">
                         <button class="filter-chip" type="button" data-filter="colazione" onclick="setFilter('colazione', this)">Colazioni</button>
                         <button class="filter-chip" type="button" data-filter="pranzo" onclick="setFilter('pranzo', this)">Pranzi</button>
@@ -206,22 +206,6 @@
                     <button id="venues-toggle-btn" onclick="toggleVenues()" class="btn btn-sm" style="gap: 6px; font-weight: 800; background: var(--bg-body); border: 2px solid var(--border); border-radius: 100px; padding: 8px 16px; transition: all 0.2s; color: var(--text-muted);">
                         🏪 Locali Vicini
                     </button>
-                </div>
-            </div>
-            <div style="display: flex; justify-content: center; margin-bottom: 16px;">
-                <div style="display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; padding: 12px 18px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);">
-                    <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 800; color: var(--text-muted);">
-                        <span style="width: 12px; height: 12px; border-radius: 50%; background: #F59E0B; box-shadow: 0 0 0 3px rgba(255,255,255,0.14);"></span>
-                        Colazione
-                    </span>
-                    <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 800; color: var(--text-muted);">
-                        <span style="width: 12px; height: 12px; border-radius: 50%; background: #10B981; box-shadow: 0 0 0 3px rgba(255,255,255,0.14);"></span>
-                        Pranzo
-                    </span>
-                    <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 800; color: var(--text-muted);">
-                        <span style="width: 12px; height: 12px; border-radius: 50%; background: #8B5CF6; box-shadow: 0 0 0 3px rgba(255,255,255,0.14);"></span>
-                        Cena
-                    </span>
                 </div>
             </div>
             <!-- Legenda categorie (appare quando i locali sono attivi) -->
@@ -984,6 +968,9 @@
                         actionSlot.innerHTML = getOfferActionMarkup(offer, isPast, isFull);
                     }
                     panel.appendChild(card);
+
+                    // Gli eventi restano nella lista offerte, ma non vengono più mostrati come marker in mappa.
+                    return;
 
                     if (!(mapEnabled && map)) {
                         return;
