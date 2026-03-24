@@ -171,18 +171,34 @@ a:hover { color: var(--primary-dark); }
 }
 
 .btn-outline {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
-    color: var(--text-main);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(248, 237, 223, 0.94));
+    color: #734126;
+    border: 1px solid rgba(139, 88, 53, 0.18);
+    box-shadow:
+        0 10px 18px rgba(70, 41, 24, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.42);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
 }
 
 .btn-outline:hover {
     border-color: var(--border-hover);
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(252, 245, 236, 0.98));
+    color: #6a3c23;
     transform: translateY(-2px);
+}
+
+.btn-ghost {
+    background: transparent;
+    color: #8b6147;
+    border: 1px solid transparent;
+    box-shadow: none;
+}
+
+.btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.58);
+    color: #643722;
+    border-color: rgba(139, 88, 53, 0.12);
 }
 
 .btn-success {
@@ -244,20 +260,28 @@ a:hover { color: var(--primary-dark); }
 
 /* --- Glass Card / White Card --- */
 .glass-card {
-    background: var(--bg-card);
+    background:
+        radial-gradient(circle at top left, rgba(255, 211, 180, 0.22), transparent 26%),
+        linear-gradient(180deg, rgba(255, 252, 247, 0.96) 0%, rgba(245, 234, 220, 0.96) 100%);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
-    border: 1px solid var(--border);
+    border: 1px solid rgba(122, 77, 48, 0.12);
     border-radius: var(--radius-lg);
     padding: 32px;
-    box-shadow: var(--shadow-md);
+    box-shadow:
+        0 24px 48px rgba(58, 31, 18, 0.12),
+        0 10px 24px rgba(192, 116, 69, 0.08);
     transition: var(--transition);
 }
 
 .glass-card:hover {
-    box-shadow: var(--shadow-lg);
+    box-shadow:
+        0 30px 60px rgba(58, 31, 18, 0.16),
+        0 12px 28px rgba(192, 116, 69, 0.1);
     border-color: var(--border-hover);
-    background: rgba(45, 32, 22, 0.85); /* Slightly lighter on hover to avoid over-darkening */
+    background:
+        radial-gradient(circle at top left, rgba(255, 218, 191, 0.26), transparent 26%),
+        linear-gradient(180deg, rgba(255, 253, 249, 0.98) 0%, rgba(248, 238, 226, 0.98) 100%);
 }
 
 /* --- Form Elements --- */
@@ -473,23 +497,23 @@ textarea.form-control {
     width: calc(100% - 32px);
     max-width: 960px;
     z-index: 2000;
-    background: rgba(12, 7, 3, 0.75);
+    background: rgba(255, 248, 241, 0.82);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid var(--border);
+    border: 1px solid rgba(122, 77, 48, 0.12);
     border-radius: var(--radius-md);
     padding: 10px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    box-shadow: 0 16px 38px rgba(67, 38, 22, 0.12);
     transition: var(--transition);
 }
 
 .navbar:hover {
-    background: rgba(34, 22, 12, 0.85);
-    box-shadow: 0 15px 50px rgba(0,0,0,0.6);
-    border-color: var(--primary-glow);
+    background: rgba(255, 251, 246, 0.94);
+    box-shadow: 0 20px 42px rgba(67, 38, 22, 0.16);
+    border-color: rgba(206, 110, 65, 0.2);
 }
 
 .nav-links {
@@ -507,7 +531,7 @@ textarea.form-control {
     font-family: 'Outfit', sans-serif;
     font-size: 1.24rem;
     font-weight: 800;
-    color: var(--text-main) !important;
+    color: #2f1b12 !important;
     letter-spacing: -0.035em;
     white-space: nowrap;
 }
@@ -605,7 +629,7 @@ textarea.form-control {
 }
 
 .navbar-nav a, .navbar-nav button {
-    color: var(--text-muted);
+    color: #7b5a47;
     font-weight: 600;
     font-size: 0.95rem;
     transition: color var(--transition);
@@ -616,7 +640,7 @@ textarea.form-control {
 }
 
 .navbar-nav a:hover, .navbar-nav button:hover {
-    color: var(--text-main);
+    color: #2f1b12;
 }
 
 /* --- Layout --- */
