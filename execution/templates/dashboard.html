@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=46">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=47">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -249,7 +249,7 @@
         const defaultLat = parseFloat('{{ default_lat }}') || 41.9;
         const defaultLon = parseFloat('{{ default_lon }}') || 12.5;
         const mapEnabled = {{ is_authenticated|tojson }};
-        const DEFAULT_MAP_ZOOM = 8;
+        const DEFAULT_MAP_ZOOM = 7;
         const GPS_BUTTON_ZOOM = 15;
         
         let searchLat = defaultLat;
