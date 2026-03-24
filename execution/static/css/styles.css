@@ -1170,6 +1170,10 @@ body.admin-page {
 }
 
 .public-open-events-eyebrow {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    text-align: center;
     font-size: 0.96rem;
     letter-spacing: 0.09em;
     padding: 12px 20px;
