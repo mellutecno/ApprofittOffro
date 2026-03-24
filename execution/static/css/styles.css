@@ -2962,18 +2962,21 @@ body.modal-open {
     }
 
     .member-map-toggle {
-        width: auto;
-        min-width: min(290px, calc(100vw - 32px));
-        max-width: min(320px, calc(100vw - 32px));
-        padding: 12px 16px;
-        border-radius: 20px;
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        padding: 8px 18px;
+        border-radius: 100px;
         align-items: center;
+        justify-content: center;
         text-align: center;
         gap: 2px;
     }
 
     .member-map-toggle #map-toggle-label {
-        font-size: 1rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
     }
 
     .member-map-toggle #map-toggle-hint {
