@@ -948,11 +948,11 @@ body.admin-page {
 }
 
 .public-hero-title {
-    font-size: clamp(2.4rem, 5vw, 4.2rem);
-    line-height: 0.98;
-    letter-spacing: -0.05em;
+    font-size: clamp(2rem, 4.3vw, 3.45rem);
+    line-height: 1.02;
+    letter-spacing: -0.04em;
     max-width: 12ch;
-    margin: 18px 0 18px;
+    margin: 16px 0 16px;
 }
 
 .public-hero-text,

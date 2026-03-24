@@ -1,4 +1,4 @@
-const CACHE_NAME = 'approfittoffro-v63';
+const CACHE_NAME = 'approfittoffro-v64';
 const ASSETS = [
     '/',
     '/dashboard',
