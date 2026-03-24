@@ -2063,6 +2063,8 @@ body.admin-page {
     gap: 20px;
     position: relative;
     overflow: hidden;
+    isolation: isolate;
+    color: var(--text-main);
 }
 
 .offer-card::before {
@@ -2074,6 +2076,7 @@ body.admin-page {
         linear-gradient(155deg, rgba(255, 255, 255, 0.74), transparent 28%),
         linear-gradient(330deg, rgba(255, 236, 219, 0.18), transparent 36%);
     pointer-events: none;
+    z-index: 0;
 }
 
 .offer-card::after {
@@ -2087,6 +2090,12 @@ body.admin-page {
     background: linear-gradient(90deg, #D86A3E, #F4B889 54%, transparent 88%);
     opacity: 0.82;
     transition: transform 0.3s ease, opacity 0.3s ease;
+    z-index: 0;
+}
+
+.offer-card > * {
+    position: relative;
+    z-index: 1;
 }
 
 .offer-card:hover {
@@ -2251,6 +2260,19 @@ body.admin-page {
     gap: 10px;
     flex-wrap: wrap;
     justify-content: flex-end;
+}
+
+.offer-card-footer [data-offer-actions] .btn-outline {
+    color: #734126 !important;
+    background: rgba(255, 255, 255, 0.92) !important;
+    border-color: rgba(139, 88, 53, 0.18) !important;
+}
+
+.offer-card-footer [data-offer-actions] .btn-primary,
+.offer-card-footer [data-offer-actions] .btn-success,
+.offer-card-footer [data-offer-actions] .btn-warning,
+.offer-card-footer [data-offer-actions] .btn-danger {
+    color: #fff !important;
 }
 
 .spots-bar {
@@ -2677,16 +2699,21 @@ body.modal-open {
     }
 
     .public-discovery .offer-card-body .address a,
-    .public-discovery .offer-card-footer .btn-outline,
     .public-discovery .offer-card-footer .btn-primary,
     .public-discovery .offer-card-footer .btn-warning,
     .public-discovery .offer-card-footer .btn-danger,
     .public-offer-card .offer-card-body .address a,
-    .public-offer-card .offer-card-footer .btn-outline,
     .public-offer-card .offer-card-footer .btn-primary,
     .public-offer-card .offer-card-footer .btn-warning,
     .public-offer-card .offer-card-footer .btn-danger {
         color: #fff !important;
+    }
+
+    .public-discovery .offer-card-footer .btn-outline,
+    .public-offer-card .offer-card-footer .btn-outline {
+        color: #734126 !important;
+        background: rgba(255, 255, 255, 0.96) !important;
+        border-color: rgba(139, 88, 53, 0.18) !important;
     }
 
     .public-discovery .offer-card-footer,
@@ -2788,11 +2815,16 @@ body.modal-open {
     }
 
     .member-discovery .offer-card-body .address a,
-    .member-discovery .offer-card-footer .btn-outline,
     .member-discovery .offer-card-footer .btn-primary,
     .member-discovery .offer-card-footer .btn-warning,
     .member-discovery .offer-card-footer .btn-danger {
         color: #fff !important;
+    }
+
+    .member-discovery .offer-card-footer .btn-outline {
+        color: #734126 !important;
+        background: rgba(255, 255, 255, 0.96) !important;
+        border-color: rgba(139, 88, 53, 0.18) !important;
     }
 
     .member-discovery .offer-card-footer {
