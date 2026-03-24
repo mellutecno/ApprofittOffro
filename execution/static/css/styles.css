@@ -2198,10 +2198,10 @@ body.admin-page {
     /* Riduce dimensioni navbar su mobile e la abbassa sotto il titolo */
     .navbar {
         left: auto;
-        right: 12px;
+        right: 8px;
         width: auto;
         padding: 0;
-        top: 8px;
+        top: 4px;
         gap: 10px;
     }
 
@@ -2285,9 +2285,9 @@ body.admin-page {
     }
 
     .toast-menu-trigger {
-        min-width: 62px;
-        min-height: 46px;
-        padding: 10px 16px;
+        min-width: 56px;
+        min-height: 42px;
+        padding: 8px 12px;
         font-size: 0.88rem;
     }
 
@@ -2299,8 +2299,8 @@ body.admin-page {
     .public-discovery .page-top-title,
     .member-discovery .page-top-title,
     .offer-editor-page .page-top-title {
-        min-height: 46px;
-        padding: 6px 16px 2px;
+        min-height: 54px;
+        padding: 8px 84px 4px 16px;
         background: rgba(248, 240, 231, 0.96);
         box-shadow: 0 10px 22px rgba(56, 33, 22, 0.08);
     }
