@@ -942,6 +942,7 @@ body.admin-page {
 .member-map-shell {
     display: grid;
     gap: 16px;
+    width: 100%;
 }
 
 .member-map-panel[hidden] {
@@ -1001,6 +1002,8 @@ body.admin-page {
     box-shadow:
         0 30px 62px rgba(56, 31, 18, 0.12),
         0 10px 24px rgba(192, 116, 69, 0.08);
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .member-map-canvas {
@@ -2920,6 +2923,7 @@ body.modal-open {
         justify-items: center;
         gap: 12px;
         margin-bottom: 40px !important;
+        width: 100%;
     }
 
     .member-map-toggle {
@@ -2944,6 +2948,7 @@ body.modal-open {
     .member-discovery .member-map-section {
         padding: 18px !important;
         border-radius: 24px;
+        width: 100%;
     }
 
     .member-map-canvas {
