@@ -2584,6 +2584,97 @@ body.modal-open {
         grid-template-columns: 1fr !important;
     }
 
+    .public-discovery .offer-card,
+    .public-offer-card {
+        background:
+            radial-gradient(circle at top left, rgba(255, 218, 190, 0.54), transparent 30%),
+            linear-gradient(180deg, rgba(255, 252, 247, 0.99) 0%, rgba(247, 236, 223, 0.99) 100%);
+        border-color: rgba(133, 82, 49, 0.16);
+        box-shadow:
+            0 22px 44px rgba(55, 29, 16, 0.14),
+            0 8px 18px rgba(202, 121, 72, 0.1);
+    }
+
+    .public-discovery .offer-card::before,
+    .public-offer-card::before {
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(250, 240, 229, 0.99) 100%);
+    }
+
+    .public-discovery .offer-card-header,
+    .public-discovery .offer-card-body .address,
+    .public-discovery .offer-card-body .datetime-info,
+    .public-discovery .offer-card-body .description,
+    .public-discovery .spots-indicator,
+    .public-offer-card .offer-card-header,
+    .public-offer-card .offer-card-body .address,
+    .public-offer-card .offer-card-body .datetime-info,
+    .public-offer-card .offer-card-body .description,
+    .public-offer-card .spots-indicator {
+        background: rgba(255, 255, 255, 0.92) !important;
+        border-color: rgba(143, 93, 58, 0.14) !important;
+        color: #4d2f1f !important;
+    }
+
+    .public-discovery .offer-card-header .info .name,
+    .public-discovery .offer-card-body h4,
+    .public-discovery .spots-indicator span,
+    .public-offer-card .offer-card-header .info .name,
+    .public-offer-card .offer-card-body h4,
+    .public-offer-card .spots-indicator span {
+        color: #2f1b12 !important;
+    }
+
+    .public-discovery .offer-card-header .info .meta,
+    .public-discovery .offer-card-body .address,
+    .public-discovery .offer-card-body .description,
+    .public-offer-card .offer-card-header .info .meta,
+    .public-offer-card .offer-card-body .address,
+    .public-offer-card .offer-card-body .description {
+        color: #6a4330 !important;
+    }
+
+    .public-discovery .offer-card-body .datetime-info,
+    .public-offer-card .offer-card-body .datetime-info {
+        color: #4b2d1d !important;
+        font-weight: 800;
+    }
+
+    .public-discovery .offer-card-body .address a,
+    .public-discovery .offer-card-footer .btn-outline,
+    .public-discovery .offer-card-footer .btn-primary,
+    .public-discovery .offer-card-footer .btn-warning,
+    .public-discovery .offer-card-footer .btn-danger,
+    .public-offer-card .offer-card-body .address a,
+    .public-offer-card .offer-card-footer .btn-outline,
+    .public-offer-card .offer-card-footer .btn-primary,
+    .public-offer-card .offer-card-footer .btn-warning,
+    .public-offer-card .offer-card-footer .btn-danger {
+        color: #fff !important;
+    }
+
+    .public-discovery .offer-card-footer,
+    .public-offer-card .offer-card-footer {
+        gap: 12px;
+    }
+
+    .public-discovery .offer-card-footer [data-offer-actions],
+    .public-offer-card .offer-card-footer [data-offer-actions] {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .public-discovery .offer-card-footer [data-offer-actions] .btn,
+    .public-offer-card .offer-card-footer [data-offer-actions] .btn {
+        flex: 1 1 100%;
+        justify-content: center;
+    }
+
+    .public-discovery .spots-indicator,
+    .public-offer-card .spots-indicator {
+        width: 100%;
+    }
+
     .member-discovery .member-dashboard-header h1 {
         font-size: clamp(2rem, 10vw, 3rem);
     }
