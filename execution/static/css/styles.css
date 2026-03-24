@@ -2587,6 +2587,104 @@ body.modal-open {
     .member-discovery .member-dashboard-header h1 {
         font-size: clamp(2rem, 10vw, 3rem);
     }
+
+    .member-map-shell {
+        justify-items: center;
+        gap: 12px;
+        margin-bottom: 40px !important;
+    }
+
+    .member-map-toggle {
+        width: auto;
+        min-width: min(290px, calc(100vw - 32px));
+        max-width: min(320px, calc(100vw - 32px));
+        padding: 12px 16px;
+        border-radius: 20px;
+        align-items: center;
+        text-align: center;
+        gap: 2px;
+    }
+
+    .member-map-toggle #map-toggle-label {
+        font-size: 0.92rem;
+    }
+
+    .member-map-toggle #map-toggle-hint {
+        display: none;
+    }
+
+    .member-discovery .member-map-section {
+        padding: 18px !important;
+        border-radius: 24px;
+    }
+
+    .member-discovery .offer-card {
+        background:
+            radial-gradient(circle at top left, rgba(255, 214, 181, 0.52), transparent 28%),
+            linear-gradient(180deg, rgba(255, 252, 247, 0.99) 0%, rgba(247, 236, 223, 0.99) 100%);
+        border-color: rgba(133, 82, 49, 0.16);
+        box-shadow:
+            0 22px 44px rgba(55, 29, 16, 0.14),
+            0 8px 18px rgba(202, 121, 72, 0.1);
+    }
+
+    .member-discovery .offer-card::before {
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(250, 240, 229, 0.98) 100%);
+    }
+
+    .member-discovery .offer-card-header,
+    .member-discovery .offer-card-body .address,
+    .member-discovery .offer-card-body .datetime-info,
+    .member-discovery .offer-card-body .description,
+    .member-discovery .spots-indicator {
+        background: rgba(255, 255, 255, 0.9) !important;
+        border-color: rgba(143, 93, 58, 0.14) !important;
+        color: #4d2f1f !important;
+    }
+
+    .member-discovery .offer-card-header .info .name,
+    .member-discovery .offer-card-body h4,
+    .member-discovery .spots-indicator span {
+        color: #2f1b12 !important;
+    }
+
+    .member-discovery .offer-card-header .info .meta,
+    .member-discovery .offer-card-body .address,
+    .member-discovery .offer-card-body .description {
+        color: #6a4330 !important;
+    }
+
+    .member-discovery .offer-card-body .datetime-info {
+        color: #4b2d1d !important;
+        font-weight: 800;
+    }
+
+    .member-discovery .offer-card-body .address a,
+    .member-discovery .offer-card-footer .btn-outline,
+    .member-discovery .offer-card-footer .btn-primary,
+    .member-discovery .offer-card-footer .btn-warning,
+    .member-discovery .offer-card-footer .btn-danger {
+        color: #fff !important;
+    }
+
+    .member-discovery .offer-card-footer {
+        gap: 12px;
+    }
+
+    .member-discovery .offer-card-footer [data-offer-actions] {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .member-discovery .offer-card-footer [data-offer-actions] .btn {
+        flex: 1 1 100%;
+        justify-content: center;
+    }
+
+    .member-discovery .spots-indicator {
+        width: 100%;
+    }
 }
 
 .text-center { text-align: center; }
