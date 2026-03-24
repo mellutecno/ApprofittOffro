@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Area amministrazione ApprofittOffro.">
     <title>Admin - ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=29">
+    <link rel="stylesheet" href="/static/css/styles.css?v=53">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -135,10 +135,12 @@
                 <article class="offer-card">
                     <div class="offer-card-body">
                         <span class="offer-type-badge badge-{{ offer.tipo_pasto }}">{{ offer.tipo_pasto|upper }}</span>
+                        <div class="datetime-info offer-priority-datetime offer-priority-datetime-{{ offer.tipo_pasto }}" style="margin-top:10px; margin-bottom:16px;">
+                            <span>🗓️ {{ offer.data_ora.strftime('%d/%m/%Y %H:%M') }}</span>
+                        </div>
                         <h3 class="mt-1">{{ offer.nome_locale }}</h3>
                         <div class="address">👤 {{ offer.autore.nome }} • {{ offer.autore.email }}</div>
                         <div class="address">📍 {{ offer.indirizzo }}</div>
-                        <div class="datetime-info">🗓️ {{ offer.data_ora.strftime('%d/%m/%Y %H:%M') }}</div>
                         {% if offer.descrizione %}
                         <div class="description">{{ offer.descrizione }}</div>
                         {% endif %}
@@ -180,14 +182,16 @@
                     <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
                         <div>
                             <span class="offer-type-badge badge-{{ offer.tipo_pasto }}">{{ offer.tipo_pasto|upper }}</span>
-                            <h3 style="margin-top:10px; margin-bottom:8px;">{{ offer.nome_locale }}</h3>
+                            <div class="datetime-info offer-priority-datetime offer-priority-datetime-{{ offer.tipo_pasto }}" style="margin-top:10px; margin-bottom:16px;">
+                                <span>🗓️ {{ offer.data_ora.strftime('%d/%m/%Y %H:%M') }}</span>
+                            </div>
+                            <h3 style="margin-top:0; margin-bottom:8px;">{{ offer.nome_locale }}</h3>
                         </div>
                         <span class="pill-badge" style="background:rgba(255,255,255,0.08); color:var(--text-muted);">{{ offer.stato }}</span>
                     </div>
                     <div style="color:var(--text-muted); line-height:1.55;">
                         <div>👤 {{ offer.autore.nome }} • {{ offer.autore.email }}</div>
                         <div>📍 {{ offer.indirizzo }}</div>
-                        <div>🗓️ {{ offer.data_ora.strftime('%d/%m/%Y %H:%M') }}</div>
                         <div>👥 {{ offer.posti_totali - offer.posti_disponibili }} partecipanti registrati</div>
                     </div>
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
