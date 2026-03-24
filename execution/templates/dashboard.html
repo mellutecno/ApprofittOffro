@@ -209,7 +209,7 @@
                 </div>
             </div>
             <!-- Legenda categorie (appare quando i locali sono attivi) -->
-            <div id="venues-legend" style="display:none; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; font-size: 0.82rem; font-weight: 800; color: var(--text-muted);">
+            <div id="venues-legend" hidden style="display:none !important; height:0; margin:0 !important; padding:0 !important; overflow:hidden; font-size: 0.82rem; font-weight: 800; color: var(--text-muted);">
                 <span>🍽️ Ristorante</span>
                 <span>☕ Bar/Cafè</span>
                 <span>🍕 Pizzeria</span>
@@ -621,13 +621,13 @@
                 btn.style.background = 'var(--primary)';
                 btn.style.color = 'white';
                 btn.style.border = '2px solid var(--primary)';
-                legend.style.display = 'flex';
+                if (legend) legend.style.display = 'none';
                 loadVenues();
             } else {
                 btn.style.background = 'var(--bg-body)';
                 btn.style.color = 'var(--text-muted)';
                 btn.style.border = '2px solid var(--border)';
-                legend.style.display = 'none';
+                if (legend) legend.style.display = 'none';
                 clearVenueMarkers();
             }
         }
