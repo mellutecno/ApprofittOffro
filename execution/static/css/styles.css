@@ -488,6 +488,14 @@ textarea.form-control {
     filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.28));
 }
 
+.page-top-title .topmark-desktop {
+    display: none;
+}
+
+.page-top-title .topmark-mobile {
+    display: block;
+}
+
 .public-discovery .page-top-title {
     display: flex;
     align-items: center;
@@ -497,6 +505,20 @@ textarea.form-control {
 }
 
 .public-discovery .page-top-title img {
+    width: min(360px, calc(100vw - 72px));
+    max-height: 58px;
+}
+
+.public-discovery .page-top-title .topmark-mobile,
+.member-discovery .page-top-title .topmark-mobile,
+.offer-editor-page .page-top-title .topmark-mobile {
+    display: none;
+}
+
+.public-discovery .page-top-title .topmark-desktop,
+.member-discovery .page-top-title .topmark-desktop,
+.offer-editor-page .page-top-title .topmark-desktop {
+    display: block;
     width: min(360px, calc(100vw - 72px));
     max-height: 58px;
 }
@@ -2345,6 +2367,14 @@ body.admin-page {
     .offer-editor-page .page-top-title {
         min-height: 46px;
         padding: 6px 16px 2px;
+    }
+
+    .page-top-title .topmark-desktop {
+        display: none;
+    }
+
+    .page-top-title .topmark-mobile {
+        display: block;
     }
 }
 

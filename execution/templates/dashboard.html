@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=58">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=59">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -20,7 +20,8 @@
 <body class="{{ 'public-discovery' if not is_authenticated else 'member-discovery' }}">
     <!-- Titolo che sparisce con lo scroll -->
     <div class="page-top-title" id="page-top-title" aria-label="ApprofittOffro">
-        <img src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
+        <img class="topmark-mobile" src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
+        <img class="topmark-desktop" src="{{ url_for('static', filename='img/WhatsApp_Image_2026-03-22_at_21.54.07-removebg-preview.png') }}" alt="ApprofittOffro">
     </div>
 
     <nav class="navbar {% if not is_authenticated %}guest-toast-navbar{% else %}toast-navbar{% endif %}">
