@@ -309,7 +309,6 @@
         }
 
         function getParticipantsLabel(offer) {
-            if (isAuthenticated) return `${offer.posti_disponibili}/${offer.posti_totali}`;
             if (offer.posti_disponibili <= 0) return 'Posti esauriti';
             return offer.posti_disponibili === 1 ? 'Ancora un posto' : `Ancora ${offer.posti_disponibili} posti`;
         }
