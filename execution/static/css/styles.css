@@ -862,6 +862,20 @@ body.admin-page {
         inset 0 1px 0 rgba(255, 255, 255, 0.56);
 }
 
+.member-meal-filters-wrap {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+}
+
+.member-meal-filters-label {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #8a624a;
+}
+
 .member-discovery .filter-chip {
     color: #6e4b37;
     background: transparent !important;
@@ -968,9 +982,9 @@ body.admin-page {
 }
 
 .member-map-toggle #map-toggle-label {
-    font-size: 1.02rem;
+    font-size: 1.12rem;
     font-weight: 900;
-    color: #9a512d;
+    color: #1f140d;
 }
 
 .member-map-toggle #map-toggle-hint {
@@ -2914,7 +2928,7 @@ body.modal-open {
     }
 
     .member-map-toggle #map-toggle-label {
-        font-size: 0.92rem;
+        font-size: 1rem;
     }
 
     .member-map-toggle #map-toggle-hint {
