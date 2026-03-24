@@ -1169,6 +1169,12 @@ body.admin-page {
     box-shadow: 0 14px 26px rgba(81, 48, 29, 0.08);
 }
 
+.public-open-events-eyebrow {
+    font-size: 0.96rem;
+    letter-spacing: 0.09em;
+    padding: 12px 20px;
+}
+
 .public-hero-shell {
     display: grid;
     grid-template-columns: minmax(360px, 1.06fr) minmax(0, 0.94fr);
