@@ -302,7 +302,7 @@
             return `
                 <div style="margin-top: 6px;">
                     <a href="https://www.google.com/maps/dir/?api=1&destination=${offer.lat},${offer.lon}" target="_blank" style="display:inline-flex; align-items:center; gap:4px; font-weight:800; font-size:0.8rem; color:white; background:var(--primary); padding:4px 12px; border-radius:100px; text-decoration:none; transition:opacity 0.2s;">
-                        🧭 Apri nel navigatore
+                        🧭 Portami qui
                     </a>
                 </div>
             `;
@@ -921,7 +921,7 @@
                                 📍 ${offer.indirizzo} <span style="color:var(--primary); margin-left:4px;">(a ${offer.distance_km} km)</span>
                                 ${shouldShowNavigatorLink() ? `<div style="margin-top: 6px;">
                                     <a href="https://www.google.com/maps/dir/?api=1&destination=${offer.lat},${offer.lon}" target="_blank" style="display:inline-flex; align-items:center; gap:4px; font-weight:800; font-size:0.8rem; color:white; background:var(--primary); padding:4px 12px; border-radius:100px; text-decoration:none; transition:opacity 0.2s;">
-                                        🧭 Apri nel navigatore
+                                        🧭 Portami qui
                                     </a>
                                 </div>` : ''}
                             </div>
