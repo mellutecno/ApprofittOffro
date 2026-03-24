@@ -560,19 +560,19 @@ textarea.form-control {
 
 .navbar-brand .logo-icon,
 .navbar-brand div.logo-icon {
-    width: 42px;
-    height: 42px;
-    background: url('/static/img/icon-512.png') center/cover no-repeat;
-    border-radius: 14px;
+    width: 46px;
+    height: 32px;
+    background: url('/static/img/hero-brunch.jpg') center 52%/cover no-repeat;
+    border-radius: 999px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 0;
     color: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.56);
     box-shadow:
-        0 10px 20px rgba(0, 0, 0, 0.22),
-        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+        0 10px 20px rgba(67, 38, 22, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.24);
     flex-shrink: 0;
     position: relative;
     overflow: hidden;
