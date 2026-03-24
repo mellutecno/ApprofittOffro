@@ -1003,6 +1003,12 @@ body.admin-page {
         0 10px 24px rgba(192, 116, 69, 0.08);
 }
 
+.member-map-canvas {
+    width: 100%;
+    height: 420px;
+    min-height: 420px;
+}
+
 .member-discovery .member-map-section #venues-legend,
 .member-discovery .member-map-section span,
 .member-discovery .member-map-section p {
@@ -2938,6 +2944,11 @@ body.modal-open {
     .member-discovery .member-map-section {
         padding: 18px !important;
         border-radius: 24px;
+    }
+
+    .member-map-canvas {
+        height: min(56vh, 460px);
+        min-height: 380px;
     }
 
     .member-discovery .offer-card {
