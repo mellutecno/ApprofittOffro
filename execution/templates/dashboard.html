@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=43">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=44">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -33,7 +33,7 @@
             {% if current_user.is_admin %}
             <a href="/admin" class="btn btn-outline btn-sm">Admin</a>
             {% endif %}
-            <a href="{{ '/new-offer' if can_participate else '/profile' }}" class="btn btn-primary btn-sm">{{ 'Offri' if can_participate else 'Completa Profilo' }}</a>
+            <a href="{{ '/new-offer' if can_participate else '/profile' }}" class="btn btn-outline btn-sm">{{ 'Offri' if can_participate else 'Completa Profilo' }}</a>
             <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
             <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
             {% else %}
@@ -894,7 +894,7 @@
                             ${iconEmoji} ${offer.tipo_pasto.toUpperCase()}
                         </div>
 
-                        <div class="datetime-info offer-priority-datetime"
+                        <div class="datetime-info offer-priority-datetime offer-priority-datetime-${offer.tipo_pasto}"
                              onclick="${(offer.already_claimed || offer.is_own) ? `event.stopPropagation(); downloadIcs(${JSON.stringify(offer).replace(/"/g, '&quot;')})` : ''}"
                              style="${(offer.already_claimed || offer.is_own) ? 'cursor: pointer; border: 1px solid var(--success);' : ''}">
                             <span>🕒 ${formatDate(offer.data_ora)}</span>

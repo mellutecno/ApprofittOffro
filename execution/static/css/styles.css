@@ -955,7 +955,7 @@ body.admin-page {
     align-items: flex-start;
     gap: 6px;
     width: 100%;
-    padding: 18px 22px;
+    padding: 20px 22px;
     border-radius: 28px;
     border: 1px solid rgba(122, 77, 48, 0.14);
     background:
@@ -2415,6 +2415,36 @@ body.admin-page {
         inset 0 1px 0 rgba(255, 255, 255, 0.62);
 }
 
+.offer-priority-datetime-colazione {
+    color: #7a4d00 !important;
+    background: linear-gradient(135deg, rgba(255, 224, 170, 0.96), rgba(255, 202, 120, 0.92));
+    border-color: rgba(188, 130, 36, 0.28);
+}
+
+.offer-priority-datetime-pranzo {
+    color: #285d35 !important;
+    background: linear-gradient(135deg, rgba(203, 234, 209, 0.96), rgba(145, 201, 157, 0.9));
+    border-color: rgba(73, 133, 88, 0.24);
+}
+
+.offer-priority-datetime-cena {
+    color: #523c7f !important;
+    background: linear-gradient(135deg, rgba(228, 217, 248, 0.96), rgba(190, 167, 231, 0.92));
+    border-color: rgba(112, 86, 167, 0.24);
+}
+
+.offer-priority-datetime-colazione .offer-priority-datetime-action {
+    color: #7a4d00;
+}
+
+.offer-priority-datetime-pranzo .offer-priority-datetime-action {
+    color: #285d35;
+}
+
+.offer-priority-datetime-cena .offer-priority-datetime-action {
+    color: #523c7f;
+}
+
 .offer-priority-datetime > span:first-child {
     flex: 1;
 }
@@ -2965,7 +2995,7 @@ body.modal-open {
         width: 100%;
         min-width: 0;
         max-width: none;
-        padding: 10px 24px;
+        padding: 14px 24px;
         border-radius: 100px;
         align-items: center;
         justify-content: center;
