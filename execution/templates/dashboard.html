@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=35">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=36">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -418,17 +418,20 @@
             if (!mapEnabled || !map) return;
 
             if (!userLocationMarker) {
-                userLocationMarker = L.circleMarker([lat, lon], {
-                    radius: 8,
-                    color: '#FFFFFF',
-                    weight: 3,
-                    fillColor: '#2563EB',
-                    fillOpacity: 1,
-                    opacity: 1
+                userLocationMarker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        className: 'user-location-pin-wrapper',
+                        html: '<div class="user-location-pin"></div>',
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 24],
+                        tooltipAnchor: [0, -24]
+                    }),
+                    keyboard: false,
+                    zIndexOffset: 1200
                 }).addTo(map);
                 userLocationMarker.bindTooltip('La tua posizione', {
                     direction: 'top',
-                    offset: [0, -10],
+                    offset: [0, -18],
                     opacity: 0.95
                 });
             } else {
@@ -530,7 +533,7 @@
                 window.setTimeout(() => {
                     if (map) {
                         map.invalidateSize();
-                        if (userLocationMarker) userLocationMarker.bringToFront();
+                        if (userLocationMarker?.setZIndexOffset) userLocationMarker.setZIndexOffset(1200);
                     }
                 }, 180);
             });
