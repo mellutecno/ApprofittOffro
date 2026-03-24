@@ -1204,10 +1204,10 @@ body.admin-page {
 }
 
 .public-hero-title {
-    font-size: clamp(1.88rem, 4vw, 3.2rem);
-    line-height: 1.02;
+    font-size: clamp(1.6rem, 4vw, 2.2rem);
+    line-height: 1.12;
     letter-spacing: -0.04em;
-    max-width: 12ch;
+    max-width: 16ch;
     margin: 16px 0 16px;
 }
 
