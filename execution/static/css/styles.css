@@ -1821,6 +1821,10 @@ body.admin-page {
     padding: 10px 2px;
 }
 
+.login-page .auth-card h2 {
+    margin-bottom: 18px;
+}
+
 .login-page .auth-card h2,
 .login-page .auth-card p,
 .login-page .form-group label,
