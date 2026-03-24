@@ -1447,6 +1447,39 @@ def api_admin_delete_user(user_id):
     remove_user_with_cleanup(user, motivazione, current_user)
     return jsonify({"success": True, "message": "Account eliminato e utente avvisato via email."})
 
+
+@app.route("/api/admin/users/<int:user_id>/message", methods=["POST"])
+@admin_required
+def api_admin_message_user(user_id):
+    """Invia una comunicazione libera da parte dell'amministratore a un utente."""
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"success": False, "error": "Utente non trovato."}), 404
+
+    data = request.get_json(silent=True) or {}
+    subject = str(data.get("subject", "")).strip()
+    message = str(data.get("message", "")).strip()
+
+    errors = []
+    if len(subject) < 4:
+        errors.append("Inserisci un oggetto più chiaro per la comunicazione.")
+    if len(message) < 10:
+        errors.append("Scrivi un messaggio più dettagliato da inviare all'utente.")
+
+    if errors:
+        return jsonify({"success": False, "errors": errors}), 400
+
+    send_email(
+        subject,
+        [user.email],
+        "admin_message.html",
+        user=user,
+        admin_user=current_user,
+        subject_line=subject,
+        message_body=message,
+    )
+    return jsonify({"success": True, "message": "Comunicazione inviata con successo."})
+
 @app.route("/api/user/update", methods=["POST"])
 @login_required
 def api_user_update():

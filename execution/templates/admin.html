@@ -113,6 +113,7 @@
                     </div>
 
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button type="button" class="btn btn-outline btn-sm" onclick='openMessageUserModal({{ user.id }}, {{ user.nome|tojson }}, {{ user.email|tojson }})'>Invia comunicazione</button>
                         {% if user.id != current_user.id %}
                         <button type="button" class="btn btn-outline btn-sm" style="color:var(--error); border-color:rgba(244,63,94,0.5);" onclick='openDeleteUserModal({{ user.id }}, {{ user.nome|tojson }}, {{ user.email|tojson }})'>Elimina account</button>
                         {% else %}
@@ -208,17 +209,17 @@
 
     <div id="admin-user-modal" class="offer-error-modal" aria-hidden="true">
         <div class="offer-error-backdrop" onclick="closeDeleteUserModal()"></div>
-        <div class="offer-error-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-user-title">
+        <div class="offer-error-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-user-title" style="background:linear-gradient(180deg, #FFF7ED 0%, #FFEBD6 100%); border:1px solid rgba(146, 64, 14, 0.28); color:#3B1F10;">
             <button type="button" class="offer-error-close" onclick="closeDeleteUserModal()" aria-label="Chiudi avviso">×</button>
             <div class="offer-error-badge">Moderazione account</div>
             <h3 id="admin-user-title">Elimina account</h3>
-            <p id="admin-user-copy" style="color:var(--text-muted); line-height:1.6;"></p>
+            <p id="admin-user-copy" style="color:#5B3721; line-height:1.6;"></p>
             <div class="form-group" style="text-align:left;">
-                <label for="admin-user-reason">Motivazione da inviare via email</label>
-                <textarea id="admin-user-reason" class="form-control" rows="4" placeholder="Spiega con chiarezza perché il profilo è stato rimosso."></textarea>
+                <label for="admin-user-reason" style="color:#3B2415; font-weight:800;">Motivazione da inviare via email</label>
+                <textarea id="admin-user-reason" class="form-control" rows="4" placeholder="Spiega con chiarezza perché il profilo è stato rimosso." style="background:#FFFDF9; color:#2E160A; border:1px solid rgba(120,54,16,0.22);"></textarea>
             </div>
             <div style="display:flex; gap:10px;">
-                <button type="button" class="btn btn-ghost btn-block" onclick="closeDeleteUserModal()">Annulla</button>
+                <button type="button" class="btn btn-outline btn-block" style="color:#4B2511; border-color:rgba(120,54,16,0.25);" onclick="closeDeleteUserModal()">Annulla</button>
                 <button type="button" class="btn btn-accent btn-block" onclick="submitDeleteUser()">Elimina account</button>
             </div>
         </div>
@@ -226,18 +227,40 @@
 
     <div id="admin-offer-modal" class="offer-error-modal" aria-hidden="true">
         <div class="offer-error-backdrop" onclick="closeDeleteOfferModal()"></div>
-        <div class="offer-error-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-offer-title">
+        <div class="offer-error-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-offer-title" style="background:linear-gradient(180deg, #FFF7ED 0%, #FFEBD6 100%); border:1px solid rgba(146, 64, 14, 0.28); color:#3B1F10;">
             <button type="button" class="offer-error-close" onclick="closeDeleteOfferModal()" aria-label="Chiudi avviso">×</button>
             <div class="offer-error-badge">Moderazione evento</div>
             <h3 id="admin-offer-title">Elimina evento</h3>
-            <p id="admin-offer-copy" style="color:var(--text-muted); line-height:1.6;"></p>
+            <p id="admin-offer-copy" style="color:#5B3721; line-height:1.6;"></p>
             <div class="form-group" style="text-align:left;">
-                <label for="admin-offer-reason">Motivazione da inviare</label>
-                <textarea id="admin-offer-reason" class="form-control" rows="4" placeholder="Spiega perché l'evento viene rimosso."></textarea>
+                <label for="admin-offer-reason" style="color:#3B2415; font-weight:800;">Motivazione da inviare</label>
+                <textarea id="admin-offer-reason" class="form-control" rows="4" placeholder="Spiega perché l'evento viene rimosso." style="background:#FFFDF9; color:#2E160A; border:1px solid rgba(120,54,16,0.22);"></textarea>
             </div>
             <div style="display:flex; gap:10px;">
-                <button type="button" class="btn btn-ghost btn-block" onclick="closeDeleteOfferModal()">Annulla</button>
+                <button type="button" class="btn btn-outline btn-block" style="color:#4B2511; border-color:rgba(120,54,16,0.25);" onclick="closeDeleteOfferModal()">Annulla</button>
                 <button type="button" class="btn btn-accent btn-block" onclick="submitDeleteOffer()">Elimina evento</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-message-modal" class="offer-error-modal" aria-hidden="true">
+        <div class="offer-error-backdrop" onclick="closeMessageUserModal()"></div>
+        <div class="offer-error-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-message-title" style="background:linear-gradient(180deg, #FFF7ED 0%, #FFEBD6 100%); border:1px solid rgba(146, 64, 14, 0.28); color:#3B1F10;">
+            <button type="button" class="offer-error-close" onclick="closeMessageUserModal()" aria-label="Chiudi avviso">×</button>
+            <div class="offer-error-badge">Comunicazione admin</div>
+            <h3 id="admin-message-title">Invia email all'utente</h3>
+            <p id="admin-message-copy" style="color:#5B3721; line-height:1.6;"></p>
+            <div class="form-group" style="text-align:left;">
+                <label for="admin-message-subject" style="color:#3B2415; font-weight:800;">Oggetto</label>
+                <input id="admin-message-subject" class="form-control" type="text" placeholder="Oggetto della comunicazione" style="background:#FFFDF9; color:#2E160A; border:1px solid rgba(120,54,16,0.22);">
+            </div>
+            <div class="form-group" style="text-align:left;">
+                <label for="admin-message-body" style="color:#3B2415; font-weight:800;">Messaggio</label>
+                <textarea id="admin-message-body" class="form-control" rows="6" placeholder="Scrivi la comunicazione da inviare all'utente." style="background:#FFFDF9; color:#2E160A; border:1px solid rgba(120,54,16,0.22);"></textarea>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button type="button" class="btn btn-outline btn-block" style="color:#4B2511; border-color:rgba(120,54,16,0.25);" onclick="closeMessageUserModal()">Annulla</button>
+                <button type="button" class="btn btn-accent btn-block" onclick="submitAdminMessage()">Invia comunicazione</button>
             </div>
         </div>
     </div>
@@ -246,6 +269,7 @@
     <script>
         let deleteUserState = { id: null, name: '', email: '' };
         let deleteOfferState = { id: null, name: '', owner: '' };
+        let messageUserState = { id: null, name: '', email: '' };
 
         function openDeleteUserModal(id, name, email) {
             deleteUserState = { id, name, email };
@@ -261,6 +285,51 @@
             const modal = document.getElementById('admin-user-modal');
             modal.classList.remove('is-visible');
             modal.setAttribute('aria-hidden', 'true');
+        }
+
+        function openMessageUserModal(id, name, email) {
+            messageUserState = { id, name, email };
+            document.getElementById('admin-message-copy').textContent = `Stai scrivendo a ${name} (${email}). Il messaggio verrà inviato via email a nome dell'amministrazione.`;
+            document.getElementById('admin-message-subject').value = '';
+            document.getElementById('admin-message-body').value = '';
+            const modal = document.getElementById('admin-message-modal');
+            modal.classList.add('is-visible');
+            modal.setAttribute('aria-hidden', 'false');
+            document.getElementById('admin-message-subject').focus();
+        }
+
+        function closeMessageUserModal() {
+            const modal = document.getElementById('admin-message-modal');
+            modal.classList.remove('is-visible');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        async function submitAdminMessage() {
+            const subject = document.getElementById('admin-message-subject').value.trim();
+            const message = document.getElementById('admin-message-body').value.trim();
+            if (subject.length < 4) {
+                showToast('Inserisci un oggetto più chiaro per la comunicazione.', 'warning');
+                return;
+            }
+            if (message.length < 10) {
+                showToast('Scrivi un messaggio un po’ più dettagliato.', 'warning');
+                return;
+            }
+
+            const res = await fetch(`/api/admin/users/${messageUserState.id}/message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subject, message }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                const errors = data.errors || [data.error || 'Non sono riuscito a inviare la comunicazione.'];
+                showToast(errors[0], 'error');
+                return;
+            }
+
+            showToast(data.message || 'Comunicazione inviata.', 'success');
+            closeMessageUserModal();
         }
 
         async function submitDeleteUser() {
@@ -329,6 +398,7 @@
             if (event.key === 'Escape') {
                 closeDeleteUserModal();
                 closeDeleteOfferModal();
+                closeMessageUserModal();
             }
         });
     </script>
