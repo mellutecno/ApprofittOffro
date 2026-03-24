@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=51">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=52">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -57,7 +57,6 @@
             {% if is_authenticated %}
             <div class="flex-center justify-center">
                 <div class="member-meal-filters-wrap">
-                    <div class="member-meal-filters-label">Seleziona</div>
                     <div class="filter-bar member-meal-filters">
                         <button class="filter-chip" type="button" data-filter="colazione" onclick="setFilter('colazione', this)">Colazioni</button>
                         <button class="filter-chip" type="button" data-filter="pranzo" onclick="setFilter('pranzo', this)">Pranzi</button>

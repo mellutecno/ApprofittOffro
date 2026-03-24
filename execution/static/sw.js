@@ -1,8 +1,8 @@
-const CACHE_NAME = 'approfittoffro-v98';
+const CACHE_NAME = 'approfittoffro-v99';
 const ASSETS = [
     '/',
     '/dashboard',
-    '/static/css/styles.css?v=51',
+    '/static/css/styles.css?v=52',
     '/static/js/app.js',
     '/static/img/approfitto.png?v=2',
     '/static/img/hero.png',
