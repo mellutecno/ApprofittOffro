@@ -2872,25 +2872,33 @@ body.modal-open {
     }
 
     .public-shot-lg {
-        left: 2%;
-        width: 58%;
-        height: 44%;
+        left: 0;
+        top: 3%;
+        width: 48%;
+        height: 34%;
     }
 
     .public-shot-right {
         right: 0;
-        width: 34%;
-        height: 24%;
+        top: 6%;
+        width: 29%;
+        height: 20%;
     }
 
     .public-shot-left {
-        display: none;
+        display: block;
+        left: 8%;
+        bottom: 30%;
+        width: 31%;
+        height: 20%;
     }
 
     .public-shot-wide {
-        left: 17%;
-        width: 58%;
-        height: 22%;
+        right: 6%;
+        bottom: 12%;
+        left: auto;
+        width: 40%;
+        height: 18%;
     }
 
     .public-visual-card-desktop {
