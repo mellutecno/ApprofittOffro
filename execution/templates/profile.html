@@ -176,7 +176,7 @@
                     </span>
                     <h4 class="mt-1">{{ offer.nome_locale }}</h4>
                     <div class="address">📍 {{ offer.indirizzo }}</div>
-                    <div class="datetime-info">📅 {{ offer.data_ora.strftime('%d/%m/%Y %H:%M') }}</div>
+                    <div class="datetime-info">📅 {{ format_offer_datetime_label(offer.data_ora) }}</div>
                     {% if offer.descrizione %}
                     <div class="description">{{ offer.descrizione }}</div>
                     {% endif %}
@@ -278,7 +278,7 @@
                     </span>
                     <h4 class="mt-1">{{ claim.offerta.nome_locale }}</h4>
                     <div class="address">📍 {{ claim.offerta.indirizzo }}</div>
-                    <div class="datetime-info" style="margin-top: 8px; font-weight: 500;">📅 {{ claim.offerta.data_ora.strftime('%d/%m/%Y alle ore %H:%M') }}</div>
+                    <div class="datetime-info" style="margin-top: 8px; font-weight: 500;">📅 {{ format_offer_datetime_label(claim.offerta.data_ora) }}</div>
                 </div>
                 <div class="offer-card-footer" style="flex-direction: column; gap: 8px;">
                     {% set has_reviewed = claim.offerta.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|list %}
@@ -338,7 +338,7 @@
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=2"></script>
     <script>
         function toggleToastNavMenu(forceOpen) {
             const trigger = document.getElementById('toast-nav-trigger');

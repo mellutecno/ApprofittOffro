@@ -62,7 +62,30 @@ async function logout() {
 // ============================================================
 
 function formatDate(isoString) {
-    return new Date(isoString).toLocaleString('it-IT', {
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setDate(todayStart.getDate() + 1);
+    const dayAfterTomorrowStart = new Date(todayStart);
+    dayAfterTomorrowStart.setDate(todayStart.getDate() + 2);
+    const timeLabel = date.toLocaleTimeString('it-IT', {
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+
+    if (date >= now && date >= todayStart && date < tomorrowStart) {
+        return `Oggi alle ${timeLabel}`;
+    }
+    if (date >= now && date >= tomorrowStart && date < dayAfterTomorrowStart) {
+        return `Domani alle ${timeLabel}`;
+    }
+
+    return date.toLocaleString('it-IT', {
         weekday: 'short',
         day: 'numeric',
         month: 'short',

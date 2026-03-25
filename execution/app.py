@@ -117,6 +117,25 @@ def local_now():
     return datetime.now(APP_TIMEZONE).replace(tzinfo=None)
 
 
+def format_offer_datetime_label(data_ora, now=None):
+    """Formatta la data per le card evento, mostrando Oggi/Domani solo per eventi futuri imminenti."""
+    if now is None:
+        now = local_now()
+
+    if data_ora < now:
+        return data_ora.strftime("%d/%m/%Y alle %H:%M")
+
+    today = now.date()
+    event_day = data_ora.date()
+
+    if event_day == today:
+        return f"Oggi alle {data_ora.strftime('%H:%M')}"
+    if event_day == today + timedelta(days=1):
+        return f"Domani alle {data_ora.strftime('%H:%M')}"
+
+    return data_ora.strftime("%d/%m/%Y alle %H:%M")
+
+
 def get_booking_lead_hours_for_meal_type(tipo_pasto):
     """Restituisce l'anticipo minimo richiesto per il tipo di pasto."""
     return BREAKFAST_BOOKING_LEAD_HOURS if tipo_pasto == "colazione" else MEAL_BOOKING_LEAD_HOURS
@@ -666,7 +685,8 @@ def profile_page():
         met_users=met_users_dict.values(),
         rating_info=get_user_rating(current_user.id),
         now=local_now(),
-        completion_threshold=local_now() - timedelta(hours=3)
+        completion_threshold=local_now() - timedelta(hours=3),
+        format_offer_datetime_label=format_offer_datetime_label,
     )
 
 def get_user_rating(user_id):
