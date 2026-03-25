@@ -321,6 +321,74 @@ def notify_nearby_users_for_new_offer(offer):
     return len(nearby_targets)
 
 
+def snapshot_offer_notification_state(offer):
+    """Cattura i campi dell'offerta utili per notificare modifiche ai partecipanti."""
+    return {
+        "tipo_pasto": offer.tipo_pasto,
+        "nome_locale": offer.nome_locale,
+        "indirizzo": offer.indirizzo,
+        "data_ora": offer.data_ora,
+        "posti_totali": offer.posti_totali,
+        "descrizione": (offer.descrizione or "").strip(),
+    }
+
+
+def get_offer_update_changes(previous_state, offer):
+    """Elenca i cambiamenti rilevanti per i partecipanti di un evento."""
+    changes = []
+
+    if previous_state["tipo_pasto"] != offer.tipo_pasto:
+        changes.append(
+            f"Tipo di pasto: {get_meal_type_label(previous_state['tipo_pasto'])} -> {get_meal_type_label(offer.tipo_pasto)}"
+        )
+    if previous_state["nome_locale"] != offer.nome_locale:
+        changes.append(f"Locale: {previous_state['nome_locale']} -> {offer.nome_locale}")
+    if previous_state["indirizzo"] != offer.indirizzo:
+        changes.append(f"Indirizzo: {previous_state['indirizzo']} -> {offer.indirizzo}")
+    if previous_state["data_ora"] != offer.data_ora:
+        changes.append(
+            f"Quando: {previous_state['data_ora'].strftime('%d/%m/%Y alle %H:%M')} -> {offer.data_ora.strftime('%d/%m/%Y alle %H:%M')}"
+        )
+    if previous_state["posti_totali"] != offer.posti_totali:
+        changes.append(f"Posti totali: {previous_state['posti_totali']} -> {offer.posti_totali}")
+    if previous_state["descrizione"] != (offer.descrizione or "").strip():
+        changes.append("Descrizione aggiornata")
+
+    return changes
+
+
+def notify_claimants_for_offer_update(offer, previous_state, actor):
+    """Avvisa i partecipanti quando un'offerta gia' prenotata viene modificata."""
+    changes = get_offer_update_changes(previous_state, offer)
+    if not changes:
+        return 0
+
+    claims = Claim.query.filter_by(offer_id=offer.id).all()
+    if not claims:
+        return 0
+
+    data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    actor_name = actor.nome if actor else offer.autore.nome
+
+    notified = 0
+    for claim in claims:
+        if not claim.utente.email:
+            continue
+        send_email(
+            f"Evento aggiornato: {offer.nome_locale}",
+            [claim.utente.email],
+            "offer_updated.html",
+            user=claim.utente,
+            offer=offer,
+            actor_name=actor_name,
+            data_evento=data_evento,
+            changes=changes,
+        )
+        notified += 1
+
+    return notified
+
+
 def ensure_legacy_sqlite_compatibility(sqlite_path):
     """Aggiunge le colonne legacy mancanti per evitare crash su vecchi DB SQLite."""
     conn = sqlite3.connect(sqlite_path)
@@ -1258,6 +1326,8 @@ def api_edit_offer(offer_id):
     if not can_manage_offer(offer, current_user):
         return jsonify({"success": False, "errors": ["Non autorizzato."]}), 403
 
+    previous_state = snapshot_offer_notification_state(offer)
+
     tipo_pasto = request.form.get("tipo_pasto", "")
     nome_locale = request.form.get("nome_locale", "").strip()
     indirizzo = request.form.get("indirizzo", "").strip()
@@ -1335,6 +1405,7 @@ def api_edit_offer(offer_id):
     offer.descrizione = descrizione
 
     db.session.commit()
+    notify_claimants_for_offer_update(offer, previous_state, current_user)
     return jsonify({"success": True, "message": "Offerta aggiornata con successo!", "offer_id": offer.id})
 
 
