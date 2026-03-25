@@ -106,7 +106,7 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 BREAKFAST_BOOKING_LEAD_HOURS = 1
-MEAL_BOOKING_LEAD_HOURS = 12
+MEAL_BOOKING_LEAD_HOURS = 6
 NEARBY_OFFER_NOTIFICATION_RADIUS_KM = 15
 USER_SESSION_IDLE_TIMEOUT_MINUTES = 60
 ADMIN_SESSION_IDLE_TIMEOUT_MINUTES = 30
@@ -174,7 +174,7 @@ def get_offer_booking_closed_message(offer):
     """Messaggio esplicativo per la chiusura delle prenotazioni."""
     if offer.tipo_pasto == "colazione":
         return "Le colazioni si possono approfittare solo fino a 1 ora prima dell'inizio."
-    return "Pranzi e cene si possono approfittare solo fino a 12 ore prima dell'inizio."
+    return "Pranzi e cene si possono approfittare solo fino a 6 ore prima dell'inizio."
 
 
 def get_offer_publication_too_late_message(tipo_pasto):
@@ -182,8 +182,8 @@ def get_offer_publication_too_late_message(tipo_pasto):
     if tipo_pasto == "colazione":
         return "Questa colazione verrebbe pubblicata troppo tardi: deve essere inserita almeno 1 ora prima dell'inizio."
     if tipo_pasto == "pranzo":
-        return "Questo pranzo verrebbe pubblicato troppo tardi: i pranzi devono essere inseriti almeno 12 ore prima dell'inizio."
-    return "Questa cena verrebbe pubblicata troppo tardi: le cene devono essere inserite almeno 12 ore prima dell'inizio."
+        return "Questo pranzo verrebbe pubblicato troppo tardi: i pranzi devono essere inseriti almeno 6 ore prima dell'inizio."
+    return "Questa cena verrebbe pubblicata troppo tardi: le cene devono essere inserite almeno 6 ore prima dell'inizio."
 
 
 def get_same_day_offer_conflict(user_id, tipo_pasto, data_ora, exclude_offer_id=None):
@@ -296,7 +296,7 @@ def notify_nearby_users_for_new_offer(offer):
     booking_rule_copy = (
         "Le colazioni si possono approfittare fino a 1 ora prima."
         if offer.tipo_pasto == "colazione"
-        else "Pranzi e cene si possono approfittare fino a 12 ore prima."
+        else "Pranzi e cene si possono approfittare fino a 6 ore prima."
     )
     meal_label = get_meal_type_label(offer.tipo_pasto)
     spots_copy = get_spots_copy(offer.posti_disponibili)
