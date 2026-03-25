@@ -1285,9 +1285,14 @@ body.admin-page {
     width: 100%;
     justify-content: center;
     text-align: center;
-    font-size: 1.06rem;
-    letter-spacing: 0.09em;
-    padding: 12px 20px;
+    font-size: clamp(1.22rem, 2.8vw, 1.55rem);
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    color: #c62828;
+    padding: 14px 24px;
+    background: linear-gradient(180deg, rgba(255, 244, 244, 0.96) 0%, rgba(255, 233, 233, 0.96) 100%);
+    border-color: rgba(198, 40, 40, 0.16);
+    box-shadow: 0 14px 30px rgba(198, 40, 40, 0.08);
 }
 
 .public-hero-shell {
