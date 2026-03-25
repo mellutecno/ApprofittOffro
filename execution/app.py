@@ -237,6 +237,13 @@ def get_new_offer_notification_subject(offer):
     return f"Nuova {offer.tipo_pasto} vicino a te: {offer.nome_locale}"
 
 
+def get_new_offer_notification_heading(offer):
+    """Costruisce il titolo della mail con genere corretto per il tipo di pasto."""
+    if offer.tipo_pasto == "pranzo":
+        return "Nuovo pranzo vicino a te"
+    return f"Nuova {offer.tipo_pasto} vicino a te"
+
+
 def get_session_idle_timeout_seconds(user):
     """Restituisce il timeout inattivita' per il tipo di utente."""
     timeout_minutes = (
@@ -302,6 +309,7 @@ def notify_nearby_users_for_new_offer(offer):
             user=target["user"],
             offer=offer,
             autore=offer.autore,
+            notification_heading=get_new_offer_notification_heading(offer),
             meal_label=meal_label,
             data_evento=data_evento,
             distance_km=target["distance_km"],
