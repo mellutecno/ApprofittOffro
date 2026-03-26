@@ -98,7 +98,7 @@
             {% for person in people %}
             <article class="glass-card" style="padding: 18px; display:flex; flex-direction:column; gap:16px;">
                 <div style="display:flex; gap:16px; align-items:center;">
-                    <img src="{{ url_for('uploaded_file', filename=person.gallery_filenames[0]) }}" alt="{{ person.nome }}" style="width: 86px; height: 86px; border-radius: 28px; object-fit: cover; border: 3px solid rgba(255,255,255,0.92); box-shadow: var(--shadow-md); flex-shrink:0;">
+                    <img src="{{ url_for('uploaded_file', filename=person.gallery_filenames[0]) }}?v={{ person.gallery_filenames[0] }}" alt="{{ person.nome }}" style="width: 86px; height: 86px; border-radius: 28px; object-fit: cover; border: 3px solid rgba(255,255,255,0.92); box-shadow: var(--shadow-md); flex-shrink:0;">
                     <div style="min-width:0;">
                         <div style="font-size: 1.1rem; font-weight: 800; color: var(--text-main);">{{ person.nome }}</div>
                         <div style="font-size: 0.92rem; color: var(--text-muted);">{{ person.eta_display }} anni{% if person.citta %} • {{ person.citta.split(',')[0] }}{% endif %}</div>
@@ -109,7 +109,7 @@
                 {% if person.gallery_filenames|length > 1 %}
                 <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:4px;">
                     {% for filename in person.gallery_filenames[1:] %}
-                    <img src="{{ url_for('uploaded_file', filename=filename) }}" alt="Foto di {{ person.nome }}" style="width: 66px; height: 66px; border-radius: 18px; object-fit: cover; flex-shrink:0; border: 1px solid rgba(128,78,43,0.14);">
+                    <img src="{{ url_for('uploaded_file', filename=filename) }}?v={{ filename }}" alt="Foto di {{ person.nome }}" style="width: 66px; height: 66px; border-radius: 18px; object-fit: cover; flex-shrink:0; border: 1px solid rgba(128,78,43,0.14);">
                     {% endfor %}
                 </div>
                 {% endif %}
