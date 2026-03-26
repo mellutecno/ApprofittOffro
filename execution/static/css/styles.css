@@ -2878,52 +2878,7 @@ body.admin-page {
 }
 
 .offer-participant-whatsapp,
-.offer-host-whatsapp-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    background: rgba(37, 211, 102, 0.52);
-    color: #ffffff;
-    text-decoration: none;
-    padding: 0;
-    box-shadow: 0 10px 22px rgba(37, 211, 102, 0.18);
-    border: 1px solid rgba(37, 211, 102, 0.42);
-    transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, background 0.18s ease;
-    backdrop-filter: blur(8px);
-}
-
-.offer-participant-whatsapp:hover,
-.offer-host-whatsapp-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 20px rgba(37, 211, 102, 0.28);
-    opacity: 0.96;
-}
-
-.offer-host-whatsapp-btn {
-    width: 42px;
-    height: 42px;
-}
-
-.offer-whatsapp-icon {
-    width: 15px;
-    height: 15px;
-    display: block;
-}
-
-.offer-whatsapp-icon-large {
-    width: 22px;
-    height: 22px;
-}
-
-.offer-host-whatsapp-wrap {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 14px;
-}
-
+.offer-host-whatsapp-btn,
 .profile-whatsapp-icon-btn {
     display: inline-flex;
     align-items: center;
@@ -2939,16 +2894,26 @@ body.admin-page {
     transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
 }
 
+.offer-participant-whatsapp:hover,
+.offer-host-whatsapp-btn:hover,
 .profile-whatsapp-icon-btn:hover {
     transform: translateY(-1px);
     box-shadow: 0 12px 24px rgba(37, 211, 102, 0.24);
     opacity: 0.98;
 }
 
+.offer-whatsapp-icon,
+.offer-whatsapp-icon-large,
 .profile-whatsapp-icon {
     width: 17px;
     height: 17px;
     display: block;
+}
+
+.offer-host-whatsapp-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 14px;
 }
 
 .offer-card-body .datetime-info {
