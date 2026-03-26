@@ -8,6 +8,7 @@ import uuid
 import math
 import re
 import sqlite3
+from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from functools import wraps
@@ -864,7 +865,37 @@ def normalize_phone_number(phone_raw):
     if len(digit_block) < 8 or len(digit_block) > 15:
         return None, "Inserisci un numero di cellulare reale, con almeno 8 cifre."
 
+    if not compact_phone.startswith("+") and digit_block.startswith("3") and len(digit_block) in {9, 10}:
+        return f"+39{digit_block}", None
+
     return f"+{digit_block}" if compact_phone.startswith("+") else digit_block, None
+
+
+def phone_to_whatsapp_digits(phone_raw):
+    normalized_phone, phone_error = normalize_phone_number(phone_raw)
+    if phone_error or not normalized_phone:
+        return ""
+    return re.sub(r"\D", "", normalized_phone)
+
+
+def build_whatsapp_offer_link(sender_user, recipient_user, offer):
+    """Crea un link WhatsApp diretto solo se entrambi gli utenti hanno un recapito valido."""
+    if not sender_user or not recipient_user or not offer:
+        return ""
+    if not getattr(sender_user, "numero_telefono", None) or not getattr(recipient_user, "numero_telefono", None):
+        return ""
+
+    recipient_digits = phone_to_whatsapp_digits(recipient_user.numero_telefono)
+    if not recipient_digits:
+        return ""
+
+    tipo_pasto_label = dict(TIPI_PASTO).get(offer.tipo_pasto, offer.tipo_pasto).lower()
+    message = (
+        f"Ciao {recipient_user.nome}, sono {sender_user.nome} da ApprofittOffro. "
+        f"Ti scrivo per il {tipo_pasto_label} da {offer.nome_locale} del "
+        f"{offer.data_ora.strftime('%d/%m/%Y alle %H:%M')}."
+    )
+    return f"https://wa.me/{recipient_digits}?text={quote(message)}"
 
 
 def parse_optional_age_bound(age_raw, label):
@@ -1183,6 +1214,7 @@ def profile_page():
         completion_threshold=local_now() - timedelta(hours=3),
         review_edit_threshold=local_now() - timedelta(hours=REVIEW_EDIT_WINDOW_HOURS),
         format_offer_datetime_label=format_offer_datetime_label,
+        build_whatsapp_offer_link=build_whatsapp_offer_link,
     )
 
 def get_user_rating(user_id):

@@ -1075,6 +1075,33 @@ body.admin-page {
     color: #2f1b12;
 }
 
+.profile-page .alert.profile-inline-alert {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.profile-page .alert-success,
+.profile-page .alert.alert-success {
+    background: #E8F5E9;
+    color: #1F5130;
+    border: 1px solid rgba(56, 142, 60, 0.22);
+}
+
+.profile-page .alert-error,
+.profile-page .alert.alert-error {
+    background: #FDECEC;
+    color: #8A1F1F;
+    border: 1px solid rgba(211, 47, 47, 0.2);
+}
+
+.profile-page .alert-warning,
+.profile-page .alert.alert-warning {
+    background: #FFF4E5;
+    color: #8A4B11;
+    border: 1px solid rgba(255, 152, 0, 0.22);
+}
+
 .profile-page .empty-state,
 .admin-page .empty-state {
     background: linear-gradient(180deg, rgba(255, 252, 247, 0.98) 0%, rgba(244, 233, 219, 0.96) 100%);

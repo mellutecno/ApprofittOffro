@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Il tuo profilo su ApprofittOffro.">
     <title>Profilo — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=69">
+    <link rel="stylesheet" href="/static/css/styles.css?v=73">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -53,7 +53,7 @@
                 {% with messages = get_flashed_messages(with_categories=true) %}
                   {% if messages %}
                     {% for category, message in messages %}
-                      <div class="alert alert-{{ category }} mb-4" style="border-radius: 12px; text-align: center;">
+                      <div class="alert alert-{{ category }} mb-4 profile-inline-alert" style="border-radius: 12px; text-align: center;">
                           {{ message }}
                       </div>
                     {% endfor %}
@@ -237,22 +237,28 @@
                         <div style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">👥 Partecipanti:</div>
                         <div style="display: flex; flex-direction: column; gap: 8px;">
                             {% for c in offer.claims %}
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <img src="/uploads/{{ c.utente.foto_filename }}" class="avatar" style="width: 28px; height: 28px;">
                                     <span style="font-weight: 700; font-size: 0.85rem;">{{ c.utente.nome }}</span>
                                 </div>
-                                {% if offer.data_ora < completion_threshold and offer.stato != 'annullata' %}
-                                    {% set host_reviewed_guest = offer.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|selectattr('reviewed_id', 'equalto', c.utente.id)|list %}
-                                    {% set existing_host_review = host_reviewed_guest[0] if host_reviewed_guest else None %}
-                                    {% if not existing_host_review %}
-                                    <button type="button" onclick='openReviewModal({{ offer.id }}, {{ offer.nome_locale|tojson }}, {{ c.utente.id }})' class="btn btn-accent btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">🌟 Recensisci</button>
-                                    {% elif existing_host_review.created_at >= review_edit_threshold %}
-                                    <button type="button" onclick='openReviewModal({{ offer.id }}, {{ offer.nome_locale|tojson }}, {{ c.utente.id }}, {{ existing_host_review.rating }}, {{ existing_host_review.commento|default("", true)|tojson }})' class="btn btn-outline btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">✏️ Modifica recensione</button>
-                                    {% else %}
-                                    <span style="font-size: 0.7rem; color: var(--success); font-weight: 700;">✨ Recensito</span>
+                                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                                    {% set participant_whatsapp = build_whatsapp_offer_link(current_user, c.utente, offer) %}
+                                    {% if participant_whatsapp %}
+                                    <a href="{{ participant_whatsapp }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">💬 WhatsApp</a>
                                     {% endif %}
-                                {% endif %}
+                                    {% if offer.data_ora < completion_threshold and offer.stato != 'annullata' %}
+                                        {% set host_reviewed_guest = offer.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|selectattr('reviewed_id', 'equalto', c.utente.id)|list %}
+                                        {% set existing_host_review = host_reviewed_guest[0] if host_reviewed_guest else None %}
+                                        {% if not existing_host_review %}
+                                        <button type="button" onclick='openReviewModal({{ offer.id }}, {{ offer.nome_locale|tojson }}, {{ c.utente.id }})' class="btn btn-accent btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">🌟 Recensisci</button>
+                                        {% elif existing_host_review.created_at >= review_edit_threshold %}
+                                        <button type="button" onclick='openReviewModal({{ offer.id }}, {{ offer.nome_locale|tojson }}, {{ c.utente.id }}, {{ existing_host_review.rating }}, {{ existing_host_review.commento|default("", true)|tojson }})' class="btn btn-outline btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">✏️ Modifica recensione</button>
+                                        {% else %}
+                                        <span style="font-size: 0.7rem; color: var(--success); font-weight: 700;">✨ Recensito</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
                             </div>
                             {% endfor %}
                         </div>
@@ -320,6 +326,10 @@
                     <div class="datetime-info" style="margin-top: 8px; font-weight: 500;">📅 {{ format_offer_datetime_label(claim.offerta.data_ora) }}</div>
                 </div>
                 <div class="offer-card-footer" style="flex-direction: column; gap: 8px;">
+                    {% set host_whatsapp = build_whatsapp_offer_link(current_user, claim.offerta.autore, claim.offerta) %}
+                    {% if host_whatsapp %}
+                    <a href="{{ host_whatsapp }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="width:100%;">💬 Contatta su WhatsApp</a>
+                    {% endif %}
                     {% set has_reviewed = claim.offerta.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|list %}
                     {% set existing_claim_review = has_reviewed[0] if has_reviewed else None %}
                     
