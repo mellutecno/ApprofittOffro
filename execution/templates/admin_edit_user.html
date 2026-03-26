@@ -15,6 +15,85 @@
         });
       }
     </script>
+    <style>
+        .admin-user-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 18px;
+            flex-wrap: wrap;
+        }
+
+        .admin-user-stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(88px, 1fr));
+            gap: 10px;
+            width: min(100%, 360px);
+        }
+
+        .admin-user-editor {
+            display: grid;
+            grid-template-columns: minmax(250px, 310px) minmax(0, 1fr);
+            gap: 24px;
+            align-items: start;
+        }
+
+        .admin-user-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .admin-user-identity {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .admin-user-fields {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .admin-user-fields .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .admin-user-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 820px) {
+            .admin-user-header,
+            .admin-user-editor {
+                display: grid;
+                grid-template-columns: 1fr;
+            }
+
+            .admin-user-stats,
+            .admin-user-fields {
+                grid-template-columns: 1fr;
+                width: 100%;
+            }
+
+            .admin-user-identity {
+                align-items: flex-start;
+            }
+
+            .admin-user-actions {
+                flex-direction: column-reverse;
+            }
+
+            .admin-user-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
 </head>
 <body class="admin-page member-discovery">
     <div class="page-top-title" id="page-top-title" aria-label="ApprofittOffro">
@@ -39,13 +118,13 @@
 
     <main class="container main-content" style="max-width: 1080px;">
         <section class="glass-card" style="padding: 28px; margin-bottom: 24px;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:18px; flex-wrap:wrap;">
+            <div class="admin-user-header">
                 <div>
                     <div class="pill-badge" style="display:inline-flex; margin-bottom:12px; background:rgba(255,112,67,0.14); color:var(--primary);">Modifica profilo utente</div>
                     <h1 style="margin-bottom:8px;">Aggiorna {{ user.nome }}</h1>
-                    <p style="margin:0; color:var(--text-muted); max-width:720px;">Da qui puoi correggere i dati del profilo, sostituire la galleria foto e sistemare i campi che l’utente non riesce a modificare da solo lato frontend.</p>
+                    <p style="margin:0; color:var(--text-muted); max-width:720px;">Da qui puoi correggere i dati del profilo, sostituire la galleria foto e sistemare i campi che l'utente non riesce a modificare da solo lato frontend.</p>
                 </div>
-                <div style="display:grid; grid-template-columns:repeat(3, minmax(110px, 1fr)); gap:10px; width:min(100%, 360px);">
+                <div class="admin-user-stats">
                     <div class="glass-card" style="padding:14px; text-align:center;">
                         <div style="font-size:1.25rem; font-weight:900; color:var(--primary);">{{ user.followers_count }}</div>
                         <div style="font-size:0.72rem; text-transform:uppercase; color:var(--text-muted); font-weight:800;">Follower</div>
@@ -73,18 +152,18 @@
         {% endwith %}
 
         <form method="post" enctype="multipart/form-data" class="glass-card" style="padding: 28px; display:flex; flex-direction:column; gap:24px;">
-            <section style="display:grid; grid-template-columns:minmax(220px, 300px) minmax(0, 1fr); gap:24px; align-items:start;">
-                <div>
-                    <div style="display:flex; align-items:center; gap:14px; margin-bottom:16px;">
+            <section class="admin-user-editor">
+                <aside class="admin-user-sidebar">
+                    <div class="admin-user-identity">
                         <img src="{{ url_for('uploaded_file', filename=user.gallery_filenames[0]) }}?v={{ user.gallery_filenames[0] }}" alt="{{ user.nome }}" class="avatar" style="width:96px; height:96px; border:3px solid rgba(255,255,255,0.95);">
                         <div>
                             <div style="font-weight:900; font-size:1.05rem;">{{ user.nome }}</div>
-                            <div style="color:var(--text-muted); font-size:0.9rem;">{{ user.email }}</div>
+                            <div style="color:var(--text-muted); font-size:0.9rem; word-break:break-word;">{{ user.email }}</div>
                             <div style="color:var(--text-muted); font-size:0.86rem;">{{ user.eta_display }} anni{% if user.citta %} • {{ user.citta }}{% endif %}</div>
                         </div>
                     </div>
 
-                    <div class="profile-gallery-strip" style="margin-bottom:14px;">
+                    <div class="profile-gallery-strip" style="margin-bottom:0;">
                         {% for filename in user.gallery_filenames %}
                         <span class="profile-gallery-thumb {% if loop.first %}is-primary{% endif %}" style="cursor:default;">
                             <img src="{{ url_for('uploaded_file', filename=filename) }}?v={{ filename }}" alt="Foto {{ loop.index }}">
@@ -98,18 +177,18 @@
                         <br>La prima foto deve mostrare chiaramente il volto.
                     </div>
 
-                    <div class="form-group" style="margin-top:16px;">
+                    <div class="form-group" style="margin-bottom:0;">
                         <label for="foto">Nuove foto profilo</label>
                         <input id="foto" type="file" name="foto" class="form-control" accept="image/*" multiple>
                     </div>
 
-                    <label style="display:flex; align-items:center; gap:10px; margin-top:18px; font-weight:700; color:#4b2b19;">
+                    <label style="display:flex; align-items:center; gap:10px; font-weight:700; color:#4b2b19;">
                         <input type="checkbox" name="verificato" value="1" {% if form_values.verificato %}checked{% endif %}>
                         Utente verificato
                     </label>
-                </div>
+                </aside>
 
-                <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px;">
+                <div class="admin-user-fields">
                     <div class="form-group" style="margin-bottom:0;">
                         <label for="nome">Nome o nickname</label>
                         <input id="nome" type="text" name="nome" class="form-control" value="{{ form_values.nome }}" required>
@@ -123,33 +202,29 @@
                         <input id="eta" type="number" name="eta" class="form-control" min="18" max="120" value="{{ form_values.eta }}" required>
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
-                        <label for="citta">Città / località</label>
-                        <input id="citta" type="text" name="citta" class="form-control" value="{{ form_values.citta }}" placeholder="Es. Milano, Navigli">
+                        <label for="citta">Indirizzo o località</label>
+                        <input id="citta" type="text" name="citta" class="form-control" value="{{ form_values.citta }}" placeholder="Es. Via Roma 10, Milano">
                     </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label for="latitudine">Latitudine</label>
-                        <input id="latitudine" type="text" name="latitudine" class="form-control" value="{{ form_values.latitudine if form_values.latitudine is not none else '' }}" placeholder="45.4642">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label for="longitudine">Longitudine</label>
-                        <input id="longitudine" type="text" name="longitudine" class="form-control" value="{{ form_values.longitudine if form_values.longitudine is not none else '' }}" placeholder="9.1900">
-                    </div>
-                    <div class="form-group" style="grid-column:1 / -1; margin-bottom:0;">
+
+                    <input type="hidden" name="latitudine" value="{{ form_values.latitudine if form_values.latitudine is not none else '' }}">
+                    <input type="hidden" name="longitudine" value="{{ form_values.longitudine if form_values.longitudine is not none else '' }}">
+
+                    <div class="form-group full-width" style="margin-bottom:0;">
                         <label for="cibi_preferiti">Cibi preferiti</label>
                         <input id="cibi_preferiti" type="text" name="cibi_preferiti" class="form-control" value="{{ form_values.cibi_preferiti }}" placeholder="Pizza, pasta, cucina veg...">
                     </div>
-                    <div class="form-group" style="grid-column:1 / -1; margin-bottom:0;">
+                    <div class="form-group full-width" style="margin-bottom:0;">
                         <label for="intolleranze">Intolleranze</label>
                         <input id="intolleranze" type="text" name="intolleranze" class="form-control" value="{{ form_values.intolleranze }}" placeholder="Glutine, lattosio, nessuna...">
                     </div>
-                    <div class="form-group" style="grid-column:1 / -1; margin-bottom:0;">
+                    <div class="form-group full-width" style="margin-bottom:0;">
                         <label for="bio">Bio</label>
-                        <textarea id="bio" name="bio" class="form-control" rows="6" placeholder="Presentazione breve dell’utente">{{ form_values.bio }}</textarea>
+                        <textarea id="bio" name="bio" class="form-control" rows="6" placeholder="Presentazione breve dell'utente">{{ form_values.bio }}</textarea>
                     </div>
                 </div>
             </section>
 
-            <div style="display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap;">
+            <div class="admin-user-actions">
                 <a href="/admin" class="btn btn-outline">Torna alla gestione</a>
                 <button type="submit" class="btn btn-accent">Salva modifiche profilo</button>
             </div>
