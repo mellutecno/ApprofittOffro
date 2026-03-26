@@ -7,3 +7,6 @@ Pillow==11.1.0
 opencv-python-headless==4.11.0.86
 numpy==2.2.4
 Flask-Mail==0.10.0
+boto3>=1.37,<2
+gunicorn>=23,<24
+psycopg[binary]>=3.2,<4

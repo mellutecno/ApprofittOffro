@@ -8,6 +8,8 @@ import uuid
 import math
 import re
 import sqlite3
+import io
+import tempfile
 from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -23,6 +25,7 @@ from flask import (
     flash,
     jsonify,
     session,
+    abort,
 )
 from sqlalchemy import or_
 from sqlalchemy.orm import selectinload
@@ -39,6 +42,7 @@ from PIL import Image
 
 from models import db, User, Offer, Claim, Review, TIPI_PASTO, FASCE_ETA, UserPhoto, UserFollow
 from verify_photo import verifica_volto
+from upload_storage import create_upload_storage, StorageObjectNotFound
 
 # ---------------------------------------------------------------------------
 # Configurazione
@@ -78,6 +82,17 @@ try:
 except ZoneInfoNotFoundError:
     APP_TIMEZONE = timezone.utc
 
+
+def normalize_database_url(database_url):
+    """Rende compatibili gli URL Postgres di Render con SQLAlchemy/psycopg."""
+    if not database_url:
+        return None
+    if database_url.startswith("postgres://"):
+        return "postgresql+psycopg://" + database_url[len("postgres://"):]
+    if database_url.startswith("postgresql://") and "+psycopg" not in database_url:
+        return "postgresql+psycopg://" + database_url[len("postgresql://"):]
+    return database_url
+
 # Garantisce che SQLite possa essere creato anche in deploy che puntano fuori repo.
 os.makedirs(os.path.dirname(SQLITE_PATH), exist_ok=True)
 
@@ -96,15 +111,21 @@ def add_header(response):
     return response
 
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "approfittoffro-dev-key-change-me")
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-    "DATABASE_URL",
-    "sqlite:///" + SQLITE_PATH,
-)
+app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(
+    os.getenv("DATABASE_URL")
+) or ("sqlite:///" + SQLITE_PATH)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64 MB max upload (telefoni moderni)
+app.config["UPLOAD_STORAGE_BACKEND"] = os.getenv("APP_STORAGE_BACKEND", "local").strip().lower()
+app.config["R2_ACCOUNT_ID"] = os.getenv("R2_ACCOUNT_ID", "")
+app.config["R2_ACCESS_KEY_ID"] = os.getenv("R2_ACCESS_KEY_ID", "")
+app.config["R2_SECRET_ACCESS_KEY"] = os.getenv("R2_SECRET_ACCESS_KEY", "")
+app.config["R2_BUCKET_NAME"] = os.getenv("R2_BUCKET_NAME", "")
+app.config["R2_ENDPOINT_URL"] = os.getenv("R2_ENDPOINT_URL", "")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+upload_storage = create_upload_storage(app.config)
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 MAX_PROFILE_PHOTOS = 5
@@ -484,31 +505,76 @@ def send_email(subject, recipients, template, **kwargs):
     except Exception as e:
         print(f"[MAIL_ERROR] Errore preparazione email {template}: {e}")
 
-def process_image(file_storage, filename, size=(800, 800)):
-    """Salva, ruota (EXIF) e ridimensiona un'immagine."""
-    path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    file_storage.save(path)
+def process_image(file_storage, filename, size=(800, 800), return_payload=False):
+    """Ruota (EXIF), ridimensiona e salva un'immagine sul backend attivo."""
+    payload = None
+
     try:
         from PIL import ImageOps
-        img = Image.open(path)
-        img = ImageOps.exif_transpose(img)
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        img.thumbnail(size, Image.LANCZOS)
-        # Se vogliamo forzare JPG per risparmiare spazio
-        if not filename.lower().endswith(".jpg"):
-            new_filename = filename.rsplit(".", 1)[0] + ".jpg"
-            new_path = os.path.join(app.config["UPLOAD_FOLDER"], new_filename)
-            img.save(new_path, "JPEG", quality=85)
-            if path != new_path:
-                os.remove(path)
-            return new_filename
+
+        if hasattr(file_storage, "stream") and hasattr(file_storage.stream, "seek"):
+            file_storage.stream.seek(0)
+            source_stream = file_storage.stream
         else:
-            img.save(path, quality=85)
-            return filename
+            source_stream = file_storage
+
+        img = Image.open(source_stream)
+        img = ImageOps.exif_transpose(img)
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        img.thumbnail(size, Image.LANCZOS)
+
+        final_filename = filename.rsplit(".", 1)[0] + ".jpg"
+        output = io.BytesIO()
+        img.save(output, "JPEG", quality=85)
+        payload = {
+            "filename": final_filename,
+            "bytes": output.getvalue(),
+            "content_type": "image/jpeg",
+        }
     except Exception as e:
         print(f"[IMAGE_ERROR] Errore processamento {filename}: {e}")
-        return filename
+        if hasattr(file_storage, "stream") and hasattr(file_storage.stream, "seek"):
+            file_storage.stream.seek(0)
+            raw_bytes = file_storage.stream.read()
+        else:
+            raw_bytes = file_storage.read()
+
+        payload = {
+            "filename": filename,
+            "bytes": raw_bytes,
+            "content_type": getattr(file_storage, "mimetype", None) or "application/octet-stream",
+        }
+    finally:
+        if hasattr(file_storage, "stream") and hasattr(file_storage.stream, "seek"):
+            file_storage.stream.seek(0)
+
+    if return_payload:
+        return payload
+
+    upload_storage.save_bytes(
+        payload["filename"],
+        payload["bytes"],
+        payload.get("content_type"),
+    )
+    return payload["filename"]
+
+
+def verify_image_payload_has_face(image_payload):
+    """Verifica il volto su un file temporaneo locale ricavato dal payload elaborato."""
+    suffix = os.path.splitext(image_payload["filename"])[1] or ".jpg"
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as handle:
+            handle.write(image_payload["bytes"])
+            temp_path = handle.name
+        return verifica_volto(temp_path)
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
 
 # ---------------------------------------------------------------------------
 # Inizializzazione
@@ -537,12 +603,7 @@ def extract_uploaded_photos(field_name="foto"):
 def delete_upload_files(filenames):
     """Elimina una lista di file caricati, ignorando silenziosamente quelli mancanti."""
     for filename in {name for name in filenames if name and name != "nessuna.jpg"}:
-        path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-        if os.path.exists(path):
-            try:
-                os.remove(path)
-            except OSError:
-                pass
+        upload_storage.delete(filename)
 
 
 def save_profile_gallery_files(user_key, photos, require_primary_face=True):
@@ -565,12 +626,14 @@ def save_profile_gallery_files(user_key, photos, require_primary_face=True):
     saved_filenames = []
     for index, photo in enumerate(photos):
         ext = photo.filename.rsplit(".", 1)[1].lower() if "." in photo.filename else "jpg"
-        filename = process_image(photo, f"user_{user_key}_{uuid.uuid4().hex[:10]}.{ext}")
-        saved_filenames.append(filename)
+        image_payload = process_image(
+            photo,
+            f"user_{user_key}_{uuid.uuid4().hex[:10]}.{ext}",
+            return_payload=True,
+        )
 
         if index == 0 and require_primary_face:
-            foto_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-            verifica = verifica_volto(foto_path)
+            verifica = verify_image_payload_has_face(image_payload)
             if not verifica["valida"]:
                 delete_upload_files(saved_filenames)
                 dettaglio = verifica.get("errore", "Il volto non e stato riconosciuto in modo affidabile.")
@@ -579,6 +642,13 @@ def save_profile_gallery_files(user_key, photos, require_primary_face=True):
                     "Carica come prima immagine una foto reale, frontale o comunque ben visibile. "
                     f"Dettaglio: {dettaglio}"
                 ]
+
+        upload_storage.save_bytes(
+            image_payload["filename"],
+            image_payload["bytes"],
+            image_payload.get("content_type"),
+        )
+        saved_filenames.append(image_payload["filename"])
 
     return saved_filenames, []
 
@@ -2473,15 +2543,24 @@ def api_create_review():
 # ===================================================================
 
 
-@app.route("/uploads/<filename>")
+@app.route("/uploads/<path:filename>")
 def uploaded_file(filename):
     from flask import send_from_directory
-    response = send_from_directory(
-        app.config["UPLOAD_FOLDER"],
-        filename,
-        max_age=0,
-        conditional=False,
-    )
+    if app.config["UPLOAD_STORAGE_BACKEND"] == "local":
+        response = send_from_directory(
+            app.config["UPLOAD_FOLDER"],
+            filename,
+            max_age=0,
+            conditional=False,
+        )
+    else:
+        try:
+            file_bytes, content_type = upload_storage.read(filename)
+        except StorageObjectNotFound:
+            abort(404)
+
+        response = app.response_class(file_bytes, mimetype=content_type)
+
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
