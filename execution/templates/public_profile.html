@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profilo di {{ user.nome }} — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=68">
+    <link rel="stylesheet" href="/static/css/styles.css?v=69">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -362,6 +362,14 @@
 
         mountPublicProfileGalleryModal();
 
+        function mountReviewModal() {
+            const modal = document.getElementById('review-modal');
+            if (modal && modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+            return modal;
+        }
+
         // --- Review Modal Logic ---
         let selectedRating = 0;
         const stars = document.querySelectorAll('#star-rating .star');
@@ -391,13 +399,13 @@
         }
 
         function openReviewModal(offerId, venueName, reviewedId, existingRating = 0, existingComment = '') {
+            const reviewModal = mountReviewModal();
             document.getElementById('review-offer-id').value = offerId;
             document.getElementById('review-reviewed-id').value = reviewedId;
             document.getElementById('review-venue-name').innerHTML = `Pasto presso <b>${venueName}</b>`;
             document.getElementById('review-is-edit').value = existingRating ? '1' : '0';
             document.getElementById('review-modal-title').textContent = existingRating ? 'Modifica il tuo feedback' : 'Lascia un feedback';
             document.getElementById('review-submit-btn').textContent = existingRating ? 'Aggiorna recensione' : 'Invia Recensione';
-            const reviewModal = document.getElementById('review-modal');
             reviewModal.classList.add('is-visible');
             reviewModal.setAttribute('aria-hidden', 'false');
             document.body.classList.add('modal-open');
@@ -418,6 +426,8 @@
             reviewModal.setAttribute('aria-hidden', 'true');
             document.body.classList.remove('modal-open');
         }
+
+        mountReviewModal();
 
         document.getElementById('review-form').addEventListener('submit', async (e) => {
             e.preventDefault();
