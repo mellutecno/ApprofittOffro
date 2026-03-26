@@ -70,7 +70,7 @@
                 <img src="{{ url_for('uploaded_file', filename=user.gallery_filenames[0]) }}?v={{ user.gallery_filenames[0] }}" alt="Foto di {{ user.nome }}" style="width: 140px; height: 140px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: var(--shadow-md);">
                 <div style="flex: 1; min-width: 250px;">
                     <h1 style="margin-bottom: 4px;">{{ user.nome }}</h1>
-                    <p style="color: var(--text-muted); font-size: 1.1rem; font-weight: 600;">{{ user.eta_display }} anni • {{ user.citta.split(',')[0] if user.citta else 'Luogo segreto' }}</p>
+                    <p style="color: var(--text-muted); font-size: 1.1rem; font-weight: 600;">{{ user.eta_display }} anni • {{ user.citta if user.citta else 'Luogo segreto' }}</p>
                     
                     <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
                         <span style="color: var(--warning); font-size: 1.2rem; font-weight: 800;">
@@ -120,7 +120,6 @@
             </div>
             {% elif pending_offer %}
             <div class="glass-card" style="margin: 20px 0; padding: 20px; text-align: center; border: 1px dashed var(--primary);">
-                <h4 style="margin-bottom: 8px; color: var(--primary);">Pasto appena concluso o in corso ✨</h4>
                 <p style="font-size: 0.9rem; color: var(--text-muted);">Torna più tardi per una recensione.</p>
             </div>
             {% endif %}
