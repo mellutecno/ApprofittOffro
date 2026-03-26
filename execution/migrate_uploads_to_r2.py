@@ -1,12 +1,15 @@
 """
-Carica gli upload locali nel bucket R2 configurato.
+Carica gli upload locali nel bucket R2 configurato senza importare l'app Flask.
 
 Uso:
     python migrate_uploads_to_r2.py --source "..\\uploads"
 
 Richiede:
-    - APP_STORAGE_BACKEND=r2
-    - R2_* valorizzate nelle env vars
+    - R2_ACCOUNT_ID
+    - R2_ACCESS_KEY_ID
+    - R2_SECRET_ACCESS_KEY
+    - R2_BUCKET_NAME
+    - boto3 installato localmente
 """
 
 from __future__ import annotations
@@ -14,7 +17,7 @@ from __future__ import annotations
 import argparse
 import os
 
-from app import app, upload_storage
+import boto3
 
 
 def parse_args():
@@ -27,18 +30,41 @@ def parse_args():
     return parser.parse_args()
 
 
+def build_r2_client():
+    account_id = os.getenv("R2_ACCOUNT_ID", "").strip()
+    access_key_id = os.getenv("R2_ACCESS_KEY_ID", "").strip()
+    secret_access_key = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
+    endpoint_url = os.getenv("R2_ENDPOINT_URL", "").strip()
+
+    if not endpoint_url:
+        if not account_id:
+            raise RuntimeError("Manca R2_ACCOUNT_ID oppure R2_ENDPOINT_URL.")
+        endpoint_url = f"https://{account_id}.r2.cloudflarestorage.com"
+
+    if not access_key_id or not secret_access_key:
+        raise RuntimeError("Mancano R2_ACCESS_KEY_ID o R2_SECRET_ACCESS_KEY.")
+
+    return boto3.client(
+        "s3",
+        endpoint_url=endpoint_url,
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_access_key,
+        region_name="auto",
+    )
+
+
 def main():
     args = parse_args()
     source_dir = os.path.abspath(args.source)
+    bucket_name = os.getenv("R2_BUCKET_NAME", "").strip()
 
-    if app.config["UPLOAD_STORAGE_BACKEND"] != "r2":
-        raise RuntimeError(
-            "Questo script va eseguito con APP_STORAGE_BACKEND=r2 e credenziali R2 valide."
-        )
+    if not bucket_name:
+        raise RuntimeError("Manca R2_BUCKET_NAME.")
 
     if not os.path.isdir(source_dir):
         raise FileNotFoundError(f"Cartella upload non trovata: {source_dir}")
 
+    client = build_r2_client()
     uploaded = 0
     skipped = 0
 
@@ -51,7 +77,7 @@ def main():
                 continue
 
             with open(source_path, "rb") as handle:
-                upload_storage.save_bytes(relative_name, handle.read())
+                client.put_object(Bucket=bucket_name, Key=relative_name, Body=handle.read())
             uploaded += 1
             print(f"[UPLOAD] {relative_name}")
 
@@ -59,5 +85,4 @@ def main():
 
 
 if __name__ == "__main__":
-    with app.app_context():
-        main()
+    main()

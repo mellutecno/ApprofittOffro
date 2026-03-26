@@ -1,11 +1,12 @@
 """
-Migra i dati principali da SQLite a PostgreSQL usando i modelli correnti.
+Migra i dati principali da SQLite a PostgreSQL senza importare l'app Flask.
 
 Uso:
     python migrate_sqlite_to_postgres.py --source "..\\approfittoffro.db"
 
 Richiede:
     - DATABASE_URL puntato al Postgres di destinazione
+    - psycopg installato localmente
 """
 
 from __future__ import annotations
@@ -15,19 +16,79 @@ import os
 import sqlite3
 from datetime import datetime
 
-from sqlalchemy import text
-
-from app import app, db
-from models import User, Offer, Claim, Review, UserPhoto, UserFollow
+import psycopg
 
 
 TABLES = [
-    ("users", User),
-    ("offers", Offer),
-    ("claims", Claim),
-    ("reviews", Review),
-    ("user_photos", UserPhoto),
-    ("user_follows", UserFollow),
+    "users",
+    "offers",
+    "claims",
+    "reviews",
+    "user_photos",
+    "user_follows",
+]
+
+
+INSERT_COLUMNS = {
+    "users": [
+        "id",
+        "nome",
+        "email",
+        "password_hash",
+        "foto_filename",
+        "fascia_eta",
+        "eta",
+        "numero_telefono",
+        "latitudine",
+        "longitudine",
+        "citta",
+        "cibi_preferiti",
+        "intolleranze",
+        "bio",
+        "raggio_azione",
+        "verificato",
+        "verification_token",
+        "is_admin",
+        "created_at",
+    ],
+    "offers": [
+        "id",
+        "user_id",
+        "tipo_pasto",
+        "nome_locale",
+        "indirizzo",
+        "latitudine",
+        "longitudine",
+        "posti_totali",
+        "posti_disponibili",
+        "data_ora",
+        "descrizione",
+        "foto_locale",
+        "stato",
+        "created_at",
+    ],
+    "claims": ["id", "user_id", "offer_id", "created_at"],
+    "reviews": [
+        "id",
+        "reviewer_id",
+        "reviewed_id",
+        "offer_id",
+        "rating",
+        "commento",
+        "created_at",
+    ],
+    "user_photos": ["id", "user_id", "filename", "position", "created_at"],
+    "user_follows": ["id", "follower_id", "followed_id", "created_at"],
+}
+
+
+DELETE_ORDER = [
+    "reviews",
+    "claims",
+    "user_photos",
+    "user_follows",
+    "offers",
+    "users",
 ]
 
 
@@ -46,6 +107,12 @@ def parse_args():
     return parser.parse_args()
 
 
+def normalize_database_url(database_url: str) -> str:
+    if database_url.startswith("postgresql+psycopg://"):
+        return "postgresql://" + database_url[len("postgresql+psycopg://"):]
+    return database_url
+
+
 def parse_datetime(value):
     if value in (None, ""):
         return None
@@ -62,7 +129,7 @@ def parse_datetime(value):
                 return datetime.strptime(text_value, fmt)
             except ValueError:
                 continue
-    raise ValueError(f"Formato datetime non riconosciuto: {value}")
+    return text_value
 
 
 def normalize_row(table_name, row):
@@ -75,7 +142,7 @@ def normalize_row(table_name, row):
     elif table_name == "offers":
         data["data_ora"] = parse_datetime(data.get("data_ora"))
         data["created_at"] = parse_datetime(data.get("created_at"))
-    elif table_name in {"claims", "reviews", "user_photos", "user_follows"}:
+    else:
         data["created_at"] = parse_datetime(data.get("created_at"))
 
     return data
@@ -91,35 +158,57 @@ def fetch_sqlite_rows(source_path, table_name):
         conn.close()
 
 
-def ensure_target_is_postgres():
-    uri = app.config["SQLALCHEMY_DATABASE_URI"]
-    if "postgresql" not in uri:
+def ensure_target_is_postgres(database_url):
+    lowered = database_url.lower()
+    if not (lowered.startswith("postgres://") or lowered.startswith("postgresql://")):
         raise RuntimeError(
             "DATABASE_URL di destinazione non punta a PostgreSQL. Ferma la migrazione."
         )
 
 
-def ensure_target_empty_or_clear(force_clear):
-    existing_counts = {}
-    for table_name, model in TABLES:
-        existing_counts[table_name] = db.session.query(model).count()
-
-    if any(existing_counts.values()):
-        if not force_clear:
-            raise RuntimeError(
-                "Il database di destinazione contiene già dati. "
-                "Rilancia con --force-clear se vuoi svuotarlo prima."
-            )
-
-        for _, model in reversed(TABLES):
-            db.session.execute(db.delete(model))
-        db.session.commit()
+def table_count(conn, table_name):
+    with conn.cursor() as cur:
+        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+        return cur.fetchone()[0]
 
 
-def realign_postgres_sequences():
-    for table_name, _ in TABLES:
-        db.session.execute(
-            text(
+def ensure_target_empty_or_clear(conn, force_clear):
+    counts = {table_name: table_count(conn, table_name) for table_name in TABLES}
+    if not any(counts.values()):
+        return
+
+    if not force_clear:
+        raise RuntimeError(
+            "Il database di destinazione contiene già dati. "
+            "Rilancia con --force-clear se vuoi svuotarlo prima."
+        )
+
+    with conn.cursor() as cur:
+        for table_name in DELETE_ORDER:
+            cur.execute(f"DELETE FROM {table_name}")
+    conn.commit()
+
+
+def bulk_insert_rows(conn, table_name, rows):
+    if not rows:
+        return 0
+
+    columns = INSERT_COLUMNS[table_name]
+    placeholders = ", ".join(["%s"] * len(columns))
+    column_list = ", ".join(columns)
+    sql = f"INSERT INTO {table_name} ({column_list}) VALUES ({placeholders})"
+
+    values = [[row.get(column) for column in columns] for row in rows]
+    with conn.cursor() as cur:
+        cur.executemany(sql, values)
+    conn.commit()
+    return len(rows)
+
+
+def realign_postgres_sequences(conn):
+    with conn.cursor() as cur:
+        for table_name in TABLES:
+            cur.execute(
                 f"""
                 SELECT setval(
                     pg_get_serial_sequence('{table_name}', 'id'),
@@ -128,30 +217,32 @@ def realign_postgres_sequences():
                 )
                 """
             )
-        )
-    db.session.commit()
+    conn.commit()
 
 
 def main():
     args = parse_args()
     source_path = os.path.abspath(args.source)
+    database_url = os.getenv("DATABASE_URL", "").strip()
 
     if not os.path.exists(source_path):
         raise FileNotFoundError(f"Database SQLite non trovato: {source_path}")
 
-    with app.app_context():
-        ensure_target_is_postgres()
-        db.create_all()
-        ensure_target_empty_or_clear(args.force_clear)
+    if not database_url:
+        raise RuntimeError("DATABASE_URL non impostata nell'ambiente.")
 
-        for table_name, model in TABLES:
+    ensure_target_is_postgres(database_url)
+    database_url = normalize_database_url(database_url)
+
+    with psycopg.connect(database_url) as conn:
+        ensure_target_empty_or_clear(conn, args.force_clear)
+
+        for table_name in TABLES:
             rows = fetch_sqlite_rows(source_path, table_name)
-            if rows:
-                db.session.bulk_insert_mappings(model, rows)
-                db.session.commit()
-            print(f"[MIGRATION] {table_name}: importate {len(rows)} righe")
+            inserted = bulk_insert_rows(conn, table_name, rows)
+            print(f"[MIGRATION] {table_name}: importate {inserted} righe")
 
-        realign_postgres_sequences()
+        realign_postgres_sequences(conn)
         print("[MIGRATION] Migrazione SQLite -> PostgreSQL completata con successo.")
 
 
