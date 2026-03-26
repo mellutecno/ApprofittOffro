@@ -73,18 +73,16 @@
         {% endwith %}
 
         <section class="glass-card" style="padding: 24px; margin-bottom: 28px;">
-            <form method="get" action="/people" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; align-items:end;">
+            <form id="people-filter-form" method="get" action="/people" style="display:grid; grid-template-columns: minmax(220px, 340px); gap: 14px; align-items:end;">
                 <div class="form-group" style="margin-bottom: 0;">
                     <label for="age_range">Fascia d'età</label>
-                    <select id="age_range" name="age_range" class="form-control">
+                    <select id="age_range" name="age_range" class="form-control" onchange="document.getElementById('people-filter-form').submit()">
                         <option value="">Tutte le età</option>
                         {% for value, label in age_ranges %}
                         <option value="{{ value }}" {% if selected_age_range == value %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <button type="submit" class="btn btn-primary">Applica filtro</button>
-                <a href="/people" class="btn btn-outline">Azzera filtro</a>
             </form>
         </section>
 
@@ -101,7 +99,7 @@
                     <img src="{{ url_for('uploaded_file', filename=person.gallery_filenames[0]) }}?v={{ person.gallery_filenames[0] }}" alt="{{ person.nome }}" style="width: 86px; height: 86px; border-radius: 28px; object-fit: cover; border: 3px solid rgba(255,255,255,0.92); box-shadow: var(--shadow-md); flex-shrink:0;">
                     <div style="min-width:0;">
                         <div style="font-size: 1.1rem; font-weight: 800; color: var(--text-main);">{{ person.nome }}</div>
-                        <div style="font-size: 0.92rem; color: var(--text-muted);">{{ person.eta_display }} anni{% if person.citta %} • {{ person.citta.split(',')[0] }}{% endif %}</div>
+                        <div style="font-size: 0.92rem; color: var(--text-muted);">{{ person.eta_display }} anni{% if person.citta %} • {{ extract_city_label(person.citta) }}{% endif %}</div>
                         <div style="font-size: 0.82rem; color: var(--primary); font-weight: 700; margin-top: 6px;">{{ person.followers_count }} follower</div>
                     </div>
                 </div>
@@ -113,21 +111,6 @@
                     {% endfor %}
                 </div>
                 {% endif %}
-
-                <div style="font-size: 0.95rem; color: var(--text-muted); line-height: 1.6; min-height: 72px;">
-                    {{ (person.bio or '')[:150] }}{% if person.bio and person.bio|length > 150 %}...{% endif %}
-                </div>
-
-                <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; font-size:0.85rem;">
-                    <div style="padding:12px; border-radius:16px; background:rgba(255,255,255,0.5); border:1px solid var(--border);">
-                        <strong style="display:block; color:var(--text-main); margin-bottom:4px;">Preferiti</strong>
-                        <span style="color:var(--text-muted);">{{ person.cibi_preferiti or '—' }}</span>
-                    </div>
-                    <div style="padding:12px; border-radius:16px; background:rgba(255,255,255,0.5); border:1px solid var(--border);">
-                        <strong style="display:block; color:var(--text-main); margin-bottom:4px;">Intolleranze</strong>
-                        <span style="color:var(--text-muted);">{{ person.intolleranze or '—' }}</span>
-                    </div>
-                </div>
 
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <a href="/profile/{{ person.id }}" class="btn btn-outline" style="flex:1;">Vedi profilo</a>

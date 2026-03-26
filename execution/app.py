@@ -738,6 +738,17 @@ def get_safe_next_url(default_endpoint="people_page"):
         return next_url
     return url_for(default_endpoint)
 
+
+def extract_city_label(address_text):
+    raw_address = str(address_text or "").strip()
+    if not raw_address:
+        return ""
+
+    parts = [part.strip() for part in raw_address.split(",") if part.strip()]
+    if len(parts) >= 2:
+        return parts[-1]
+    return raw_address
+
 # ===================================================================
 # PAGINE (Template)
 # ===================================================================
@@ -828,6 +839,7 @@ def people_page():
     return render_template(
         "people.html",
         people=people,
+        extract_city_label=extract_city_label,
         age_ranges=FASCE_ETA,
         selected_age_range=selected_age_range,
         followed_user_ids=followed_user_ids,
