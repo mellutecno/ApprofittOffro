@@ -330,45 +330,30 @@
         }
 
         function getAuthorMeta(offer) {
-            return `${offer.autore_eta} anni`;
+            if (!isAuthenticated) {
+                return `${offer.autore_eta} anni`;
+            }
+
+            const hasRating = Number(offer.autore_rating_count || 0) > 0;
+            const ratingMarkup = hasRating
+                ? `<span style="color: var(--warning); font-weight: 800;">${offer.autore_rating_average} ⭐</span>`
+                : `<span style="color: var(--text-light); font-weight: 700;">☆ Nuova/o</span>`;
+
+            return `
+                <span>${offer.autore_eta} anni</span>
+                <span style="opacity: 0.45;">•</span>
+                ${ratingMarkup}
+            `;
         }
 
         function getAuthorPhotosMarkup(offer) {
-            if (!isAuthenticated) {
-                return `
-                    <img
-                        src="/uploads/${offer.autore_foto}"
-                        alt="${offer.autore}"
-                        class="avatar"
-                        style="border: 2px solid white; box-shadow: var(--shadow-sm);"
-                    >
-                `;
-            }
-
-            const photos = Array.isArray(offer.autore_foto_gallery) && offer.autore_foto_gallery.length
-                ? offer.autore_foto_gallery.slice(0, 2)
-                : [offer.autore_foto];
-
             return `
-                <div style="display:flex; align-items:center; margin-right: 2px;">
-                    ${photos.map((filename, index) => `
-                        <img
-                            src="/uploads/${filename}"
-                            alt="${offer.autore}"
-                            class="avatar"
-                            style="
-                                width: 52px;
-                                height: 52px;
-                                border: 2px solid white;
-                                box-shadow: var(--shadow-sm);
-                                margin-left: ${index === 0 ? '0' : '-12px'};
-                                position: relative;
-                                z-index: ${photos.length - index};
-                                background: #fff;
-                            "
-                        >
-                    `).join('')}
-                </div>
+                <img
+                    src="/uploads/${offer.autore_foto}"
+                    alt="${offer.autore}"
+                    class="avatar"
+                    style="border: 2px solid white; box-shadow: var(--shadow-sm);"
+                >
             `;
         }
 
@@ -996,7 +981,7 @@
                                     ${getAuthorPhotosMarkup(offer)}
                                     <div class="info" style="min-width:0;">
                                         <div class="name" style="color: var(--text-main); font-weight: 800; font-size: 1.1rem;">${offer.autore}</div>
-                                        <div class="meta" style="color: var(--primary); font-weight: 700; font-size: 0.85rem;">${getAuthorMeta(offer)}</div>
+                                        <div class="meta" style="color: var(--primary); font-weight: 700; font-size: 0.85rem; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${getAuthorMeta(offer)}</div>
                                     </div>
                                 </div>
                                 ${getAuthorProfileLabelMarkup()}
@@ -1042,7 +1027,7 @@
                     const actionSlot = card.querySelector('[data-offer-actions]');
 
                     if (authorMeta) {
-                        authorMeta.textContent = getAuthorMeta(offer);
+                        authorMeta.innerHTML = getAuthorMeta(offer);
                     }
                     if (addressEl) {
                         addressEl.innerHTML = `${getAddressLine(offer)}${getNavigatorMarkup(offer)}`;

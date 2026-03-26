@@ -1712,6 +1712,7 @@ def api_get_offers():
         dist = calculate_distance(search_lat, search_lon, o.latitudine, o.longitudine)
         booking_deadline = get_offer_booking_deadline(o)
         booking_closed = is_offer_booking_closed(o, now)
+        author_rating = get_user_rating(o.autore.id)
         
         # Scarta l'offerta se si trova oltre il raggio specificato dal filtro
         if radius_km is not None:
@@ -1748,6 +1749,8 @@ def api_get_offers():
             "autore_foto": o.autore.foto_filename,
             "autore_foto_gallery": o.autore.gallery_filenames[:2],
             "autore_eta": o.autore.eta_display,
+            "autore_rating_average": author_rating["average"],
+            "autore_rating_count": author_rating["count"],
             "autore_cibi_preferiti": o.autore.cibi_preferiti or "",
             "autore_intolleranze": o.autore.intolleranze or "",
             "is_own": is_own,
