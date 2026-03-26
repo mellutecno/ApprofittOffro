@@ -3555,6 +3555,7 @@ body.modal-open {
 @media (max-width: 768px) {
     .profile-gallery-modal.is-visible {
         padding: 10px 8px;
+        align-items: flex-start;
     }
 
     .profile-gallery-dialog {
@@ -3563,6 +3564,7 @@ body.modal-open {
         padding: 14px 12px 14px;
         border-radius: 22px;
         overflow-y: auto;
+        margin-top: max(4px, env(safe-area-inset-top));
     }
 
     .profile-gallery-stage {

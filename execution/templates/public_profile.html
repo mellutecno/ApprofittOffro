@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profilo di {{ user.nome }} — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=64">
+    <link rel="stylesheet" href="/static/css/styles.css?v=65">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -279,6 +279,14 @@
         const publicProfileGalleryFilenames = {{ user.gallery_filenames|tojson }};
         let publicProfileGalleryIndex = 0;
 
+        function mountPublicProfileGalleryModal() {
+            const modal = document.getElementById('public-profile-gallery-modal');
+            if (modal && modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+            return modal;
+        }
+
         function buildPublicProfileUploadUrl(filename) {
             return `/uploads/${encodeURIComponent(filename)}?v=${encodeURIComponent(filename)}`;
         }
@@ -323,7 +331,7 @@
 
         function openPublicProfileGallery(index = 0) {
             if (!publicProfileGalleryFilenames.length) return;
-            const modal = document.getElementById('public-profile-gallery-modal');
+            const modal = mountPublicProfileGalleryModal();
             if (!modal) return;
             publicProfileGalleryIndex = index;
             modal.classList.add('is-visible');
@@ -345,6 +353,8 @@
             publicProfileGalleryIndex = (publicProfileGalleryIndex + direction + publicProfileGalleryFilenames.length) % publicProfileGalleryFilenames.length;
             refreshPublicProfileGallery();
         }
+
+        mountPublicProfileGalleryModal();
 
         // --- Review Modal Logic ---
         let selectedRating = 0;
