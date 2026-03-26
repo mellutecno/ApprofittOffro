@@ -63,6 +63,38 @@
 
         </div>
 
+        {% if is_authenticated and pending_review_reminders %}
+        <section class="glass-card" style="padding: 24px; margin: 0 auto 28px auto; max-width: 900px; background: linear-gradient(180deg, rgba(255,248,240,0.98) 0%, rgba(255,238,220,0.98) 100%); border: 1px solid rgba(255,112,67,0.18);">
+            <div style="display: flex; flex-direction: column; gap: 18px;">
+                <div style="text-align: left;">
+                    <div style="font-size: 0.82rem; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: #C24D26; margin-bottom: 6px;">Recensioni da lasciare</div>
+                    <h2 style="margin: 0 0 8px 0; font-size: 1.55rem; color: #3B2415;">Hai {{ pending_review_reminders|length }} {{ 'feedback in attesa' if pending_review_reminders|length != 1 else 'feedback in attesa' }}</h2>
+                    <p style="margin: 0; color: #6A4330; line-height: 1.6;">Questi pasti sono gi&agrave; conclusi. Lascia il tuo feedback prima di dimenticarti com'&egrave; andata.</p>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px;">
+                    {% for reminder in pending_review_reminders %}
+                    <article style="padding: 18px; border-radius: 22px; background: rgba(255,255,255,0.78); border: 1px solid rgba(130,74,31,0.12); box-shadow: 0 12px 30px rgba(99, 53, 17, 0.08);">
+                        <div style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: rgba(255,112,67,0.14); color: #B24E26; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px;">
+                            {% if reminder.offer.tipo_pasto == 'colazione' %}☕{% elif reminder.offer.tipo_pasto == 'pranzo' %}🍝{% else %}🌙{% endif %}
+                            {{ reminder.offer.tipo_pasto }}
+                        </div>
+                        <div style="font-size: 1rem; font-weight: 900; color: #3B2415; margin-bottom: 6px;">{{ reminder.offer.nome_locale }}</div>
+                        <div style="font-size: 0.95rem; font-weight: 700; color: #6A4330; margin-bottom: 8px;">{{ format_offer_datetime_label(reminder.offer.data_ora) }}</div>
+                        <p style="margin: 0 0 14px 0; color: #7B553E; line-height: 1.5;">
+                            {% if reminder.role_label == 'host' %}
+                            Hai partecipato al pasto di <strong>{{ reminder.target_user.nome }}</strong>. Lascia la tua recensione.
+                            {% else %}
+                            <strong>{{ reminder.target_user.nome }}</strong> ha partecipato al tuo pasto. Lascia la tua recensione.
+                            {% endif %}
+                        </p>
+                        <a href="/profile/{{ reminder.target_user.id }}" class="btn btn-primary btn-sm" style="width: 100%; text-align: center;">Lascia recensione</a>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
         {% if not is_authenticated %}
         <section class="public-hero-shell">
             <div class="public-hero-copy">

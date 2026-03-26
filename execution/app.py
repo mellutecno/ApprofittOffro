@@ -906,6 +906,11 @@ def dashboard():
         return redirect(url_for("admin_dashboard"))
 
     is_authenticated = current_user.is_authenticated
+    pending_review_reminders = (
+        get_pending_review_reminders(current_user)
+        if is_authenticated
+        else []
+    )
     has_user_location = (
         is_authenticated
         and current_user.latitudine is not None
@@ -931,6 +936,8 @@ def dashboard():
         has_user_location=has_user_location,
         default_lat=default_lat,
         default_lon=default_lon,
+        pending_review_reminders=pending_review_reminders,
+        format_offer_datetime_label=format_offer_datetime_label,
     )
 
 
@@ -1150,6 +1157,71 @@ def get_user_rating(user_id):
         return {"average": 0, "count": 0}
     avg = sum(r.rating for r in reviews) / len(reviews)
     return {"average": round(avg, 1), "count": len(reviews)}
+
+
+def get_pending_review_reminders(user, now=None):
+    """Restituisce le interazioni concluse da recensire, sia da ospite che da host."""
+    if not user or not getattr(user, "is_authenticated", False):
+        return []
+
+    now = now or local_now()
+    threshold = now - timedelta(hours=3)
+    reminders = []
+    seen_pairs = set()
+
+    my_claims = Claim.query.filter_by(user_id=user.id).order_by(Claim.created_at.desc()).all()
+    for claim in my_claims:
+        offer = claim.offerta
+        if not offer or offer.stato == "annullata" or offer.data_ora > threshold:
+            continue
+
+        review_key = (offer.id, offer.user_id)
+        if review_key in seen_pairs:
+            continue
+
+        existing_review = Review.query.filter_by(
+            reviewer_id=user.id,
+            reviewed_id=offer.user_id,
+            offer_id=offer.id,
+        ).first()
+        if existing_review:
+            continue
+
+        seen_pairs.add(review_key)
+        reminders.append({
+            "offer": offer,
+            "target_user": offer.autore,
+            "role_label": "host",
+        })
+
+    my_offers = Offer.query.filter_by(user_id=user.id).order_by(Offer.data_ora.desc()).all()
+    for offer in my_offers:
+        if offer.stato == "annullata" or offer.data_ora > threshold:
+            continue
+
+        for claim in offer.claims:
+            guest = claim.utente
+            review_key = (offer.id, guest.id)
+            if review_key in seen_pairs:
+                continue
+
+            existing_review = Review.query.filter_by(
+                reviewer_id=user.id,
+                reviewed_id=guest.id,
+                offer_id=offer.id,
+            ).first()
+            if existing_review:
+                continue
+
+            seen_pairs.add(review_key)
+            reminders.append({
+                "offer": offer,
+                "target_user": guest,
+                "role_label": "guest",
+            })
+
+    reminders.sort(key=lambda item: item["offer"].data_ora, reverse=True)
+    return reminders
 
 
 def can_manage_offer(offer, user):
