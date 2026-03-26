@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=72">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=74">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -378,11 +378,32 @@
                     <div class="offer-participants-label">Partecipanti</div>
                     <div class="offer-participants-strip">
                         ${offer.partecipanti.map((participant) => `
-                            <a href="${getMemberProfileHref(participant.id)}" class="offer-participant-link" title="Vai al profilo di ${participant.nome}">
-                                <img src="/uploads/${participant.foto}" alt="${participant.nome}" class="offer-participant-avatar">
-                            </a>
+                            <div class="offer-participant-card">
+                                <a href="${getMemberProfileHref(participant.id)}" class="offer-participant-link" title="Vai al profilo di ${participant.nome}">
+                                    <img src="/uploads/${participant.foto}" alt="${participant.nome}" class="offer-participant-avatar">
+                                </a>
+                                ${participant.whatsapp_link ? `
+                                    <a href="${participant.whatsapp_link}" target="_blank" rel="noopener noreferrer" class="offer-participant-whatsapp">
+                                        WhatsApp
+                                    </a>
+                                ` : ''}
+                            </div>
                         `).join('')}
                     </div>
+                </div>
+            `;
+        }
+
+        function getHostWhatsappMarkup(offer) {
+            if (!isAuthenticated || !offer.host_whatsapp_link) {
+                return '';
+            }
+
+            return `
+                <div class="offer-host-whatsapp-wrap">
+                    <a href="${offer.host_whatsapp_link}" target="_blank" rel="noopener noreferrer" class="offer-host-whatsapp-btn">
+                        💬 Scrivi su WhatsApp
+                    </a>
                 </div>
             `;
         }
@@ -1016,6 +1037,7 @@
                         </div>
 
                         <div class="offer-card-body">
+                            ${getHostWhatsappMarkup(offer)}
                             ${getParticipantsMarkup(offer)}
                             <h4 style="margin-bottom: 4px; font-weight: 800;">${offer.nome_locale}</h4>
                             <div class="address" style="font-weight: 600; color: var(--text-muted); font-size: 0.85rem;">

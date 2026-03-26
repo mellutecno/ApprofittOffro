@@ -1793,11 +1793,14 @@ def api_get_offers():
         # Controlla se l'utente corrente ha già approfittato
         already_claimed = False
         is_own = False
+        host_whatsapp_link = ""
         if current_user.is_authenticated:
             already_claimed = Claim.query.filter_by(
                 user_id=current_user.id, offer_id=o.id
             ).first() is not None
             is_own = o.user_id == current_user.id
+            if already_claimed and not is_own:
+                host_whatsapp_link = build_whatsapp_offer_link(current_user, o.autore, o)
 
         result.append({
             "id": o.id,
@@ -1824,11 +1827,15 @@ def api_get_offers():
             "autore_rating_count": author_rating["count"],
             "autore_cibi_preferiti": o.autore.cibi_preferiti or "",
             "autore_intolleranze": o.autore.intolleranze or "",
+            "host_whatsapp_link": host_whatsapp_link,
             "partecipanti": [
                 {
                     "id": claim.utente.id,
                     "nome": claim.utente.nome,
                     "foto": claim.utente.foto_filename,
+                    "whatsapp_link": build_whatsapp_offer_link(current_user, claim.utente, o)
+                    if current_user.is_authenticated and is_own
+                    else "",
                 }
                 for claim in o.claims
                 if claim.utente
