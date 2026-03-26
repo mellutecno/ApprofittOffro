@@ -39,6 +39,7 @@ class User(UserMixin, db.Model):
     foto_filename = db.Column(db.String(256), nullable=False)
     fascia_eta = db.Column(db.String(10), nullable=False)
     eta = db.Column(db.Integer, nullable=True)
+    numero_telefono = db.Column(db.String(32), nullable=True)
     latitudine = db.Column(db.Float, nullable=False)
     longitudine = db.Column(db.Float, nullable=False)
     citta = db.Column(db.String(200), nullable=True) # Aggiunta colonna mancante per l'indirizzo testuale

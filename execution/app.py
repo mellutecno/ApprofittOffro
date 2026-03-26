@@ -402,6 +402,7 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
         legacy_columns = {
             "users": [
                 ("eta", "ALTER TABLE users ADD COLUMN eta INTEGER"),
+                ("numero_telefono", "ALTER TABLE users ADD COLUMN numero_telefono VARCHAR(32)"),
                 ("citta", "ALTER TABLE users ADD COLUMN citta VARCHAR(200)"),
                 ("cibi_preferiti", "ALTER TABLE users ADD COLUMN cibi_preferiti VARCHAR(300)"),
                 ("intolleranze", "ALTER TABLE users ADD COLUMN intolleranze VARCHAR(300)"),
@@ -612,6 +613,7 @@ def get_profile_form_values(user, source=None):
         "nome": (source.get("nome") if source else user.nome) or user.nome,
         "email": (source.get("email") if source else user.email) or user.email,
         "eta": (source.get("eta") if source else eta_value) or eta_value,
+        "numero_telefono": (source.get("numero_telefono") if source else (user.numero_telefono or "")) or "",
         "citta": (source.get("citta") if source else (user.citta or "")) or "",
         "latitudine": source.get("latitudine") if has_source else user.latitudine,
         "longitudine": source.get("longitudine") if has_source else user.longitudine,
@@ -632,6 +634,7 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
 
     nome = str(source.get("nome", user.nome) or "").strip()
     email = str(source.get("email", user.email) or "").strip().lower()
+    numero_telefono_raw = source.get("numero_telefono", user.numero_telefono or "")
     eta_raw = source.get(
         "eta",
         user.eta if user.eta is not None else user.fascia_eta,
@@ -648,6 +651,10 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
         errors.append("Il nome non può essere vuoto.")
     if not email or "@" not in email:
         errors.append("Inserisci un'email valida.")
+
+    numero_telefono, phone_error = normalize_phone_number(numero_telefono_raw)
+    if phone_error:
+        errors.append(phone_error)
 
     eta, eta_error = parse_age_value(eta_raw)
     if eta_error:
@@ -686,6 +693,7 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
         "nome": nome,
         "email": email,
         "eta": eta if not eta_error else None,
+        "numero_telefono": numero_telefono,
         "citta": citta,
         "latitudine": latitudine,
         "longitudine": longitudine,
@@ -706,6 +714,7 @@ def save_profile_update_for_user(user, payload, *, verified=None):
     user.email = payload["email"]
     user.fascia_eta = str(payload["eta"])
     user.eta = payload["eta"]
+    user.numero_telefono = payload["numero_telefono"]
     user.citta = payload["citta"]
     if payload["latitudine"] is not None and payload["longitudine"] is not None:
         user.latitudine = payload["latitudine"]
@@ -748,14 +757,14 @@ def profile_completed_required(f):
             if is_admin_user(current_user):
                 return f(*args, **kwargs)
             if not is_profile_complete(current_user):
-                flash("Ciao! Completa il tuo identikit alimentare e la tua bio: sono obbligatori per poter pubblicare offerte, partecipare ai pasti e vedere i profili completi. 🍽️", "warning")
+                flash("Ciao! Completa il tuo numero di cellulare, l'identikit alimentare e la tua bio: sono obbligatori per poter pubblicare offerte, partecipare ai pasti e vedere i profili completi. 🍽️", "warning")
                 return redirect(url_for('profile_page'))
         return f(*args, **kwargs)
     return decorated_function
 
 
 def is_profile_complete(user):
-    return bool(user.cibi_preferiti and user.intolleranze and user.bio)
+    return bool(user.numero_telefono and user.cibi_preferiti and user.intolleranze and user.bio)
 
 
 def is_admin_user(user):
@@ -812,7 +821,7 @@ def require_complete_profile_json():
     if current_user.is_authenticated and not is_admin_user(current_user) and not is_profile_complete(current_user):
         return jsonify({
             "success": False,
-            "error": "Completa il profilo prima di partecipare o pubblicare offerte.",
+            "error": "Completa numero di cellulare, bio e identikit alimentare prima di partecipare o pubblicare offerte.",
         }), 403
     return None
 
@@ -832,6 +841,30 @@ def parse_age_value(age_raw):
     if age > 120:
         return None, "Inserisci un'età realistica."
     return age, None
+
+
+def normalize_phone_number(phone_raw):
+    """Normalizza un recapito telefonico per un uso futuro in chat/WhatsApp."""
+    normalized_phone = str(phone_raw or "").strip()
+    if not normalized_phone:
+        return None, "Inserisci un numero di cellulare valido."
+
+    compact_phone = re.sub(r"[\s().-]+", "", normalized_phone)
+    if compact_phone.startswith("00"):
+        compact_phone = f"+{compact_phone[2:]}"
+
+    if compact_phone.startswith("+"):
+        digit_block = compact_phone[1:]
+    else:
+        digit_block = compact_phone
+
+    if not digit_block.isdigit():
+        return None, "Il numero di cellulare può contenere solo cifre, spazi, trattini e il prefisso +."
+
+    if len(digit_block) < 8 or len(digit_block) > 15:
+        return None, "Inserisci un numero di cellulare reale, con almeno 8 cifre."
+
+    return f"+{digit_block}" if compact_phone.startswith("+") else digit_block, None
 
 
 def parse_optional_age_bound(age_raw, label):
@@ -1545,11 +1578,13 @@ def api_register():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         conferma_password = request.form.get("conferma_password", "")
+        numero_telefono_raw = request.form.get("numero_telefono", "")
         eta_raw = request.form.get("eta", "")
         lat = request.form.get("latitudine")
         lon = request.form.get("longitudine")
         citta = request.form.get("citta", "").strip()
         eta, eta_error = parse_age_value(eta_raw)
+        numero_telefono, phone_error = normalize_phone_number(numero_telefono_raw)
 
         # Validazione campi
         errors = []
@@ -1557,6 +1592,8 @@ def api_register():
             errors.append("Il nome è obbligatorio.")
         if not email or "@" not in email:
             errors.append("Inserisci un'email valida.")
+        if phone_error:
+            errors.append(phone_error)
         if len(password) < 6:
             errors.append("La password deve avere almeno 6 caratteri.")
         if password != conferma_password:
@@ -1590,6 +1627,7 @@ def api_register():
             foto_filename=photo_filenames[0],
             fascia_eta=str(eta),
             eta=eta,
+            numero_telefono=numero_telefono,
             latitudine=float(lat),
             longitudine=float(lon),
             citta=citta,

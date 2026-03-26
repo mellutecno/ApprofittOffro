@@ -64,7 +64,7 @@
             <!-- Identikit Alimentare Form -->
             <div class="glass-card mb-4" style="text-align: center;">
                 <h2 style="margin-bottom: 8px;">Il Tuo Profilo 👤</h2>
-                <p style="color: var(--text-muted); margin-bottom: 32px;">Gestisci il tuo identikit alimentare e la tua posizione.</p>
+                <p style="color: var(--text-muted); margin-bottom: 32px;">Gestisci il tuo identikit alimentare, il tuo cellulare e la tua posizione.</p>
                 
                 <form id="profile-form" enctype="multipart/form-data">
                     <div style="margin-bottom: 32px;">
@@ -101,6 +101,11 @@
                     <div class="form-group" style="text-align: left; margin-bottom: 24px;">
                         <label>Età</label>
                         <input type="number" name="eta" class="form-control" min="18" max="120" value="{{ current_user.eta if current_user.eta is not none else current_user.fascia_eta.split('-')[0].replace('+', '') }}" required>
+                    </div>
+
+                    <div class="form-group" style="text-align: left; margin-bottom: 24px;">
+                        <label>Cellulare</label>
+                        <input type="tel" name="numero_telefono" class="form-control" value="{{ current_user.numero_telefono or '' }}" placeholder="Es. +39 333 1234567" autocomplete="tel" required>
                     </div>
 
                     <div class="form-group" style="text-align: left;">
