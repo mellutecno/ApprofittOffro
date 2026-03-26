@@ -136,10 +136,16 @@ def normalize_row(table_name, row):
     data = dict(row)
 
     if table_name == "users":
+        if not data.get("foto_filename"):
+            data["foto_filename"] = "nessuna.jpg"
         data["verificato"] = bool(data.get("verificato"))
         data["is_admin"] = bool(data.get("is_admin"))
         data["created_at"] = parse_datetime(data.get("created_at"))
     elif table_name == "offers":
+        if not data.get("foto_locale"):
+            data["foto_locale"] = "nessuna.jpg"
+        if not data.get("stato"):
+            data["stato"] = "attiva"
         data["data_ora"] = parse_datetime(data.get("data_ora"))
         data["created_at"] = parse_datetime(data.get("created_at"))
     else:
@@ -154,6 +160,10 @@ def fetch_sqlite_rows(source_path, table_name):
     try:
         rows = conn.execute(f"SELECT * FROM {table_name} ORDER BY id ASC").fetchall()
         return [normalize_row(table_name, row) for row in rows]
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc).lower():
+            return []
+        raise
     finally:
         conn.close()
 
