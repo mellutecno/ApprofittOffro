@@ -111,6 +111,7 @@ BREAKFAST_BOOKING_LEAD_HOURS = 1
 MEAL_BOOKING_LEAD_HOURS = 6
 USER_SESSION_IDLE_TIMEOUT_MINUTES = 60
 ADMIN_SESSION_IDLE_TIMEOUT_MINUTES = 30
+REVIEW_EDIT_WINDOW_HOURS = 24
 
 
 def local_now():
@@ -1147,6 +1148,7 @@ def profile_page():
         rating_info=get_user_rating(current_user.id),
         now=local_now(),
         completion_threshold=local_now() - timedelta(hours=3),
+        review_edit_threshold=local_now() - timedelta(hours=REVIEW_EDIT_WINDOW_HOURS),
         format_offer_datetime_label=format_offer_datetime_label,
     )
 
@@ -1222,6 +1224,14 @@ def get_pending_review_reminders(user, now=None):
 
     reminders.sort(key=lambda item: item["offer"].data_ora, reverse=True)
     return reminders
+
+
+def can_edit_review(review, now=None):
+    """Permette di correggere una recensione solo entro una finestra limitata."""
+    if not review:
+        return False
+    now = now or local_now()
+    return review.created_at + timedelta(hours=REVIEW_EDIT_WINDOW_HOURS) > now
 
 
 def can_manage_offer(offer, user):
@@ -1350,12 +1360,13 @@ def public_profile(user_id):
     # Logica per il pulsante "Lascia Recensione" sul profilo pubblico
     # Cerchiamo l'ultimo pasto condiviso concluso (almeno 3 ore fa)
     shared_offer = None
+    editable_review = None
     pending_offer = None
     if current_user.id != user_id:
         now = local_now()
         threshold = now - timedelta(hours=3)
         
-        def first_unreviewed_offer(query):
+        def first_reviewable_offer(query):
             for offer in query.order_by(Offer.data_ora.desc()).all():
                 existing_review = Review.query.filter_by(
                     reviewer_id=current_user.id,
@@ -1363,8 +1374,10 @@ def public_profile(user_id):
                     offer_id=offer.id,
                 ).first()
                 if not existing_review:
-                    return offer
-            return None
+                    return offer, None
+                if can_edit_review(existing_review, now):
+                    return offer, existing_review
+            return None, None
         
         # Caso A: Io ero l'ospite, lui l'host
         meal_as_guest = Offer.query.join(Claim).filter(
@@ -1380,7 +1393,9 @@ def public_profile(user_id):
             Offer.data_ora < threshold
         )
         
-        shared_offer = first_unreviewed_offer(meal_as_guest) or first_unreviewed_offer(meal_as_host)
+        shared_offer, editable_review = first_reviewable_offer(meal_as_guest)
+        if not shared_offer:
+            shared_offer, editable_review = first_reviewable_offer(meal_as_host)
 
         # Se non c'è una shared_offer già conclusa, cerchiamo una "pending" (pasto appena avvenuto o in corso)
         if not shared_offer:
@@ -1406,7 +1421,9 @@ def public_profile(user_id):
         offerte_totali=offerte_totali,
         recuperi_effettuati=recuperi_effettuati,
         shared_offer=shared_offer,
+        editable_review=editable_review,
         pending_offer=pending_offer,
+        review_edit_threshold=local_now() - timedelta(hours=REVIEW_EDIT_WINDOW_HOURS),
         is_following=UserFollow.query.filter_by(
             follower_id=current_user.id,
             followed_id=user_id,
@@ -2274,7 +2291,7 @@ def api_user_update():
 @app.route("/api/reviews", methods=["POST"])
 @login_required
 def api_create_review():
-    """Crea una nuova recensione (Host -> Guest o Guest -> Host)."""
+    """Crea o aggiorna una recensione (Host -> Guest o Guest -> Host)."""
     data = request.get_json(silent=True) or {}
     offer_id = data.get("offer_id")
     reviewed_id = data.get("reviewed_id")
@@ -2328,11 +2345,23 @@ def api_create_review():
     if not is_guest_reviewing_host and not is_host_reviewing_guest:
         return jsonify({"success": False, "error": "Non sei autorizzato a recensire questo utente per questo pasto."}), 403
 
-    # 5. Verifica che non abbia già recensito questa specifica interazione
-    from models import Review
-    existing = Review.query.filter_by(reviewer_id=current_user.id, reviewed_id=reviewed_id, offer_id=offer_id).first()
+    # 5. Se la recensione esiste già, può essere corretta solo entro una finestra limitata
+    existing = Review.query.filter_by(
+        reviewer_id=current_user.id,
+        reviewed_id=reviewed_id,
+        offer_id=offer_id,
+    ).first()
     if existing:
-        return jsonify({"success": False, "error": "Hai già lasciato una recensione per questo utente in questo pasto."}), 400
+        if not can_edit_review(existing):
+            return jsonify({
+                "success": False,
+                "error": f"Hai già lasciato una recensione per questo utente in questo pasto. Puoi modificarla solo entro {REVIEW_EDIT_WINDOW_HOURS} ore.",
+            }), 400
+
+        existing.rating = rating
+        existing.commento = commento
+        db.session.commit()
+        return jsonify({"success": True, "message": "Recensione aggiornata con successo."})
 
     # 6. Creazione recensione
     new_review = Review(

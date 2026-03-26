@@ -239,8 +239,11 @@
                                 </div>
                                 {% if offer.data_ora < completion_threshold and offer.stato != 'annullata' %}
                                     {% set host_reviewed_guest = offer.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|selectattr('reviewed_id', 'equalto', c.utente.id)|list %}
-                                    {% if not host_reviewed_guest %}
-                                    <button type="button" onclick='openReviewModal({{ offer.id }}, {{ c.utente.nome|tojson }}, {{ c.utente.id }})' class="btn btn-accent btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">🌟 Recensisci</button>
+                                    {% set existing_host_review = host_reviewed_guest[0] if host_reviewed_guest else None %}
+                                    {% if not existing_host_review %}
+                                    <button type="button" onclick='openReviewModal({{ offer.id }}, {{ offer.nome_locale|tojson }}, {{ c.utente.id }})' class="btn btn-accent btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">🌟 Recensisci</button>
+                                    {% elif existing_host_review.created_at >= review_edit_threshold %}
+                                    <button type="button" onclick='openReviewModal({{ offer.id }}, {{ offer.nome_locale|tojson }}, {{ c.utente.id }}, {{ existing_host_review.rating }}, {{ existing_host_review.commento|default("", true)|tojson }})' class="btn btn-outline btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">✏️ Modifica recensione</button>
                                     {% else %}
                                     <span style="font-size: 0.7rem; color: var(--success); font-weight: 700;">✨ Recensito</span>
                                     {% endif %}
@@ -313,10 +316,13 @@
                 </div>
                 <div class="offer-card-footer" style="flex-direction: column; gap: 8px;">
                     {% set has_reviewed = claim.offerta.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|list %}
+                    {% set existing_claim_review = has_reviewed[0] if has_reviewed else None %}
                     
-                    {% if claim.offerta.data_ora < completion_threshold and not has_reviewed and claim.offerta.stato != 'annullata' %}
+                    {% if claim.offerta.data_ora < completion_threshold and not existing_claim_review and claim.offerta.stato != 'annullata' %}
                     <button type="button" onclick='openReviewModal({{ claim.offerta.id }}, {{ claim.offerta.nome_locale|tojson }}, {{ claim.offerta.user_id }})' class="btn btn-primary btn-sm" style="width:100%;">🌟 Lascia Recensione</button>
-                    {% elif has_reviewed %}
+                    {% elif existing_claim_review and existing_claim_review.created_at >= review_edit_threshold %}
+                    <button type="button" onclick='openReviewModal({{ claim.offerta.id }}, {{ claim.offerta.nome_locale|tojson }}, {{ claim.offerta.user_id }}, {{ existing_claim_review.rating }}, {{ existing_claim_review.commento|default("", true)|tojson }})' class="btn btn-outline btn-sm" style="width:100%;">✏️ Modifica recensione</button>
+                    {% elif existing_claim_review %}
                     <div class="text-center" style="color: var(--success); font-weight: 700; font-size: 0.85rem; padding: 8px;">✨ Già Recensito</div>
                     {% elif claim.offerta.data_ora < now %}
                                     <div class="text-center" style="color: var(--text-muted); font-size: 0.85rem; padding: 8px;">⏳ Torna più tardi per una recensione</div>
@@ -355,12 +361,13 @@
     <div id="review-modal" class="modal" style="display: none; align-items: center; justify-content: center;">
         <div class="glass-card" style="width: 100%; max-width: 450px; position: relative;">
             <button onclick="closeReviewModal()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;">&times;</button>
-            <h2 class="text-center mb-1">Lascia un feedback</h2>
+            <h2 id="review-modal-title" class="text-center mb-1">Lascia un feedback</h2>
             <p class="text-center text-muted mb-3" id="review-venue-name"></p>
             
             <form id="review-form">
                 <input type="hidden" id="review-offer-id">
                 <input type="hidden" id="review-reviewed-id">
+                <input type="hidden" id="review-is-edit" value="0">
                 <div class="form-group text-center">
                     <label>Quanto ti è piaciuta l'esperienza?</label>
                     <div id="star-rating" style="display: flex; justify-content: center; gap: 12px; font-size: 2.2rem; margin: 15px 0;">
@@ -378,7 +385,7 @@
                     <textarea id="review-commento" class="form-control" rows="3" placeholder="Es: Ottima compagnia e cibo delizioso!"></textarea>
                 </div>
                 
-                <button type="submit" class="btn btn-primary btn-block mt-3">Invia Recensione</button>
+                <button type="submit" id="review-submit-btn" class="btn btn-primary btn-block mt-3">Invia Recensione</button>
             </form>
         </div>
     </div>
@@ -537,14 +544,18 @@
             });
         }
 
-        function openReviewModal(offerId, venueName, reviewedId) {
+        function openReviewModal(offerId, venueName, reviewedId, existingRating = 0, existingComment = '') {
             document.getElementById('review-offer-id').value = offerId;
             document.getElementById('review-reviewed-id').value = reviewedId;
             document.getElementById('review-venue-name').innerHTML = `Pasto presso <b>${venueName}</b>`;
+            document.getElementById('review-is-edit').value = existingRating ? '1' : '0';
+            document.getElementById('review-modal-title').textContent = existingRating ? 'Modifica il tuo feedback' : 'Lascia un feedback';
+            document.getElementById('review-submit-btn').textContent = existingRating ? 'Aggiorna recensione' : 'Invia Recensione';
             document.getElementById('review-modal').style.display = 'flex';
-            selectedRating = 0;
-            highlightStars(0);
-            document.getElementById('review-commento').value = '';
+            selectedRating = Number(existingRating) || 0;
+            highlightStars(selectedRating);
+            document.getElementById('selected-rating').value = selectedRating;
+            document.getElementById('review-commento').value = existingComment || '';
         }
 
         function closeReviewModal() {
