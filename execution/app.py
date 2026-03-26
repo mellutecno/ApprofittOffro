@@ -1674,7 +1674,8 @@ def api_get_offers():
     now = local_now()
     threshold = now - timedelta(hours=3)
     query = Offer.query.options(
-        selectinload(Offer.autore).selectinload(User.photos)
+        selectinload(Offer.autore).selectinload(User.photos),
+        selectinload(Offer.claims).selectinload(Claim.utente).selectinload(User.photos),
     ).filter(
         Offer.stato.in_(["attiva", "completata"]),
         Offer.data_ora > threshold,
@@ -1753,6 +1754,15 @@ def api_get_offers():
             "autore_rating_count": author_rating["count"],
             "autore_cibi_preferiti": o.autore.cibi_preferiti or "",
             "autore_intolleranze": o.autore.intolleranze or "",
+            "partecipanti": [
+                {
+                    "id": claim.utente.id,
+                    "nome": claim.utente.nome,
+                    "foto": claim.utente.foto_filename,
+                }
+                for claim in o.claims
+                if claim.utente
+            ],
             "is_own": is_own,
             "already_claimed": already_claimed,
         })

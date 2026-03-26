@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=66">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=70">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -329,6 +329,12 @@
             return `/profile/${offer.autore_id}`;
         }
 
+        function getMemberProfileHref(userId) {
+            if (!isAuthenticated) return '/login';
+            if (!canParticipate) return '/profile';
+            return Number(userId) === Number({{ current_user.id if current_user.is_authenticated else 0 }}) ? '/profile' : `/profile/${userId}`;
+        }
+
         function getAuthorMeta(offer) {
             if (!isAuthenticated) {
                 return `${offer.autore_eta} anni`;
@@ -360,6 +366,25 @@
         function getAuthorProfileLabelMarkup() {
             if (!isAuthenticated) return '';
             return `<span style="color: var(--primary); font-weight: 800; font-size: 0.82rem; white-space: nowrap;">Visualizza profilo</span>`;
+        }
+
+        function getParticipantsMarkup(offer) {
+            if (!isAuthenticated || !Array.isArray(offer.partecipanti) || !offer.partecipanti.length) {
+                return '';
+            }
+
+            return `
+                <div class="offer-participants-strip">
+                    <div class="offer-participants-label">Partecipano</div>
+                    <div class="offer-participants-list">
+                        ${offer.partecipanti.map((participant) => `
+                            <a href="${getMemberProfileHref(participant.id)}" class="offer-participant-link" title="Vai al profilo di ${participant.nome}">
+                                <img src="/uploads/${participant.foto}" alt="${participant.nome}" class="offer-participant-avatar">
+                            </a>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
         }
 
         function getAddressLine(offer) {
@@ -989,6 +1014,7 @@
                         </div>
 
                         <div class="offer-card-body">
+                            ${getParticipantsMarkup(offer)}
                             <h4 style="margin-bottom: 4px; font-weight: 800;">${offer.nome_locale}</h4>
                             <div class="address" style="font-weight: 600; color: var(--text-muted); font-size: 0.85rem;">
                                 📍 ${offer.indirizzo} <span style="color:var(--primary); margin-left:4px;">(a ${offer.distance_km} km)</span>
