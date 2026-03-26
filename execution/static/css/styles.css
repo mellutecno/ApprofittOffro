@@ -2747,20 +2747,29 @@ body.admin-page {
     color: var(--text-light);
 }
 
+.offer-author-main-link {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: inherit;
+    text-decoration: none;
+}
+
 .offer-author-actions {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    flex: 0 0 104px;
-    min-width: 104px;
+    flex: 0 0 92px;
+    min-width: 92px;
     text-align: center;
 }
 
 .offer-author-profile-link {
-    display: block;
-    width: 100%;
+    display: inline-block;
     color: var(--primary);
     font-weight: 700;
     font-size: 0.74rem;
@@ -2768,6 +2777,7 @@ body.admin-page {
     white-space: nowrap;
     opacity: 0.9;
     text-align: center;
+    text-decoration: none;
 }
 
 .offer-author-whatsapp-wrap {
