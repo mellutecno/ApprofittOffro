@@ -938,11 +938,22 @@ def profile_page():
             if guest.id not in met_users_dict:
                 met_users_dict[guest.id] = guest
 
+    followers = [
+        relation.follower
+        for relation in sorted(
+            current_user.followers_rel,
+            key=lambda item: item.created_at or datetime.min,
+            reverse=True,
+        )
+        if relation.follower and not is_admin_user(relation.follower)
+    ]
+
     return render_template(
         "profile.html",
         my_offers=my_offers,
         my_claims=my_claims,
         met_users=met_users_dict.values(),
+        followers=followers,
         rating_info=get_user_rating(current_user.id),
         now=local_now(),
         completion_threshold=local_now() - timedelta(hours=3),

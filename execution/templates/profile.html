@@ -158,6 +158,24 @@
                 </div>
             </div>
 
+            <h3 class="mb-2">💌 Chi ti segue</h3>
+            {% if followers %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 40px;">
+                {% for follower in followers %}
+                <a href="/profile/{{ follower.id }}" class="glass-card" style="padding: 14px; text-align: center; text-decoration: none; transition: transform 0.2s; display: block; border-radius: 18px;">
+                    <img src="/uploads/{{ follower.foto_filename }}" class="avatar" style="width: 58px; height: 58px; margin: 0 auto 10px; border: 2px solid var(--primary);">
+                    <div style="font-weight: 800; font-size: 0.86rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ follower.nome }}</div>
+                    <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 4px;">{{ follower.eta_display }} anni</div>
+                    <div style="font-size: 0.75rem; color: var(--primary); font-weight: 700; margin-top: 6px;">{{ follower.citta if follower.citta else 'Città privata' }}</div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 20px; margin-bottom: 40px; border-style: dotted;">
+                <p style="font-size: 0.85rem; color: var(--text-muted);">Per ora non ti segue ancora nessuno.</p>
+            </div>
+            {% endif %}
+
             <!-- Community: Persone incontrate -->
             <h3 class="mb-2">👥 Persone che ho incontrato</h3>
             {% if met_users %}
