@@ -36,7 +36,7 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 from PIL import Image
 
-from models import db, User, Offer, Claim, Review, TIPI_PASTO, UserPhoto, UserFollow
+from models import db, User, Offer, Claim, Review, TIPI_PASTO, FASCE_ETA, UserPhoto, UserFollow
 from verify_photo import verifica_volto
 
 # ---------------------------------------------------------------------------
@@ -683,6 +683,27 @@ def parse_optional_age_bound(age_raw, label):
     return age, None
 
 
+def parse_age_range_filter(age_range_raw):
+    age_range = str(age_range_raw or "").strip()
+    if not age_range:
+        return "", None, None
+
+    valid_ranges = {value: label for value, label in FASCE_ETA}
+    if age_range not in valid_ranges:
+        return "", None, "Seleziona una fascia d'età valida."
+
+    if age_range.endswith("+"):
+        min_age = int(age_range[:-1])
+        return age_range, min_age, None
+
+    try:
+        min_age, max_age = [int(value) for value in age_range.split("-", 1)]
+    except ValueError:
+        return "", None, "Seleziona una fascia d'età valida."
+
+    return age_range, (min_age, max_age), None
+
+
 def get_safe_next_url(default_endpoint="people_page"):
     next_url = str(request.form.get("next", "") or request.args.get("next", "")).strip()
     if next_url.startswith("/"):
@@ -746,16 +767,12 @@ def people_page():
     if is_admin_user(current_user):
         return redirect(url_for("admin_dashboard"))
 
-    min_age, min_age_error = parse_optional_age_bound(request.args.get("min_age"), "l'età minima")
-    max_age, max_age_error = parse_optional_age_bound(request.args.get("max_age"), "l'età massima")
+    selected_age_range, parsed_age_range, age_range_error = parse_age_range_filter(
+        request.args.get("age_range")
+    )
 
-    if min_age_error:
-        flash(min_age_error, "error")
-    if max_age_error:
-        flash(max_age_error, "error")
-
-    if min_age is not None and max_age is not None and min_age > max_age:
-        min_age, max_age = max_age, min_age
+    if age_range_error:
+        flash(age_range_error, "error")
 
     people_query = User.query.options(selectinload(User.photos)).filter(
         User.id != current_user.id,
@@ -769,10 +786,13 @@ def people_page():
         User.intolleranze != "",
     )
 
-    if min_age is not None:
-        people_query = people_query.filter(User.eta >= min_age)
-    if max_age is not None:
-        people_query = people_query.filter(User.eta <= max_age)
+    if isinstance(parsed_age_range, tuple):
+        people_query = people_query.filter(
+            User.eta >= parsed_age_range[0],
+            User.eta <= parsed_age_range[1],
+        )
+    elif isinstance(parsed_age_range, int):
+        people_query = people_query.filter(User.eta >= parsed_age_range)
 
     people = people_query.order_by(User.eta.asc(), User.nome.asc()).all()
     followed_user_ids = get_followed_user_ids(current_user.id)
@@ -780,8 +800,8 @@ def people_page():
     return render_template(
         "people.html",
         people=people,
-        min_age=min_age if min_age is not None else "",
-        max_age=max_age if max_age is not None else "",
+        age_ranges=FASCE_ETA,
+        selected_age_range=selected_age_range,
         followed_user_ids=followed_user_ids,
     )
 
