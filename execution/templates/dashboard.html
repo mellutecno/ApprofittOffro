@@ -302,6 +302,17 @@
         }
 
         function getAuthorPhotosMarkup(offer) {
+            if (!isAuthenticated) {
+                return `
+                    <img
+                        src="/uploads/${offer.autore_foto}"
+                        alt="${offer.autore}"
+                        class="avatar"
+                        style="border: 2px solid white; box-shadow: var(--shadow-sm);"
+                    >
+                `;
+            }
+
             const photos = Array.isArray(offer.autore_foto_gallery) && offer.autore_foto_gallery.length
                 ? offer.autore_foto_gallery.slice(0, 2)
                 : [offer.autore_foto];
@@ -327,6 +338,11 @@
                     `).join('')}
                 </div>
             `;
+        }
+
+        function getAuthorProfileLabelMarkup() {
+            if (!isAuthenticated) return '';
+            return `<span style="color: var(--primary); font-weight: 800; font-size: 0.82rem; white-space: nowrap;">Visualizza profilo</span>`;
         }
 
         function getAddressLine(offer) {
@@ -951,7 +967,7 @@
                                         <div class="meta" style="color: var(--primary); font-weight: 700; font-size: 0.85rem;">${getAuthorMeta(offer)}</div>
                                     </div>
                                 </div>
-                                <span style="color: var(--primary); font-weight: 800; font-size: 0.82rem; white-space: nowrap;">Visualizza profilo</span>
+                                ${getAuthorProfileLabelMarkup()}
                             </a>
                         </div>
 
