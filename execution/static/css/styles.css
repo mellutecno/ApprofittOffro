@@ -3018,11 +3018,12 @@ body.modal-open {
 
 .review-modal-shell.is-visible {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
-    padding: 24px 16px;
+    padding: 16px;
     overflow-y: auto;
     overscroll-behavior: contain;
+    touch-action: pan-y;
 }
 
 .review-modal-backdrop {
@@ -3037,10 +3038,11 @@ body.modal-open {
     position: relative;
     z-index: 1;
     width: min(100%, 450px);
-    max-height: calc(100dvh - 48px);
-    margin: 0;
+    max-height: calc(100dvh - 32px);
+    margin: auto 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
 }
 
 .offer-error-backdrop {

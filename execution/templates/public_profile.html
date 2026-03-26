@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profilo di {{ user.nome }} — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=67">
+    <link rel="stylesheet" href="/static/css/styles.css?v=68">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -405,9 +405,11 @@
             highlightStars(selectedRating);
             document.getElementById('selected-rating').value = selectedRating;
             document.getElementById('review-commento').value = existingComment || '';
-            requestAnimationFrame(() => {
-                document.querySelector('.review-modal-dialog')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-            });
+            reviewModal.scrollTop = 0;
+            const reviewDialog = document.querySelector('.review-modal-dialog');
+            if (reviewDialog) {
+                reviewDialog.scrollTop = 0;
+            }
         }
 
         function closeReviewModal() {
