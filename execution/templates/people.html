@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Scopri i profili della community ApprofittOffro.">
     <title>Persone - ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=62">
+    <link rel="stylesheet" href="/static/css/styles.css?v=66">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -73,9 +73,9 @@
         {% endwith %}
 
         <section class="glass-card" style="padding: 24px; margin-bottom: 28px;">
-            <form id="people-filter-form" method="get" action="/people" style="display:grid; grid-template-columns: minmax(220px, 340px); gap: 14px; align-items:end;">
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label for="age_range">Fascia d'età</label>
+            <form id="people-filter-form" method="get" action="/people" style="display:grid; justify-content:center; grid-template-columns: minmax(220px, 340px); gap: 14px; align-items:end;">
+                <div class="form-group" style="margin-bottom: 0; text-align: center;">
+                    <label for="age_range" style="display:block; text-align:center;">Seleziona</label>
                     <select id="age_range" name="age_range" class="form-control" onchange="document.getElementById('people-filter-form').submit()">
                         <option value="">Tutte le età</option>
                         {% for value, label in age_ranges %}
