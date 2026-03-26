@@ -2851,8 +2851,8 @@ body.admin-page {
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 6px;
-    width: 56px;
+    gap: 7px;
+    width: 60px;
     flex: 0 0 auto;
 }
 
@@ -2882,15 +2882,15 @@ body.admin-page {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
-    background: rgba(37, 211, 102, 0.16);
-    color: #219653;
+    background: rgba(37, 211, 102, 0.28);
+    color: #178645;
     text-decoration: none;
     padding: 0;
-    box-shadow: 0 6px 14px rgba(37, 211, 102, 0.08);
-    border: 1px solid rgba(37, 211, 102, 0.18);
+    box-shadow: 0 8px 18px rgba(37, 211, 102, 0.12);
+    border: 1px solid rgba(37, 211, 102, 0.28);
     transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, background 0.18s ease;
     backdrop-filter: blur(8px);
 }
@@ -2908,8 +2908,8 @@ body.admin-page {
 }
 
 .offer-whatsapp-icon {
-    width: 12px;
-    height: 12px;
+    width: 15px;
+    height: 15px;
     display: block;
 }
 
