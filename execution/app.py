@@ -603,6 +603,136 @@ def get_followed_user_ids(user_id):
     }
 
 
+def get_profile_form_values(user, source=None):
+    has_source = source is not None
+    source = source or {}
+    eta_value = user.eta if user.eta is not None else str(user.fascia_eta).split("-", 1)[0].replace("+", "")
+    return {
+        "nome": (source.get("nome") if source else user.nome) or user.nome,
+        "email": (source.get("email") if source else user.email) or user.email,
+        "eta": (source.get("eta") if source else eta_value) or eta_value,
+        "citta": (source.get("citta") if source else (user.citta or "")) or "",
+        "latitudine": source.get("latitudine") if has_source else user.latitudine,
+        "longitudine": source.get("longitudine") if has_source else user.longitudine,
+        "cibi_preferiti": (source.get("cibi_preferiti") if source else (user.cibi_preferiti or "")) or "",
+        "intolleranze": (source.get("intolleranze") if source else (user.intolleranze or "")) or "",
+        "bio": (source.get("bio") if source else (user.bio or "")) or "",
+        "verificato": (
+            str(source.get("verificato", "")).lower() in {"1", "true", "on", "yes"}
+            if source
+            else bool(user.verificato)
+        ),
+    }
+
+
+def validate_profile_update_input(user, source, *, foto_files=None, require_primary_face=True):
+    uploaded_gallery_filenames = []
+    source = source or {}
+
+    nome = str(source.get("nome", user.nome) or "").strip()
+    email = str(source.get("email", user.email) or "").strip().lower()
+    eta_raw = source.get(
+        "eta",
+        user.eta if user.eta is not None else user.fascia_eta,
+    )
+    lat_raw = str(source.get("latitudine", "") or "").strip()
+    lon_raw = str(source.get("longitudine", "") or "").strip()
+    citta = str(source.get("citta", user.citta or "") or "").strip()
+    pref = str(source.get("cibi_preferiti", user.cibi_preferiti or "") or "").strip()
+    intoll = str(source.get("intolleranze", user.intolleranze or "") or "").strip()
+    bio = str(source.get("bio", user.bio or "") or "").strip()
+
+    errors = []
+    if not nome:
+        errors.append("Il nome non può essere vuoto.")
+    if not email or "@" not in email:
+        errors.append("Inserisci un'email valida.")
+
+    eta, eta_error = parse_age_value(eta_raw)
+    if eta_error:
+        errors.append(eta_error)
+
+    existing_user = User.query.filter_by(email=email).first()
+    if email != user.email and existing_user and existing_user.id != user.id:
+        errors.append("Questa email è già associata a un altro account.")
+
+    if len(pref) > 0 and len(pref) < 3:
+        errors.append("Quali sono i tuoi cibi preferiti? Scrivi qualcosa in più.")
+    if len(bio) > 0 and len(bio) < 5:
+        errors.append("Raccontaci qualcosa di più nella Bio.")
+
+    latitudine = None
+    longitudine = None
+    if lat_raw or lon_raw:
+        if not lat_raw or not lon_raw:
+            errors.append("Inserisci sia latitudine che longitudine, oppure lascia entrambi invariati.")
+        else:
+            try:
+                latitudine = float(lat_raw)
+                longitudine = float(lon_raw)
+            except ValueError:
+                errors.append("Latitudine e longitudine devono essere numeri validi.")
+
+    if foto_files:
+        uploaded_gallery_filenames, photo_errors = save_profile_gallery_files(
+            user.id,
+            foto_files,
+            require_primary_face=require_primary_face,
+        )
+        errors.extend(photo_errors)
+
+    payload = {
+        "nome": nome,
+        "email": email,
+        "eta": eta if not eta_error else None,
+        "citta": citta,
+        "latitudine": latitudine,
+        "longitudine": longitudine,
+        "cibi_preferiti": pref,
+        "intolleranze": intoll,
+        "bio": bio,
+        "uploaded_gallery_filenames": uploaded_gallery_filenames,
+    }
+
+    return payload, errors
+
+
+def save_profile_update_for_user(user, payload, *, verified=None):
+    old_gallery_filenames = []
+    uploaded_gallery_filenames = payload.get("uploaded_gallery_filenames", [])
+
+    user.nome = payload["nome"]
+    user.email = payload["email"]
+    user.fascia_eta = str(payload["eta"])
+    user.eta = payload["eta"]
+    user.citta = payload["citta"]
+    if payload["latitudine"] is not None and payload["longitudine"] is not None:
+        user.latitudine = payload["latitudine"]
+        user.longitudine = payload["longitudine"]
+
+    user.cibi_preferiti = payload["cibi_preferiti"]
+    user.intolleranze = payload["intolleranze"]
+    user.bio = payload["bio"]
+
+    if verified is not None:
+        user.verificato = bool(verified)
+
+    if uploaded_gallery_filenames:
+        old_gallery_filenames = replace_user_gallery(user, uploaded_gallery_filenames)
+
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        delete_upload_files(uploaded_gallery_filenames)
+        return False, [f"Errore nel salvataggio del profilo: {exc}"], []
+
+    db.session.refresh(user)
+    db.session.expire(user, ["photos"])
+    delete_upload_files(old_gallery_filenames)
+    return True, [], old_gallery_filenames
+
+
 # ---------------------------------------------------------------------------
 # Crea le tabelle al primo avvio
 # ---------------------------------------------------------------------------
@@ -858,7 +988,7 @@ def admin_dashboard():
     all_offers = Offer.query.order_by(Offer.data_ora.desc()).all()
     upcoming_offers = [offer for offer in all_offers if offer.data_ora >= now]
     past_offers = [offer for offer in all_offers if offer.data_ora < now]
-    users = User.query.filter_by(is_admin=False).order_by(User.created_at.desc()).all()
+    users = User.query.options(selectinload(User.photos)).filter_by(is_admin=False).order_by(User.created_at.desc()).all()
     admins = User.query.filter_by(is_admin=True).order_by(User.created_at.desc()).all()
 
     stats = {
@@ -875,6 +1005,59 @@ def admin_dashboard():
         past_offers=past_offers,
         stats=stats,
         now=now,
+    )
+
+
+@app.route("/admin/users/<int:user_id>/edit", methods=["GET", "POST"])
+@admin_required
+def admin_edit_user_page(user_id):
+    user = User.query.options(selectinload(User.photos)).get_or_404(user_id)
+
+    if is_admin_user(user):
+        flash("Per ora puoi modificare solo i profili utenti standard.", "warning")
+        return redirect(url_for("admin_dashboard"))
+
+    if request.method == "POST":
+        foto_files = extract_uploaded_photos("foto")
+        payload, errors = validate_profile_update_input(
+            user,
+            request.form,
+            foto_files=foto_files,
+            require_primary_face=True,
+        )
+        verified_value = str(request.form.get("verificato", "")).lower() in {"1", "true", "on", "yes"}
+
+        if errors:
+            delete_upload_files(payload.get("uploaded_gallery_filenames", []))
+            for error in errors:
+                flash(error, "error")
+            return render_template(
+                "admin_edit_user.html",
+                user=user,
+                form_values=get_profile_form_values(user, request.form),
+            )
+
+        success, save_errors, _ = save_profile_update_for_user(
+            user,
+            payload,
+            verified=verified_value,
+        )
+        if not success:
+            for error in save_errors:
+                flash(error, "error")
+            return render_template(
+                "admin_edit_user.html",
+                user=user,
+                form_values=get_profile_form_values(user, request.form),
+            )
+
+        flash(f"Profilo di {user.nome} aggiornato con successo.", "success")
+        return redirect(url_for("admin_edit_user_page", user_id=user.id))
+
+    return render_template(
+        "admin_edit_user.html",
+        user=user,
+        form_values=get_profile_form_values(user),
     )
 
 @app.route("/verify/<token>")
@@ -1975,87 +2158,28 @@ def api_admin_message_user(user_id):
 @login_required
 def api_user_update():
     """Aggiorna i dati anagrafici, alimentari e la foto profilo dell'utente."""
-    # Gestisce sia JSON che Form Data (necessario per upload foto)
-    uploaded_gallery_filenames = []
-    old_gallery_filenames = []
     if request.is_json:
         data = request.get_json()
+        foto_files = []
     else:
         data = request.form
+        foto_files = extract_uploaded_photos("foto")
 
-    # 1. Dati Anagrafici (Opzionali per l'update, ma validati se presenti)
-    nome = data.get("nome", current_user.nome).strip()
-    email = data.get("email", current_user.email).strip().lower()
-    eta_raw = data.get("eta", current_user.eta if current_user.eta is not None else current_user.fascia_eta)
-    lat = data.get("latitudine")
-    lon = data.get("longitudine")
-    citta = data.get("citta", current_user.citta)
-
-    # 2. Identikit Alimentare
-    pref = data.get("cibi_preferiti", current_user.cibi_preferiti or "").strip()
-    intoll = data.get("intolleranze", current_user.intolleranze or "").strip()
-    bio = data.get("bio", current_user.bio or "").strip()
-
-    errors = []
-    if not nome:
-        errors.append("Il nome non può essere vuoto.")
-    if not email or "@" not in email:
-        errors.append("Inserisci un'email valida.")
-    eta, eta_error = parse_age_value(eta_raw)
-    if eta_error:
-        errors.append(eta_error)
-    if email != current_user.email and User.query.filter_by(email=email).first():
-        errors.append("Questa email è già associata a un altro account.")
-    
-    if len(pref) > 0 and len(pref) < 3:
-        errors.append("Quali sono i tuoi cibi preferiti? Scrivi qualcosa in più.")
-    if len(bio) > 0 and len(bio) < 5:
-        errors.append("Raccontaci qualcosa di più nella tua Bio.")
-
-    # 3. Gestione Foto Profilo (Opzionale nell'update)
-    foto_files = extract_uploaded_photos("foto")
-    if foto_files:
-        uploaded_gallery_filenames, photo_errors = save_profile_gallery_files(
-            current_user.id,
-            foto_files,
-            require_primary_face=True,
-        )
-        errors.extend(photo_errors)
+    payload, errors = validate_profile_update_input(
+        current_user,
+        data,
+        foto_files=foto_files,
+        require_primary_face=True,
+    )
 
     if errors:
-        delete_upload_files(uploaded_gallery_filenames)
+        delete_upload_files(payload.get("uploaded_gallery_filenames", []))
         return jsonify({"success": False, "errors": errors}), 400
 
-    # 4. Salvataggio modifiche
-    current_user.nome = nome
-    current_user.email = email
-    current_user.fascia_eta = str(eta)
-    current_user.eta = eta
-    if lat and lon:
-        try:
-            current_user.latitudine = float(lat)
-            current_user.longitudine = float(lon)
-            current_user.citta = citta
-        except ValueError:
-            pass
-            
-    current_user.cibi_preferiti = pref
-    current_user.intolleranze = intoll
-    current_user.bio = bio
+    success, save_errors, _ = save_profile_update_for_user(current_user, payload)
+    if not success:
+        return jsonify({"success": False, "errors": save_errors}), 500
 
-    if uploaded_gallery_filenames:
-        old_gallery_filenames = replace_user_gallery(current_user, uploaded_gallery_filenames)
-
-    try:
-        db.session.commit()
-    except Exception as exc:
-        db.session.rollback()
-        delete_upload_files(uploaded_gallery_filenames)
-        return jsonify({"success": False, "errors": [f"Errore nel salvataggio del profilo: {exc}"]}), 500
-
-    db.session.refresh(current_user)
-    db.session.expire(current_user, ["photos"])
-    delete_upload_files(old_gallery_filenames)
     return jsonify({
         "success": True,
         "message": "Profilo aggiornato con successo!",

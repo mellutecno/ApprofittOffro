@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Area amministrazione ApprofittOffro.">
     <title>Admin - ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=62">
+    <link rel="stylesheet" href="/static/css/styles.css?v=66">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -43,7 +43,7 @@
                 <div>
                     <div style="display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:999px; background:rgba(255,112,67,0.14); color:var(--primary); font-size:0.8rem; font-weight:900; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px;">Area Admin</div>
                     <h1 style="margin-bottom: 10px;">Controllo completo della piattaforma</h1>
-                    <p style="color: var(--text-muted); max-width: 760px; margin: 0;">Da qui puoi moderare utenti, controllare eventi passati e futuri, modificare le offerte e rimuovere profili non convincenti con comunicazione motivata via email.</p>
+                    <p style="color: var(--text-muted); max-width: 760px; margin: 0;">Da qui puoi moderare utenti, correggere i loro profili, controllare eventi passati e futuri, modificare le offerte e rimuovere profili non convincenti con comunicazione motivata via email.</p>
                 </div>
                 <div style="display:grid; grid-template-columns:repeat(2, minmax(130px, 1fr)); gap:12px; min-width:min(100%, 380px);">
                     <div class="glass-card" style="padding:16px; text-align:center;">
@@ -120,13 +120,16 @@
                         </div>
                     </div>
 
-                    <div style="display:flex; gap:10px; flex-wrap:nowrap; align-items:stretch;">
-                        <button type="button" class="btn btn-outline btn-sm" style="flex:1;" onclick='openMessageUserModal({{ user.id }}, {{ user.nome|tojson }}, {{ user.email|tojson }})'>Contatta</button>
-                        {% if user.id != current_user.id %}
-                        <button type="button" class="btn btn-outline btn-sm" style="flex:1; color:var(--error); border-color:rgba(244,63,94,0.5);" onclick='openDeleteUserModal({{ user.id }}, {{ user.nome|tojson }}, {{ user.email|tojson }})'>Elimina account</button>
-                        {% else %}
-                        <span class="pill-badge" style="flex:1; display:flex; justify-content:center; align-items:center; background:rgba(255,255,255,0.08); color:var(--text-muted);">Account attuale</span>
-                        {% endif %}
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <a href="/admin/users/{{ user.id }}/edit" class="btn btn-outline btn-sm" style="width:100%;">Modifica profilo</a>
+                        <div style="display:flex; gap:10px; flex-wrap:nowrap; align-items:stretch;">
+                            <button type="button" class="btn btn-outline btn-sm" style="flex:1;" onclick='openMessageUserModal({{ user.id }}, {{ user.nome|tojson }}, {{ user.email|tojson }})'>Contatta</button>
+                            {% if user.id != current_user.id %}
+                            <button type="button" class="btn btn-outline btn-sm" style="flex:1; color:var(--error); border-color:rgba(244,63,94,0.5);" onclick='openDeleteUserModal({{ user.id }}, {{ user.nome|tojson }}, {{ user.email|tojson }})'>Elimina account</button>
+                            {% else %}
+                            <span class="pill-badge" style="flex:1; display:flex; justify-content:center; align-items:center; background:rgba(255,255,255,0.08); color:var(--text-muted);">Account attuale</span>
+                            {% endif %}
+                        </div>
                     </div>
                 </article>
                 {% endfor %}

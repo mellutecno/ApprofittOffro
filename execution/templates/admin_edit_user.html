@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Modifica profilo utente da area amministrazione.">
+    <title>Modifica {{ user.nome }} - Admin</title>
+    <link rel="stylesheet" href="/static/css/styles.css?v=66">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#FF7043">
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/static/sw.js');
+        });
+      }
+    </script>
+</head>
+<body class="admin-page member-discovery">
+    <div class="page-top-title" id="page-top-title" aria-label="ApprofittOffro">
+        <img class="topmark-mobile" src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
+        <img class="topmark-desktop" src="{{ url_for('static', filename='img/WhatsApp_Image_2026-03-22_at_21.54.07-removebg-preview.png') }}" alt="ApprofittOffro">
+    </div>
+    <nav class="navbar toast-navbar">
+        <div class="guest-toast-menu" id="toast-nav-menu">
+            <button type="button" class="toast-menu-trigger" id="toast-nav-trigger" aria-expanded="false" aria-controls="toast-nav-links" aria-label="Apri menu" onclick="toggleToastNavMenu()">
+                <span class="toast-menu-trigger-icon" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </span>
+            </button>
+            <div class="guest-toast-links" id="toast-nav-links" hidden>
+                <a href="/admin" class="btn btn-outline btn-sm">Torna alla gestione</a>
+                <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container main-content" style="max-width: 1080px;">
+        <section class="glass-card" style="padding: 28px; margin-bottom: 24px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:18px; flex-wrap:wrap;">
+                <div>
+                    <div class="pill-badge" style="display:inline-flex; margin-bottom:12px; background:rgba(255,112,67,0.14); color:var(--primary);">Modifica profilo utente</div>
+                    <h1 style="margin-bottom:8px;">Aggiorna {{ user.nome }}</h1>
+                    <p style="margin:0; color:var(--text-muted); max-width:720px;">Da qui puoi correggere i dati del profilo, sostituire la galleria foto e sistemare i campi che l’utente non riesce a modificare da solo lato frontend.</p>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(3, minmax(110px, 1fr)); gap:10px; width:min(100%, 360px);">
+                    <div class="glass-card" style="padding:14px; text-align:center;">
+                        <div style="font-size:1.25rem; font-weight:900; color:var(--primary);">{{ user.followers_count }}</div>
+                        <div style="font-size:0.72rem; text-transform:uppercase; color:var(--text-muted); font-weight:800;">Follower</div>
+                    </div>
+                    <div class="glass-card" style="padding:14px; text-align:center;">
+                        <div style="font-size:1.25rem; font-weight:900; color:var(--primary);">{{ user.offerte|length }}</div>
+                        <div style="font-size:0.72rem; text-transform:uppercase; color:var(--text-muted); font-weight:800;">Offerte</div>
+                    </div>
+                    <div class="glass-card" style="padding:14px; text-align:center;">
+                        <div style="font-size:1.25rem; font-weight:900; color:var(--primary);">{{ user.claims|length }}</div>
+                        <div style="font-size:0.72rem; text-transform:uppercase; color:var(--text-muted); font-weight:800;">Pasti</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <section style="margin-bottom: 20px;">
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}" style="border-radius: 14px; margin-bottom: 10px;">{{ message }}</div>
+            {% endfor %}
+            </section>
+          {% endif %}
+        {% endwith %}
+
+        <form method="post" enctype="multipart/form-data" class="glass-card" style="padding: 28px; display:flex; flex-direction:column; gap:24px;">
+            <section style="display:grid; grid-template-columns:minmax(220px, 300px) minmax(0, 1fr); gap:24px; align-items:start;">
+                <div>
+                    <div style="display:flex; align-items:center; gap:14px; margin-bottom:16px;">
+                        <img src="{{ url_for('uploaded_file', filename=user.gallery_filenames[0]) }}?v={{ user.gallery_filenames[0] }}" alt="{{ user.nome }}" class="avatar" style="width:96px; height:96px; border:3px solid rgba(255,255,255,0.95);">
+                        <div>
+                            <div style="font-weight:900; font-size:1.05rem;">{{ user.nome }}</div>
+                            <div style="color:var(--text-muted); font-size:0.9rem;">{{ user.email }}</div>
+                            <div style="color:var(--text-muted); font-size:0.86rem;">{{ user.eta_display }} anni{% if user.citta %} • {{ user.citta }}{% endif %}</div>
+                        </div>
+                    </div>
+
+                    <div class="profile-gallery-strip" style="margin-bottom:14px;">
+                        {% for filename in user.gallery_filenames %}
+                        <span class="profile-gallery-thumb {% if loop.first %}is-primary{% endif %}" style="cursor:default;">
+                            <img src="{{ url_for('uploaded_file', filename=filename) }}?v={{ filename }}" alt="Foto {{ loop.index }}">
+                        </span>
+                        {% endfor %}
+                    </div>
+
+                    <div class="profile-photo-guidance" style="text-align:left;">
+                        <strong>Foto profilo</strong>
+                        <br>Se carichi nuove immagini, sostituisci tutta la galleria attuale.
+                        <br>La prima foto deve mostrare chiaramente il volto.
+                    </div>
+
+                    <div class="form-group" style="margin-top:16px;">
+                        <label for="foto">Nuove foto profilo</label>
+                        <input id="foto" type="file" name="foto" class="form-control" accept="image/*" multiple>
+                    </div>
+
+                    <label style="display:flex; align-items:center; gap:10px; margin-top:18px; font-weight:700; color:#4b2b19;">
+                        <input type="checkbox" name="verificato" value="1" {% if form_values.verificato %}checked{% endif %}>
+                        Utente verificato
+                    </label>
+                </div>
+
+                <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="nome">Nome o nickname</label>
+                        <input id="nome" type="text" name="nome" class="form-control" value="{{ form_values.nome }}" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="email">Email</label>
+                        <input id="email" type="email" name="email" class="form-control" value="{{ form_values.email }}" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="eta">Età</label>
+                        <input id="eta" type="number" name="eta" class="form-control" min="18" max="120" value="{{ form_values.eta }}" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="citta">Città / località</label>
+                        <input id="citta" type="text" name="citta" class="form-control" value="{{ form_values.citta }}" placeholder="Es. Milano, Navigli">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="latitudine">Latitudine</label>
+                        <input id="latitudine" type="text" name="latitudine" class="form-control" value="{{ form_values.latitudine if form_values.latitudine is not none else '' }}" placeholder="45.4642">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="longitudine">Longitudine</label>
+                        <input id="longitudine" type="text" name="longitudine" class="form-control" value="{{ form_values.longitudine if form_values.longitudine is not none else '' }}" placeholder="9.1900">
+                    </div>
+                    <div class="form-group" style="grid-column:1 / -1; margin-bottom:0;">
+                        <label for="cibi_preferiti">Cibi preferiti</label>
+                        <input id="cibi_preferiti" type="text" name="cibi_preferiti" class="form-control" value="{{ form_values.cibi_preferiti }}" placeholder="Pizza, pasta, cucina veg...">
+                    </div>
+                    <div class="form-group" style="grid-column:1 / -1; margin-bottom:0;">
+                        <label for="intolleranze">Intolleranze</label>
+                        <input id="intolleranze" type="text" name="intolleranze" class="form-control" value="{{ form_values.intolleranze }}" placeholder="Glutine, lattosio, nessuna...">
+                    </div>
+                    <div class="form-group" style="grid-column:1 / -1; margin-bottom:0;">
+                        <label for="bio">Bio</label>
+                        <textarea id="bio" name="bio" class="form-control" rows="6" placeholder="Presentazione breve dell’utente">{{ form_values.bio }}</textarea>
+                    </div>
+                </div>
+            </section>
+
+            <div style="display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap;">
+                <a href="/admin" class="btn btn-outline">Torna alla gestione</a>
+                <button type="submit" class="btn btn-accent">Salva modifiche profilo</button>
+            </div>
+        </form>
+    </main>
+
+    <script src="/static/js/app.js?v=2"></script>
+    <script>
+        function toggleToastNavMenu(forceOpen) {
+            const trigger = document.getElementById('toast-nav-trigger');
+            const menu = document.getElementById('toast-nav-links');
+            if (!trigger || !menu) return;
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : menu.hidden;
+            menu.hidden = !shouldOpen;
+            trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
+
+        document.addEventListener('click', (event) => {
+            const menu = document.getElementById('toast-nav-menu');
+            if (menu && !menu.contains(event.target)) {
+                toggleToastNavMenu(false);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                toggleToastNavMenu(false);
+            }
+        });
+    </script>
+</body>
+</html>
