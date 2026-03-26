@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profilo di {{ user.nome }} — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=62">
+    <link rel="stylesheet" href="/static/css/styles.css?v=63">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -67,7 +67,9 @@
         {% endwith %}
         <div class="glass-card" style="padding: 40px;">
             <div style="display: flex; align-items: center; gap: 32px; flex-wrap: wrap;">
-                <img src="{{ url_for('uploaded_file', filename=user.gallery_filenames[0]) }}?v={{ user.gallery_filenames[0] }}" alt="Foto di {{ user.nome }}" style="width: 140px; height: 140px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: var(--shadow-md);">
+                <button type="button" class="profile-photo-hero-button" onclick="openPublicProfileGallery(0)" aria-label="Apri galleria foto di {{ user.nome }}">
+                    <img src="{{ url_for('uploaded_file', filename=user.gallery_filenames[0]) }}?v={{ user.gallery_filenames[0] }}" alt="Foto di {{ user.nome }}" style="width: 140px; height: 140px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: var(--shadow-md);">
+                </button>
                 <div style="flex: 1; min-width: 250px;">
                     <h1 style="margin-bottom: 4px;">{{ user.nome }}</h1>
                     <p style="color: var(--text-muted); font-size: 1.1rem; font-weight: 600;">{{ user.eta_display }} anni • {{ user.citta if user.citta else 'Luogo segreto' }}</p>
@@ -104,10 +106,12 @@
                 </div>
             </div>
 
-            {% if user.gallery_filenames|length > 1 %}
-            <div style="display:flex; gap:10px; overflow-x:auto; margin-top:20px; padding-bottom:6px;">
-                {% for filename in user.gallery_filenames[1:] %}
-                <img src="{{ url_for('uploaded_file', filename=filename) }}?v={{ filename }}" alt="Foto di {{ user.nome }}" style="width:88px; height:88px; border-radius:22px; object-fit:cover; flex-shrink:0; border:1px solid rgba(128,78,43,0.14);">
+            {% if user.gallery_filenames %}
+            <div class="profile-gallery-strip" style="margin-top:20px; justify-content:flex-start;">
+                {% for filename in user.gallery_filenames %}
+                <button type="button" class="profile-gallery-thumb {% if loop.first %}is-primary{% endif %}" onclick="openPublicProfileGallery({{ loop.index0 }})" aria-label="Apri foto {{ loop.index }}">
+                    <img src="{{ url_for('uploaded_file', filename=filename) }}?v={{ filename }}" alt="Foto di {{ user.nome }}">
+                </button>
                 {% endfor %}
             </div>
             {% endif %}
@@ -199,6 +203,20 @@
         </div>
         {% endif %}
 
+    <div id="public-profile-gallery-modal" class="profile-gallery-modal" aria-hidden="true">
+        <div class="profile-gallery-modal-backdrop" onclick="closePublicProfileGallery()"></div>
+        <div class="profile-gallery-dialog" role="dialog" aria-modal="true" aria-label="Galleria foto profilo">
+            <button type="button" class="profile-gallery-close" onclick="closePublicProfileGallery()" aria-label="Chiudi galleria">&times;</button>
+            <div class="profile-gallery-stage">
+                <button type="button" class="profile-gallery-nav" id="public-profile-gallery-prev" onclick="movePublicProfileGallery(-1)" aria-label="Foto precedente">&#8249;</button>
+                <img id="public-profile-gallery-image" src="" alt="Foto profilo ingrandita">
+                <button type="button" class="profile-gallery-nav" id="public-profile-gallery-next" onclick="movePublicProfileGallery(1)" aria-label="Foto successiva">&#8250;</button>
+            </div>
+            <div id="public-profile-gallery-caption" class="profile-gallery-caption"></div>
+            <div id="public-profile-gallery-thumbs" class="profile-gallery-modal-thumbs"></div>
+        </div>
+    </div>
+
     <!-- Review Modal -->
     <div id="review-modal" class="modal" style="display: none; align-items: center; justify-content: center;">
         <div class="glass-card" style="width: 100%; max-width: 450px; position: relative;">
@@ -252,8 +270,79 @@
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
                 toggleToastNavMenu(false);
+                closePublicProfileGallery();
             }
         });
+
+        const publicProfileGalleryFilenames = {{ user.gallery_filenames|tojson }};
+        let publicProfileGalleryIndex = 0;
+
+        function buildPublicProfileUploadUrl(filename) {
+            return `/uploads/${encodeURIComponent(filename)}?v=${encodeURIComponent(filename)}`;
+        }
+
+        function renderPublicProfileGalleryThumbs() {
+            const container = document.getElementById('public-profile-gallery-thumbs');
+            if (!container) return;
+
+            container.innerHTML = '';
+            publicProfileGalleryFilenames.forEach((filename, index) => {
+                const thumb = document.createElement('button');
+                thumb.type = 'button';
+                thumb.className = `profile-gallery-thumb ${index === publicProfileGalleryIndex ? 'is-primary' : ''}`;
+                thumb.setAttribute('aria-label', `Apri foto ${index + 1}`);
+                thumb.onclick = () => openPublicProfileGallery(index);
+
+                const img = document.createElement('img');
+                img.src = buildPublicProfileUploadUrl(filename);
+                img.alt = `Foto profilo ${index + 1}`;
+                thumb.appendChild(img);
+                container.appendChild(thumb);
+            });
+        }
+
+        function refreshPublicProfileGallery() {
+            const modal = document.getElementById('public-profile-gallery-modal');
+            const image = document.getElementById('public-profile-gallery-image');
+            const caption = document.getElementById('public-profile-gallery-caption');
+            const prev = document.getElementById('public-profile-gallery-prev');
+            const next = document.getElementById('public-profile-gallery-next');
+
+            if (!modal || !image || !publicProfileGalleryFilenames.length) return;
+
+            publicProfileGalleryIndex = Math.max(0, Math.min(publicProfileGalleryIndex, publicProfileGalleryFilenames.length - 1));
+            const currentFilename = publicProfileGalleryFilenames[publicProfileGalleryIndex];
+            image.src = buildPublicProfileUploadUrl(currentFilename);
+            caption.textContent = `Foto ${publicProfileGalleryIndex + 1} di ${publicProfileGalleryFilenames.length}`;
+            if (prev) prev.disabled = publicProfileGalleryFilenames.length <= 1;
+            if (next) next.disabled = publicProfileGalleryFilenames.length <= 1;
+            renderPublicProfileGalleryThumbs();
+        }
+
+        function openPublicProfileGallery(index = 0) {
+            if (!publicProfileGalleryFilenames.length) return;
+            const modal = document.getElementById('public-profile-gallery-modal');
+            if (!modal) return;
+            publicProfileGalleryIndex = index;
+            modal.classList.add('is-visible');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+            refreshPublicProfileGallery();
+        }
+
+        function closePublicProfileGallery() {
+            const modal = document.getElementById('public-profile-gallery-modal');
+            if (!modal) return;
+            modal.classList.remove('is-visible');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+        }
+
+        function movePublicProfileGallery(direction) {
+            if (publicProfileGalleryFilenames.length <= 1) return;
+            publicProfileGalleryIndex = (publicProfileGalleryIndex + direction + publicProfileGalleryFilenames.length) % publicProfileGalleryFilenames.length;
+            refreshPublicProfileGallery();
+        }
 
         // --- Review Modal Logic ---
         let selectedRating = 0;

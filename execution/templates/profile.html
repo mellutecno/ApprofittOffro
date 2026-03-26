@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Il tuo profilo su ApprofittOffro.">
     <title>Profilo — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=62">
+    <link rel="stylesheet" href="/static/css/styles.css?v=63">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -72,12 +72,19 @@
                             <img id="photo-preview" src="{{ url_for('uploaded_file', filename=current_user.gallery_filenames[0]) }}?v={{ current_user.gallery_filenames[0] }}" alt="{{ current_user.nome }}" style="width: 100%; height: 100%; object-fit: cover;">
                             <input type="file" id="foto" name="foto" accept="image/*" multiple style="position: absolute; inset: 0; opacity: 0; cursor: pointer;">
                         </div>
-                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px; font-weight: 600;">Tocca la foto per caricare fino a 5 immagini. La prima resta quella principale.</p>
-                        <div id="profile-gallery-preview" style="display:flex; gap:8px; overflow-x:auto; justify-content:center; margin-top:12px; padding-bottom:4px;">
+                        <div class="profile-photo-guidance">
+                            <strong>Come caricare le foto:</strong>
+                            <br>La <strong>prima immagine</strong> deve far vedere chiaramente il volto, altrimenti il sistema non salva la galleria.
+                            <br>Le altre foto devono restare <strong>reali e riconoscibili della stessa persona</strong>.
+                        </div>
+                        <div id="profile-gallery-preview" class="profile-gallery-strip">
                             {% for filename in current_user.gallery_filenames %}
-                            <img src="{{ url_for('uploaded_file', filename=filename) }}?v={{ filename }}" alt="Foto di {{ current_user.nome }}" style="width:64px; height:64px; border-radius:18px; object-fit:cover; flex-shrink:0; border:2px solid rgba(128,78,43,0.12);">
+                            <button type="button" class="profile-gallery-thumb {% if loop.first %}is-primary{% endif %}" onclick="openOwnProfileGallery({{ loop.index0 }})" aria-label="Apri foto {{ loop.index }}">
+                                <img src="{{ url_for('uploaded_file', filename=filename) }}?v={{ filename }}" alt="Foto di {{ current_user.nome }}">
+                            </button>
                             {% endfor %}
                         </div>
+                        <button type="button" class="btn btn-outline btn-sm profile-gallery-launch" onclick="openOwnProfileGallery(0)">Sfoglia le tue foto</button>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; text-align: left;">
@@ -310,6 +317,20 @@
         {% endif %}
     </div>
 
+    <div id="own-profile-gallery-modal" class="profile-gallery-modal" aria-hidden="true">
+        <div class="profile-gallery-modal-backdrop" onclick="closeOwnProfileGallery()"></div>
+        <div class="profile-gallery-dialog" role="dialog" aria-modal="true" aria-label="Galleria foto profilo">
+            <button type="button" class="profile-gallery-close" onclick="closeOwnProfileGallery()" aria-label="Chiudi galleria">&times;</button>
+            <div class="profile-gallery-stage">
+                <button type="button" class="profile-gallery-nav" id="own-profile-gallery-prev" onclick="moveOwnProfileGallery(-1)" aria-label="Foto precedente">&#8249;</button>
+                <img id="own-profile-gallery-image" src="" alt="Foto profilo ingrandita">
+                <button type="button" class="profile-gallery-nav" id="own-profile-gallery-next" onclick="moveOwnProfileGallery(1)" aria-label="Foto successiva">&#8250;</button>
+            </div>
+            <div id="own-profile-gallery-caption" class="profile-gallery-caption"></div>
+            <div id="own-profile-gallery-thumbs" class="profile-gallery-modal-thumbs"></div>
+        </div>
+    </div>
+
     <!-- Review Modal -->
     <div id="review-modal" class="modal" style="display: none; align-items: center; justify-content: center;">
         <div class="glass-card" style="width: 100%; max-width: 450px; position: relative;">
@@ -365,8 +386,98 @@
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
                 toggleToastNavMenu(false);
+                closeOwnProfileGallery();
             }
         });
+
+        const ownProfileGalleryFilenames = {{ current_user.gallery_filenames|tojson }};
+        let ownProfileGalleryIndex = 0;
+
+        function buildUploadUrl(filename, extraVersion = '') {
+            const suffix = extraVersion ? `${extraVersion}-${filename}` : filename;
+            return `/uploads/${encodeURIComponent(filename)}?v=${encodeURIComponent(suffix)}`;
+        }
+
+        function getOwnProfileGalleryUrls() {
+            return ownProfileGalleryFilenames.map(filename => buildUploadUrl(filename));
+        }
+
+        function renderProfileAlert(messages, tone = 'error') {
+            const alertsBox = document.getElementById('profile-alerts');
+            if (!alertsBox) return;
+            const entries = Array.isArray(messages) ? messages : [messages];
+            alertsBox.innerHTML = entries.map(message => `
+                <div class="alert alert-${tone} mb-4" style="border-radius: 12px; text-align: center;">
+                    ${message}
+                </div>
+            `).join('');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function renderOwnProfileGalleryThumbs() {
+            const container = document.getElementById('own-profile-gallery-thumbs');
+            if (!container) return;
+
+            container.innerHTML = '';
+            ownProfileGalleryFilenames.forEach((filename, index) => {
+                const thumb = document.createElement('button');
+                thumb.type = 'button';
+                thumb.className = `profile-gallery-thumb ${index === ownProfileGalleryIndex ? 'is-primary' : ''}`;
+                thumb.setAttribute('aria-label', `Apri foto ${index + 1}`);
+                thumb.onclick = () => openOwnProfileGallery(index);
+
+                const img = document.createElement('img');
+                img.src = buildUploadUrl(filename);
+                img.alt = `Foto profilo ${index + 1}`;
+
+                thumb.appendChild(img);
+                container.appendChild(thumb);
+            });
+        }
+
+        function refreshOwnProfileGalleryModal() {
+            const urls = getOwnProfileGalleryUrls();
+            const modal = document.getElementById('own-profile-gallery-modal');
+            const image = document.getElementById('own-profile-gallery-image');
+            const caption = document.getElementById('own-profile-gallery-caption');
+            const prev = document.getElementById('own-profile-gallery-prev');
+            const next = document.getElementById('own-profile-gallery-next');
+
+            if (!modal || !image || !urls.length) return;
+
+            const safeIndex = Math.max(0, Math.min(ownProfileGalleryIndex, urls.length - 1));
+            ownProfileGalleryIndex = safeIndex;
+            image.src = urls[safeIndex];
+            caption.textContent = `Foto ${safeIndex + 1} di ${urls.length}`;
+            if (prev) prev.disabled = urls.length <= 1;
+            if (next) next.disabled = urls.length <= 1;
+            renderOwnProfileGalleryThumbs();
+        }
+
+        function openOwnProfileGallery(index = 0) {
+            if (!ownProfileGalleryFilenames.length) return;
+            const modal = document.getElementById('own-profile-gallery-modal');
+            if (!modal) return;
+            ownProfileGalleryIndex = index;
+            modal.classList.add('is-visible');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+            refreshOwnProfileGalleryModal();
+        }
+
+        function closeOwnProfileGallery() {
+            const modal = document.getElementById('own-profile-gallery-modal');
+            if (!modal) return;
+            modal.classList.remove('is-visible');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+        }
+
+        function moveOwnProfileGallery(direction) {
+            if (ownProfileGalleryFilenames.length <= 1) return;
+            ownProfileGalleryIndex = (ownProfileGalleryIndex + direction + ownProfileGalleryFilenames.length) % ownProfileGalleryFilenames.length;
+            refreshOwnProfileGalleryModal();
+        }
 
         // --- Review Modal Logic ---
         let selectedRating = 0;
@@ -509,7 +620,7 @@
 
         const fotoInput = document.getElementById('foto');
         const profileGalleryPreview = document.getElementById('profile-gallery-preview');
-        function renderProfileGalleryFromUrls(urls) {
+        function renderProfileGalleryFromUrls(urls, filenames = []) {
             const preview = document.getElementById('photo-preview');
             if (!urls || !urls.length) return;
 
@@ -520,19 +631,24 @@
             if (profileGalleryPreview) {
                 profileGalleryPreview.innerHTML = '';
                 urls.forEach((url, index) => {
+                    const thumbButton = document.createElement('button');
+                    thumbButton.type = 'button';
+                    thumbButton.className = `profile-gallery-thumb ${index === 0 ? 'is-primary' : ''}`;
+                    thumbButton.setAttribute('aria-label', `Apri foto ${index + 1}`);
+                    thumbButton.onclick = () => openOwnProfileGallery(index);
+
                     const thumb = document.createElement('img');
                     thumb.src = url;
                     thumb.alt = `Foto profilo ${index + 1}`;
-                    thumb.style.width = '64px';
-                    thumb.style.height = '64px';
-                    thumb.style.borderRadius = '18px';
-                    thumb.style.objectFit = 'cover';
-                    thumb.style.flexShrink = '0';
-                    thumb.style.border = index === 0
-                        ? '2px solid rgba(255,112,67,0.75)'
-                        : '2px solid rgba(128,78,43,0.12)';
-                    profileGalleryPreview.appendChild(thumb);
+                    thumbButton.appendChild(thumb);
+                    profileGalleryPreview.appendChild(thumbButton);
                 });
+            }
+
+            if (filenames.length) {
+                ownProfileGalleryFilenames.splice(0, ownProfileGalleryFilenames.length, ...filenames);
+                ownProfileGalleryIndex = 0;
+                renderOwnProfileGalleryThumbs();
             }
         }
 
@@ -557,18 +673,16 @@
                     }
 
                     if (profileGalleryPreview) {
+                        const thumbButton = document.createElement('button');
+                        thumbButton.type = 'button';
+                        thumbButton.className = `profile-gallery-thumb ${index === 0 ? 'is-primary' : ''}`;
+                        thumbButton.setAttribute('aria-label', `Anteprima foto ${index + 1}`);
+
                         const thumb = document.createElement('img');
                         thumb.src = objectUrl;
                         thumb.alt = `Foto profilo ${index + 1}`;
-                        thumb.style.width = '64px';
-                        thumb.style.height = '64px';
-                        thumb.style.borderRadius = '18px';
-                        thumb.style.objectFit = 'cover';
-                        thumb.style.flexShrink = '0';
-                        thumb.style.border = index === 0
-                            ? '2px solid rgba(255,112,67,0.75)'
-                            : '2px solid rgba(128,78,43,0.12)';
-                        profileGalleryPreview.appendChild(thumb);
+                        thumbButton.appendChild(thumb);
+                        profileGalleryPreview.appendChild(thumbButton);
                     }
                 });
             });
@@ -622,18 +736,21 @@
                     });
                     const data = await res.json();
                     if (data.success) {
+                        renderProfileAlert('Profilo aggiornato con successo!', 'success');
                         if (data.gallery_filenames && data.gallery_filenames.length) {
                             const galleryUrls = data.gallery_filenames.map(
-                                filename => `/uploads/${filename}?v=${Date.now()}-${filename}`
+                                filename => buildUploadUrl(filename, Date.now())
                             );
-                            renderProfileGalleryFromUrls(galleryUrls);
+                            renderProfileGalleryFromUrls(galleryUrls, data.gallery_filenames);
                         }
                         showToast('Profilo aggiornato con successo!', 'success');
                         setTimeout(() => window.location.href = `/profile?updated=${Date.now()}`, 1200);
                     } else {
+                        renderProfileAlert(data.errors, 'error');
                         showToast(data.errors.join(' '), 'error');
                     }
                 } catch (err) {
+                    renderProfileAlert('Errore di connessione. Riprova tra poco.', 'error');
                     showToast('Errore di connessione', 'error');
                 } finally {
                     btn.innerHTML = originalText;

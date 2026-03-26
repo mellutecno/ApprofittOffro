@@ -570,7 +570,12 @@ def save_profile_gallery_files(user_key, photos, require_primary_face=True):
             verifica = verifica_volto(foto_path)
             if not verifica["valida"]:
                 delete_upload_files(saved_filenames)
-                return [], [f"La prima foto non va bene: {verifica['errore']}"]
+                dettaglio = verifica.get("errore", "Il volto non e stato riconosciuto in modo affidabile.")
+                return [], [
+                    "La prima foto deve mostrare chiaramente il volto della persona. "
+                    "Carica come prima immagine una foto reale, frontale o comunque ben visibile. "
+                    f"Dettaglio: {dettaglio}"
+                ]
 
     return saved_filenames, []
 

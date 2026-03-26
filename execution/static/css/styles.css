@@ -458,6 +458,187 @@ textarea.form-control {
     border-radius: 50%;
 }
 
+.profile-photo-guidance {
+    margin-top: 12px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(255, 249, 241, 0.98) 0%, rgba(247, 235, 220, 0.98) 100%);
+    border: 1px solid rgba(128, 78, 43, 0.14);
+    color: #6a4330;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    text-align: left;
+}
+
+.profile-photo-guidance strong {
+    color: #432416;
+}
+
+.profile-gallery-strip {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    justify-content: center;
+    margin-top: 12px;
+    padding: 2px 0 6px;
+}
+
+.profile-gallery-thumb {
+    width: 72px;
+    height: 72px;
+    border-radius: 20px;
+    padding: 0;
+    border: 2px solid rgba(128, 78, 43, 0.12);
+    background: rgba(255, 255, 255, 0.8);
+    overflow: hidden;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.profile-gallery-thumb.is-primary {
+    border-color: rgba(255, 112, 67, 0.68);
+    box-shadow: 0 10px 20px rgba(255, 112, 67, 0.16);
+}
+
+.profile-gallery-thumb:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 112, 67, 0.52);
+}
+
+.profile-gallery-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.profile-gallery-launch {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.profile-photo-hero-button {
+    display: inline-flex;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    border-radius: 999px;
+    cursor: zoom-in;
+}
+
+.profile-photo-hero-button img {
+    display: block;
+}
+
+.profile-gallery-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 3600;
+    display: none;
+}
+
+.profile-gallery-modal.is-visible {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.profile-gallery-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(25, 13, 7, 0.78);
+    backdrop-filter: blur(6px);
+}
+
+.profile-gallery-dialog {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 940px);
+    max-height: min(92vh, 920px);
+    padding: 22px;
+    border-radius: 30px;
+    background: linear-gradient(180deg, rgba(255, 250, 244, 0.98) 0%, rgba(248, 238, 225, 0.98) 100%);
+    border: 1px solid rgba(128, 78, 43, 0.12);
+    box-shadow: 0 28px 60px rgba(32, 17, 9, 0.28);
+}
+
+.profile-gallery-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 42px;
+    height: 42px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.88);
+    color: #432416;
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(32, 17, 9, 0.18);
+}
+
+.profile-gallery-stage {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+}
+
+.profile-gallery-stage img {
+    width: 100%;
+    max-width: 720px;
+    max-height: 68vh;
+    border-radius: 28px;
+    object-fit: contain;
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.profile-gallery-nav {
+    width: 48px;
+    height: 48px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #432416;
+    font-size: 1.7rem;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(32, 17, 9, 0.16);
+}
+
+.profile-gallery-nav:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.profile-gallery-caption {
+    margin-top: 14px;
+    text-align: center;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #6a4330;
+}
+
+.profile-gallery-modal-thumbs {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    overflow-x: auto;
+    margin-top: 16px;
+    padding-bottom: 4px;
+}
+
+.profile-gallery-modal-thumbs .profile-gallery-thumb {
+    width: 64px;
+    height: 64px;
+}
+
 /* --- Page Top Title — SOLO MOBILE (sparisce con lo scroll) --- */
 .page-top-title {
     display: none; /* Nascosto su desktop */
@@ -3358,5 +3539,36 @@ body.modal-open {
 @media (prefers-reduced-motion: reduce) {
     .public-floating-shot {
         animation: none !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .profile-gallery-modal.is-visible {
+        padding: 16px 10px;
+    }
+
+    .profile-gallery-dialog {
+        padding: 18px 14px 16px;
+        border-radius: 24px;
+    }
+
+    .profile-gallery-stage {
+        gap: 10px;
+    }
+
+    .profile-gallery-stage img {
+        max-height: 58vh;
+        border-radius: 22px;
+    }
+
+    .profile-gallery-nav {
+        width: 42px;
+        height: 42px;
+        font-size: 1.45rem;
+    }
+
+    .profile-gallery-thumb {
+        width: 64px;
+        height: 64px;
     }
 }

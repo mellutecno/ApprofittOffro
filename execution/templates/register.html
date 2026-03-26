@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registrati - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=61">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=63">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -36,6 +36,7 @@
             <div style="margin-bottom: 28px; padding: 22px; text-align: left; border-radius: 24px; background: linear-gradient(180deg, rgba(255,248,238,0.96) 0%, rgba(246,232,210,0.96) 100%); border: 1px solid rgba(130, 74, 31, 0.12);">
                 <div style="display:inline-flex; align-items:center; gap:8px; padding: 7px 12px; border-radius: 999px; background: rgba(255,112,67,0.12); color: #B24E26; font-size: 0.78rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px;">Profilo affidabile</div>
                 <p style="margin: 0 0 10px 0; color: #4D2B18; font-weight: 700;">Compila il profilo con attenzione prima di entrare nella community.</p>
+                <p style="margin: 12px 0 0 0; color: #6A4330; line-height: 1.65;"><b style="color:#4D2B18;">Importante per le foto:</b> la prima immagine deve mostrare chiaramente il volto. Le altre possono essere piÃ¹ libere, ma devono restare foto reali e riconoscibili della stessa persona.</p>
                 <p style="margin: 0; color: #6A4330; line-height: 1.65;">Usa una foto dove il viso si vede bene, inserisci la tua età reale e completa bio, gusti alimentari e intolleranze. Un profilo chiaro aiuta a evitare incontri sgradevoli e rende più facile fidarsi della persona con cui condividerai il pasto.</p>
             <p style="margin: 12px 0 0 0; color: #6A4330; line-height: 1.65;"><b style="color:#4D2B18;">Ricorda anche i tempi di prenotazione:</b> le colazioni si chiudono 1 ora prima, mentre pranzi e cene si chiudono 6 ore prima dell'orario del pasto.</p>
             </div>
@@ -55,7 +56,11 @@
                                 </div>
                                 <input type="file" id="foto" name="foto" accept="image/*" multiple required style="position: absolute; inset: 0; opacity: 0; cursor: pointer;">
                             </div>
-                            <p style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Carica fino a 5 foto. La prima resta principale e deve mostrare bene il viso.</p>
+                            <div class="profile-photo-guidance">
+                                <strong>Regola foto profilo:</strong> puoi caricare fino a 5 immagini.
+                                <br>La <strong>prima foto</strong> deve mostrare bene il volto, perchÃ© viene controllata prima del salvataggio.
+                                <br>Le altre devono essere <strong>foto vere della stessa persona</strong>, non immagini casuali.
+                            </div>
                             <div id="photo-gallery-preview" style="display:flex; gap:8px; overflow-x:auto; justify-content:center; margin-top:12px; padding-bottom:4px;"></div>
                         </div>
 
