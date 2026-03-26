@@ -1521,7 +1521,7 @@ body.admin-page {
 }
 
 .public-hero-title {
-    font-size: clamp(1.6rem, 4vw, 2.2rem);
+    font-size: clamp(2rem, 4vw, 3rem);
     line-height: 1.12;
     letter-spacing: -0.04em;
     max-width: 16ch;
@@ -3226,7 +3226,7 @@ body.modal-open {
 
     .public-hero-title {
         max-width: none;
-        font-size: clamp(2rem, 11vw, 3rem);
+        font-size: clamp(2rem, 4vw, 3rem);
     }
 
     .public-hero-actions .btn {

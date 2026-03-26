@@ -1,8 +1,8 @@
-const CACHE_NAME = 'approfittoffro-v118';
+const CACHE_NAME = 'approfittoffro-v119';
 const ASSETS = [
     '/',
     '/dashboard',
-  '/static/css/styles.css?v=65',
+  '/static/css/styles.css?v=66',
     '/static/js/app.js?v=2',
   '/static/img/approfitto.png?v=2',
   '/static/img/WhatsApp_Image_2026-03-22_at_21.54.07-removebg-preview.png',
