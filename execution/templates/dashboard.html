@@ -363,20 +363,9 @@
             `;
         }
 
-        function getAuthorProfileLabelMarkup(offer) {
+        function getAuthorProfileLabelMarkup() {
             if (!isAuthenticated) return '';
-            return `
-                <div class="offer-author-actions">
-                    <span class="offer-author-profile-link">Visualizza profilo</span>
-                    ${offer && offer.host_whatsapp_link ? `
-                        <div class="offer-author-whatsapp-wrap">
-                            <a href="${offer.host_whatsapp_link}" target="_blank" rel="noopener noreferrer" class="offer-host-whatsapp-btn" title="Apri WhatsApp con chi offre" aria-label="Apri WhatsApp con chi offre">
-                                ${getWhatsappIconMarkup('offer-whatsapp-icon')}
-                            </a>
-                        </div>
-                    ` : ''}
-                </div>
-            `;
+            return `<span class="offer-author-profile-link">Visualizza profilo</span>`;
         }
 
         function getWhatsappIconMarkup(iconClass = '') {
@@ -410,6 +399,20 @@
                             </div>
                         `).join('')}
                     </div>
+                </div>
+            `;
+        }
+
+        function getHostWhatsappMarkup(offer) {
+            if (!isAuthenticated || !offer.host_whatsapp_link) {
+                return '';
+            }
+
+            return `
+                <div class="offer-host-whatsapp-wrap">
+                    <a href="${offer.host_whatsapp_link}" target="_blank" rel="noopener noreferrer" class="offer-host-whatsapp-btn" title="Apri WhatsApp con chi offre" aria-label="Apri WhatsApp con chi offre">
+                        ${getWhatsappIconMarkup('offer-whatsapp-icon')}
+                    </a>
                 </div>
             `;
         }
@@ -1011,7 +1014,7 @@
                                         <div class="meta" style="color: var(--primary); font-weight: 700; font-size: 0.85rem; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${getAuthorMeta(offer)}</div>
                                     </div>
                                 </div>
-                                ${getAuthorProfileLabelMarkup(offer)}
+                                ${getAuthorProfileLabelMarkup()}
                             </a>
                         </div>
                     `;
@@ -1042,6 +1045,7 @@
 
                         <div class="offer-card-body">
                             ${getParticipantsMarkup(offer)}
+                            ${getHostWhatsappMarkup(offer)}
                             ${offer.foto_locale && offer.foto_locale !== 'nessuna.jpg' ? 
                                 `<div style="margin: 0 -28px 20px -28px; height: 230px; overflow: hidden; border-radius: var(--radius-md);">
                                     <img src="/uploads/${offer.foto_locale}" alt="Foto Locale" style="width: 100%; height: 100%; object-fit: cover;">
