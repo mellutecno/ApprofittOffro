@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=81">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=82">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -1004,34 +1004,7 @@
                     const iconEmoji = isColazione ? '☕' : (isPranzo ? '🍝' : '🌙');
                     const isPast = new Date(offer.data_ora) < new Date();
                     const isFull = offer.posti_disponibili <= 0 || offer.stato === 'completata';
-                    
-                    const progress = (offer.posti_disponibili / offer.posti_totali) * 100;
-                    let barClass = '';
-                    if (progress < 30) barClass = 'critical';
-                    else if (progress < 60) barClass = 'low';
-
-                    const card = document.createElement('div');
-                    card.className = isAuthenticated ? 'offer-card' : 'offer-card public-offer-card';
-                    card.id = `offer-${offer.id}`;
-                    card.innerHTML = `
-                        <div class="offer-type-badge badge-${offer.tipo_pasto}" style="font-size: 1.1rem; padding: 10px 24px; margin: 0 auto 20px auto; align-self: center;">
-                            ${iconEmoji} ${offer.tipo_pasto.toUpperCase()}
-                        </div>
-
-                        <div class="datetime-info offer-priority-datetime offer-priority-datetime-${offer.tipo_pasto}"
-                             onclick="${(offer.already_claimed || offer.is_own) ? `event.stopPropagation(); downloadIcs(${JSON.stringify(offer).replace(/"/g, '&quot;')})` : ''}"
-                             style="${(offer.already_claimed || offer.is_own) ? 'cursor: pointer;' : ''}">
-                            <span>🕒 ${formatDate(offer.data_ora)}</span>
-                            ${(offer.already_claimed || offer.is_own) ? '<span class="offer-priority-datetime-action">🗓️ AGGIUNGI</span>' : ''}
-                        </div>
-
-                        ${offer.foto_locale && offer.foto_locale !== 'nessuna.jpg' ? 
-                            `<div style="margin: 0 -28px 20px -28px; height: 230px; overflow: hidden; border-radius: var(--radius-md);">
-                                <img src="/uploads/${offer.foto_locale}" alt="Foto Locale" style="width: 100%; height: 100%; object-fit: cover;">
-                            </div>` : ''}
-                        
-                        ${isAuthenticated ? `<div class="offer-section-label">Offerto da</div>` : ''}
-
+                    const authorHeaderMarkup = `
                         <div class="offer-card-header">
                             <a href="${getAuthorProfileHref(offer)}" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between; gap: 14px; color: inherit; width: 100%;">
                                 <div style="display:flex; align-items:center; gap: 14px; min-width: 0;">
@@ -1044,10 +1017,39 @@
                                 ${getAuthorProfileLabelMarkup()}
                             </a>
                         </div>
+                    `;
+                    
+                    const progress = (offer.posti_disponibili / offer.posti_totali) * 100;
+                    let barClass = '';
+                    if (progress < 30) barClass = 'critical';
+                    else if (progress < 60) barClass = 'low';
+
+                    const card = document.createElement('div');
+                    card.className = isAuthenticated ? 'offer-card' : 'offer-card public-offer-card';
+                    card.id = `offer-${offer.id}`;
+                    card.innerHTML = `
+                        ${isAuthenticated ? authorHeaderMarkup : ''}
+
+                        <div class="offer-type-badge badge-${offer.tipo_pasto}" style="font-size: 1.1rem; padding: 10px 24px; margin: 0 auto 20px auto; align-self: center;">
+                            ${iconEmoji} ${offer.tipo_pasto.toUpperCase()}
+                        </div>
+
+                        <div class="datetime-info offer-priority-datetime offer-priority-datetime-${offer.tipo_pasto}"
+                             onclick="${(offer.already_claimed || offer.is_own) ? `event.stopPropagation(); downloadIcs(${JSON.stringify(offer).replace(/"/g, '&quot;')})` : ''}"
+                             style="${(offer.already_claimed || offer.is_own) ? 'cursor: pointer;' : ''}">
+                            <span>🕒 ${formatDate(offer.data_ora)}</span>
+                            ${(offer.already_claimed || offer.is_own) ? '<span class="offer-priority-datetime-action">🗓️ AGGIUNGI</span>' : ''}
+                        </div>
+
+                        ${!isAuthenticated ? authorHeaderMarkup : ''}
 
                         <div class="offer-card-body">
-                            ${getHostWhatsappMarkup(offer)}
                             ${getParticipantsMarkup(offer)}
+                            ${getHostWhatsappMarkup(offer)}
+                            ${offer.foto_locale && offer.foto_locale !== 'nessuna.jpg' ? 
+                                `<div style="margin: 0 -28px 20px -28px; height: 230px; overflow: hidden; border-radius: var(--radius-md);">
+                                    <img src="/uploads/${offer.foto_locale}" alt="Foto Locale" style="width: 100%; height: 100%; object-fit: cover;">
+                                </div>` : ''}
                             <h4 style="margin-bottom: 4px; font-weight: 800;">${offer.nome_locale}</h4>
                             <div class="address" style="font-weight: 600; color: var(--text-muted); font-size: 0.85rem;">
                                 📍 ${offer.indirizzo} <span style="color:var(--primary); margin-left:4px;">(a ${offer.distance_km} km)</span>
