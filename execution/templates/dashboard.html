@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=70">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=71">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -374,9 +374,9 @@
             }
 
             return `
-                <div class="offer-participants-strip">
+                <div class="offer-participants-block">
                     <div class="offer-participants-label">Partecipano</div>
-                    <div class="offer-participants-list">
+                    <div class="offer-participants-strip">
                         ${offer.partecipanti.map((participant) => `
                             <a href="${getMemberProfileHref(participant.id)}" class="offer-participant-link" title="Vai al profilo di ${participant.nome}">
                                 <img src="/uploads/${participant.foto}" alt="${participant.nome}" class="offer-participant-avatar">
