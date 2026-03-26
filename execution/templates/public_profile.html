@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profilo di {{ user.nome }} — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=63">
+    <link rel="stylesheet" href="/static/css/styles.css?v=64">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -205,14 +205,16 @@
 
     <div id="public-profile-gallery-modal" class="profile-gallery-modal" aria-hidden="true">
         <div class="profile-gallery-modal-backdrop" onclick="closePublicProfileGallery()"></div>
-        <div class="profile-gallery-dialog" role="dialog" aria-modal="true" aria-label="Galleria foto profilo">
+        <div class="profile-gallery-dialog" role="dialog" aria-modal="true" aria-label="Galleria foto profilo" onclick="event.stopPropagation()">
             <button type="button" class="profile-gallery-close" onclick="closePublicProfileGallery()" aria-label="Chiudi galleria">&times;</button>
             <div class="profile-gallery-stage">
-                <button type="button" class="profile-gallery-nav" id="public-profile-gallery-prev" onclick="movePublicProfileGallery(-1)" aria-label="Foto precedente">&#8249;</button>
                 <img id="public-profile-gallery-image" src="" alt="Foto profilo ingrandita">
-                <button type="button" class="profile-gallery-nav" id="public-profile-gallery-next" onclick="movePublicProfileGallery(1)" aria-label="Foto successiva">&#8250;</button>
             </div>
-            <div id="public-profile-gallery-caption" class="profile-gallery-caption"></div>
+            <div class="profile-gallery-controls">
+                <div id="public-profile-gallery-caption" class="profile-gallery-caption"></div>
+                <button type="button" class="profile-gallery-nav profile-gallery-prev" id="public-profile-gallery-prev" onclick="movePublicProfileGallery(-1)" aria-label="Foto precedente">&#8249;</button>
+                <button type="button" class="profile-gallery-nav profile-gallery-next" id="public-profile-gallery-next" onclick="movePublicProfileGallery(1)" aria-label="Foto successiva">&#8250;</button>
+            </div>
             <div id="public-profile-gallery-thumbs" class="profile-gallery-modal-thumbs"></div>
         </div>
     </div>
