@@ -420,6 +420,28 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
             for column_name, ddl in columns:
                 ensure_column(table_name, column_name, ddl)
 
+        if not table_exists("user_photos"):
+            cur.execute("""
+                CREATE TABLE user_photos (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    filename VARCHAR(256) NOT NULL,
+                    position INTEGER NOT NULL DEFAULT 0,
+                    created_at DATETIME
+                )
+            """)
+
+        if not table_exists("user_follows"):
+            cur.execute("""
+                CREATE TABLE user_follows (
+                    id INTEGER PRIMARY KEY,
+                    follower_id INTEGER NOT NULL,
+                    followed_id INTEGER NOT NULL,
+                    created_at DATETIME,
+                    CONSTRAINT unique_user_follow UNIQUE (follower_id, followed_id)
+                )
+            """)
+
         conn.commit()
     finally:
         conn.close()
@@ -2003,8 +2025,19 @@ def api_user_update():
         delete_upload_files(uploaded_gallery_filenames)
         return jsonify({"success": False, "errors": [f"Errore nel salvataggio del profilo: {exc}"]}), 500
 
+    db.session.refresh(current_user)
+    db.session.expire(current_user, ["photos"])
     delete_upload_files(old_gallery_filenames)
-    return jsonify({"success": True, "message": "Profilo aggiornato con successo!"})
+    return jsonify({
+        "success": True,
+        "message": "Profilo aggiornato con successo!",
+        "gallery_filenames": current_user.gallery_filenames,
+        "primary_photo_url": url_for(
+            "uploaded_file",
+            filename=current_user.gallery_filenames[0],
+            _external=False,
+        ) if current_user.gallery_filenames else "",
+    })
 
 
 # ===================================================================
