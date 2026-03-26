@@ -78,10 +78,10 @@ function formatDate(isoString) {
         minute: '2-digit',
     });
 
-    if (date >= now && date >= todayStart && date < tomorrowStart) {
+    if (date >= todayStart && date < tomorrowStart) {
         return `Oggi alle ${timeLabel}`;
     }
-    if (date >= now && date >= tomorrowStart && date < dayAfterTomorrowStart) {
+    if (date >= tomorrowStart && date < dayAfterTomorrowStart) {
         return `Domani alle ${timeLabel}`;
     }
 
