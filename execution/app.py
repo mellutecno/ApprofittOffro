@@ -1584,7 +1584,9 @@ def api_get_offers():
     radius_str = request.args.get("radius", "")
     now = local_now()
     threshold = now - timedelta(hours=3)
-    query = Offer.query.filter(
+    query = Offer.query.options(
+        selectinload(Offer.autore).selectinload(User.photos)
+    ).filter(
         Offer.stato.in_(["attiva", "completata"]),
         Offer.data_ora > threshold,
     )
@@ -1655,6 +1657,7 @@ def api_get_offers():
             "autore": o.autore.nome,
             "autore_id": o.autore.id,
             "autore_foto": o.autore.foto_filename,
+            "autore_foto_gallery": o.autore.gallery_filenames[:2],
             "autore_eta": o.autore.eta_display,
             "autore_cibi_preferiti": o.autore.cibi_preferiti or "",
             "autore_intolleranze": o.autore.intolleranze or "",

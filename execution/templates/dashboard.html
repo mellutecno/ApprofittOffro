@@ -298,8 +298,35 @@
         }
 
         function getAuthorMeta(offer) {
-            if (!isAuthenticated) return `${offer.autore_eta} anni`;
-            return `${offer.autore_eta} anni • ⭐ 4.9`;
+            return `${offer.autore_eta} anni`;
+        }
+
+        function getAuthorPhotosMarkup(offer) {
+            const photos = Array.isArray(offer.autore_foto_gallery) && offer.autore_foto_gallery.length
+                ? offer.autore_foto_gallery.slice(0, 2)
+                : [offer.autore_foto];
+
+            return `
+                <div style="display:flex; align-items:center; margin-right: 2px;">
+                    ${photos.map((filename, index) => `
+                        <img
+                            src="/uploads/${filename}"
+                            alt="${offer.autore}"
+                            class="avatar"
+                            style="
+                                width: 52px;
+                                height: 52px;
+                                border: 2px solid white;
+                                box-shadow: var(--shadow-sm);
+                                margin-left: ${index === 0 ? '0' : '-12px'};
+                                position: relative;
+                                z-index: ${photos.length - index};
+                                background: #fff;
+                            "
+                        >
+                    `).join('')}
+                </div>
+            `;
         }
 
         function getAddressLine(offer) {
@@ -916,12 +943,15 @@
                             </div>` : ''}
                         
                         <div class="offer-card-header">
-                            <a href="${getAuthorProfileHref(offer)}" style="text-decoration: none; display: flex; align-items: center; gap: 14px; color: inherit;">
-                                <img src="/uploads/${offer.autore_foto}" alt="${offer.autore}" class="avatar" style="border: 2px solid white; box-shadow: var(--shadow-sm);">
-                                <div class="info">
-                                    <div class="name" style="color: var(--text-main); font-weight: 800; font-size: 1.1rem;">${offer.autore}</div>
-                                    <div class="meta" style="color: var(--primary); font-weight: 700; font-size: 0.85rem;">${offer.autore_eta} anni • ⭐ 4.9</div>
+                            <a href="${getAuthorProfileHref(offer)}" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between; gap: 14px; color: inherit; width: 100%;">
+                                <div style="display:flex; align-items:center; gap: 14px; min-width: 0;">
+                                    ${getAuthorPhotosMarkup(offer)}
+                                    <div class="info" style="min-width:0;">
+                                        <div class="name" style="color: var(--text-main); font-weight: 800; font-size: 1.1rem;">${offer.autore}</div>
+                                        <div class="meta" style="color: var(--primary); font-weight: 700; font-size: 0.85rem;">${getAuthorMeta(offer)}</div>
+                                    </div>
                                 </div>
+                                <span style="color: var(--primary); font-weight: 800; font-size: 0.82rem; white-space: nowrap;">Visualizza profilo</span>
                             </a>
                         </div>
 
