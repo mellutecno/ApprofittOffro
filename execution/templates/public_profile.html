@@ -40,6 +40,31 @@
     </nav>
 
     <main class="container main-content" style="max-width: 700px;">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div style="margin: 0 auto 18px auto;">
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}" style="
+                border-radius: 14px;
+                margin-bottom: 10px;
+                {% if category == 'success' %}
+                background: #E8F5E9;
+                color: #1F5130;
+                border: 1px solid rgba(56, 142, 60, 0.22);
+                {% elif category == 'error' %}
+                background: #FDECEC;
+                color: #8A1F1F;
+                border: 1px solid rgba(211, 47, 47, 0.2);
+                {% elif category == 'warning' %}
+                background: #FFF4E5;
+                color: #8A4B11;
+                border: 1px solid rgba(255, 152, 0, 0.22);
+                {% endif %}
+              ">{{ message }}</div>
+            {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
         <div class="glass-card" style="padding: 40px;">
             <div style="display: flex; align-items: center; gap: 32px; flex-wrap: wrap;">
                 <img src="{{ url_for('uploaded_file', filename=user.gallery_filenames[0]) }}" alt="Foto di {{ user.nome }}" style="width: 140px; height: 140px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: var(--shadow-md);">
@@ -66,12 +91,12 @@
                         {% if is_following %}
                         <form method="post" action="/users/{{ user.id }}/unfollow" style="display:inline-block;">
                             <input type="hidden" name="next" value="{{ request.path }}">
-                            <button type="submit" class="btn btn-ghost btn-sm">Non seguire più</button>
+                            <button type="submit" class="btn btn-outline btn-sm" style="color:#6A4330; border-color: rgba(106, 67, 48, 0.28); background: rgba(255,255,255,0.82);">Non seguire più</button>
                         </form>
                         {% else %}
                         <form method="post" action="/users/{{ user.id }}/follow" style="display:inline-block;">
                             <input type="hidden" name="next" value="{{ request.path }}">
-                            <button type="submit" class="btn btn-primary btn-sm">Segui</button>
+                            <button type="submit" class="btn btn-outline btn-sm" style="color:#6A4330; border-color: rgba(255, 112, 67, 0.34); background: rgba(255,255,255,0.82);">Segui</button>
                         </form>
                         {% endif %}
                     </div>

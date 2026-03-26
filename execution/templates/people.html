@@ -134,12 +134,12 @@
                     {% if person.id in followed_user_ids %}
                     <form method="post" action="/users/{{ person.id }}/unfollow" style="flex:1;">
                         <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
-                        <button type="submit" class="btn btn-ghost" style="width:100%;">Non seguire più</button>
+                        <button type="submit" class="btn btn-outline" style="width:100%; color:#6A4330; border-color: rgba(106, 67, 48, 0.28); background: rgba(255,255,255,0.82);">Non seguire più</button>
                     </form>
                     {% else %}
                     <form method="post" action="/users/{{ person.id }}/follow" style="flex:1;">
                         <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
-                        <button type="submit" class="btn btn-primary" style="width:100%;">Segui</button>
+                        <button type="submit" class="btn btn-outline" style="width:100%; color:#6A4330; border-color: rgba(255, 112, 67, 0.34); background: rgba(255,255,255,0.82);">Segui</button>
                     </form>
                     {% endif %}
                 </div>

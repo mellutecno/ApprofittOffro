@@ -556,10 +556,16 @@ def save_profile_gallery_files(user_key, photos, require_primary_face=True):
 def replace_user_gallery(user, filenames):
     """Sostituisce la galleria utente mantenendo la prima foto come avatar principale."""
     old_filenames = list(user.gallery_filenames)
-    UserPhoto.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    for photo in list(user.photos):
+        db.session.delete(photo)
+    db.session.flush()
+
     for position, filename in enumerate(filenames):
         db.session.add(UserPhoto(user_id=user.id, filename=filename, position=position))
+
     user.foto_filename = filenames[0]
+    db.session.flush()
+    db.session.expire(user, ["photos"])
     return old_filenames
 
 
