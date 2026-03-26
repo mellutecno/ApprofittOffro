@@ -24,6 +24,7 @@ from flask import (
     session,
 )
 from sqlalchemy import or_
+from sqlalchemy.orm import selectinload
 from flask_login import (
     LoginManager,
     login_user,
@@ -35,7 +36,7 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 from PIL import Image
 
-from models import db, User, Offer, Claim, Review, TIPI_PASTO
+from models import db, User, Offer, Claim, Review, TIPI_PASTO, UserPhoto, UserFollow
 from verify_photo import verifica_volto
 
 # ---------------------------------------------------------------------------
@@ -105,9 +106,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+MAX_PROFILE_PHOTOS = 5
 BREAKFAST_BOOKING_LEAD_HOURS = 1
 MEAL_BOOKING_LEAD_HOURS = 6
-NEARBY_OFFER_NOTIFICATION_RADIUS_KM = 15
 USER_SESSION_IDLE_TIMEOUT_MINUTES = 60
 ADMIN_SESSION_IDLE_TIMEOUT_MINUTES = 30
 
@@ -230,18 +231,18 @@ def get_spots_copy(spots_count):
     return f"{spots_count} posti disponibili"
 
 
-def get_new_offer_notification_subject(offer):
-    """Costruisce un oggetto mail naturale per la nuova offerta."""
+def get_followed_offer_notification_subject(offer):
+    """Costruisce l'oggetto mail per le nuove offerte dei profili seguiti."""
     if offer.tipo_pasto == "pranzo":
-        return f"Nuovo pranzo vicino a te: {offer.nome_locale}"
-    return f"Nuova {offer.tipo_pasto} vicino a te: {offer.nome_locale}"
+        return f"{offer.autore.nome} ha pubblicato un nuovo pranzo: {offer.nome_locale}"
+    return f"{offer.autore.nome} ha pubblicato una nuova {offer.tipo_pasto}: {offer.nome_locale}"
 
 
-def get_new_offer_notification_heading(offer):
-    """Costruisce il titolo della mail con genere corretto per il tipo di pasto."""
+def get_followed_offer_notification_heading(offer):
+    """Titolo mail con genere corretto per le offerte dei profili seguiti."""
     if offer.tipo_pasto == "pranzo":
-        return "Nuovo pranzo vicino a te"
-    return f"Nuova {offer.tipo_pasto} vicino a te"
+        return f"{offer.autore.nome} ha pubblicato un nuovo pranzo"
+    return f"{offer.autore.nome} ha pubblicato una nuova {offer.tipo_pasto}"
 
 
 def get_session_idle_timeout_seconds(user):
@@ -254,42 +255,28 @@ def get_session_idle_timeout_seconds(user):
     return timeout_minutes * 60
 
 
-def get_nearby_offer_notification_targets(offer):
-    """Trova gli utenti verificati da avvisare entro il raggio fisso dell'offerta."""
-    candidates = User.query.filter(
-        User.id != offer.user_id,
+def get_followers_notification_targets(offer):
+    """Trova gli utenti che seguono l'autore e devono ricevere le nuove offerte."""
+    return User.query.join(
+        UserFollow,
+        UserFollow.follower_id == User.id,
+    ).filter(
+        UserFollow.followed_id == offer.user_id,
         User.verificato.is_(True),
         User.is_admin.is_(False),
         User.email.isnot(None),
         User.email != "",
-        User.latitudine.isnot(None),
-        User.longitudine.isnot(None),
+        User.id != offer.user_id,
     ).all()
 
-    nearby_targets = []
-    for user in candidates:
-        distance_km = calculate_distance(
-            offer.latitudine,
-            offer.longitudine,
-            user.latitudine,
-            user.longitudine,
-        )
-        if distance_km <= NEARBY_OFFER_NOTIFICATION_RADIUS_KM:
-            nearby_targets.append({
-                "user": user,
-                "distance_km": round(distance_km, 1),
-            })
 
-    return nearby_targets
-
-
-def notify_nearby_users_for_new_offer(offer):
-    """Invia una mail agli utenti vicini quando nasce una nuova offerta."""
+def notify_followers_for_new_offer(offer):
+    """Invia una mail ai profili che seguono l'autore quando nasce una nuova offerta."""
     if offer.data_ora <= local_now():
         return 0
 
-    nearby_targets = get_nearby_offer_notification_targets(offer)
-    if not nearby_targets:
+    followers = get_followers_notification_targets(offer)
+    if not followers:
         return 0
 
     data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
@@ -301,24 +288,22 @@ def notify_nearby_users_for_new_offer(offer):
     meal_label = get_meal_type_label(offer.tipo_pasto)
     spots_copy = get_spots_copy(offer.posti_disponibili)
 
-    for target in nearby_targets:
+    for follower in followers:
         send_email(
-            get_new_offer_notification_subject(offer),
-            [target["user"].email],
+            get_followed_offer_notification_subject(offer),
+            [follower.email],
             "nearby_offer_notification.html",
-            user=target["user"],
+            user=follower,
             offer=offer,
             autore=offer.autore,
-            notification_heading=get_new_offer_notification_heading(offer),
+            notification_heading=get_followed_offer_notification_heading(offer),
             meal_label=meal_label,
             data_evento=data_evento,
-            distance_km=target["distance_km"],
-            radius_km=NEARBY_OFFER_NOTIFICATION_RADIUS_KM,
             spots_copy=spots_copy,
             booking_rule_copy=booking_rule_copy,
         )
 
-    return len(nearby_targets)
+    return len(followers)
 
 
 def snapshot_offer_notification_state(offer):
@@ -519,6 +504,72 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def extract_uploaded_photos(field_name="foto"):
+    """Recupera le foto caricate da un input multiplo, ignorando elementi vuoti."""
+    return [photo for photo in request.files.getlist(field_name) if photo and photo.filename]
+
+
+def delete_upload_files(filenames):
+    """Elimina una lista di file caricati, ignorando silenziosamente quelli mancanti."""
+    for filename in {name for name in filenames if name and name != "nessuna.jpg"}:
+        path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+
+def save_profile_gallery_files(user_key, photos, require_primary_face=True):
+    """Salva fino a MAX_PROFILE_PHOTOS immagini profilo e verifica il volto sulla prima."""
+    if not photos:
+        return [], []
+
+    errors = []
+    if len(photos) > MAX_PROFILE_PHOTOS:
+        errors.append(f"Puoi caricare al massimo {MAX_PROFILE_PHOTOS} foto profilo.")
+
+    for photo in photos:
+        if not allowed_file(photo.filename):
+            errors.append("Formato foto non valido. Usa JPG, PNG o WEBP.")
+            break
+
+    if errors:
+        return [], errors
+
+    saved_filenames = []
+    for index, photo in enumerate(photos):
+        ext = photo.filename.rsplit(".", 1)[1].lower() if "." in photo.filename else "jpg"
+        filename = process_image(photo, f"user_{user_key}_{uuid.uuid4().hex[:10]}.{ext}")
+        saved_filenames.append(filename)
+
+        if index == 0 and require_primary_face:
+            foto_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+            verifica = verifica_volto(foto_path)
+            if not verifica["valida"]:
+                delete_upload_files(saved_filenames)
+                return [], [f"La prima foto non va bene: {verifica['errore']}"]
+
+    return saved_filenames, []
+
+
+def replace_user_gallery(user, filenames):
+    """Sostituisce la galleria utente mantenendo la prima foto come avatar principale."""
+    old_filenames = list(user.gallery_filenames)
+    UserPhoto.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+    for position, filename in enumerate(filenames):
+        db.session.add(UserPhoto(user_id=user.id, filename=filename, position=position))
+    user.foto_filename = filenames[0]
+    return old_filenames
+
+
+def get_followed_user_ids(user_id):
+    return {
+        row.followed_id
+        for row in UserFollow.query.filter_by(follower_id=user_id).all()
+    }
+
+
 # ---------------------------------------------------------------------------
 # Crea le tabelle al primo avvio
 # ---------------------------------------------------------------------------
@@ -618,6 +669,26 @@ def parse_age_value(age_raw):
         return None, "Inserisci un'età realistica."
     return age, None
 
+
+def parse_optional_age_bound(age_raw, label):
+    normalized_age = str(age_raw or "").strip()
+    if not normalized_age:
+        return None, None
+    try:
+        age = int(normalized_age)
+    except (TypeError, ValueError):
+        return None, f"Inserisci un valore valido per {label}."
+    if age < 18 or age > 120:
+        return None, f"{label.capitalize()} deve essere compresa tra 18 e 120."
+    return age, None
+
+
+def get_safe_next_url(default_endpoint="people_page"):
+    next_url = str(request.form.get("next", "") or request.args.get("next", "")).strip()
+    if next_url.startswith("/"):
+        return next_url
+    return url_for(default_endpoint)
+
 # ===================================================================
 # PAGINE (Template)
 # ===================================================================
@@ -656,6 +727,7 @@ def dashboard():
         else 12.5
     )
     can_participate = is_authenticated and is_profile_complete(current_user)
+
     return render_template(
         "dashboard.html",
         tipi_pasto=TIPI_PASTO,
@@ -664,6 +736,53 @@ def dashboard():
         has_user_location=has_user_location,
         default_lat=default_lat,
         default_lon=default_lon,
+    )
+
+
+@app.route("/people")
+@login_required
+@profile_completed_required
+def people_page():
+    if is_admin_user(current_user):
+        return redirect(url_for("admin_dashboard"))
+
+    min_age, min_age_error = parse_optional_age_bound(request.args.get("min_age"), "l'età minima")
+    max_age, max_age_error = parse_optional_age_bound(request.args.get("max_age"), "l'età massima")
+
+    if min_age_error:
+        flash(min_age_error, "error")
+    if max_age_error:
+        flash(max_age_error, "error")
+
+    if min_age is not None and max_age is not None and min_age > max_age:
+        min_age, max_age = max_age, min_age
+
+    people_query = User.query.options(selectinload(User.photos)).filter(
+        User.id != current_user.id,
+        User.is_admin.is_(False),
+        User.verificato.is_(True),
+        User.bio.isnot(None),
+        User.bio != "",
+        User.cibi_preferiti.isnot(None),
+        User.cibi_preferiti != "",
+        User.intolleranze.isnot(None),
+        User.intolleranze != "",
+    )
+
+    if min_age is not None:
+        people_query = people_query.filter(User.eta >= min_age)
+    if max_age is not None:
+        people_query = people_query.filter(User.eta <= max_age)
+
+    people = people_query.order_by(User.eta.asc(), User.nome.asc()).all()
+    followed_user_ids = get_followed_user_ids(current_user.id)
+
+    return render_template(
+        "people.html",
+        people=people,
+        min_age=min_age if min_age is not None else "",
+        max_age=max_age if max_age is not None else "",
+        followed_user_ids=followed_user_ids,
     )
 
 
@@ -820,6 +939,7 @@ def remove_user_with_cleanup(user, motivazione, acting_admin):
     motivazione = motivazione.strip()
     user_email = user.email
     user_nome = user.nome
+    gallery_files = list(user.gallery_filenames)
     owned_offers = Offer.query.filter_by(user_id=user.id).all()
     owned_offer_ids = [offer.id for offer in owned_offers]
     now = local_now()
@@ -865,6 +985,7 @@ def remove_user_with_cleanup(user, motivazione, acting_admin):
 
     db.session.delete(user)
     db.session.commit()
+    delete_upload_files(gallery_files)
 
     if user_email:
         send_email(
@@ -954,12 +1075,63 @@ def public_profile(user_id):
         offerte_totali=offerte_totali,
         recuperi_effettuati=recuperi_effettuati,
         shared_offer=shared_offer,
-        pending_offer=pending_offer
+        pending_offer=pending_offer,
+        is_following=UserFollow.query.filter_by(
+            follower_id=current_user.id,
+            followed_id=user_id,
+        ).first() is not None if current_user.id != user_id else False,
     )
+
+
+@app.route("/users/<int:user_id>/follow", methods=["POST"])
+@login_required
+@profile_completed_required
+def follow_user(user_id):
+    if is_admin_user(current_user):
+        return redirect(url_for("admin_dashboard"))
+
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash("Non puoi seguire te stesso.", "warning")
+        return redirect(get_safe_next_url())
+    if user.is_admin:
+        flash("Non puoi seguire un amministratore.", "warning")
+        return redirect(get_safe_next_url())
+
+    existing_follow = UserFollow.query.filter_by(
+        follower_id=current_user.id,
+        followed_id=user.id,
+    ).first()
+    if not existing_follow:
+        db.session.add(UserFollow(follower_id=current_user.id, followed_id=user.id))
+        db.session.commit()
+        flash(f"Ora segui {user.nome}. Riceverai le sue nuove offerte via email.", "success")
+
+    return redirect(get_safe_next_url())
+
+
+@app.route("/users/<int:user_id>/unfollow", methods=["POST"])
+@login_required
+@profile_completed_required
+def unfollow_user(user_id):
+    if is_admin_user(current_user):
+        return redirect(url_for("admin_dashboard"))
+
+    user = User.query.get_or_404(user_id)
+    existing_follow = UserFollow.query.filter_by(
+        follower_id=current_user.id,
+        followed_id=user.id,
+    ).first()
+    if existing_follow:
+        db.session.delete(existing_follow)
+        db.session.commit()
+        flash(f"Non segui più {user.nome}.", "success")
+
+    return redirect(get_safe_next_url())
 
 @app.errorhandler(413)
 def request_entity_too_large(error):
-    return jsonify({"success": False, "errors": ["La foto è troppo pesante (Max 64MB). Compressione fallita."]}), 413
+    return jsonify({"success": False, "errors": ["Le foto sono troppo pesanti (Max 64MB complessivi). Compressione fallita."]}), 413
 
 
 @app.route("/api/geocode")
@@ -1019,6 +1191,7 @@ def api_register():
     """Registra un nuovo utente con verifica foto. Forza il logout di sessioni esistenti."""
     from flask_login import logout_user
     logout_user() # Assicura che la registrazione parta da un contesto pulito (Shared Device Fix)
+    photo_filenames = []
     try:
         nome = request.form.get("nome", "").strip()
         email = request.form.get("email", "").strip().lower()
@@ -1050,37 +1223,23 @@ def api_register():
             errors.append("Questa email è già registrata.")
 
         # Controlla foto
-        foto = request.files.get("foto")
-        if not foto or not foto.filename:
-            errors.append("La foto è obbligatoria.")
-        elif not allowed_file(foto.filename):
-            errors.append("Formato foto non valido. Ammessi JPG, PNG, WEBP, o scatta direttamente un selfie.")
+        foto_files = extract_uploaded_photos("foto")
+        if not foto_files:
+            errors.append("Carica almeno una foto profilo.")
 
         if errors:
             return jsonify({"success": False, "errors": errors}), 400
 
-        # Salva e processa la foto
-        foto_ext = foto.filename.rsplit(".", 1)[1].lower() if "." in foto.filename else "jpg"
-        temp_filename = f"{uuid.uuid4().hex}.{foto_ext}"
-        foto_filename = process_image(foto, temp_filename)
-        foto_path = os.path.join(app.config["UPLOAD_FOLDER"], foto_filename)
-
-        # Verifica volto
-        verifica = verifica_volto(foto_path)
-        if not verifica["valida"]:
-            if os.path.exists(foto_path):
-                os.remove(foto_path)
-            return jsonify({
-                "success": False,
-                "errors": [verifica["errore"]],
-            }), 400
+        photo_filenames, photo_errors = save_profile_gallery_files("new", foto_files, require_primary_face=True)
+        if photo_errors:
+            return jsonify({"success": False, "errors": photo_errors}), 400
 
         # Crea l'utente
         token_verifica = uuid.uuid4().hex
         user = User(
             nome=nome,
             email=email,
-            foto_filename=foto_filename,
+            foto_filename=photo_filenames[0],
             fascia_eta=str(eta),
             eta=eta,
             latitudine=float(lat),
@@ -1092,6 +1251,8 @@ def api_register():
         user.set_password(password)
 
         db.session.add(user)
+        db.session.flush()
+        replace_user_gallery(user, photo_filenames)
         db.session.commit()
 
         # Invio VERA Email in background
@@ -1110,6 +1271,7 @@ def api_register():
         })
     except Exception as super_err:
         db.session.rollback()
+        delete_upload_files(photo_filenames)
         return jsonify({"success": False, "errors": [f"Errore gravissimo server: {str(super_err)}"]}), 500
 
 
@@ -1498,13 +1660,13 @@ def api_create_offer():
 
     db.session.add(offer)
     db.session.commit()
-    notified_users = notify_nearby_users_for_new_offer(offer)
+    notified_users = notify_followers_for_new_offer(offer)
 
     message = "Offerta creata con successo!"
     if notified_users == 1:
-        message += " Abbiamo avvisato 1 utente vicino via email."
+        message += " Abbiamo avvisato 1 persona che ti segue via email."
     elif notified_users > 1:
-        message += f" Abbiamo avvisato {notified_users} utenti vicini via email."
+        message += f" Abbiamo avvisato {notified_users} persone che ti seguono via email."
 
     return jsonify({
         "success": True,
@@ -1738,6 +1900,8 @@ def api_admin_message_user(user_id):
 def api_user_update():
     """Aggiorna i dati anagrafici, alimentari e la foto profilo dell'utente."""
     # Gestisce sia JSON che Form Data (necessario per upload foto)
+    uploaded_gallery_filenames = []
+    old_gallery_filenames = []
     if request.is_json:
         data = request.get_json()
     else:
@@ -1773,28 +1937,17 @@ def api_user_update():
         errors.append("Raccontaci qualcosa di più nella tua Bio.")
 
     # 3. Gestione Foto Profilo (Opzionale nell'update)
-    foto = request.files.get("foto")
-    if foto and foto.filename:
-        if not allowed_file(foto.filename):
-            errors.append("Formato foto non valido. Usa JPG, PNG o WEBP.")
-        else:
-            foto_ext = foto.filename.rsplit(".", 1)[1].lower() if "." in foto.filename else "jpg"
-            unique_id = str(uuid.uuid4().hex)[:8]
-            temp_filename = f"user_{current_user.id}_{unique_id}.{foto_ext}"
-            foto_filename = process_image(foto, temp_filename)
-            foto_path = os.path.join(app.config["UPLOAD_FOLDER"], foto_filename)
-
-            # Verifica volto (opzionale per l'update per non essere troppo bloccanti, ma sicura)
-            verifica = verifica_volto(foto_path)
-            if not verifica["valida"]:
-                if os.path.exists(foto_path):
-                    os.remove(foto_path)
-                errors.append(f"Foto non valida: {verifica['errore']}")
-            else:
-                # Se la verifica passa, aggiorniamo il filename
-                current_user.foto_filename = foto_filename
+    foto_files = extract_uploaded_photos("foto")
+    if foto_files:
+        uploaded_gallery_filenames, photo_errors = save_profile_gallery_files(
+            current_user.id,
+            foto_files,
+            require_primary_face=True,
+        )
+        errors.extend(photo_errors)
 
     if errors:
+        delete_upload_files(uploaded_gallery_filenames)
         return jsonify({"success": False, "errors": errors}), 400
 
     # 4. Salvataggio modifiche
@@ -1814,7 +1967,17 @@ def api_user_update():
     current_user.intolleranze = intoll
     current_user.bio = bio
 
-    db.session.commit()
+    if uploaded_gallery_filenames:
+        old_gallery_filenames = replace_user_gallery(current_user, uploaded_gallery_filenames)
+
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        delete_upload_files(uploaded_gallery_filenames)
+        return jsonify({"success": False, "errors": [f"Errore nel salvataggio del profilo: {exc}"]}), 500
+
+    delete_upload_files(old_gallery_filenames)
     return jsonify({"success": True, "message": "Profilo aggiornato con successo!"})
 
 

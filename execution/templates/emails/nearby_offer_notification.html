@@ -1,15 +1,13 @@
 <div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#fffaf4; padding:32px; border-radius:16px; border:1px solid #fed7aa;">
     <h2 style="color:#9a3412;">{{ notification_heading }}</h2>
-    <p>Ciao <b>{{ user.nome }}</b>, c'e una nuova proposta su <b>ApprofittOffro</b> che potrebbe interessarti.</p>
+    <p>Ciao <b>{{ user.nome }}</b>, un profilo che segui su <b>ApprofittOffro</b> ha pubblicato una nuova proposta che potrebbe interessarti.</p>
 
     <div style="background:white; padding:20px; border-radius:12px; margin:16px 0; border-left:4px solid #f97316;">
         <b style="font-size:1.15rem;">{{ offer.nome_locale }}</b><br>
         {{ offer.indirizzo }}<br><br>
         <b>Quando:</b> {{ data_evento }}<br>
         <b>Pubblicata da:</b> {{ autore.nome }}<br>
-        <b>Disponibilita':</b> {{ spots_copy }}<br>
-        <b>Distanza dall'offerta:</b> {{ distance_km }} km<br>
-        <b>Notifica inviata perche' l'evento e' entro:</b> {{ radius_km }} km
+        <b>Disponibilita':</b> {{ spots_copy }}
     </div>
 
     <div style="background:rgba(249,115,22,0.08); padding:16px; border-radius:12px; color:#7c2d12; margin-bottom:16px;">

@@ -33,6 +33,7 @@
             </button>
             <div class="guest-toast-links" id="toast-nav-links" hidden>
                 <a href="/dashboard" class="btn btn-outline btn-sm">Home</a>
+                <a href="/people" class="btn btn-outline btn-sm">Persone</a>
                 {% if current_user.is_admin %}
                 <a href="/admin" class="btn btn-outline btn-sm">Admin</a>
                 {% endif %}
@@ -68,10 +69,15 @@
                 <form id="profile-form" enctype="multipart/form-data">
                     <div style="margin-bottom: 32px;">
                         <div class="photo-upload" id="photo-upload-btn" style="margin: 0 auto;">
-                            <img id="photo-preview" src="/uploads/{{ current_user.foto_filename }}" alt="{{ current_user.nome }}" style="width: 100%; height: 100%; object-fit: cover;">
-                            <input type="file" id="foto" name="foto" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer;">
+                            <img id="photo-preview" src="/uploads/{{ current_user.gallery_filenames[0] }}" alt="{{ current_user.nome }}" style="width: 100%; height: 100%; object-fit: cover;">
+                            <input type="file" id="foto" name="foto" accept="image/*" multiple style="position: absolute; inset: 0; opacity: 0; cursor: pointer;">
                         </div>
-                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px; font-weight: 600;">Tocca la foto per cambiarla</p>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px; font-weight: 600;">Tocca la foto per caricare fino a 5 immagini. La prima resta quella principale.</p>
+                        <div id="profile-gallery-preview" style="display:flex; gap:8px; overflow-x:auto; justify-content:center; margin-top:12px; padding-bottom:4px;">
+                            {% for filename in current_user.gallery_filenames %}
+                            <img src="/uploads/{{ filename }}" alt="Foto di {{ current_user.nome }}" style="width:64px; height:64px; border-radius:18px; object-fit:cover; flex-shrink:0; border:2px solid rgba(128,78,43,0.12);">
+                            {% endfor %}
+                        </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; text-align: left;">
@@ -502,17 +508,42 @@
         }
 
         const fotoInput = document.getElementById('foto');
+        const profileGalleryPreview = document.getElementById('profile-gallery-preview');
         if (fotoInput) {
             fotoInput.addEventListener('change', function() {
-                const file = this.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = e => {
-                        const preview = document.getElementById('photo-preview');
-                        if (preview) preview.src = e.target.result;
-                    };
-                    reader.readAsDataURL(file);
+                const selectedFiles = Array.from(this.files || []).slice(0, 5);
+                const preview = document.getElementById('photo-preview');
+
+                if (!selectedFiles.length) {
+                    return;
                 }
+
+                if (profileGalleryPreview) {
+                    profileGalleryPreview.innerHTML = '';
+                }
+
+                selectedFiles.forEach((file, index) => {
+                    const objectUrl = URL.createObjectURL(file);
+
+                    if (index === 0 && preview) {
+                        preview.src = objectUrl;
+                    }
+
+                    if (profileGalleryPreview) {
+                        const thumb = document.createElement('img');
+                        thumb.src = objectUrl;
+                        thumb.alt = `Foto profilo ${index + 1}`;
+                        thumb.style.width = '64px';
+                        thumb.style.height = '64px';
+                        thumb.style.borderRadius = '18px';
+                        thumb.style.objectFit = 'cover';
+                        thumb.style.flexShrink = '0';
+                        thumb.style.border = index === 0
+                            ? '2px solid rgba(255,112,67,0.75)'
+                            : '2px solid rgba(128,78,43,0.12)';
+                        profileGalleryPreview.appendChild(thumb);
+                    }
+                });
             });
         }
 

@@ -39,6 +39,7 @@
                 <a href="/admin" class="btn btn-outline btn-sm">Admin</a>
                 {% endif %}
                 <a href="{{ '/new-offer' if can_participate else '/profile' }}" class="btn btn-outline btn-sm">{{ 'Offri' if can_participate else 'Completa Profilo' }}</a>
+                <a href="/people" class="btn btn-outline btn-sm">Persone</a>
                 <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
                 <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
                 {% else %}

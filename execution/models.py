@@ -55,6 +55,27 @@ class User(UserMixin, db.Model):
     # Relazioni
     offerte = db.relationship("Offer", backref="autore", lazy=True)
     claims = db.relationship("Claim", backref="utente", lazy=True)
+    photos = db.relationship(
+        "UserPhoto",
+        backref="user",
+        lazy=True,
+        cascade="all, delete-orphan",
+        order_by="UserPhoto.position.asc()",
+    )
+    following_rel = db.relationship(
+        "UserFollow",
+        foreign_keys="UserFollow.follower_id",
+        backref="follower",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+    followers_rel = db.relationship(
+        "UserFollow",
+        foreign_keys="UserFollow.followed_id",
+        backref="followed",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -68,6 +89,21 @@ class User(UserMixin, db.Model):
         if self.eta is not None:
             return str(self.eta)
         return self.fascia_eta
+
+    @property
+    def gallery_filenames(self):
+        photos = [photo.filename for photo in sorted(self.photos, key=lambda item: item.position)]
+        if photos:
+            return photos
+        return [self.foto_filename] if self.foto_filename else []
+
+    @property
+    def followers_count(self):
+        return len(self.followers_rel)
+
+    @property
+    def following_count(self):
+        return len(self.following_rel)
 
     def __repr__(self):
         return f"<User {self.nome} ({self.email})>"
@@ -107,6 +143,37 @@ class Offer(db.Model):
 
     def __repr__(self):
         return f"<Offer {self.tipo_pasto} @ {self.nome_locale} ({self.posti_disponibili}/{self.posti_totali})>"
+
+
+class UserPhoto(db.Model):
+    """Foto profilo dell'utente (la prima resta la foto principale)."""
+    __tablename__ = "user_photos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    filename = db.Column(db.String(256), nullable=False)
+    position = db.Column(db.Integer, default=0, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    def __repr__(self):
+        return f"<UserPhoto user={self.user_id} position={self.position}>"
+
+
+class UserFollow(db.Model):
+    """Relazione follower -> seguito fra utenti."""
+    __tablename__ = "user_follows"
+
+    id = db.Column(db.Integer, primary_key=True)
+    follower_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    followed_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    __table_args__ = (
+        db.UniqueConstraint("follower_id", "followed_id", name="unique_user_follow"),
+    )
+
+    def __repr__(self):
+        return f"<UserFollow follower={self.follower_id} followed={self.followed_id}>"
 
 
 class Claim(db.Model):
