@@ -3009,6 +3009,40 @@ body.modal-open {
     touch-action: none;
 }
 
+.review-modal-shell {
+    position: fixed;
+    inset: 0;
+    z-index: 3300;
+    display: none;
+}
+
+.review-modal-shell.is-visible {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px 16px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.review-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(23, 12, 6, 0.68);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.review-modal-dialog {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 450px);
+    max-height: calc(100dvh - 48px);
+    margin: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
 .offer-error-backdrop {
     position: absolute;
     inset: 0;

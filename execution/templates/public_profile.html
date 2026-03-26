@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profilo di {{ user.nome }} — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=65">
+    <link rel="stylesheet" href="/static/css/styles.css?v=67">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -116,22 +116,6 @@
             </div>
             {% endif %}
 
-            {% if shared_offer %}
-            <div class="glass-card" style="margin: 20px 0; padding: 20px; text-align: center; border: 2px solid var(--primary);">
-                <h3 style="margin-bottom: 8px;">Hai condiviso un pasto con {{ user.nome }}!</h3>
-                <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">Il tuo feedback aiuta la community a restare sicura e amichevole.</p>
-                {% if editable_review %}
-                <button type="button" onclick='openReviewModal({{ shared_offer.id }}, {{ shared_offer.nome_locale|tojson }}, {{ user.id }}, {{ editable_review.rating }}, {{ editable_review.commento|default("", true)|tojson }})' class="btn btn-outline">✏️ Modifica recensione</button>
-                {% else %}
-                <button type="button" onclick='openReviewModal({{ shared_offer.id }}, {{ shared_offer.nome_locale|tojson }}, {{ user.id }})' class="btn btn-primary">🌟 Lascia una Recensione</button>
-                {% endif %}
-            </div>
-            {% elif pending_offer %}
-            <div class="glass-card" style="margin: 20px 0; padding: 20px; text-align: center; border: 1px dashed var(--primary);">
-                <p style="font-size: 0.9rem; color: var(--text-muted);">Tu e questo utente avete interagito, quindi torna più tardi per una recensione.</p>
-            </div>
-            {% endif %}
-
             <hr style="margin: 40px 0; border: none; border-top: 2px solid var(--border-light);">
 
             {% if user.bio %}
@@ -176,6 +160,22 @@
                 <div style="font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">Pasti Partecipati</div>
             </div>
         </div>
+
+        {% if shared_offer %}
+        <div class="glass-card" style="margin: 28px 0 0 0; padding: 20px; text-align: center; border: 2px solid var(--primary);">
+            <h3 style="margin-bottom: 8px;">Hai condiviso un pasto con {{ user.nome }}!</h3>
+            <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">Il tuo feedback aiuta la community a restare sicura e amichevole.</p>
+            {% if editable_review %}
+            <button type="button" onclick='openReviewModal({{ shared_offer.id }}, {{ shared_offer.nome_locale|tojson }}, {{ user.id }}, {{ editable_review.rating }}, {{ editable_review.commento|default("", true)|tojson }})' class="btn btn-outline">✏️ Modifica recensione</button>
+            {% else %}
+            <button type="button" onclick='openReviewModal({{ shared_offer.id }}, {{ shared_offer.nome_locale|tojson }}, {{ user.id }})' class="btn btn-primary">🌟 Lascia una Recensione</button>
+            {% endif %}
+        </div>
+        {% elif pending_offer %}
+        <div class="glass-card" style="margin: 28px 0 0 0; padding: 20px; text-align: center; border: 1px dashed var(--primary);">
+            <p style="font-size: 0.9rem; color: var(--text-muted);">Tu e questo utente avete interagito, quindi torna più tardi per una recensione.</p>
+        </div>
+        {% endif %}
 
         <h3 style="font-size: 1.3rem; font-family: 'Outfit', sans-serif; font-weight: 700; margin: 48px 0 16px; color: var(--text-main);">⭐ Cosa dicono gli altri ({{ rating_info.count }})</h3>
         
@@ -224,8 +224,9 @@
     </div>
 
     <!-- Review Modal -->
-    <div id="review-modal" class="modal" style="display: none; align-items: center; justify-content: center;">
-        <div class="glass-card" style="width: 100%; max-width: 450px; position: relative;">
+    <div id="review-modal" class="review-modal-shell" aria-hidden="true">
+        <div class="review-modal-backdrop" onclick="closeReviewModal()"></div>
+        <div class="glass-card review-modal-dialog" style="width: 100%; max-width: 450px; position: relative;" onclick="event.stopPropagation()">
             <button onclick="closeReviewModal()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;">&times;</button>
             <h2 id="review-modal-title" class="text-center mb-1">Lascia un feedback</h2>
             <p class="text-center text-muted mb-3" id="review-venue-name"></p>
@@ -396,15 +397,24 @@
             document.getElementById('review-is-edit').value = existingRating ? '1' : '0';
             document.getElementById('review-modal-title').textContent = existingRating ? 'Modifica il tuo feedback' : 'Lascia un feedback';
             document.getElementById('review-submit-btn').textContent = existingRating ? 'Aggiorna recensione' : 'Invia Recensione';
-            document.getElementById('review-modal').style.display = 'flex';
+            const reviewModal = document.getElementById('review-modal');
+            reviewModal.classList.add('is-visible');
+            reviewModal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
             selectedRating = Number(existingRating) || 0;
             highlightStars(selectedRating);
             document.getElementById('selected-rating').value = selectedRating;
             document.getElementById('review-commento').value = existingComment || '';
+            requestAnimationFrame(() => {
+                document.querySelector('.review-modal-dialog')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+            });
         }
 
         function closeReviewModal() {
-            document.getElementById('review-modal').style.display = 'none';
+            const reviewModal = document.getElementById('review-modal');
+            reviewModal.classList.remove('is-visible');
+            reviewModal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
         }
 
         document.getElementById('review-form').addEventListener('submit', async (e) => {
