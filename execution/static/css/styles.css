@@ -2781,9 +2781,20 @@ body.admin-page {
     margin-bottom: 14px;
 }
 
+.offer-section-label {
+    margin-bottom: 8px;
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+
 .offer-participants-strip {
     display: flex;
     align-items: center;
+    justify-content: center;
     flex-wrap: wrap;
     gap: 8px;
     padding: 12px 14px;
@@ -2798,7 +2809,7 @@ body.admin-page {
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--text-light);
-    padding-left: 2px;
+    text-align: center;
 }
 
 .offer-participant-link {
