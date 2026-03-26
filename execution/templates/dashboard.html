@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=82">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=83">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -366,10 +366,10 @@
         function getAuthorProfileLabelMarkup(offer) {
             if (!isAuthenticated) return '';
             return `
-                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex-shrink:0;">
-                    <span style="display:block; color: var(--primary); font-weight: 700; font-size: 0.74rem; letter-spacing: 0.02em; white-space: nowrap; opacity: 0.9; text-align:center;">Visualizza profilo</span>
+                <div class="offer-author-actions">
+                    <span class="offer-author-profile-link">Visualizza profilo</span>
                     ${offer && offer.host_whatsapp_link ? `
-                        <div style="display:flex; justify-content:center; width:100%;">
+                        <div class="offer-author-whatsapp-wrap">
                             <a href="${offer.host_whatsapp_link}" target="_blank" rel="noopener noreferrer" class="offer-host-whatsapp-btn" title="Apri WhatsApp con chi offre" aria-label="Apri WhatsApp con chi offre">
                                 ${getWhatsappIconMarkup('offer-whatsapp-icon')}
                             </a>
