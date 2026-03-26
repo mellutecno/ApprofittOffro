@@ -10,7 +10,10 @@ import re
 import sqlite3
 import io
 import tempfile
+import json
 from urllib.parse import quote
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from functools import wraps
@@ -481,13 +484,27 @@ app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', '')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', '')
 app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('MAIL_USERNAME', ''))
+app.config['EMAIL_PROVIDER'] = os.getenv('EMAIL_PROVIDER', 'auto').strip().lower()
+app.config['RESEND_API_KEY'] = os.getenv('RESEND_API_KEY', '').strip()
+app.config['RESEND_REPLY_TO'] = os.getenv('RESEND_REPLY_TO', '').strip()
 
 from flask_mail import Mail, Message
 from threading import Thread
 
 mail = Mail(app)
 
-def send_async_email(app, msg):
+def get_active_email_provider():
+    configured = app.config.get("EMAIL_PROVIDER", "auto")
+    if configured and configured != "auto":
+        return configured
+    if app.config.get("RESEND_API_KEY"):
+        return "resend"
+    if app.config.get("MAIL_USERNAME") and app.config.get("MAIL_PASSWORD"):
+        return "smtp"
+    return "disabled"
+
+
+def send_async_smtp_email(app, msg):
     with app.app_context():
         try:
             mail.send(msg)
@@ -495,13 +512,75 @@ def send_async_email(app, msg):
         except Exception as e:
             print(f"[MAIL_ERRORE] Impossibile inviare a: {msg.recipients[0]}: {e}")
 
+
+def send_async_resend_email(app, payload):
+    with app.app_context():
+        try:
+            api_key = app.config.get("RESEND_API_KEY", "")
+            if not api_key:
+                raise RuntimeError("RESEND_API_KEY mancante.")
+
+            request_payload = {
+                "from": payload["from_email"],
+                "to": payload["recipients"],
+                "subject": payload["subject"],
+                "html": payload["html_body"],
+            }
+            if payload.get("reply_to"):
+                request_payload["reply_to"] = payload["reply_to"]
+
+            request = Request(
+                "https://api.resend.com/emails",
+                data=json.dumps(request_payload).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+
+            with urlopen(request, timeout=20) as response:
+                response.read()
+            print(f"[MAIL_INVIATA_RESEND] Inviata con successo a: {payload['recipients'][0]}")
+        except HTTPError as e:
+            try:
+                details = e.read().decode("utf-8", errors="ignore")
+            except Exception:
+                details = ""
+            print(
+                f"[MAIL_ERRORE_RESEND] HTTP {e.code} verso {payload['recipients'][0]}: {details}"
+            )
+        except URLError as e:
+            print(f"[MAIL_ERRORE_RESEND] Errore di rete verso {payload['recipients'][0]}: {e}")
+        except Exception as e:
+            print(f"[MAIL_ERRORE_RESEND] Impossibile inviare a: {payload['recipients'][0]}: {e}")
+
+
 def send_email(subject, recipients, template, **kwargs):
     """Renderizza e invia un'email in background."""
     try:
         html_body = render_template(f"emails/{template}", **kwargs)
-        msg = Message(subject, recipients=recipients)
-        msg.html = html_body
-        Thread(target=send_async_email, args=(app, msg)).start()
+        provider = get_active_email_provider()
+        if provider == "smtp":
+            msg = Message(subject, recipients=recipients)
+            msg.html = html_body
+            Thread(target=send_async_smtp_email, args=(app, msg)).start()
+            return
+
+        if provider == "resend":
+            payload = {
+                "subject": subject,
+                "recipients": recipients,
+                "html_body": html_body,
+                "from_email": app.config.get("MAIL_DEFAULT_SENDER"),
+                "reply_to": app.config.get("RESEND_REPLY_TO") or None,
+            }
+            Thread(target=send_async_resend_email, args=(app, payload)).start()
+            return
+
+        print(
+            f"[MAIL_SKIP] Nessun provider email configurato. Salto invio '{subject}' a {recipients}."
+        )
     except Exception as e:
         print(f"[MAIL_ERROR] Errore preparazione email {template}: {e}")
 

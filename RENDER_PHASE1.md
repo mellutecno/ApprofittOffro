@@ -42,6 +42,9 @@ Devi aggiungere manualmente nel web service:
 - `MAIL_USERNAME`
 - `MAIL_PASSWORD`
 - `MAIL_DEFAULT_SENDER`
+- `EMAIL_PROVIDER`
+- `RESEND_API_KEY`
+- `RESEND_REPLY_TO`
 - `ADMIN_EMAIL`
 - `R2_ACCOUNT_ID`
 - `R2_ACCESS_KEY_ID`
@@ -53,6 +56,19 @@ Opzionale:
 - `R2_ENDPOINT_URL=https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
 
 Se non la imposti, l'app la ricava da `R2_ACCOUNT_ID`.
+
+Per le email:
+
+- su PythonAnywhere puoi continuare con `EMAIL_PROVIDER=smtp`
+- su Render conviene usare `EMAIL_PROVIDER=resend`
+- con Resend, `MAIL_DEFAULT_SENDER` deve essere un mittente valido del dominio verificato
+- `RESEND_REPLY_TO` e` opzionale, ma consigliato
+
+Importante per il database:
+
+- il `DATABASE_URL` del blueprint e` marcato `sync: false`
+- se web service e database stanno in region diverse, devi incollare manualmente l'`External Database URL`
+- se in futuro li allinei nella stessa region, puoi anche usare l'URL interno
 
 ## Come creare il web service
 
