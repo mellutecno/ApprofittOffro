@@ -39,7 +39,7 @@
                 <a href="/admin" class="btn btn-outline btn-sm">Admin</a>
                 {% endif %}
                 <a href="{{ '/new-offer' if can_participate else '/profile' }}" class="btn btn-outline btn-sm">{{ 'Offri' if can_participate else 'Completa Profilo' }}</a>
-                <a href="/people" class="btn btn-outline btn-sm">Profili</a>
+                <a href="/people" class="btn btn-outline btn-sm">Community</a>
                 <a href="/profile" class="btn btn-outline btn-sm">Su di me</a>
                 <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
                 {% else %}
@@ -61,20 +61,6 @@
             <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 24px;">Scopri chi sta cucinando qualcosa di buono vicino a te.</p>
             {% endif %}
 
-            {% if is_authenticated %}
-            <div style="margin: 4px 0 14px;">
-                <div style="font-size: 2.2rem; line-height: 1.1; font-weight: 800; color: var(--text-main);">Approfitta</div>
-            </div>
-            <div class="flex-center justify-center">
-                <div class="member-meal-filters-wrap">
-                    <div class="filter-bar member-meal-filters">
-                        <button class="filter-chip" type="button" data-filter="colazione" onclick="setFilter('colazione', this)">Colazioni</button>
-                        <button class="filter-chip" type="button" data-filter="pranzo" onclick="setFilter('pranzo', this)">Pranzi</button>
-                        <button class="filter-chip" type="button" data-filter="cena" onclick="setFilter('cena', this)">Cene</button>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
         </div>
 
         {% if not is_authenticated %}
@@ -235,6 +221,21 @@
                 <div id="map" class="member-map-canvas" style="width: 100%;"></div>
             </div>
         </section>
+        </section>
+        {% endif %}
+
+        {% if is_authenticated %}
+        <section style="text-align: center; margin: 0 auto 26px auto; max-width: 900px;">
+            <div style="font-size: 2.2rem; line-height: 1.1; font-weight: 800; color: var(--text-main); margin-bottom: 14px;">Approfitta</div>
+            <div class="flex-center justify-center">
+                <div class="member-meal-filters-wrap">
+                    <div class="filter-bar member-meal-filters">
+                        <button class="filter-chip" type="button" data-filter="colazione" onclick="setFilter('colazione', this)">Colazioni</button>
+                        <button class="filter-chip" type="button" data-filter="pranzo" onclick="setFilter('pranzo', this)">Pranzi</button>
+                        <button class="filter-chip" type="button" data-filter="cena" onclick="setFilter('cena', this)">Cene</button>
+                    </div>
+                </div>
+            </div>
         </section>
         {% endif %}
 
