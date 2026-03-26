@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_controller.dart';
+import '../community/community_controller.dart';
 import '../community/community_page.dart';
 import '../create_offer/create_offer_page.dart';
 import '../offers/offers_controller.dart';
@@ -19,17 +20,21 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
   late final OffersController _offersController;
+  late final CommunityController _communityController;
 
   @override
   void initState() {
     super.initState();
     _offersController = OffersController(widget.authController.apiClient)
       ..loadOffers();
+    _communityController = CommunityController(widget.authController.apiClient)
+      ..loadPeople();
   }
 
   @override
   void dispose() {
     _offersController.dispose();
+    _communityController.dispose();
     super.dispose();
   }
 
@@ -40,8 +45,20 @@ class _HomeShellState extends State<HomeShell> {
         authController: widget.authController,
         offersController: _offersController,
       ),
-      const CommunityPage(),
-      const CreateOfferPage(),
+      CommunityPage(
+        authController: widget.authController,
+        communityController: _communityController,
+      ),
+      CreateOfferPage(
+        authController: widget.authController,
+        onOfferCreated: () async {
+          await _offersController.loadOffers();
+          if (!mounted) {
+            return;
+          }
+          setState(() => _selectedIndex = 0);
+        },
+      ),
       ProfilePage(authController: widget.authController),
     ];
 

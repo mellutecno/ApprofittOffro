@@ -31,6 +31,24 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> refreshCurrentUser() async {
+    if (!apiClient.hasSession) {
+      _currentUser = null;
+      notifyListeners();
+      return;
+    }
+
+    try {
+      _currentUser = await apiClient.fetchCurrentUser();
+      _errorMessage = null;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (_) {
+      _errorMessage = 'Non riesco ad aggiornare il profilo adesso.';
+    }
+    notifyListeners();
+  }
+
   Future<bool> login({
     required String email,
     required String password,

@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
 import '../../models/app_user.dart';
 import '../../models/offer.dart';
+import '../../models/public_profile.dart';
+import '../../models/user_preview.dart';
 import '../config/app_config.dart';
 import 'session_store.dart';
 
@@ -68,6 +71,44 @@ class ApiClient {
     return AppUser.fromJson(payload['user'] as Map<String, dynamic>);
   }
 
+  Future<List<UserPreview>> fetchPeople({String ageRange = ''}) async {
+    final query = <String, String>{};
+    if (ageRange.isNotEmpty) {
+      query['age_range'] = ageRange;
+    }
+    final path = query.isEmpty
+        ? '/api/people'
+        : '/api/people?${Uri(queryParameters: query).query}';
+    final response = await _send(method: 'GET', path: path);
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return (payload['people'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>()
+        .map(UserPreview.fromJson)
+        .toList();
+  }
+
+  Future<PublicProfile> fetchPublicUser(int userId) async {
+    final response = await _send(method: 'GET', path: '/api/users/$userId');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return PublicProfile.fromJson(payload);
+  }
+
+  Future<Map<String, dynamic>> followUser(int userId) async {
+    final response = await _send(method: 'POST', path: '/api/users/$userId/follow');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
+  }
+
+  Future<Map<String, dynamic>> unfollowUser(int userId) async {
+    final response = await _send(method: 'POST', path: '/api/users/$userId/unfollow');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
+  }
+
   Future<List<Offer>> fetchOffers({String mealType = ''}) async {
     final query = <String, String>{};
     if (mealType.isNotEmpty) {
@@ -90,6 +131,53 @@ class ApiClient {
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return payload['message']?.toString() ?? 'Hai approfittato dell\'offerta.';
+  }
+
+  Future<String> createOffer({
+    required String mealType,
+    required String localeName,
+    required String address,
+    required String latitude,
+    required String longitude,
+    required int totalSeats,
+    required DateTime dateTime,
+    required String description,
+    String? photoPath,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/offers'),
+    );
+    if ((_cookieHeader ?? '').isNotEmpty) {
+      request.headers['Cookie'] = _cookieHeader!;
+    }
+
+    request.fields.addAll({
+      'tipo_pasto': mealType,
+      'nome_locale': localeName,
+      'indirizzo': address,
+      'latitudine': latitude,
+      'longitudine': longitude,
+      'posti_totali': totalSeats.toString(),
+      'data_ora': dateTime.toIso8601String(),
+      'descrizione': description,
+    });
+
+    if (photoPath != null && photoPath.isNotEmpty) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'foto_locale',
+          photoPath,
+          filename: File(photoPath).uri.pathSegments.last,
+        ),
+      );
+    }
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Offerta creata con successo.';
   }
 
   Future<http.Response> _send({

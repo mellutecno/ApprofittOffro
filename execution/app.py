@@ -1375,6 +1375,64 @@ def get_user_rating(user_id):
     return {"average": round(avg, 1), "count": len(reviews)}
 
 
+def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include_gallery=False, include_private=False):
+    """Serializza un profilo utente in JSON per API web/mobile."""
+    if not user:
+        return None
+
+    rating_info = get_user_rating(user.id)
+    viewer_is_authenticated = bool(viewer and getattr(viewer, "is_authenticated", False))
+    is_self = viewer_is_authenticated and viewer.id == user.id
+    is_following = False
+
+    if viewer_is_authenticated and not is_self:
+        if followed_user_ids is not None:
+            is_following = user.id in followed_user_ids
+        else:
+            is_following = UserFollow.query.filter_by(
+                follower_id=viewer.id,
+                followed_id=user.id,
+            ).first() is not None
+
+    gallery_filenames = list(user.gallery_filenames if include_gallery else user.gallery_filenames[:2])
+    payload = {
+        "id": user.id,
+        "nome": user.nome,
+        "email": user.email if include_private else "",
+        "foto": user.foto_filename or "",
+        "gallery_filenames": gallery_filenames,
+        "eta": user.eta,
+        "eta_display": user.eta_display,
+        "citta": user.citta or "",
+        "city_label": extract_city_label(user.citta),
+        "bio": user.bio or "",
+        "cibi_preferiti": user.cibi_preferiti or "",
+        "intolleranze": user.intolleranze or "",
+        "numero_telefono": user.numero_telefono if include_private else "",
+        "lat": user.latitudine if include_private else None,
+        "lon": user.longitudine if include_private else None,
+        "verificato": bool(user.verificato),
+        "followers_count": user.followers_count,
+        "following_count": user.following_count,
+        "rating_average": rating_info["average"],
+        "rating_count": rating_info["count"],
+        "is_following": is_following,
+        "is_self": is_self,
+    }
+    return payload
+
+
+def serialize_review_preview(review):
+    """Serializza una recensione con reviewer essenziale."""
+    return {
+        "id": review.id,
+        "rating": review.rating,
+        "commento": review.commento or "",
+        "created_at": review.created_at.isoformat() if review.created_at else "",
+        "reviewer": serialize_user_preview(review.reviewer) if review.reviewer else None,
+    }
+
+
 def get_pending_review_reminders(user, now=None):
     """Restituisce le interazioni concluse da recensire, sia da ospite che da host."""
     if not user or not getattr(user, "is_authenticated", False):
@@ -2410,23 +2468,188 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 @login_required
 def api_user_me():
     """Restituisce i dati dell'utente corrente."""
+    followed_user_ids = get_followed_user_ids(current_user.id)
+    followers = [
+        relation.follower
+        for relation in sorted(
+            current_user.followers_rel,
+            key=lambda item: item.created_at or datetime.min,
+            reverse=True,
+        )
+        if relation.follower and not is_admin_user(relation.follower)
+    ]
+    user_payload = serialize_user_preview(
+        current_user,
+        viewer=current_user,
+        followed_user_ids=followed_user_ids,
+        include_gallery=True,
+        include_private=True,
+    )
+    user_payload["followers"] = [
+        serialize_user_preview(follower, viewer=current_user, followed_user_ids=followed_user_ids)
+        for follower in followers
+    ]
+    user_payload["stats"] = {
+        "offerte_totali": Offer.query.filter_by(user_id=current_user.id).count(),
+        "recuperi_effettuati": Claim.query.filter_by(user_id=current_user.id).count(),
+    }
+
     return jsonify({
         "success": True,
-        "user": {
-            "id": current_user.id,
-            "nome": current_user.nome,
-            "email": current_user.email,
-            "is_admin": is_admin_user(current_user),
-            "foto": current_user.foto_filename,
-            "eta": current_user.eta,
-            "eta_display": current_user.eta_display,
-            "lat": current_user.latitudine,
-            "lon": current_user.longitudine,
-            "citta": current_user.citta,
-            "verificato": current_user.verificato,
-            "cibi_preferiti": current_user.cibi_preferiti or "",
-            "intolleranze": current_user.intolleranze or "",
+        "user": user_payload,
+    })
+
+
+@app.route("/api/people", methods=["GET"])
+@login_required
+def api_people():
+    """Restituisce i profili community in formato JSON."""
+    if is_admin_user(current_user):
+        return jsonify({"success": False, "error": "La community non è disponibile per gli amministratori."}), 403
+
+    profile_error = require_complete_profile_json()
+    if profile_error:
+        return profile_error
+
+    selected_age_range, parsed_age_range, age_range_error = parse_age_range_filter(
+        request.args.get("age_range")
+    )
+    if age_range_error:
+        return jsonify({"success": False, "error": age_range_error}), 400
+
+    people_query = User.query.options(selectinload(User.photos)).filter(
+        User.id != current_user.id,
+        User.is_admin.is_(False),
+        User.verificato.is_(True),
+        User.bio.isnot(None),
+        User.bio != "",
+        User.cibi_preferiti.isnot(None),
+        User.cibi_preferiti != "",
+        User.intolleranze.isnot(None),
+        User.intolleranze != "",
+    )
+
+    if isinstance(parsed_age_range, tuple):
+        people_query = people_query.filter(
+            User.eta >= parsed_age_range[0],
+            User.eta <= parsed_age_range[1],
+        )
+    elif isinstance(parsed_age_range, int):
+        people_query = people_query.filter(User.eta >= parsed_age_range)
+
+    people = people_query.order_by(User.eta.asc(), User.nome.asc()).all()
+    followed_user_ids = get_followed_user_ids(current_user.id)
+
+    return jsonify({
+        "success": True,
+        "selected_age_range": selected_age_range,
+        "age_ranges": [{"value": value, "label": label} for value, label in FASCE_ETA],
+        "people": [
+            serialize_user_preview(
+                person,
+                viewer=current_user,
+                followed_user_ids=followed_user_ids,
+            )
+            for person in people
+        ],
+    })
+
+
+@app.route("/api/users/<int:user_id>", methods=["GET"])
+@login_required
+def api_public_user(user_id):
+    """Dettaglio profilo pubblico in formato JSON."""
+    if is_admin_user(current_user):
+        return jsonify({"success": False, "error": "I profili pubblici non sono disponibili per gli amministratori."}), 403
+
+    profile_error = require_complete_profile_json()
+    if profile_error:
+        return profile_error
+
+    user = User.query.options(selectinload(User.photos)).filter(
+        User.id == user_id,
+        User.is_admin.is_(False),
+    ).first_or_404()
+
+    followed_user_ids = get_followed_user_ids(current_user.id)
+    reviews = Review.query.options(
+        selectinload(Review.reviewer).selectinload(User.photos)
+    ).filter_by(reviewed_id=user_id).order_by(Review.created_at.desc()).all()
+
+    return jsonify({
+        "success": True,
+        "user": serialize_user_preview(
+            user,
+            viewer=current_user,
+            followed_user_ids=followed_user_ids,
+            include_gallery=True,
+        ),
+        "stats": {
+            "offerte_totali": Offer.query.filter_by(user_id=user.id).count(),
+            "recuperi_effettuati": Claim.query.filter_by(user_id=user.id).count(),
         },
+        "reviews": [serialize_review_preview(review) for review in reviews],
+    })
+
+
+@app.route("/api/users/<int:user_id>/follow", methods=["POST"])
+@login_required
+def api_follow_user(user_id):
+    """Segue un utente da mobile/web app JSON."""
+    if is_admin_user(current_user):
+        return jsonify({"success": False, "error": "Operazione non disponibile per gli amministratori."}), 403
+
+    profile_error = require_complete_profile_json()
+    if profile_error:
+        return profile_error
+
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        return jsonify({"success": False, "error": "Non puoi seguire te stesso."}), 400
+    if user.is_admin:
+        return jsonify({"success": False, "error": "Non puoi seguire un amministratore."}), 400
+
+    existing_follow = UserFollow.query.filter_by(
+        follower_id=current_user.id,
+        followed_id=user.id,
+    ).first()
+    if not existing_follow:
+        db.session.add(UserFollow(follower_id=current_user.id, followed_id=user.id))
+        db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"Ora segui {user.nome}. Riceverai le sue nuove offerte via email.",
+        "is_following": True,
+        "followers_count": user.followers_count,
+    })
+
+
+@app.route("/api/users/<int:user_id>/unfollow", methods=["POST"])
+@login_required
+def api_unfollow_user(user_id):
+    """Smette di seguire un utente da mobile/web app JSON."""
+    if is_admin_user(current_user):
+        return jsonify({"success": False, "error": "Operazione non disponibile per gli amministratori."}), 403
+
+    profile_error = require_complete_profile_json()
+    if profile_error:
+        return profile_error
+
+    user = User.query.get_or_404(user_id)
+    existing_follow = UserFollow.query.filter_by(
+        follower_id=current_user.id,
+        followed_id=user.id,
+    ).first()
+    if existing_follow:
+        db.session.delete(existing_follow)
+        db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"Non segui più {user.nome}.",
+        "is_following": False,
+        "followers_count": user.followers_count,
     })
 
 

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/network/api_client.dart';
 import '../../models/offer.dart';
+import '../profile/public_profile_page.dart';
 
 class OfferCard extends StatelessWidget {
   const OfferCard({
@@ -32,36 +33,45 @@ class OfferCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundImage: authorPhotoUrl != null ? NetworkImage(authorPhotoUrl) : null,
-                  child: authorPhotoUrl == null ? const Icon(Icons.person) : null,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        offer.autoreNome,
-                        style: Theme.of(context).textTheme.titleLarge,
+            InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () => _openProfile(context, offer.autoreId),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundImage: authorPhotoUrl != null ? NetworkImage(authorPhotoUrl) : null,
+                      child: authorPhotoUrl == null ? const Icon(Icons.person) : null,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            offer.autoreNome,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${offer.autoreEta} anni - ${offer.autoreRatingAverage.toStringAsFixed(1)} ★',
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Visualizza profilo',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text('${offer.autoreEta} anni • ${offer.autoreRatingAverage.toStringAsFixed(1)} ★'),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Visualizza profilo',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
             const SizedBox(height: 18),
             _CenteredChip(
@@ -102,25 +112,29 @@ class OfferCard extends StatelessWidget {
                         final photoUrl = participant.photoFilename.isNotEmpty
                             ? apiClient.buildUploadUrl(participant.photoFilename)
                             : null;
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircleAvatar(
-                              radius: 26,
-                              backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-                              child: photoUrl == null ? const Icon(Icons.person_outline) : null,
-                            ),
-                            const SizedBox(height: 6),
-                            SizedBox(
-                              width: 70,
-                              child: Text(
-                                participant.name,
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: () => _openProfile(context, participant.id),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircleAvatar(
+                                radius: 26,
+                                backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+                                child: photoUrl == null ? const Icon(Icons.person_outline) : null,
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 6),
+                              SizedBox(
+                                width: 70,
+                                child: Text(
+                                  participant.name,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         );
                       }).toList(),
                     ),
@@ -222,7 +236,18 @@ class OfferCard extends StatelessWidget {
     if (eventDay == today.add(const Duration(days: 1))) {
       return 'DOMANI ALLE $time';
     }
-    return DateFormat('dd/MM • HH:mm').format(local).toUpperCase();
+    return DateFormat('dd/MM - HH:mm').format(local).toUpperCase();
+  }
+
+  void _openProfile(BuildContext context, int userId) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PublicProfilePage(
+          apiClient: apiClient,
+          userId: userId,
+        ),
+      ),
+    );
   }
 }
 
