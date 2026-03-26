@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=84">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=85">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -1042,11 +1042,11 @@
 
                         <div class="offer-card-body">
                             ${getParticipantsMarkup(offer)}
+                            <h4 style="margin-bottom: 12px; font-weight: 800;">${offer.nome_locale}</h4>
                             ${offer.foto_locale && offer.foto_locale !== 'nessuna.jpg' ? 
                                 `<div style="margin: 0 -28px 20px -28px; height: 230px; overflow: hidden; border-radius: var(--radius-md);">
                                     <img src="/uploads/${offer.foto_locale}" alt="Foto Locale" style="width: 100%; height: 100%; object-fit: cover;">
                                 </div>` : ''}
-                            <h4 style="margin-bottom: 4px; font-weight: 800;">${offer.nome_locale}</h4>
                             <div class="address" style="font-weight: 600; color: var(--text-muted); font-size: 0.85rem;">
                                 📍 ${offer.indirizzo} <span style="color:var(--primary); margin-left:4px;">(a ${offer.distance_km} km)</span>
                                 ${shouldShowNavigatorLink() ? `<div style="margin-top: 6px;">
