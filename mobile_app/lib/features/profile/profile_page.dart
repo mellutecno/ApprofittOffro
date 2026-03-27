@@ -46,16 +46,26 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _openEditOffer(Offer offer) async {
-    final updated = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
+    final result =
+        await Navigator.of(context).push<CreateOfferPageResult>(
+      MaterialPageRoute<CreateOfferPageResult>(
         builder: (_) => CreateOfferPage(
           authController: widget.authController,
           initialOffer: offer,
         ),
       ),
     );
-    if (updated == true) {
+    if (result?.changed == true) {
       await _refreshAll();
+      if (!mounted) {
+        return;
+      }
+      final message = result?.message;
+      if (message != null && message.trim().isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
     }
   }
 

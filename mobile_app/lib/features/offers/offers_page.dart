@@ -143,9 +143,9 @@ class OffersPage extends StatelessWidget {
                       apiClient: authController.apiClient,
                       onEditOwn: offer.isOwn
                           ? () async {
-                              final updated =
-                                  await Navigator.of(context).push<bool>(
-                                MaterialPageRoute<bool>(
+                              final result = await Navigator.of(context)
+                                  .push<CreateOfferPageResult>(
+                                MaterialPageRoute<CreateOfferPageResult>(
                                   builder: (_) => CreateOfferPage(
                                     authController: authController,
                                     initialOffer: offer,
@@ -156,9 +156,19 @@ class OffersPage extends StatelessWidget {
                                   ),
                                 ),
                               );
-                              if (updated == true) {
+                              if (result?.changed == true) {
                                 await offersController.loadOffers();
                                 await authController.refreshCurrentUser();
+                                if (!context.mounted) {
+                                  return;
+                                }
+                                final message = result?.message;
+                                if (message != null &&
+                                    message.trim().isNotEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(message)),
+                                  );
+                                }
                               }
                             }
                           : null,

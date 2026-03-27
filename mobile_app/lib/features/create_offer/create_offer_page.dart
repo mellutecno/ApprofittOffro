@@ -34,6 +34,16 @@ class CreateOfferPage extends StatefulWidget {
   State<CreateOfferPage> createState() => _CreateOfferPageState();
 }
 
+class CreateOfferPageResult {
+  const CreateOfferPageResult({
+    required this.changed,
+    this.message,
+  });
+
+  final bool changed;
+  final String? message;
+}
+
 class _CreateOfferPageState extends State<CreateOfferPage> {
   static const LatLng _fallbackMapTarget = LatLng(45.070339, 7.686864);
 
@@ -1046,17 +1056,22 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               photoPath: _pickedImage?.path,
             );
 
-      if (widget.onOfferCreated != null) {
-        await widget.onOfferCreated!.call();
-      }
       if (!mounted) {
         return;
       }
 
-      _showMessage(message);
       if (widget.initialOffer != null) {
-        Navigator.of(context).pop(true);
+        Navigator.of(context).pop(
+          CreateOfferPageResult(
+            changed: true,
+            message: message,
+          ),
+        );
         return;
+      }
+      _showMessage(message);
+      if (widget.onOfferCreated != null) {
+        await widget.onOfferCreated!.call();
       }
       _localeController.clear();
       _addressController.clear();
@@ -1163,14 +1178,15 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         offer.id,
         motivazione: reason,
       );
-      if (widget.onOfferCreated != null) {
-        await widget.onOfferCreated!.call();
-      }
       if (!mounted) {
         return;
       }
-      _showMessage(message);
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop(
+        CreateOfferPageResult(
+          changed: true,
+          message: message,
+        ),
+      );
     } catch (error) {
       _showMessage(error.toString());
     } finally {
