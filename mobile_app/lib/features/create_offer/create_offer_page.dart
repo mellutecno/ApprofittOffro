@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -11,10 +12,9 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_config.dart';
-import '../../models/place_candidate.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/widgets/brand_hero_card.dart';
 import '../../core/widgets/brand_wordmark.dart';
+import '../../models/place_candidate.dart';
 import '../auth/auth_controller.dart';
 
 class CreateOfferPage extends StatefulWidget {
@@ -37,51 +37,60 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   final _formKey = GlobalKey<FormState>();
   final _localeController = TextEditingController();
   final _addressController = TextEditingController();
-  final _latitudeController = TextEditingController();
-  final _longitudeController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _picker = ImagePicker();
   final Completer<GoogleMapController> _mapControllerCompleter = Completer();
 
   String _mealType = 'colazione';
   int _totalSeats = 2;
-  DateTime? _selectedDate;
-  TimeOfDay? _selectedTime;
+  DateTime? _selectedDateTime;
   XFile? _pickedImage;
-  bool _isLocating = false;
-  bool _showManualCoordinates = false;
   bool _submitting = false;
-  bool _isLoadingPlaces = false;
+  bool _isLocating = false;
+  bool _initialLocationRequested = false;
+  bool _initialMapReady = !AppConfig.googleMapsEnabled;
+  bool _loadingNearbyPlaces = false;
   GoogleMapController? _mapController;
   LatLng _currentMapCenter = _fallbackMapTarget;
-  LatLng? _lastPlacesRequestCenter;
-  List<PlaceCandidate> _nearbyPlaces = const [];
-  String? _placesError;
+  LatLng? _lastPlacesQueryCenter;
+  double? _selectedLatitude;
+  double? _selectedLongitude;
   String? _selectedPlaceId;
-  String _selectedPlacePhone = '';
+  String _selectedPrimaryType = '';
+  List<PlaceCandidate> _nearbyPlaces = const [];
+  Set<Marker> _nearbyMarkers = const <Marker>{};
+  final Map<String, BitmapDescriptor> _markerIconCache = {};
+  Timer? _placesDebounce;
+
+  @override
+  void initState() {
+    super.initState();
+    if (AppConfig.googleMapsEnabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_bootstrapCurrentLocation());
+      });
+    }
+  }
 
   @override
   void dispose() {
     _localeController.dispose();
     _addressController.dispose();
-    _latitudeController.dispose();
-    _longitudeController.dispose();
+    _phoneController.dispose();
     _descriptionController.dispose();
+    _placesDebounce?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final selectedDateTime = _combinedDateTime;
     final theme = Theme.of(context);
-    final locationReady = _parsedLatitude != null && _parsedLongitude != null;
-    final summaryDate = selectedDateTime == null
+    final selectedDateText = _selectedDateTime == null
         ? 'Scegli data e ora'
-        : DateFormat('EEE d MMM - HH:mm', 'it_IT').format(selectedDateTime);
-    final summaryPlace = _localeController.text.trim().isEmpty
-        ? 'Scegli il locale'
-        : _localeController.text.trim();
+        : DateFormat('EEEE d MMMM - HH:mm', 'it_IT')
+            .format(_selectedDateTime!);
 
     return Scaffold(
       appBar: AppBar(
@@ -90,501 +99,248 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
           children: [
-            const BrandHeroCard(
-              eyebrow: 'OFFRI',
-              centered: true,
-              title: 'Pubblica un invito vero',
-              subtitle:
-                  'Crea un invito pulito da mobile. Oggi scegli il locale in modo manuale, poi qui entreranno Google Maps e Places.',
+            Text(
+              'Pubblica un invito vero',
+              style: theme.textTheme.headlineMedium,
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(26),
-                border: Border.all(color: AppTheme.cardBorder),
+            const SizedBox(height: 8),
+            Text(
+              'Scegli il locale dalla mappa, imposta il momento e racconta in poche righe cosa vuoi condividere.',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: AppTheme.brown.withValues(alpha: 0.74),
+                height: 1.45,
               ),
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            _SectionCard(
+              title: '1. Scegli dalla mappa',
+              subtitle:
+                  'Usa il GPS o sposta la mappa e tocca il simbolo del locale che vuoi scegliere.',
+              child: _buildMapSection(),
+            ),
+            const SizedBox(height: 16),
+            _SectionCard(
+              title: '2. Scegli il momento',
+              subtitle:
+                  'Decidi il tipo di pasto, data e ora complete e quanti posti vuoi aprire.',
+              child: Column(
                 children: [
-                  _SummaryPill(
-                    icon: Icons.restaurant_rounded,
-                    label: _mealLabel(_mealType),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _MealChoiceChip(
+                        label: 'Colazione',
+                        value: 'colazione',
+                        currentValue: _mealType,
+                        onSelected: _submitting
+                            ? null
+                            : (value) => setState(() => _mealType = value),
+                      ),
+                      _MealChoiceChip(
+                        label: 'Pranzo',
+                        value: 'pranzo',
+                        currentValue: _mealType,
+                        onSelected: _submitting
+                            ? null
+                            : (value) => setState(() => _mealType = value),
+                      ),
+                      _MealChoiceChip(
+                        label: 'Cena',
+                        value: 'cena',
+                        currentValue: _mealType,
+                        onSelected: _submitting
+                            ? null
+                            : (value) => setState(() => _mealType = value),
+                      ),
+                    ],
                   ),
-                  _SummaryPill(
-                    icon: Icons.schedule_rounded,
-                    label: summaryDate,
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _submitting ? null : _pickDateTime,
+                    icon: const Icon(Icons.event_outlined),
+                    label: Text(selectedDateText),
                   ),
-                  _SummaryPill(
-                    icon: Icons.people_alt_rounded,
-                    label: '$_totalSeats posti',
-                  ),
-                  _SummaryPill(
-                    icon: Icons.storefront_rounded,
-                    label: summaryPlace,
+                  const SizedBox(height: 14),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.mist,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: AppTheme.cardBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Posti totali',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.brown,
+                            ),
+                          ),
+                        ),
+                        _CounterButton(
+                          icon: Icons.remove,
+                          onTap: _submitting || _totalSeats <= 1
+                              ? null
+                              : () => setState(() => _totalSeats -= 1),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: Text(
+                            '$_totalSeats',
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              fontSize: 28,
+                            ),
+                          ),
+                        ),
+                        _CounterButton(
+                          icon: Icons.add,
+                          onTap: _submitting || _totalSeats >= 8
+                              ? null
+                              : () => setState(() => _totalSeats += 1),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 18),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      '1. Scegli il momento',
-                      style: theme.textTheme.titleLarge,
-                      textAlign: TextAlign.center,
+            const SizedBox(height: 16),
+            _SectionCard(
+              title: '3. Scegli il posto',
+              subtitle:
+                  'Nome, indirizzo e telefono si compilano in automatico quando selezioni un locale sulla mappa.',
+              child: Column(
+                children: [
+                  TextFormField(
+                    controller: _localeController,
+                    enabled: !_submitting,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome del locale',
+                      prefixIcon: Icon(Icons.storefront_outlined),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Decidi il tipo di tavolo, quanti posti aprire e quando vuoi trovarti.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.brown.withValues(alpha: 0.72),
-                        height: 1.4,
-                      ),
-                      textAlign: TextAlign.center,
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Seleziona un locale dalla mappa.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _addressController,
+                    enabled: !_submitting,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Indirizzo',
+                      prefixIcon: Icon(Icons.location_on_outlined),
                     ),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        _MealChoiceChip(
-                          label: 'Colazione',
-                          value: 'colazione',
-                          currentValue: _mealType,
-                          onSelected: _submitting
-                              ? null
-                              : (value) => setState(() => _mealType = value),
-                        ),
-                        _MealChoiceChip(
-                          label: 'Pranzo',
-                          value: 'pranzo',
-                          currentValue: _mealType,
-                          onSelected: _submitting
-                              ? null
-                              : (value) => setState(() => _mealType = value),
-                        ),
-                        _MealChoiceChip(
-                          label: 'Cena',
-                          value: 'cena',
-                          currentValue: _mealType,
-                          onSelected: _submitting
-                              ? null
-                              : (value) => setState(() => _mealType = value),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.mist,
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(color: AppTheme.cardBorder),
-                      ),
-                      child: Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Posti totali',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: AppTheme.brown,
-                              ),
-                            ),
-                          ),
-                          _CounterButton(
-                            icon: Icons.remove,
-                            onTap: _submitting || _totalSeats <= 1
-                                ? null
-                                : () => setState(() => _totalSeats -= 1),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            child: Text(
-                              '$_totalSeats',
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                fontSize: 28,
-                              ),
-                            ),
-                          ),
-                          _CounterButton(
-                            icon: Icons.add,
-                            onTap: _submitting || _totalSeats >= 8
-                                ? null
-                                : () => setState(() => _totalSeats += 1),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _submitting ? null : _pickDate,
-                            icon: const Icon(Icons.calendar_today_outlined),
-                            label: Text(
-                              _selectedDate == null
-                                  ? 'Data'
-                                  : DateFormat('EEE d MMM', 'it_IT')
-                                      .format(_selectedDate!),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _submitting ? null : _pickTime,
-                            icon: const Icon(Icons.schedule_outlined),
-                            label: Text(
-                              _selectedTime == null
-                                  ? 'Ora'
-                                  : _selectedTime!.format(context),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (selectedDateTime != null) ...[
-                      const SizedBox(height: 12),
-                      _InlineInfoBanner(
-                        icon: Icons.event_available_rounded,
-                        text:
-                            'Invito fissato per ${DateFormat('EEEE d MMMM - HH:mm', 'it_IT').format(selectedDateTime)}.',
-                      ),
-                    ],
-                    const SizedBox(height: 6),
-                    TextButton.icon(
-                      onPressed: _submitting ? null : _pickDateTime,
-                      icon: const Icon(Icons.edit_calendar_rounded),
-                      label: const Text('Apri selettore completo'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '2. Scegli il posto',
-                      style: theme.textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      AppConfig.googleMapsEnabled
-                          ? 'Muovi la mappa, scegli un locale vero tra quelli trovati e lascia che nome e indirizzo si riempiano da soli.'
-                          : 'Per ora inseriamo il locale manualmente. Intanto puoi usare la posizione del telefono per evitare di scrivere coordinate a mano.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.brown.withValues(alpha: 0.72),
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _localeController,
-                      enabled: !_submitting,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Nome del locale',
-                        prefixIcon: Icon(Icons.storefront_outlined),
-                      ),
-                      validator: (value) {
-                        if ((value ?? '').trim().isEmpty) {
-                          return 'Inserisci il nome del locale.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _addressController,
-                      enabled: !_submitting,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Indirizzo',
-                        prefixIcon: Icon(Icons.location_on_outlined),
-                      ),
-                      validator: (value) {
-                        if ((value ?? '').trim().isEmpty) {
-                          return 'Inserisci l\'indirizzo.';
-                        }
-                        return null;
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '3. Posizione',
-                      style: theme.textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Usa il GPS del telefono, esplora la mappa e scegli solo locali adatti a colazione, pranzo o cena.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.brown.withValues(alpha: 0.72),
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    if (AppConfig.googleMapsEnabled) ...[
-                      _GoogleMapsPreviewCard(
-                        target: _mapTarget,
-                        markers: _mapMarkers,
-                        enabled: !_submitting,
-                        onMapCreated: _handleMapCreated,
-                        onCameraMove: _handleMapCameraMove,
-                        onCameraIdle: _handleMapCameraIdle,
-                        onLongPress: _submitting ? null : _setLocationFromMap,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Tocca un locale o una etichetta qui sotto per riempire i campi. Il tocco lungo sulla mappa serve solo per fissare un punto manuale.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.brown.withValues(alpha: 0.72),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      if (_isLoadingPlaces)
-                        const _InlineInfoBanner(
-                          icon: Icons.store_mall_directory_outlined,
-                          text: 'Sto caricando i locali vicini alla zona che stai guardando.',
-                        )
-                      else if (_placesError != null)
-                        _InlineInfoBanner(
-                          icon: Icons.info_outline_rounded,
-                          text: _placesError!,
-                        )
-                      else if (_nearbyPlaces.isNotEmpty)
-                        _InlineInfoBanner(
-                          icon: Icons.storefront_outlined,
-                          text:
-                              '${_nearbyPlaces.length} locali trovati in questa zona. Tocca una etichetta o un marker per usare nome e indirizzo.',
-                        ),
-                      if (_nearbyPlaces.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        _NearbyPlacesScroller(
-                          places: _nearbyPlaces,
-                          selectedPlaceId: _selectedPlaceId,
-                          onTap: _handlePlaceChipTap,
-                          typeLabelFor: _placeTypeLabel,
-                        ),
-                      ],
-                    ] else ...[
-                      const _GoogleMapsPlaceholderCard(),
-                    ],
-                    const SizedBox(height: 14),
-                    OutlinedButton.icon(
-                      onPressed: _submitting || _isLocating
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Inserisci l\'indirizzo del locale.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _phoneController,
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      labelText: 'Telefono del locale',
+                      prefixIcon: const Icon(Icons.call_outlined),
+                      suffixIcon: _phoneController.text.trim().isEmpty
                           ? null
-                          : _useCurrentLocation,
-                      icon: const Icon(Icons.my_location_rounded),
-                      label: Text(
-                        locationReady
-                            ? 'Posizione del telefono acquisita'
-                            : 'Usa la posizione del telefono',
-                      ),
+                          : IconButton(
+                              onPressed: _callSelectedPlace,
+                              icon: const Icon(Icons.phone_forwarded_rounded),
+                              tooltip: 'Chiama il locale',
+                            ),
                     ),
-                    const SizedBox(height: 12),
-                    if (locationReady)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppTheme.sage,
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Text(
-                          AppConfig.googleMapsEnabled
-                              ? 'Posizione agganciata sulla mappa.'
-                              : 'Coordinate pronte: ${_latitudeController.text} / ${_longitudeController.text}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.brown,
-                          ),
-                        ),
-                      )
-                    else
-                      Text(
-                        'Se la posizione automatica non va, puoi sempre compilare i campi manuali.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.brown.withValues(alpha: 0.72),
-                        ),
-                      ),
-                    if (_selectedPlacePhone.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: _callSelectedPlace,
-                        icon: const Icon(Icons.call_outlined),
-                        label: Text('Chiama locale: $_selectedPlacePhone'),
-                      ),
-                    ],
-                    if (!AppConfig.googleMapsEnabled) ...[
-                      const SizedBox(height: 8),
-                      TextButton.icon(
-                        onPressed: _submitting
-                            ? null
-                            : () => setState(() {
-                                  _showManualCoordinates =
-                                      !_showManualCoordinates;
-                                }),
-                        icon: Icon(
-                          _showManualCoordinates
-                              ? Icons.expand_less_rounded
-                              : Icons.edit_location_alt_outlined,
-                        ),
-                        label: Text(
-                          _showManualCoordinates
-                              ? 'Nascondi coordinate manuali'
-                              : 'Inserisci coordinate manuali',
-                        ),
-                      ),
-                    ],
-                    if (!AppConfig.googleMapsEnabled &&
-                        _showManualCoordinates) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _latitudeController,
-                              enabled: !_submitting,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                decimal: true,
-                                signed: true,
-                              ),
-                              decoration: const InputDecoration(
-                                  labelText: 'Latitudine'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _longitudeController,
-                              enabled: !_submitting,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                decimal: true,
-                                signed: true,
-                              ),
-                              decoration: const InputDecoration(
-                                labelText: 'Longitudine',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '4. Racconta l’invito',
-                      style: theme.textTheme.titleLarge,
+            const SizedBox(height: 16),
+            _SectionCard(
+              title: '4. Racconta l\'invito',
+              subtitle:
+                  'Spiega che atmosfera vuoi creare e cosa ti va di condividere.',
+              child: Column(
+                children: [
+                  TextFormField(
+                    controller: _descriptionController,
+                    enabled: !_submitting,
+                    minLines: 5,
+                    maxLines: 7,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                      labelText: 'Descrizione',
+                      alignLabelWithHint: true,
+                      prefixIcon: Padding(
+                        padding: EdgeInsets.only(bottom: 72),
+                        child: Icon(Icons.notes_rounded),
+                      ),
+                    ),
+                    validator: (value) {
+                      if ((value ?? '').trim().length < 30) {
+                        return 'Scrivi almeno 30 caratteri.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  OutlinedButton.icon(
+                    onPressed: _submitting ? null : _pickImage,
+                    icon: const Icon(Icons.photo_camera_back_outlined),
+                    label: Text(
+                      _pickedImage == null
+                          ? 'Aggiungi foto locale (opzionale)'
+                          : 'Cambia foto del locale',
+                    ),
+                  ),
+                  if (_pickedImage != null) ...[
+                    const SizedBox(height: 14),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(22),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 10,
+                        child: Image.file(
+                          File(_pickedImage!.path),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Spiega che atmosfera vuoi creare, cosa ti va di condividere e perche qualcuno dovrebbe unirsi volentieri.',
+                      _pickedImage!.name,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.brown.withValues(alpha: 0.72),
-                        height: 1.4,
+                        color: AppTheme.brown.withValues(alpha: 0.7),
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _descriptionController,
-                      enabled: !_submitting,
-                      minLines: 5,
-                      maxLines: 7,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        labelText: 'Descrizione',
-                        alignLabelWithHint: true,
-                        prefixIcon: Padding(
-                          padding: EdgeInsets.only(bottom: 72),
-                          child: Icon(Icons.notes_rounded),
-                        ),
-                      ),
-                      validator: (value) {
-                        if ((value ?? '').trim().length < 30) {
-                          return 'Scrivi almeno 30 caratteri.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 14),
-                    OutlinedButton.icon(
-                      onPressed: _submitting ? null : _pickImage,
-                      icon: const Icon(Icons.photo_camera_back_outlined),
-                      label: Text(
-                        _pickedImage == null
-                            ? 'Aggiungi foto locale (opzionale)'
-                            : 'Cambia foto del locale',
-                      ),
-                    ),
-                    if (_pickedImage != null) ...[
-                      const SizedBox(height: 14),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(22),
-                        child: AspectRatio(
-                          aspectRatio: 16 / 10,
-                          child: Image.file(
-                            File(_pickedImage!.path),
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _pickedImage!.name,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.brown.withValues(alpha: 0.7),
-                        ),
-                      ),
-                    ],
                   ],
-                ),
+                ],
               ),
             ),
             const SizedBox(height: 18),
             FilledButton.icon(
               onPressed: _submitting ? null : _submit,
               icon: const Icon(Icons.send_rounded),
-              label:
-                  Text(_submitting ? 'Sto pubblicando...' : 'Pubblica offerta'),
+              label: Text(
+                _submitting ? 'Sto pubblicando...' : 'Pubblica offerta',
+              ),
             ),
           ],
         ),
@@ -592,90 +348,46 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     );
   }
 
-  double? get _parsedLatitude => _tryParseCoordinate(_latitudeController.text);
-
-  double? get _parsedLongitude =>
-      _tryParseCoordinate(_longitudeController.text);
-
-  LatLng get _mapTarget {
-    final latitude = _parsedLatitude;
-    final longitude = _parsedLongitude;
-    if (latitude == null || longitude == null) {
-      return _fallbackMapTarget;
-    }
-    return LatLng(latitude, longitude);
-  }
-
-  Set<Marker> get _mapMarkers {
-    final markers = <Marker>{};
-    for (final place in _nearbyPlaces) {
-      markers.add(
-        Marker(
-          markerId: MarkerId('place_${place.id}'),
-          position: LatLng(place.latitude, place.longitude),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            _markerHueForPlace(place),
-          ),
-          infoWindow: InfoWindow(
-            title: _placeTypeLabel(place),
-            snippet: place.name,
-          ),
-          onTap: () => _selectPlace(place),
-        ),
-      );
+  Widget _buildMapSection() {
+    if (!AppConfig.googleMapsEnabled) {
+      return const _GoogleMapsPlaceholderCard();
     }
 
-    final latitude = _parsedLatitude;
-    final longitude = _parsedLongitude;
-    if (latitude != null && longitude != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('selected_offer_location'),
-          position: LatLng(latitude, longitude),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueOrange,
-          ),
-          infoWindow: InfoWindow(
-            title: _localeController.text.trim().isEmpty
-                ? 'Posizione selezionata'
-                : _localeController.text.trim(),
-            snippet: _addressController.text.trim().isEmpty
-                ? 'Tavolo in preparazione'
-                : _addressController.text.trim(),
-          ),
-        ),
-      );
+    if (!_initialMapReady) {
+      return const _MapBootstrappingCard();
     }
 
-    return markers;
-  }
-
-  DateTime? get _combinedDateTime {
-    if (_selectedDate == null || _selectedTime == null) {
-      return null;
-    }
-    return DateTime(
-      _selectedDate!.year,
-      _selectedDate!.month,
-      _selectedDate!.day,
-      _selectedTime!.hour,
-      _selectedTime!.minute,
+    return _GoogleMapsPreviewCard(
+      target: _currentMapCenter,
+      markers: _nearbyMarkers,
+      isBusy: _isLocating || _loadingNearbyPlaces,
+      onMapCreated: _handleMapCreated,
+      onCameraMove: _handleCameraMove,
+      onCameraIdle: _scheduleNearbyPlacesRefresh,
+      onRecenterTap: _submitting || _isLocating ? null : _useCurrentLocation,
     );
   }
 
-  double? _tryParseCoordinate(String? value) {
-    final raw = (value ?? '').trim();
-    if (raw.isEmpty) {
-      return null;
+  Future<void> _bootstrapCurrentLocation() async {
+    if (_initialLocationRequested) {
+      return;
     }
-    return double.tryParse(raw.replaceAll(',', '.'));
+    _initialLocationRequested = true;
+    await _useCurrentLocation(silent: true);
+    if (!mounted) {
+      return;
+    }
+    if (!_initialMapReady) {
+      setState(() => _initialMapReady = true);
+    }
+    unawaited(_refreshNearbyPlaces(force: true));
   }
 
-  Future<void> _pickDate() async {
+  Future<void> _pickDateTime() async {
     final now = DateTime.now();
     final pickedDate = await showDatePicker(
       context: context,
-      initialDate: _selectedDate ?? now,
+      initialDate: _selectedDateTime ?? now,
       firstDate: now,
       lastDate: now.add(const Duration(days: 365)),
       locale: const Locale('it'),
@@ -684,47 +396,24 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
 
-    setState(() => _selectedDate = pickedDate);
-  }
-
-  Future<void> _pickTime() async {
-    final now = DateTime.now();
     final pickedTime = await showTimePicker(
       context: context,
-      initialTime: _selectedTime ??
-          TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
+      initialTime: _selectedDateTime != null
+          ? TimeOfDay.fromDateTime(_selectedDateTime!)
+          : TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
     );
     if (pickedTime == null || !mounted) {
       return;
     }
 
-    setState(() => _selectedTime = pickedTime);
-  }
-
-  Future<void> _pickDateTime() async {
-    final now = DateTime.now();
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate ?? now,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
-    );
-    if (pickedDate == null || !mounted) {
-      return;
-    }
-
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: _selectedTime ??
-          TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
-    );
-    if (pickedTime == null) {
-      return;
-    }
-
     setState(() {
-      _selectedDate = pickedDate;
-      _selectedTime = pickedTime;
+      _selectedDateTime = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
     });
   }
 
@@ -734,18 +423,22 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       imageQuality: 88,
       maxWidth: 1800,
     );
-    if (image == null) {
+    if (image == null || !mounted) {
       return;
     }
     setState(() => _pickedImage = image);
   }
 
-  Future<void> _useCurrentLocation() async {
+  Future<void> _useCurrentLocation({bool silent = false}) async {
+    if (_isLocating) {
+      return;
+    }
+
     setState(() => _isLocating = true);
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw Exception('Attiva la posizione del telefono e riprova.');
+        throw Exception('Attiva il GPS del telefono e riprova.');
       }
 
       var permission = await Geolocator.checkPermission();
@@ -767,31 +460,25 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
           timeLimit: Duration(seconds: 12),
         ),
       );
-
       if (!mounted) {
         return;
       }
 
-      _latitudeController.text = position.latitude.toStringAsFixed(6);
-      _longitudeController.text = position.longitude.toStringAsFixed(6);
+      final target = LatLng(position.latitude, position.longitude);
       setState(() {
-        _showManualCoordinates = false;
-        _selectedPlaceId = null;
-        _selectedPlacePhone = '';
-      });
-      if (AppConfig.googleMapsEnabled) {
-        final target = LatLng(position.latitude, position.longitude);
         _currentMapCenter = target;
-        await _animateMapTo(target);
-        await _loadNearbyPlaces(target, force: true);
-      }
-      _showMessage(
-        AppConfig.googleMapsEnabled
-            ? 'Posizione acquisita e mostrata sulla mappa.'
-            : 'Posizione acquisita correttamente.',
-      );
+        _initialMapReady = true;
+      });
+      await _animateMapTo(target, zoom: 16.2);
+      await _refreshNearbyPlaces(force: true);
     } catch (error) {
-      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+      if (!mounted) {
+        return;
+      }
+      setState(() => _initialMapReady = true);
+      if (!silent) {
+        _showMessage(error.toString().replaceFirst('Exception: ', ''));
+      }
     } finally {
       if (mounted) {
         setState(() => _isLocating = false);
@@ -799,204 +486,99 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     }
   }
 
-  void _setLocationFromMap(LatLng position) {
-    _latitudeController.text = position.latitude.toStringAsFixed(6);
-    _longitudeController.text = position.longitude.toStringAsFixed(6);
-    setState(() {
-      _showManualCoordinates = false;
-      _selectedPlaceId = null;
-      _selectedPlacePhone = '';
-    });
-    _showMessage('Posizione aggiornata dalla mappa.');
-  }
-
-  Future<void> _selectPlace(PlaceCandidate place) async {
-    _localeController.text = place.name;
-    _addressController.text = place.address;
-    _latitudeController.text = place.latitude.toStringAsFixed(6);
-    _longitudeController.text = place.longitude.toStringAsFixed(6);
-    setState(() {
-      _showManualCoordinates = false;
-      _selectedPlaceId = place.id;
-      _selectedPlacePhone = place.phoneNumber;
-    });
-    await _animateMapTo(LatLng(place.latitude, place.longitude));
-    if (place.id.isNotEmpty && place.phoneNumber.isEmpty) {
-      await _hydrateSelectedPlaceDetails(place);
-    }
-    _showMessage('Locale selezionato dalla mappa.');
-  }
-
-  Future<void> _handlePlaceChipTap(PlaceCandidate place) async {
-    await _selectPlace(place);
-  }
-
   void _handleMapCreated(GoogleMapController controller) {
     _mapController = controller;
     if (!_mapControllerCompleter.isCompleted) {
       _mapControllerCompleter.complete(controller);
     }
-    _currentMapCenter = _mapTarget;
-    unawaited(_loadNearbyPlaces(_currentMapCenter, force: true));
+    unawaited(_animateMapTo(_currentMapCenter));
   }
 
-  void _handleMapCameraMove(CameraPosition position) {
+  void _handleCameraMove(CameraPosition position) {
     _currentMapCenter = position.target;
   }
 
-  Future<void> _handleMapCameraIdle() async {
-    await _loadNearbyPlaces(_currentMapCenter);
-  }
-
-  Future<void> _animateMapTo(LatLng target) async {
-    final controller =
-        _mapController ??
-        (_mapControllerCompleter.isCompleted
-            ? await _mapControllerCompleter.future
-            : null);
-    if (controller == null) {
-      return;
-    }
-    await controller.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: target, zoom: 16),
-      ),
+  void _scheduleNearbyPlacesRefresh() {
+    _placesDebounce?.cancel();
+    _placesDebounce = Timer(
+      const Duration(milliseconds: 320),
+      () => unawaited(_refreshNearbyPlaces()),
     );
   }
 
-  Future<void> _loadNearbyPlaces(LatLng center, {bool force = false}) async {
-    if (!AppConfig.googleMapsEnabled) {
+  Future<void> _refreshNearbyPlaces({bool force = false}) async {
+    if (!AppConfig.googleMapsEnabled || !_initialMapReady || _submitting) {
       return;
     }
 
-    if (!force && _lastPlacesRequestCenter != null) {
-      final movedMeters = Geolocator.distanceBetween(
-        _lastPlacesRequestCenter!.latitude,
-        _lastPlacesRequestCenter!.longitude,
-        center.latitude,
-        center.longitude,
+    if (!force && _lastPlacesQueryCenter != null) {
+      final distance = Geolocator.distanceBetween(
+        _lastPlacesQueryCenter!.latitude,
+        _lastPlacesQueryCenter!.longitude,
+        _currentMapCenter.latitude,
+        _currentMapCenter.longitude,
       );
-      if (movedMeters < 180) {
+      if (distance < 140) {
         return;
       }
     }
 
-    setState(() {
-      _isLoadingPlaces = true;
-      _placesError = null;
-    });
+    setState(() => _loadingNearbyPlaces = true);
+    final queryCenter = _currentMapCenter;
 
     try {
       final places = await widget.authController.apiClient.fetchNearbyPlaces(
-        latitude: center.latitude,
-        longitude: center.longitude,
+        latitude: queryCenter.latitude,
+        longitude: queryCenter.longitude,
       );
-      final filteredPlaces = places.where(_isPlaceRelevant).toList();
       if (!mounted) {
         return;
       }
-      setState(() {
-        _nearbyPlaces = filteredPlaces;
-        _lastPlacesRequestCenter = center;
-        _placesError = filteredPlaces.isEmpty
-            ? 'In questa zona non ho trovato locali utili. Sposta un po’ la mappa e riprova.'
-            : null;
-      });
-    } catch (error) {
+      _lastPlacesQueryCenter = queryCenter;
+      _nearbyPlaces = places;
+      await _rebuildNearbyMarkers();
+    } catch (_) {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _nearbyPlaces = const [];
-        _placesError = error.toString();
-      });
+      _nearbyPlaces = const [];
+      await _rebuildNearbyMarkers();
     } finally {
       if (mounted) {
-        setState(() => _isLoadingPlaces = false);
+        setState(() => _loadingNearbyPlaces = false);
       }
     }
   }
 
-  Future<void> _submit() async {
-    final selectedDateTime = _combinedDateTime;
-    if (!_formKey.currentState!.validate()) {
+  Future<void> _handlePlaceTap(PlaceCandidate place) async {
+    if (_submitting) {
       return;
     }
-    if (selectedDateTime == null) {
-      _showMessage('Seleziona data e ora.');
-      return;
-    }
-    final parsedLatitude = _parsedLatitude;
-    final parsedLongitude = _parsedLongitude;
-    if (parsedLatitude == null || parsedLongitude == null) {
-      _showMessage(
-        'Acquisisci la posizione del telefono oppure inserisci coordinate valide.',
-      );
-      return;
-    }
-
-    setState(() => _submitting = true);
-    try {
-      final message = await widget.authController.apiClient.createOffer(
-        mealType: _mealType,
-        localeName: _localeController.text.trim(),
-        address: _addressController.text.trim(),
-        latitude: parsedLatitude.toString(),
-        longitude: parsedLongitude.toString(),
-        totalSeats: _totalSeats,
-        dateTime: selectedDateTime,
-        description: _descriptionController.text.trim(),
-        photoPath: _pickedImage?.path,
-      );
-
-      if (widget.onOfferCreated != null) {
-        await widget.onOfferCreated!.call();
-      }
-      if (!mounted) {
-        return;
-      }
-        _showMessage(message);
-      _formKey.currentState!.reset();
-      _localeController.clear();
-      _addressController.clear();
-      _latitudeController.clear();
-      _longitudeController.clear();
-      _descriptionController.clear();
-      setState(() {
-        _mealType = 'colazione';
-        _totalSeats = 2;
-        _selectedDate = null;
-        _selectedTime = null;
-        _pickedImage = null;
-        _showManualCoordinates = false;
-        _selectedPlaceId = null;
-        _selectedPlacePhone = '';
-      });
-    } catch (error) {
-      _showMessage(error.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _submitting = false);
-      }
-    }
+    await _selectPlace(place);
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+  Future<void> _selectPlace(PlaceCandidate place) async {
+    _localeController.text = place.name;
+    _addressController.text = place.address;
+    _phoneController.text = place.phoneNumber;
+
+    setState(() {
+      _selectedPlaceId = place.id;
+      _selectedLatitude = place.latitude;
+      _selectedLongitude = place.longitude;
+      _selectedPrimaryType = place.primaryType;
+      _currentMapCenter = LatLng(place.latitude, place.longitude);
+    });
+
+    await _rebuildNearbyMarkers();
+    await _animateMapTo(
+      LatLng(place.latitude, place.longitude),
+      zoom: 16.6,
     );
-  }
 
-  String _mealLabel(String value) {
-    switch (value) {
-      case 'colazione':
-        return 'Colazione';
-      case 'pranzo':
-        return 'Pranzo';
-      case 'cena':
-        return 'Cena';
-      default:
-        return value;
+    if (place.id.isNotEmpty &&
+        (place.address.trim().isEmpty || place.phoneNumber.trim().isEmpty)) {
+      await _hydrateSelectedPlaceDetails(place);
     }
   }
 
@@ -1007,31 +589,357 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       if (!mounted || _selectedPlaceId != place.id) {
         return;
       }
-      if (details.name.isNotEmpty) {
-        _localeController.text = details.name;
-      }
-      if (details.address.isNotEmpty) {
-        _addressController.text = details.address;
-      }
-      if (details.latitude != 0 && details.longitude != 0) {
-        _latitudeController.text = details.latitude.toStringAsFixed(6);
-        _longitudeController.text = details.longitude.toStringAsFixed(6);
-      }
+
+      _localeController.text = details.name.isEmpty
+          ? _localeController.text
+          : details.name;
+      _addressController.text = details.address.isEmpty
+          ? _addressController.text
+          : details.address;
+      _phoneController.text = details.phoneNumber;
+
       setState(() {
-        _selectedPlacePhone = details.phoneNumber;
+        _selectedPrimaryType = details.primaryType;
+        if (details.latitude != 0 && details.longitude != 0) {
+          _selectedLatitude = details.latitude;
+          _selectedLongitude = details.longitude;
+        }
       });
+      await _rebuildNearbyMarkers();
     } catch (_) {
-      // Se il dettaglio fallisce, manteniamo comunque la selezione base del locale.
+      // Manteniamo i dati base gia mostrati.
+    }
+  }
+
+  Future<void> _rebuildNearbyMarkers() async {
+    final markers = <Marker>{};
+
+    for (final place in _nearbyPlaces) {
+      final selected = place.id == _selectedPlaceId;
+      final icon = await _markerIconFor(place, selected: selected);
+      markers.add(
+        Marker(
+          markerId: MarkerId('place_${place.id}'),
+          position: LatLng(place.latitude, place.longitude),
+          icon: icon,
+          anchor: const Offset(0.5, 1),
+          infoWindow: InfoWindow(
+            title: place.name,
+            snippet: _placeTypeLabel(place.primaryType),
+          ),
+          zIndexInt: selected ? 20 : 10,
+          onTap: () => unawaited(_handlePlaceTap(place)),
+        ),
+      );
+    }
+
+    final hasSelectedMarkerInList = _selectedPlaceId != null &&
+        _nearbyPlaces.any((place) => place.id == _selectedPlaceId);
+    if (!hasSelectedMarkerInList &&
+        _selectedLatitude != null &&
+        _selectedLongitude != null) {
+      final fallbackPlace = PlaceCandidate(
+        id: _selectedPlaceId ?? 'selected_offer_location',
+        name: _localeController.text.trim().isEmpty
+            ? 'Locale selezionato'
+            : _localeController.text.trim(),
+        address: _addressController.text.trim(),
+        latitude: _selectedLatitude!,
+        longitude: _selectedLongitude!,
+        primaryType: _selectedPrimaryType,
+        phoneNumber: _phoneController.text.trim(),
+      );
+      markers.add(
+        Marker(
+          markerId: const MarkerId('selected_offer_location'),
+          position: LatLng(_selectedLatitude!, _selectedLongitude!),
+          icon: await _markerIconFor(fallbackPlace, selected: true),
+          anchor: const Offset(0.5, 1),
+          infoWindow: InfoWindow(
+            title: fallbackPlace.name,
+            snippet: fallbackPlace.address.isEmpty ? null : fallbackPlace.address,
+          ),
+          zIndexInt: 30,
+          onTap: () => unawaited(_handlePlaceTap(fallbackPlace)),
+        ),
+      );
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() => _nearbyMarkers = markers);
+  }
+
+  Future<BitmapDescriptor> _markerIconFor(
+    PlaceCandidate place, {
+    required bool selected,
+  }) async {
+    final visual = _markerVisualForType(place.primaryType);
+    final cacheKey =
+        '${selected ? 'selected' : 'normal'}:${visual.cacheKey}';
+
+    final cached = _markerIconCache[cacheKey];
+    if (cached != null) {
+      return cached;
+    }
+
+    try {
+      final descriptor = await _buildMarkerDescriptor(
+        icon: visual.icon,
+        accentColor: visual.color,
+        selected: selected,
+      );
+      _markerIconCache[cacheKey] = descriptor;
+      return descriptor;
+    } catch (_) {
+      return BitmapDescriptor.defaultMarkerWithHue(
+        selected ? BitmapDescriptor.hueOrange : visual.fallbackHue,
+      );
+    }
+  }
+
+  _MarkerVisual _markerVisualForType(String primaryType) {
+    switch (primaryType.trim().toLowerCase()) {
+      case 'cafe':
+      case 'coffee_shop':
+      case 'brunch_restaurant':
+        return const _MarkerVisual(
+          cacheKey: 'coffee',
+          icon: Icons.local_cafe,
+          color: Color(0xFF8A5A44),
+          fallbackHue: BitmapDescriptor.hueOrange,
+        );
+      case 'bar':
+        return const _MarkerVisual(
+          cacheKey: 'bar',
+          icon: Icons.local_bar,
+          color: Color(0xFF7A4EC7),
+          fallbackHue: BitmapDescriptor.hueViolet,
+        );
+      case 'pizza_restaurant':
+        return const _MarkerVisual(
+          cacheKey: 'pizza',
+          icon: Icons.local_pizza,
+          color: Color(0xFFE86E35),
+          fallbackHue: BitmapDescriptor.hueRose,
+        );
+      case 'bakery':
+        return const _MarkerVisual(
+          cacheKey: 'bakery',
+          icon: Icons.bakery_dining,
+          color: Color(0xFFD49B00),
+          fallbackHue: BitmapDescriptor.hueYellow,
+        );
+      case 'meal_takeaway':
+      case 'fast_food_restaurant':
+      case 'sandwich_shop':
+        return const _MarkerVisual(
+          cacheKey: 'takeaway',
+          icon: Icons.takeout_dining,
+          color: Color(0xFF3D8B5A),
+          fallbackHue: BitmapDescriptor.hueGreen,
+        );
+      default:
+        return const _MarkerVisual(
+          cacheKey: 'restaurant',
+          icon: Icons.restaurant,
+          color: AppTheme.orange,
+          fallbackHue: BitmapDescriptor.hueRed,
+        );
+    }
+  }
+
+  String _placeTypeLabel(String primaryType) {
+    switch (primaryType.trim().toLowerCase()) {
+      case 'cafe':
+      case 'coffee_shop':
+        return 'Bar o caffe';
+      case 'bar':
+        return 'Pub o bar';
+      case 'pizza_restaurant':
+        return 'Pizzeria';
+      case 'bakery':
+        return 'Bakery';
+      case 'meal_takeaway':
+      case 'fast_food_restaurant':
+      case 'sandwich_shop':
+        return 'Locale veloce';
+      default:
+        return 'Ristorante';
+    }
+  }
+
+  Future<BitmapDescriptor> _buildMarkerDescriptor({
+    required IconData icon,
+    required Color accentColor,
+    required bool selected,
+  }) async {
+    const canvasWidth = 132.0;
+    const canvasHeight = 156.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(
+      recorder,
+      const Rect.fromLTWH(0, 0, canvasWidth, canvasHeight),
+    );
+
+    final bubbleCenter = const Offset(canvasWidth / 2, 48);
+    final bubbleRadius = selected ? 38.0 : 34.0;
+    final innerRadius = selected ? 26.0 : 23.0;
+
+    final tailPath = Path()
+      ..moveTo(canvasWidth / 2, canvasHeight - 8)
+      ..lineTo((canvasWidth / 2) - 16, 82)
+      ..quadraticBezierTo(canvasWidth / 2, 98, (canvasWidth / 2) + 16, 82)
+      ..close();
+    final shadowPath = Path()
+      ..addOval(Rect.fromCircle(center: bubbleCenter, radius: bubbleRadius))
+      ..addPath(tailPath, Offset.zero);
+
+    canvas.drawShadow(
+      shadowPath,
+      Colors.black.withValues(alpha: 0.28),
+      16,
+      true,
+    );
+
+    final outerPaint = Paint()..color = Colors.white;
+    canvas.drawCircle(bubbleCenter, bubbleRadius, outerPaint);
+    canvas.drawPath(tailPath, outerPaint);
+
+    final borderPaint = Paint()
+      ..color = selected ? AppTheme.orange : accentColor.withValues(alpha: 0.92)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = selected ? 6 : 5;
+    canvas.drawCircle(bubbleCenter, bubbleRadius - 3, borderPaint);
+
+    final innerPaint = Paint()
+      ..color = selected ? AppTheme.orange : accentColor;
+    canvas.drawCircle(bubbleCenter, innerRadius, innerPaint);
+
+    final painter = TextPainter(textDirection: ui.TextDirection.ltr);
+    painter.text = TextSpan(
+      text: String.fromCharCode(icon.codePoint),
+      style: TextStyle(
+        fontSize: selected ? 34 : 30,
+        color: Colors.white,
+        fontFamily: icon.fontFamily,
+        package: icon.fontPackage,
+      ),
+    );
+    painter.layout();
+    painter.paint(
+      canvas,
+      Offset(
+        bubbleCenter.dx - painter.width / 2,
+        bubbleCenter.dy - painter.height / 2,
+      ),
+    );
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(
+      canvasWidth.toInt(),
+      canvasHeight.toInt(),
+    );
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    final bytes = byteData?.buffer.asUint8List();
+    if (bytes == null) {
+      throw StateError('Impossibile creare il marker.');
+    }
+
+    return BitmapDescriptor.bytes(
+      bytes,
+      width: selected ? 54 : 50,
+      height: selected ? 64 : 60,
+    );
+  }
+
+  Future<void> _animateMapTo(
+    LatLng target, {
+    double zoom = 15.6,
+  }) async {
+    final controller =
+        _mapController ??
+        (_mapControllerCompleter.isCompleted
+            ? await _mapControllerCompleter.future
+            : null);
+    if (controller == null) {
+      return;
+    }
+    await controller.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: target, zoom: zoom),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    if (_selectedDateTime == null) {
+      _showMessage('Scegli data e ora dell\'invito.');
+      return;
+    }
+    if (_selectedLatitude == null || _selectedLongitude == null) {
+      _showMessage('Scegli un locale dalla mappa.');
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      final message = await widget.authController.apiClient.createOffer(
+        mealType: _mealType,
+        localeName: _localeController.text.trim(),
+        address: _addressController.text.trim(),
+        localePhone: _phoneController.text.trim(),
+        latitude: _selectedLatitude!.toString(),
+        longitude: _selectedLongitude!.toString(),
+        totalSeats: _totalSeats,
+        dateTime: _selectedDateTime!,
+        description: _descriptionController.text.trim(),
+        photoPath: _pickedImage?.path,
+      );
+
+      if (widget.onOfferCreated != null) {
+        await widget.onOfferCreated!.call();
+      }
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(message);
+      _localeController.clear();
+      _addressController.clear();
+      _phoneController.clear();
+      _descriptionController.clear();
+      setState(() {
+        _mealType = 'colazione';
+        _totalSeats = 2;
+        _selectedDateTime = null;
+        _pickedImage = null;
+        _selectedPlaceId = null;
+        _selectedLatitude = null;
+        _selectedLongitude = null;
+        _selectedPrimaryType = '';
+        _lastPlacesQueryCenter = null;
+      });
+      await _rebuildNearbyMarkers();
+      unawaited(_bootstrapCurrentLocation());
+    } catch (error) {
+      _showMessage(error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
   Future<void> _callSelectedPlace() async {
-    if (_selectedPlacePhone.trim().isEmpty) {
+    if (_phoneController.text.trim().isEmpty) {
       return;
     }
-    final digits = _selectedPlacePhone
-        .replaceAll(RegExp(r'[^0-9+]'), '')
-        .trim();
+    final digits = _phoneController.text.replaceAll(RegExp(r'[^0-9+]'), '');
     final uri = Uri.tryParse('tel:$digits');
     if (uri == null) {
       return;
@@ -1039,64 +947,48 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  String _placeTypeLabel(PlaceCandidate place) {
-    final type = place.primaryType.toLowerCase().trim();
-    final name = place.name.toLowerCase().trim();
-
-    if (type == 'bar' || name.contains('bar ')) {
-      return 'Bar';
-    }
-    if (type == 'bakery') {
-      return 'Pasticceria';
-    }
-    if (type == 'cafe' || type == 'coffee_shop') {
-      return 'Caffe';
-    }
-    if (type == 'meal_takeaway' || type == 'fast_food_restaurant') {
-      return 'Tavola veloce';
-    }
-    if (name.contains('pizzeria') || name.contains('pizza')) {
-      return 'Pizzeria';
-    }
-    if (name.contains('pub')) {
-      return 'Pub';
-    }
-    if (name.contains('brunch')) {
-      return 'Brunch';
-    }
-    return 'Ristorante';
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
+}
 
-  double _markerHueForPlace(PlaceCandidate place) {
-    switch (_placeTypeLabel(place)) {
-      case 'Bar':
-      case 'Caffe':
-      case 'Pasticceria':
-        return BitmapDescriptor.hueYellow;
-      case 'Pizzeria':
-        return BitmapDescriptor.hueRed;
-      case 'Pub':
-        return BitmapDescriptor.hueViolet;
-      case 'Tavola veloce':
-        return BitmapDescriptor.hueAzure;
-      default:
-        return BitmapDescriptor.hueRose;
-    }
-  }
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
 
-  bool _isPlaceRelevant(PlaceCandidate place) {
-    final haystack =
-        '${place.name} ${place.address} ${place.primaryType}'.toLowerCase();
-    const excludedKeywords = [
-      'centro commerciale',
-      'shopping center',
-      'shopping mall',
-      'supermercato',
-      'ipermercato',
-      'market',
-      'grocery',
-    ];
-    return !excludedKeywords.any(haystack.contains);
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: theme.textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppTheme.brown.withValues(alpha: 0.72),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            child,
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1104,51 +996,142 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
   const _GoogleMapsPreviewCard({
     required this.target,
     required this.markers,
-    required this.enabled,
+    required this.isBusy,
     required this.onMapCreated,
     required this.onCameraMove,
     required this.onCameraIdle,
-    required this.onLongPress,
+    required this.onRecenterTap,
   });
 
   final LatLng target;
   final Set<Marker> markers;
-  final bool enabled;
+  final bool isBusy;
   final ValueChanged<GoogleMapController> onMapCreated;
   final ValueChanged<CameraPosition> onCameraMove;
-  final Future<void> Function() onCameraIdle;
-  final ValueChanged<LatLng>? onLongPress;
+  final VoidCallback onCameraIdle;
+  final Future<void> Function()? onRecenterTap;
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: SizedBox(
-        height: 240,
-        child: GoogleMap(
-          onMapCreated: onMapCreated,
-          initialCameraPosition: CameraPosition(
-            target: target,
-            zoom: markers.isEmpty ? 11 : 15,
-          ),
-          markers: markers,
-          mapToolbarEnabled: false,
-          myLocationButtonEnabled: false,
-          myLocationEnabled: false,
-          zoomControlsEnabled: false,
-          compassEnabled: false,
-          scrollGesturesEnabled: true,
-          zoomGesturesEnabled: true,
-          rotateGesturesEnabled: true,
-          tiltGesturesEnabled: true,
-          onCameraMove: onCameraMove,
-          onCameraIdle: onCameraIdle,
-          gestureRecognizers: {
-            Factory<OneSequenceGestureRecognizer>(
-              () => EagerGestureRecognizer(),
+        height: 304,
+        child: Stack(
+          children: [
+            GoogleMap(
+              onMapCreated: onMapCreated,
+              initialCameraPosition: CameraPosition(
+                target: target,
+                zoom: 15.6,
+              ),
+              markers: markers,
+              mapToolbarEnabled: false,
+              myLocationButtonEnabled: false,
+              myLocationEnabled: true,
+              zoomControlsEnabled: false,
+              compassEnabled: false,
+              scrollGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              onCameraMove: onCameraMove,
+              onCameraIdle: onCameraIdle,
+              gestureRecognizers: {
+                Factory<OneSequenceGestureRecognizer>(
+                  EagerGestureRecognizer.new,
+                ),
+              },
             ),
-          },
-          onLongPress: enabled ? onLongPress : null,
+            Positioned(
+              top: 14,
+              right: 14,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: onRecenterTap == null
+                      ? null
+                      : () => unawaited(onRecenterTap!.call()),
+                  child: Ink(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.96),
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x22000000),
+                          blurRadius: 18,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.my_location_rounded,
+                      color: AppTheme.orange,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (isBusy)
+              const Positioned(
+                bottom: 14,
+                left: 14,
+                child: _BusyMapBadge(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BusyMapBadge extends StatelessWidget {
+  const _BusyMapBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(10),
+      child: const CircularProgressIndicator(
+        strokeWidth: 2.6,
+        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.orange),
+      ),
+    );
+  }
+}
+
+class _MapBootstrappingCard extends StatelessWidget {
+  const _MapBootstrappingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 304,
+      decoration: BoxDecoration(
+        color: AppTheme.mist,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.orange),
         ),
       ),
     );
@@ -1164,226 +1147,15 @@ class _GoogleMapsPlaceholderCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFFFF6EA),
-            Color(0xFFF6EEE4),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppTheme.mist,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppTheme.cardBorder),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.82),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(
-                  Icons.map_rounded,
-                  color: AppTheme.orange,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Base Google Maps pronta',
-                  style: TextStyle(
-                    color: AppTheme.brown,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 18,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Qui entrera` la mappa vera del locale con tocco lungo per scegliere il punto. Per ora restano attivi posizione del telefono e coordinate manuali.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.brown.withValues(alpha: 0.76),
-                  height: 1.45,
-                ),
-          ),
-          const SizedBox(height: 14),
-          const Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _SummaryPill(
-                icon: Icons.map_outlined,
-                label: 'Google Maps',
-              ),
-              _SummaryPill(
-                icon: Icons.photo_library_outlined,
-                label: 'Foto locale',
-              ),
-              _SummaryPill(
-                icon: Icons.call_outlined,
-                label: 'Telefono locale',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NearbyPlacesScroller extends StatelessWidget {
-  const _NearbyPlacesScroller({
-    required this.places,
-    required this.selectedPlaceId,
-    required this.onTap,
-    required this.typeLabelFor,
-  });
-
-  final List<PlaceCandidate> places;
-  final String? selectedPlaceId;
-  final Future<void> Function(PlaceCandidate place) onTap;
-  final String Function(PlaceCandidate place) typeLabelFor;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 92,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: places.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          final place = places[index];
-          final selected = selectedPlaceId == place.id;
-          return InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTap: () => onTap(place),
-            child: Ink(
-              width: 198,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: selected ? AppTheme.peach : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: selected ? AppTheme.orange : AppTheme.cardBorder,
-                  width: selected ? 1.5 : 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    typeLabelFor(place),
-                    style: const TextStyle(
-                      color: AppTheme.orange,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    place.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppTheme.brown,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    place.address,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppTheme.brown.withValues(alpha: 0.72),
-                      fontSize: 12,
-                      height: 1.25,
-                    ),
-                  ),
-                ],
-              ),
+      child: Text(
+        'Google Maps non e attivo in questa build.',
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppTheme.brown.withValues(alpha: 0.78),
             ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SummaryPill extends StatelessWidget {
-  const _SummaryPill({
-    required this.icon,
-    required this.label,
-  });
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppTheme.mist,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: AppTheme.orange),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppTheme.brown,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InlineInfoBanner extends StatelessWidget {
-  const _InlineInfoBanner({
-    required this.icon,
-    required this.text,
-  });
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.peach.withValues(alpha: 0.52),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppTheme.orange),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.brown,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1453,4 +1225,18 @@ class _MealChoiceChip extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MarkerVisual {
+  const _MarkerVisual({
+    required this.cacheKey,
+    required this.icon,
+    required this.color,
+    required this.fallbackHue,
+  });
+
+  final String cacheKey;
+  final IconData icon;
+  final Color color;
+  final double fallbackHue;
 }

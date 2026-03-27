@@ -119,6 +119,7 @@ class Offer(db.Model):
     tipo_pasto = db.Column(db.String(20), nullable=False)  # colazione, pranzo, cena
     nome_locale = db.Column(db.String(200), nullable=False)
     indirizzo = db.Column(db.String(300), nullable=False)
+    telefono_locale = db.Column(db.String(50), nullable=True)
     latitudine = db.Column(db.Float, nullable=False)
     longitudine = db.Column(db.Float, nullable=False)
     posti_totali = db.Column(db.Integer, nullable=False)

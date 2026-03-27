@@ -448,6 +448,7 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
             "offers": [
                 ("foto_locale", "ALTER TABLE offers ADD COLUMN foto_locale VARCHAR(256)"),
                 ("stato", "ALTER TABLE offers ADD COLUMN stato VARCHAR(20) DEFAULT 'attiva'"),
+                ("telefono_locale", "ALTER TABLE offers ADD COLUMN telefono_locale VARCHAR(50)"),
             ],
         }
 
@@ -2096,6 +2097,16 @@ def api_place_details(place_id):
             "error": str(exc),
         }), 502
 
+    if not is_google_place_relevant(
+        place.get("name"),
+        place.get("address"),
+        place.get("primary_type"),
+    ):
+        return jsonify({
+            "success": False,
+            "error": "Seleziona solo bar, ristoranti, pizzerie o pub.",
+        }), 422
+
     return jsonify({
         "success": True,
         "place": place,
@@ -2310,6 +2321,7 @@ def api_get_offers():
             "tipo_pasto": o.tipo_pasto,
             "nome_locale": o.nome_locale,
             "indirizzo": o.indirizzo,
+            "telefono_locale": getattr(o, "telefono_locale", "") or "",
             "lat": o.latitudine,
             "lon": o.longitudine,
             "distance_km": round(dist, 1),
@@ -2437,6 +2449,7 @@ def api_edit_offer(offer_id):
     tipo_pasto = request.form.get("tipo_pasto", "")
     nome_locale = request.form.get("nome_locale", "").strip()
     indirizzo = request.form.get("indirizzo", "").strip()
+    telefono_locale = request.form.get("telefono_locale", "").strip()
     lat = request.form.get("latitudine")
     lon = request.form.get("longitudine")
     posti = request.form.get("posti_totali")
@@ -2500,6 +2513,7 @@ def api_edit_offer(offer_id):
     offer.tipo_pasto = tipo_pasto
     offer.nome_locale = nome_locale
     offer.indirizzo = indirizzo
+    offer.telefono_locale = telefono_locale
     offer.latitudine = float(lat)
     offer.longitudine = float(lon)
     
@@ -2526,6 +2540,7 @@ def api_create_offer():
     tipo_pasto = request.form.get("tipo_pasto", "")
     nome_locale = request.form.get("nome_locale", "").strip()
     indirizzo = request.form.get("indirizzo", "").strip()
+    telefono_locale = request.form.get("telefono_locale", "").strip()
     lat = request.form.get("latitudine")
     lon = request.form.get("longitudine")
     posti = request.form.get("posti_totali")
@@ -2593,6 +2608,7 @@ def api_create_offer():
         tipo_pasto=tipo_pasto,
         nome_locale=nome_locale,
         indirizzo=indirizzo,
+        telefono_locale=telefono_locale,
         latitudine=float(lat),
         longitudine=float(lon),
         posti_totali=int(posti),
