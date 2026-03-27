@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
-import 'brand_wordmark.dart';
-
 class BrandHeroCard extends StatelessWidget {
   const BrandHeroCard({
     super.key,
@@ -11,6 +9,7 @@ class BrandHeroCard extends StatelessWidget {
     this.footer,
     this.eyebrow,
     this.padding,
+    this.centered = false,
   });
 
   final String title;
@@ -18,6 +17,7 @@ class BrandHeroCard extends StatelessWidget {
   final Widget? footer;
   final String? eyebrow;
   final EdgeInsetsGeometry? padding;
+  final bool centered;
 
   @override
   Widget build(BuildContext context) {
@@ -35,30 +35,28 @@ class BrandHeroCard extends StatelessWidget {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            centered ? CrossAxisAlignment.center : CrossAxisAlignment.start,
         children: [
-          Row(
-            children: const [
-              _BrandIcon(),
-              SizedBox(width: 12),
-              Expanded(child: BrandWordmark(height: 28)),
-            ],
-          ),
           if (eyebrow != null) ...[
-            const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.65),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                eyebrow!,
-                style: const TextStyle(
-                  color: AppTheme.brown,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.4,
+            Align(
+              alignment: centered ? Alignment.center : Alignment.centerLeft,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.65),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  eyebrow!,
+                  textAlign: centered ? TextAlign.center : TextAlign.start,
+                  style: const TextStyle(
+                    color: AppTheme.brown,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                  ),
                 ),
               ),
             ),
@@ -66,6 +64,7 @@ class BrandHeroCard extends StatelessWidget {
           const SizedBox(height: 18),
           Text(
             title,
+            textAlign: centered ? TextAlign.center : TextAlign.start,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   fontSize: 28,
                   height: 1.05,
@@ -74,6 +73,7 @@ class BrandHeroCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             subtitle,
+            textAlign: centered ? TextAlign.center : TextAlign.start,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: AppTheme.brown.withOpacity(0.84),
                   height: 1.45,
@@ -84,24 +84,6 @@ class BrandHeroCard extends StatelessWidget {
             footer!,
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _BrandIcon extends StatelessWidget {
-  const _BrandIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Image.asset(
-        'assets/branding/app_icon.png',
-        width: 46,
-        height: 46,
-        fit: BoxFit.cover,
-        filterQuality: FilterQuality.high,
       ),
     );
   }

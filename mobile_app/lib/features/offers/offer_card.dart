@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
@@ -88,6 +89,17 @@ class OfferCard extends StatelessWidget {
                               fontWeight: FontWeight.w700,
                             ),
                           ),
+                          if (offer.hostWhatsAppLink.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: _WhatsAppAction(
+                                compact: true,
+                                onTap: () =>
+                                    _openExternalLink(offer.hostWhatsAppLink),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -161,6 +173,14 @@ class OfferCard extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                              if (participant.whatsAppLink.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                _WhatsAppAction(
+                                  onTap: () => _openExternalLink(
+                                    participant.whatsAppLink,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         );
@@ -277,6 +297,14 @@ class OfferCard extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _openExternalLink(String rawUrl) async {
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null) {
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 }
 
 class _CenteredChip extends StatelessWidget {
@@ -307,6 +335,47 @@ class _CenteredChip extends StatelessWidget {
             letterSpacing: 0.5,
           ),
           textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}
+
+class _WhatsAppAction extends StatelessWidget {
+  const _WhatsAppAction({
+    required this.onTap,
+    this.compact = false,
+  });
+
+  final Future<void> Function() onTap;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconSize = compact ? 16.0 : 18.0;
+    final padding = compact
+        ? const EdgeInsets.symmetric(horizontal: 10, vertical: 7)
+        : const EdgeInsets.symmetric(horizontal: 10, vertical: 6);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Ink(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: const Color(0x2538C172),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: const Color(0x8838C172),
+            ),
+          ),
+          child: Icon(
+            Icons.chat_bubble_rounded,
+            size: iconSize,
+            color: const Color(0xFF138A45),
+          ),
         ),
       ),
     );

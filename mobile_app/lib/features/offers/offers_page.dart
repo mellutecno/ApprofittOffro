@@ -19,8 +19,6 @@ class OffersPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = authController.currentUser;
-
     return AnimatedBuilder(
       animation: Listenable.merge([authController, offersController]),
       builder: (context, _) {
@@ -48,14 +46,15 @@ class OffersPage extends StatelessWidget {
                   child: BrandHeroCard(
                     eyebrow: 'APPROFITTA',
                     title: 'Eventi aperti della community',
-                    subtitle: user == null
-                        ? 'Scopri chi sta condividendo una colazione, un pranzo o una cena e scegli dove entrare.'
-                        : 'Scopri chi sta condividendo qualcosa di buono vicino a ${user.city.isNotEmpty ? user.city : "te"}.',
+                    subtitle:
+                        'Scopri chi sta condividendo una colazione, un pranzo o una cena e scegli dove entrare.',
+                    centered: true,
                     footer: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         const Text(
                           'Scegli il momento del pasto',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
                             color: AppTheme.brown,
@@ -63,6 +62,7 @@ class OffersPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         Wrap(
+                          alignment: WrapAlignment.center,
                           spacing: 10,
                           runSpacing: 10,
                           children: [
@@ -90,6 +90,20 @@ class OffersPage extends StatelessWidget {
                           ],
                         ),
                       ],
+                    ),
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+                  child: Text(
+                    'Tutti gli eventi aperti',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.brown,
                     ),
                   ),
                 ),
@@ -183,6 +197,7 @@ class _MealChip extends StatelessWidget {
         color: selected ? _colorForValue(value) : null,
         fontWeight: FontWeight.w700,
       ),
+      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 
