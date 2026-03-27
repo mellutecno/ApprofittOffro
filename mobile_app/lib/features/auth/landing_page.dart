@@ -3,8 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/theme/app_theme.dart';
 import '../../core/network/api_client.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../../models/offer.dart';
 import 'auth_controller.dart';
@@ -69,7 +69,7 @@ class _LandingPageState extends State<LandingPage> {
               slivers: [
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -99,67 +99,72 @@ class _LandingPageState extends State<LandingPage> {
                           textAlign: TextAlign.center,
                           style:
                               Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    color: AppTheme.brown.withValues(alpha: 0.84),
+                                    color:
+                                        AppTheme.brown.withValues(alpha: 0.84),
                                     height: 1.45,
                                   ),
                         ),
                         const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: _openLogin,
-                                style: OutlinedButton.styleFrom(
-                                  backgroundColor:
-                                      Colors.white.withValues(alpha: 0.68),
-                                ),
-                                child: const Text('Accedi'),
-                              ),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.42),
+                            borderRadius: BorderRadius.circular(26),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.55),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: _openRegister,
-                                style: OutlinedButton.styleFrom(
-                                  backgroundColor:
-                                      Colors.white.withValues(alpha: 0.68),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: _openLogin,
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor:
+                                        Colors.white.withValues(alpha: 0.82),
+                                  ),
+                                  child: const Text('Accedi'),
                                 ),
-                                child: const Text('Crea account'),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: _openRegister,
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor:
+                                        Colors.white.withValues(alpha: 0.82),
+                                  ),
+                                  child: const Text('Crea account'),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 22),
-                        Text(
-                          'Come funziona la community',
-                          style: Theme.of(context).textTheme.titleLarge,
-                          textAlign: TextAlign.center,
+                        const SizedBox(height: 24),
+                        const _LandingSectionHeading(
+                          eyebrow: 'COME FUNZIONA',
+                          title: 'Come funziona la community',
                         ),
                         const SizedBox(height: 12),
                         const _LandingStepCard(
-                          title: 'Scopri chi c e in giro',
+                          title: 'Scopri chi c\'è in giro',
                           body:
                               'Apri Approfitta e guarda colazioni, pranzi e cene pubblicati dalla community.',
                         ),
                         const _LandingStepCard(
                           title: 'Entra nei profili veri',
                           body:
-                              'Da Community puoi vedere foto, eta, citta e scegliere chi seguire davvero.',
+                              'Da Community puoi vedere foto, età, città e scegliere chi seguire davvero.',
                         ),
                         const _LandingStepCard(
                           title: 'Iscriviti per partecipare',
                           body:
                               'Se un evento ti piace, crei il tuo account, entri nella community e poi approfitti davvero.',
                         ),
-                        const SizedBox(height: 22),
-                        Text(
-                          'Eventi aperti della community',
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    color: AppTheme.brown,
-                                  ),
-                          textAlign: TextAlign.center,
+                        const SizedBox(height: 24),
+                        const _LandingSectionHeading(
+                          eyebrow: 'EVENTI APERTI',
+                          title: 'Eventi aperti della community',
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -182,27 +187,17 @@ class _LandingPageState extends State<LandingPage> {
                             }
 
                             if (snapshot.hasError) {
-                              return const Card(
-                                child: Padding(
-                                  padding: EdgeInsets.all(18),
-                                  child: Text(
+                              return const _LandingNoticeCard(
+                                message:
                                     'Non riesco a caricare gli eventi aperti in questo momento.',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
                               );
                             }
 
                             final offers = snapshot.data ?? const <Offer>[];
                             if (offers.isEmpty) {
-                              return const Card(
-                                child: Padding(
-                                  padding: EdgeInsets.all(18),
-                                  child: Text(
+                              return const _LandingNoticeCard(
+                                message:
                                     'Per ora non vedo ancora eventi pubblici aperti.',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
                               );
                             }
 
@@ -210,31 +205,27 @@ class _LandingPageState extends State<LandingPage> {
                               children: offers
                                   .take(4)
                                   .map(
-                                    (offer) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 12),
-                                      child: _PublicOfferCard(
-                                        offer: offer,
-                                        apiClient:
-                                            widget.authController.apiClient,
-                                        onTap: _openLogin,
-                                      ),
+                                    (offer) => _PublicOfferCard(
+                                      offer: offer,
+                                      apiClient:
+                                          widget.authController.apiClient,
+                                      onTap: _openLogin,
                                     ),
                                   )
                                   .toList(),
                             );
                           },
                         ),
-                        const SizedBox(height: 22),
-                        Text(
-                          'Perche nasce ApprofittOffro',
-                          style: Theme.of(context).textTheme.titleLarge,
-                          textAlign: TextAlign.center,
+                        const SizedBox(height: 24),
+                        const _LandingSectionHeading(
+                          eyebrow: 'VISIONE',
+                          title: 'Perché nasce ApprofittOffro',
                         ),
                         const SizedBox(height: 12),
                         const _LandingInfoCard(
-                          title: 'Piu community, meno rumore',
+                          title: 'Più community, meno rumore',
                           body:
-                              'L idea non e collezionare prenotazioni: e creare un giro di persone che si riconoscono e tornano.',
+                              'L\'idea non è collezionare prenotazioni: è creare un giro di persone che si riconoscono e tornano.',
                         ),
                         const _LandingInfoCard(
                           title: 'Profili, follower e fiducia',
@@ -244,9 +235,8 @@ class _LandingPageState extends State<LandingPage> {
                         const _LandingInfoCard(
                           title: 'Versione mobile pensata per crescere',
                           body:
-                              'Questa app Android e il primo passo verso una community piu diretta, piu bella e piu semplice da usare.',
+                              'Questa app Android è il primo passo verso una community più diretta, più bella e più semplice da usare.',
                         ),
-                        const SizedBox(height: 28),
                       ],
                     ),
                   ),
@@ -256,6 +246,50 @@ class _LandingPageState extends State<LandingPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _LandingSectionHeading extends StatelessWidget {
+  const _LandingSectionHeading({
+    required this.eyebrow,
+    required this.title,
+  });
+
+  final String eyebrow;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.66),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            eyebrow,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppTheme.brown,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: AppTheme.brown,
+              ),
+        ),
+      ],
     );
   }
 }
@@ -300,7 +334,7 @@ class _LandingPhotoClusterState extends State<_LandingPhotoCluster>
               Positioned(
                 left: 12,
                 top: 36 + math.sin(progress) * 10,
-                child: _FloatingPhotoCard(
+                child: const _FloatingPhotoCard(
                   assetPath: 'assets/landing/hero-brunch.jpg',
                   width: 108,
                   height: 156,
@@ -310,7 +344,7 @@ class _LandingPhotoClusterState extends State<_LandingPhotoCluster>
               Positioned(
                 right: 10,
                 top: 10 + math.sin(progress + 1.7) * 12,
-                child: _FloatingPhotoCard(
+                child: const _FloatingPhotoCard(
                   assetPath: 'assets/landing/hero-dinner.jpg',
                   width: 138,
                   height: 182,
@@ -320,7 +354,7 @@ class _LandingPhotoClusterState extends State<_LandingPhotoCluster>
               Positioned(
                 left: 88,
                 bottom: 8 + math.sin(progress + 3.2) * 10,
-                child: _FloatingPhotoCard(
+                child: const _FloatingPhotoCard(
                   assetPath: 'assets/landing/hero-friends.jpg',
                   width: 118,
                   height: 154,
@@ -388,26 +422,39 @@ class _LandingStepCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontSize: 18,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              body,
-              textAlign: TextAlign.center,
-            ),
-          ],
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.82),
         ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: 18,
+                ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            body,
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -424,26 +471,58 @@ class _LandingInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontSize: 18,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              body,
-              textAlign: TextAlign.center,
-            ),
-          ],
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFFCF7), Color(0xFFF7EFE3)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: 18,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            body,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LandingNoticeCard extends StatelessWidget {
+  const _LandingNoticeCard({
+    required this.message,
+  });
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
       ),
     );
   }
@@ -467,7 +546,20 @@ class _PublicOfferCard extends StatelessWidget {
         ? apiClient.buildUploadUrl(offer.autoreFoto)
         : null;
 
-    return Card(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x16000000),
+            blurRadius: 18,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -506,16 +598,17 @@ class _PublicOfferCard extends StatelessWidget {
                 color: AppTheme.brown,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 CircleAvatar(
-                  radius: 24,
+                  radius: 27,
                   backgroundImage:
                       authorPhotoUrl != null ? NetworkImage(authorPhotoUrl) : null,
-                  child:
-                      authorPhotoUrl == null ? const Icon(Icons.person, size: 22) : null,
+                  child: authorPhotoUrl == null
+                      ? const Icon(Icons.person, size: 24)
+                      : null,
                 ),
                 const SizedBox(width: 12),
                 Flexible(
@@ -539,11 +632,24 @@ class _PublicOfferCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Text(
-              offer.indirizzo,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppTheme.mist,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.cardBorder),
+              ),
+              child: Text(
+                offer.indirizzo,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppTheme.espresso,
+                  fontWeight: FontWeight.w700,
+                  height: 1.35,
+                ),
+              ),
             ),
             const SizedBox(height: 14),
             FilledButton(
