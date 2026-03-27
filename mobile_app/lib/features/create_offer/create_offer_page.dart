@@ -50,10 +50,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   bool _isLocating = false;
   bool _initialLocationRequested = false;
   bool _initialMapReady = !AppConfig.googleMapsEnabled;
+  bool _mapExpanded = false;
   bool _loadingNearbyPlaces = false;
+  bool _nearbyPlacesLoaded = false;
   GoogleMapController? _mapController;
   LatLng _currentMapCenter = _fallbackMapTarget;
-  LatLng? _lastPlacesQueryCenter;
   double? _selectedLatitude;
   double? _selectedLongitude;
   String? _selectedPlaceId;
@@ -61,7 +62,6 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   List<PlaceCandidate> _nearbyPlaces = const [];
   Set<Marker> _nearbyMarkers = const <Marker>{};
   final Map<String, BitmapDescriptor> _markerIconCache = {};
-  Timer? _placesDebounce;
 
   @override
   void initState() {
@@ -79,7 +79,6 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     _addressController.dispose();
     _phoneController.dispose();
     _descriptionController.dispose();
-    _placesDebounce?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
@@ -108,7 +107,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Scegli il locale dalla mappa, imposta il momento e racconta in poche righe cosa vuoi condividere.',
+              'Prima scegli il momento, poi apri la mappa solo quando ti serve e completa l’invito in pochi passaggi.',
               style: theme.textTheme.bodyLarge?.copyWith(
                 color: AppTheme.brown.withValues(alpha: 0.74),
                 height: 1.45,
@@ -117,14 +116,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             ),
             const SizedBox(height: 20),
             _SectionCard(
-              title: '1. Scegli dalla mappa',
-              subtitle:
-                  'Usa il GPS o sposta la mappa e tocca il simbolo del locale che vuoi scegliere.',
-              child: _buildMapSection(),
-            ),
-            const SizedBox(height: 16),
-            _SectionCard(
-              title: '2. Scegli il momento',
+              title: '1. Scegli il momento',
               subtitle:
                   'Decidi il tipo di pasto, data e ora complete e quanti posti vuoi aprire.',
               child: Column(
@@ -215,6 +207,13 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 16),
+            _SectionCard(
+              title: '2. Scegli dalla mappa',
+              subtitle:
+                  'Apri la mappa solo quando ti serve, spostati con il GPS e poi carica i locali vicini.',
+              child: _buildMapSection(),
             ),
             const SizedBox(height: 16),
             _SectionCard(
@@ -353,18 +352,63 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return const _GoogleMapsPlaceholderCard();
     }
 
+    if (!_mapExpanded) {
+      return _CollapsedMapLauncher(
+        onTap: _submitting
+            ? null
+            : () {
+                setState(() => _mapExpanded = true);
+                if (!_initialLocationRequested) {
+                  unawaited(_bootstrapCurrentLocation());
+                }
+              },
+      );
+    }
+
     if (!_initialMapReady) {
       return const _MapBootstrappingCard();
     }
 
-    return _GoogleMapsPreviewCard(
-      target: _currentMapCenter,
-      markers: _nearbyMarkers,
-      isBusy: _isLocating || _loadingNearbyPlaces,
-      onMapCreated: _handleMapCreated,
-      onCameraMove: _handleCameraMove,
-      onCameraIdle: _scheduleNearbyPlacesRefresh,
-      onRecenterTap: _submitting || _isLocating ? null : _useCurrentLocation,
+    return Column(
+      children: [
+        _GoogleMapsPreviewCard(
+          target: _currentMapCenter,
+          markers: _nearbyMarkers,
+          isBusy: _isLocating || _loadingNearbyPlaces,
+          onMapCreated: _handleMapCreated,
+          onCameraMove: _handleCameraMove,
+          onCameraIdle: () {},
+          onRecenterTap: _submitting || _isLocating ? null : _useCurrentLocation,
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _submitting
+                    ? null
+                    : () => setState(() => _mapExpanded = false),
+                icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                label: const Text('Chiudi la mappa'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: _submitting || _loadingNearbyPlaces
+                    ? null
+                    : () => unawaited(_refreshNearbyPlaces(force: true)),
+                icon: const Icon(Icons.storefront_rounded),
+                label: Text(
+                  _nearbyPlacesLoaded
+                      ? 'Aggiorna locali qui'
+                      : 'Scegli il locale',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -380,7 +424,6 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     if (!_initialMapReady) {
       setState(() => _initialMapReady = true);
     }
-    unawaited(_refreshNearbyPlaces(force: true));
   }
 
   Future<void> _pickDateTime() async {
@@ -470,7 +513,6 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         _initialMapReady = true;
       });
       await _animateMapTo(target, zoom: 16.2);
-      await _refreshNearbyPlaces(force: true);
     } catch (error) {
       if (!mounted) {
         return;
@@ -498,29 +540,9 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     _currentMapCenter = position.target;
   }
 
-  void _scheduleNearbyPlacesRefresh() {
-    _placesDebounce?.cancel();
-    _placesDebounce = Timer(
-      const Duration(milliseconds: 320),
-      () => unawaited(_refreshNearbyPlaces()),
-    );
-  }
-
   Future<void> _refreshNearbyPlaces({bool force = false}) async {
     if (!AppConfig.googleMapsEnabled || !_initialMapReady || _submitting) {
       return;
-    }
-
-    if (!force && _lastPlacesQueryCenter != null) {
-      final distance = Geolocator.distanceBetween(
-        _lastPlacesQueryCenter!.latitude,
-        _lastPlacesQueryCenter!.longitude,
-        _currentMapCenter.latitude,
-        _currentMapCenter.longitude,
-      );
-      if (distance < 140) {
-        return;
-      }
     }
 
     setState(() => _loadingNearbyPlaces = true);
@@ -534,14 +556,15 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       if (!mounted) {
         return;
       }
-      _lastPlacesQueryCenter = queryCenter;
       _nearbyPlaces = places;
+      _nearbyPlacesLoaded = true;
       await _rebuildNearbyMarkers();
     } catch (_) {
       if (!mounted) {
         return;
       }
       _nearbyPlaces = const [];
+      _nearbyPlacesLoaded = true;
       await _rebuildNearbyMarkers();
     } finally {
       if (mounted) {
@@ -918,11 +941,13 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         _totalSeats = 2;
         _selectedDateTime = null;
         _pickedImage = null;
+        _mapExpanded = false;
+        _nearbyPlacesLoaded = false;
         _selectedPlaceId = null;
         _selectedLatitude = null;
         _selectedLongitude = null;
         _selectedPrimaryType = '';
-        _lastPlacesQueryCenter = null;
+        _nearbyPlaces = const [];
       });
       await _rebuildNearbyMarkers();
       unawaited(_bootstrapCurrentLocation());
@@ -985,6 +1010,72 @@ class _SectionCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CollapsedMapLauncher extends StatelessWidget {
+  const _CollapsedMapLauncher({
+    required this.onTap,
+  });
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Ink(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: AppTheme.mist,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppTheme.cardBorder),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(
+                Icons.map_outlined,
+                color: AppTheme.orange,
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Scegli dalla mappa',
+              style: TextStyle(
+                color: AppTheme.brown,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Apri la mappa, usa il GPS e poi carica i locali vicini solo quando vuoi scegliere davvero il posto.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.brown.withValues(alpha: 0.72),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: onTap,
+              icon: const Icon(Icons.open_in_full_rounded),
+              label: const Text('Apri la mappa'),
+            ),
           ],
         ),
       ),
