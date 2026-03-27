@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
-import '../../core/widgets/brand_hero_card.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import 'auth_controller.dart';
 import 'register_page.dart';
@@ -77,13 +76,6 @@ class _LoginPageState extends State<LoginPage> {
                     constraints: const BoxConstraints(maxWidth: 420),
                     child: Column(
                       children: [
-                        const BrandHeroCard(
-                          eyebrow: 'ACCESSO',
-                          title: 'Rientra nella community quando vuoi.',
-                          subtitle:
-                              'Accedi con le stesse credenziali che usi gia sul sito e riparti da eventi, profili e offerte aperte.',
-                        ),
-                        const SizedBox(height: 18),
                         Card(
                           child: Padding(
                             padding: const EdgeInsets.all(24),
@@ -96,13 +88,6 @@ class _LoginPageState extends State<LoginPage> {
                                     'Bentornato',
                                     style:
                                         Theme.of(context).textTheme.titleLarge,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Entra e torna subito tra profili, pasti e community attiva.',
-                                    style:
-                                        Theme.of(context).textTheme.bodyMedium,
                                     textAlign: TextAlign.center,
                                   ),
                                   const SizedBox(height: 24),
@@ -168,11 +153,6 @@ class _LoginPageState extends State<LoginPage> {
                                           },
                                     icon: const Icon(Icons.person_add_alt_1),
                                     label: const Text('Crea un account'),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  const Text(
-                                    'Recupero password e altri flussi secondari li porto nel blocco successivo.',
-                                    textAlign: TextAlign.center,
                                   ),
                                 ],
                               ),
