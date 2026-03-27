@@ -101,23 +101,16 @@ class _LandingPageState extends State<LandingPage> {
                                     height: 1.45,
                                   ),
                         ),
-                        const SizedBox(height: 16),
-                        const Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            _LandingBadge(text: 'Eventi aperti'),
-                            _LandingBadge(text: 'Profili reali'),
-                            _LandingBadge(text: 'Community attiva'),
-                          ],
-                        ),
                         const SizedBox(height: 18),
                         Row(
                           children: [
                             Expanded(
-                              child: FilledButton(
+                              child: OutlinedButton(
                                 onPressed: _openLogin,
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor:
+                                      Colors.white.withValues(alpha: 0.68),
+                                ),
                                 child: const Text('Accedi'),
                               ),
                             ),
@@ -125,6 +118,10 @@ class _LandingPageState extends State<LandingPage> {
                             Expanded(
                               child: OutlinedButton(
                                 onPressed: _openRegister,
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor:
+                                      Colors.white.withValues(alpha: 0.68),
+                                ),
                                 child: const Text('Crea account'),
                               ),
                             ),
@@ -138,19 +135,16 @@ class _LandingPageState extends State<LandingPage> {
                         ),
                         const SizedBox(height: 12),
                         const _LandingStepCard(
-                          step: '1',
                           title: 'Scopri chi c e in giro',
                           body:
                               'Apri Approfitta e guarda colazioni, pranzi e cene pubblicati dalla community.',
                         ),
                         const _LandingStepCard(
-                          step: '2',
                           title: 'Entra nei profili veri',
                           body:
                               'Da Community puoi vedere foto, eta, citta e scegliere chi seguire davvero.',
                         ),
                         const _LandingStepCard(
-                          step: '3',
                           title: 'Iscriviti per partecipare',
                           body:
                               'Se un evento ti piace, crei il tuo account, entri nella community e poi approfitti davvero.',
@@ -381,38 +375,12 @@ class _FloatingPhotoCard extends StatelessWidget {
   }
 }
 
-class _LandingBadge extends StatelessWidget {
-  const _LandingBadge({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontWeight: FontWeight.w800,
-          color: AppTheme.brown,
-        ),
-      ),
-    );
-  }
-}
-
 class _LandingStepCard extends StatelessWidget {
   const _LandingStepCard({
-    required this.step,
     required this.title,
     required this.body,
   });
 
-  final String step;
   final String title;
   final String body;
 
@@ -424,24 +392,6 @@ class _LandingStepCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: AppTheme.sand,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Center(
-                child: Text(
-                  step,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    color: AppTheme.brown,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
             Text(
               title,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -559,17 +509,29 @@ class _PublicOfferCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 CircleAvatar(
-                  radius: 18,
+                  radius: 24,
                   backgroundImage:
                       authorPhotoUrl != null ? NetworkImage(authorPhotoUrl) : null,
                   child:
-                      authorPhotoUrl == null ? const Icon(Icons.person, size: 18) : null,
+                      authorPhotoUrl == null ? const Icon(Icons.person, size: 22) : null,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Flexible(
-                  child: Text(
-                    'Offerto da ${offer.autoreNome}',
+                  child: RichText(
                     textAlign: TextAlign.center,
+                    text: TextSpan(
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppTheme.brown,
+                            height: 1.35,
+                          ),
+                      children: [
+                        const TextSpan(text: 'Offerto da '),
+                        TextSpan(
+                          text: offer.autoreNome,
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
