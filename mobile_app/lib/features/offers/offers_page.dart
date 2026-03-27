@@ -159,10 +159,11 @@ class OffersPage extends StatelessWidget {
                                 ),
                               );
                               if (result?.changed == true) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  unawaited(offersController.loadOffers());
-                                  unawaited(authController.refreshCurrentUser());
-                                });
+                                await Future<void>.delayed(
+                                  const Duration(milliseconds: 30),
+                                );
+                                await offersController.loadOffers();
+                                await authController.refreshCurrentUser();
                               }
                             }
                           : null,

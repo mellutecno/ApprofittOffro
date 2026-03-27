@@ -1063,7 +1063,14 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
       if (widget.initialOffer != null) {
         shouldCloseEditor = true;
-        Navigator.of(context).pop(const CreateOfferPageResult(changed: true));
+        final navigator = Navigator.of(context);
+        if (mounted) {
+          setState(() => _submitting = false);
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        if (navigator.mounted) {
+          navigator.pop(const CreateOfferPageResult(changed: true));
+        }
         return;
       }
       _showMessage(message);
@@ -1180,7 +1187,14 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         return;
       }
       shouldCloseEditor = true;
-      Navigator.of(context).pop(const CreateOfferPageResult(changed: true));
+      final navigator = Navigator.of(context);
+      if (mounted) {
+        setState(() => _deleting = false);
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      if (navigator.mounted) {
+        navigator.pop(const CreateOfferPageResult(changed: true));
+      }
       return;
     } catch (error) {
       _showMessage(error.toString());

@@ -58,11 +58,10 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
     if (result?.changed == true) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          unawaited(_refreshAll());
-        }
-      });
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      if (mounted) {
+        await _refreshAll();
+      }
     }
   }
 

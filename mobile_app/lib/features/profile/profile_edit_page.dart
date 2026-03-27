@@ -382,14 +382,14 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                   children: [
                     Text(
                       widget.requireCompletion
-                          ? 'Completa subito il tuo profilo'
+                          ? 'Completa il tuo profilo'
                           : 'Modifica il tuo profilo',
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 10),
                     Text(
                       widget.requireCompletion
-                          ? 'Prima di entrare nella community carica foto reali, bio e preferenze. Qui non puoi uscire finche non completi tutto.'
+                          ? 'Aggiungi foto reali, bio e preferenze per accedere alla community. Ti basta farlo una volta sola.'
                           : 'Puoi aggiornare dati, bio e galleria. Se cambi le foto, la prima deve mostrare bene il volto.',
                     ),
                     if (user.galleryFilenames.isNotEmpty) ...[
@@ -599,7 +599,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       )
                     : Text(
                         widget.requireCompletion
-                            ? 'Completa il profilo'
+                            ? 'Salva e continua'
                             : 'Salva modifiche',
                       ),
               ),
