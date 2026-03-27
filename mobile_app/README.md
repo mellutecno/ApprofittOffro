@@ -59,6 +59,41 @@ Oppure, per test su Render:
 flutter run --dart-define=API_BASE_URL=https://approfittoffro.onrender.com
 ```
 
+## Base Google Maps
+
+La base Android per Google Maps e` gia` pronta.
+
+Per accenderla davvero ti servono 2 cose:
+
+1. una chiave Android Google Maps
+2. il flag Flutter per mostrare la mappa nella schermata `Offri`
+
+### Dove mettere la chiave Android
+
+Puoi scegliere uno di questi due modi:
+
+- variabile ambiente:
+
+```bash
+GOOGLE_MAPS_ANDROID_API_KEY=la_tua_chiave
+```
+
+- oppure in `mobile_app/android/local.properties`:
+
+```properties
+google.maps.api.key=la_tua_chiave
+```
+
+### Come accendere la mappa in Flutter
+
+Quando la chiave c'e`, avvia o builda cosi`:
+
+```bash
+flutter run --dart-define=API_BASE_URL=https://mellucci.pythonanywhere.com --dart-define=GOOGLE_MAPS_ENABLED=true
+```
+
+La schermata `Offri` continuera` a funzionare anche senza chiave: mostrera` un placeholder elegante e manterra` posizione telefono + coordinate manuali.
+
 ## Prossimi step consigliati
 
 1. Registrazione utente con upload foto

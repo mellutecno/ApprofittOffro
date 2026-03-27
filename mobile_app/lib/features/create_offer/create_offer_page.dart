@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_hero_card.dart';
 import '../../core/widgets/brand_wordmark.dart';
@@ -25,6 +27,8 @@ class CreateOfferPage extends StatefulWidget {
 }
 
 class _CreateOfferPageState extends State<CreateOfferPage> {
+  static const LatLng _fallbackMapTarget = LatLng(45.070339, 7.686864);
+
   final _formKey = GlobalKey<FormState>();
   final _localeController = TextEditingController();
   final _addressController = TextEditingController();
@@ -331,6 +335,24 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                       ),
                     ),
                     const SizedBox(height: 14),
+                    if (AppConfig.googleMapsEnabled) ...[
+                      _GoogleMapsPreviewCard(
+                        target: _mapTarget,
+                        markers: _mapMarkers,
+                        enabled: !_submitting,
+                        onLongPress: _submitting ? null : _setLocationFromMap,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Tocco lungo sulla mappa per fissare subito il punto esatto del locale.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.brown.withValues(alpha: 0.72),
+                        ),
+                      ),
+                    ] else ...[
+                      const _GoogleMapsPlaceholderCard(),
+                    ],
+                    const SizedBox(height: 14),
                     OutlinedButton.icon(
                       onPressed: _submitting || _isLocating
                           ? null
@@ -516,6 +538,38 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   double? get _parsedLongitude =>
       _tryParseCoordinate(_longitudeController.text);
 
+  LatLng get _mapTarget {
+    final latitude = _parsedLatitude;
+    final longitude = _parsedLongitude;
+    if (latitude == null || longitude == null) {
+      return _fallbackMapTarget;
+    }
+    return LatLng(latitude, longitude);
+  }
+
+  Set<Marker> get _mapMarkers {
+    final latitude = _parsedLatitude;
+    final longitude = _parsedLongitude;
+    if (latitude == null || longitude == null) {
+      return const <Marker>{};
+    }
+
+    return {
+      Marker(
+        markerId: const MarkerId('selected_offer_location'),
+        position: LatLng(latitude, longitude),
+        infoWindow: InfoWindow(
+          title: _localeController.text.trim().isEmpty
+              ? 'Posizione selezionata'
+              : _localeController.text.trim(),
+          snippet: _addressController.text.trim().isEmpty
+              ? 'Tavolo in preparazione'
+              : _addressController.text.trim(),
+        ),
+      ),
+    };
+  }
+
   DateTime? get _combinedDateTime {
     if (_selectedDate == null || _selectedTime == null) {
       return null;
@@ -651,6 +705,13 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     }
   }
 
+  void _setLocationFromMap(LatLng position) {
+    _latitudeController.text = position.latitude.toStringAsFixed(6);
+    _longitudeController.text = position.longitude.toStringAsFixed(6);
+    setState(() => _showManualCoordinates = false);
+    _showMessage('Posizione aggiornata dalla mappa.');
+  }
+
   Future<void> _submit() async {
     final selectedDateTime = _combinedDateTime;
     if (!_formKey.currentState!.validate()) {
@@ -730,6 +791,126 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       default:
         return value;
     }
+  }
+}
+
+class _GoogleMapsPreviewCard extends StatelessWidget {
+  const _GoogleMapsPreviewCard({
+    required this.target,
+    required this.markers,
+    required this.enabled,
+    required this.onLongPress,
+  });
+
+  final LatLng target;
+  final Set<Marker> markers;
+  final bool enabled;
+  final ValueChanged<LatLng>? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: SizedBox(
+        height: 240,
+        child: GoogleMap(
+          initialCameraPosition: CameraPosition(
+            target: target,
+            zoom: markers.isEmpty ? 11 : 15,
+          ),
+          markers: markers,
+          mapToolbarEnabled: false,
+          myLocationButtonEnabled: false,
+          myLocationEnabled: false,
+          zoomControlsEnabled: false,
+          compassEnabled: false,
+          onLongPress: enabled ? onLongPress : null,
+        ),
+      ),
+    );
+  }
+}
+
+class _GoogleMapsPlaceholderCard extends StatelessWidget {
+  const _GoogleMapsPlaceholderCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFFFFF6EA),
+            Color(0xFFF6EEE4),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.82),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.map_rounded,
+                  color: AppTheme.orange,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Base Google Maps pronta',
+                  style: TextStyle(
+                    color: AppTheme.brown,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Qui entrera` la mappa vera del locale con tocco lungo per scegliere il punto. Per ora restano attivi posizione del telefono e coordinate manuali.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.brown.withValues(alpha: 0.76),
+                  height: 1.45,
+                ),
+          ),
+          const SizedBox(height: 14),
+          const Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _SummaryPill(
+                icon: Icons.map_outlined,
+                label: 'Google Maps',
+              ),
+              _SummaryPill(
+                icon: Icons.photo_library_outlined,
+                label: 'Foto locale',
+              ),
+              _SummaryPill(
+                icon: Icons.call_outlined,
+                label: 'Telefono locale',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
