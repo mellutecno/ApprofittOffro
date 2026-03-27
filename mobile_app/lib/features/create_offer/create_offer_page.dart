@@ -67,7 +67,6 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   bool _mapExpanded = false;
   bool _loadingNearbyPlaces = false;
   bool _nearbyPlacesLoaded = false;
-  String? _pendingDeletionReason;
   GoogleMapController? _mapController;
   LatLng _currentMapCenter = _fallbackMapTarget;
   double? _selectedLatitude;
@@ -413,11 +412,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.delete_outline_rounded),
-                      label: Text(
-                        (_pendingDeletionReason ?? '').trim().isEmpty
-                            ? 'Elimina offerta'
-                            : 'Conferma eliminazione',
-                      ),
+                      label: const Text('Elimina offerta'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF8A4336),
                         side: const BorderSide(color: Color(0xFFD7B4AC)),
@@ -1116,86 +1111,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
 
-    if ((_pendingDeletionReason ?? '').trim().isEmpty) {
-      final reasonController = TextEditingController();
-      String? validationMessage;
-
-      final reason = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Elimina offerta'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Vuoi davvero eliminare l\'offerta per ${offer.nomeLocale}? Chi ha gia approfittato ricevera una mail con il motivo dell\'annullamento.',
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: reasonController,
-                    minLines: 3,
-                    maxLines: 5,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: InputDecoration(
-                      labelText: 'Motivo dell\'eliminazione',
-                      hintText:
-                          'Scrivi il motivo da inviare a chi partecipava.',
-                      errorText: validationMessage,
-                      alignLabelWithHint: true,
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Annulla'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final trimmedReason = reasonController.text.trim();
-                    if (trimmedReason.length < 8) {
-                      setDialogState(() {
-                        validationMessage =
-                            'Inserisci un motivo chiaro di almeno 8 caratteri.';
-                      });
-                      return;
-                    }
-                    Navigator.of(context).pop(trimmedReason);
-                  },
-                  child: const Text('Salva motivo'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-      );
-
-      reasonController.dispose();
-
-      if (reason == null || !mounted) {
-        return;
-      }
-
-      setState(() => _pendingDeletionReason = reason);
-      _showMessage(
-        'Motivo salvato. Premi di nuovo "Elimina offerta" per confermare.',
-      );
-      return;
-    }
-
     var shouldCloseEditor = false;
     setState(() => _deleting = true);
     try {
-      await widget.authController.apiClient.deleteOffer(
-        offer.id,
-        motivazione: _pendingDeletionReason!.trim(),
-      );
+      await widget.authController.apiClient.deleteOffer(offer.id);
       if (!mounted) {
         return;
       }
