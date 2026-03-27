@@ -58,6 +58,7 @@ def load_app_env():
     """Carica il primo file .env disponibile, con override via APP_ENV_FILE."""
     env_candidates = [
         os.getenv("APP_ENV_FILE"),
+        os.path.join(os.path.expanduser("~"), ".env"),
         os.path.join(EXECUTION_DIR, ".env"),
         os.path.join(PROJECT_ROOT, ".env"),
     ]
@@ -301,6 +302,12 @@ def notify_followers_for_new_offer(offer):
     if offer.data_ora <= local_now():
         return 0
 
+    if not email_delivery_enabled():
+        print(
+            f"[MAIL_SKIP] Provider email non configurato: nessuna notifica follower per l'offerta {offer.id}."
+        )
+        return 0
+
     followers = get_followers_notification_targets(offer)
     if not followers:
         return 0
@@ -502,6 +509,11 @@ def get_active_email_provider():
     if app.config.get("MAIL_USERNAME") and app.config.get("MAIL_PASSWORD"):
         return "smtp"
     return "disabled"
+
+
+def email_delivery_enabled():
+    """Indica se esiste davvero un provider pronto a spedire email."""
+    return get_active_email_provider() in {"smtp", "resend"}
 
 
 def send_async_smtp_email(app, msg):
@@ -2315,6 +2327,8 @@ def api_create_offer():
         message += " Abbiamo avvisato 1 persona che ti segue via email."
     elif notified_users > 1:
         message += f" Abbiamo avvisato {notified_users} persone che ti seguono via email."
+    elif get_followers_notification_targets(offer):
+        message += " L'offerta e' pronta, ma le email ai follower non sono attive su questo ambiente."
 
     return jsonify({
         "success": True,
