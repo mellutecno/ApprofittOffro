@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/network/api_client.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../../models/offer.dart';
 import 'auth_controller.dart';
@@ -64,11 +65,6 @@ class _LandingPageState extends State<LandingPage> {
             onRefresh: _reloadOffers,
             child: CustomScrollView(
               slivers: [
-                const SliverAppBar(
-                  floating: true,
-                  snap: true,
-                  title: BrandWordmark(height: 26, alignment: Alignment.center),
-                ),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -222,7 +218,9 @@ class _LandingPageState extends State<LandingPage> {
                                       padding: const EdgeInsets.only(bottom: 12),
                                       child: _PublicOfferCard(
                                         offer: offer,
-                                        onTap: _openRegister,
+                                        apiClient:
+                                            widget.authController.apiClient,
+                                        onTap: _openLogin,
                                       ),
                                     ),
                                   )
@@ -502,15 +500,20 @@ class _LandingInfoCard extends StatelessWidget {
 class _PublicOfferCard extends StatelessWidget {
   const _PublicOfferCard({
     required this.offer,
+    required this.apiClient,
     required this.onTap,
   });
 
   final Offer offer;
+  final ApiClient apiClient;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final mealColor = _mealColor(offer.tipoPasto);
+    final authorPhotoUrl = offer.autoreFoto.isNotEmpty
+        ? apiClient.buildUploadUrl(offer.autoreFoto)
+        : null;
 
     return Card(
       child: Padding(
@@ -552,9 +555,24 @@ class _PublicOfferCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Text(
-              'Offerto da ${offer.autoreNome}',
-              textAlign: TextAlign.center,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundImage:
+                      authorPhotoUrl != null ? NetworkImage(authorPhotoUrl) : null,
+                  child:
+                      authorPhotoUrl == null ? const Icon(Icons.person, size: 18) : null,
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    'Offerto da ${offer.autoreNome}',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             Text(
@@ -566,7 +584,7 @@ class _PublicOfferCard extends StatelessWidget {
             const SizedBox(height: 14),
             FilledButton(
               onPressed: onTap,
-              child: const Text('Iscriviti per partecipare'),
+              child: const Text('Iscriviti o accedi per partecipare'),
             ),
           ],
         ),
