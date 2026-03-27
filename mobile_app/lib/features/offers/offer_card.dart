@@ -25,6 +25,8 @@ class OfferCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mealColor = _mealColor(offer.tipoPasto);
+    final canNavigateToOffer =
+        offer.isOwn || offer.alreadyClaimed || offer.claimStatus == 'claimed';
     final localeImageUrl =
         offer.fotoLocale.isNotEmpty && offer.fotoLocale != 'nessuna.jpg'
             ? apiClient.buildUploadUrl(offer.fotoLocale)
@@ -268,27 +270,30 @@ class OfferCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(999),
-                      onTap: () => _openExternalLink(_googleMapsDirectionsUrl()),
-                      child: Ink(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: AppTheme.peach.withValues(alpha: 0.72),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Icon(
-                          Icons.near_me_rounded,
-                          color: AppTheme.orange,
-                          size: 20,
+                  if (canNavigateToOffer) ...[
+                    const SizedBox(width: 8),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: () =>
+                            _openExternalLink(_googleMapsDirectionsUrl()),
+                        child: Ink(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: AppTheme.peach.withValues(alpha: 0.72),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Icon(
+                            Icons.near_me_rounded,
+                            color: AppTheme.orange,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

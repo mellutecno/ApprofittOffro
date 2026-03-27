@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../../models/public_profile.dart';
 import '../../models/user_preview.dart';
+import 'profile_gallery_viewer_page.dart';
 
 class PublicProfilePage extends StatefulWidget {
   const PublicProfilePage({
@@ -68,6 +69,35 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
     }
   }
 
+  List<String> _galleryUrls(UserPreview user) {
+    final filenames = <String>[];
+    if (user.photoFilename.isNotEmpty) {
+      filenames.add(user.photoFilename);
+    }
+    for (final filename in user.galleryFilenames) {
+      if (filename.isNotEmpty && !filenames.contains(filename)) {
+        filenames.add(filename);
+      }
+    }
+    return filenames.map(widget.apiClient.buildUploadUrl).toList();
+  }
+
+  void _openGallery(UserPreview user, {int initialIndex = 0}) {
+    final urls = _galleryUrls(user);
+    if (urls.isEmpty) {
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileGalleryViewerPage(
+          imageUrls: urls,
+          initialIndex: initialIndex.clamp(0, urls.length - 1),
+          title: 'Foto di ${user.nome}',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -105,6 +135,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                 _ProfileHeader(
                   user: profile.user,
                   apiClient: widget.apiClient,
+                  onOpenGallery: () => _openGallery(profile.user),
                 ),
                 const SizedBox(height: 18),
                 Row(
@@ -148,22 +179,26 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
-                    height: 116,
+                    height: 148,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
-                      itemCount: profile.user.galleryFilenames.length,
+                      itemCount: _galleryUrls(profile.user).length,
                       separatorBuilder: (_, __) => const SizedBox(width: 10),
                       itemBuilder: (context, index) {
-                        final url = widget.apiClient.buildUploadUrl(
-                          profile.user.galleryFilenames[index],
-                        );
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(18),
-                          child: AspectRatio(
-                            aspectRatio: 1,
-                            child: Image.network(
-                              url,
-                              fit: BoxFit.cover,
+                        final url = _galleryUrls(profile.user)[index];
+                        return GestureDetector(
+                          onTap: () => _openGallery(
+                            profile.user,
+                            initialIndex: index,
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: AspectRatio(
+                              aspectRatio: 0.92,
+                              child: Image.network(
+                                url,
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                         );
@@ -257,10 +292,12 @@ class _ProfileHeader extends StatelessWidget {
   const _ProfileHeader({
     required this.user,
     required this.apiClient,
+    required this.onOpenGallery,
   });
 
   final UserPreview user;
   final ApiClient apiClient;
+  final VoidCallback onOpenGallery;
 
   @override
   Widget build(BuildContext context) {
@@ -276,17 +313,22 @@ class _ProfileHeader extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: CircleAvatar(
-              radius: 44,
-              backgroundImage: imageUrl != null ? NetworkImage(imageUrl) : null,
-              child:
-                  imageUrl == null ? const Icon(Icons.person, size: 40) : null,
+          GestureDetector(
+            onTap: onOpenGallery,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: CircleAvatar(
+                radius: 52,
+                backgroundImage:
+                    imageUrl != null ? NetworkImage(imageUrl) : null,
+                child: imageUrl == null
+                    ? const Icon(Icons.person, size: 44)
+                    : null,
+              ),
             ),
           ),
           const SizedBox(height: 14),

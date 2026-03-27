@@ -603,11 +603,11 @@ class _PublicOfferCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 CircleAvatar(
-                  radius: 27,
+                  radius: 36,
                   backgroundImage:
                       authorPhotoUrl != null ? NetworkImage(authorPhotoUrl) : null,
                   child: authorPhotoUrl == null
-                      ? const Icon(Icons.person, size: 24)
+                      ? const Icon(Icons.person, size: 30)
                       : null,
                 ),
                 const SizedBox(width: 12),
