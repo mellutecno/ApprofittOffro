@@ -168,7 +168,7 @@ class _LandingPageState extends State<LandingPage> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Iscriviti per partecipare agli eventi aperti adesso.',
+                          'Cosa aspetti, approfitta.',
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
