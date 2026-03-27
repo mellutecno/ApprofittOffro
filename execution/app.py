@@ -2507,10 +2507,6 @@ def api_people():
     if is_admin_user(current_user):
         return jsonify({"success": False, "error": "La community non è disponibile per gli amministratori."}), 403
 
-    profile_error = require_complete_profile_json()
-    if profile_error:
-        return profile_error
-
     selected_age_range, parsed_age_range, age_range_error = parse_age_range_filter(
         request.args.get("age_range")
     )
@@ -2562,10 +2558,6 @@ def api_public_user(user_id):
     if is_admin_user(current_user):
         return jsonify({"success": False, "error": "I profili pubblici non sono disponibili per gli amministratori."}), 403
 
-    profile_error = require_complete_profile_json()
-    if profile_error:
-        return profile_error
-
     user = User.query.options(selectinload(User.photos)).filter(
         User.id == user_id,
         User.is_admin.is_(False),
@@ -2599,10 +2591,6 @@ def api_follow_user(user_id):
     if is_admin_user(current_user):
         return jsonify({"success": False, "error": "Operazione non disponibile per gli amministratori."}), 403
 
-    profile_error = require_complete_profile_json()
-    if profile_error:
-        return profile_error
-
     user = User.query.get_or_404(user_id)
     if user.id == current_user.id:
         return jsonify({"success": False, "error": "Non puoi seguire te stesso."}), 400
@@ -2631,10 +2619,6 @@ def api_unfollow_user(user_id):
     """Smette di seguire un utente da mobile/web app JSON."""
     if is_admin_user(current_user):
         return jsonify({"success": False, "error": "Operazione non disponibile per gli amministratori."}), 403
-
-    profile_error = require_complete_profile_json()
-    if profile_error:
-        return profile_error
 
     user = User.query.get_or_404(user_id)
     existing_follow = UserFollow.query.filter_by(

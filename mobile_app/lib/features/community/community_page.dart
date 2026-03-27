@@ -67,33 +67,39 @@ class _CommunityPageState extends State<CommunityPage> {
                     title: 'Persone da seguire davvero',
                     subtitle:
                         'Apri i profili, guarda le foto e costruisci il tuo giro nella community.',
+                    centered: true,
                     footer: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         const Text(
                           'Scegli la fascia di eta',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
                             color: AppTheme.brown,
                           ),
                         ),
                         const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          value: widget.communityController.selectedAgeRange,
-                          decoration:
-                              const InputDecoration(labelText: 'Seleziona'),
-                          items: _ageRanges
-                              .map(
-                                (item) => DropdownMenuItem<String>(
-                                  value: item.key,
-                                  child: Text(item.value),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (value) {
-                            widget.communityController
-                                .selectAgeRange(value ?? '');
-                          },
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 260),
+                          child: DropdownButtonFormField<String>(
+                            initialValue:
+                                widget.communityController.selectedAgeRange,
+                            decoration:
+                                const InputDecoration(labelText: 'Seleziona'),
+                            items: _ageRanges
+                                .map(
+                                  (item) => DropdownMenuItem<String>(
+                                    value: item.key,
+                                    child: Text(item.value),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              widget.communityController
+                                  .selectAgeRange(value ?? '');
+                            },
+                          ),
                         ),
                       ],
                     ),

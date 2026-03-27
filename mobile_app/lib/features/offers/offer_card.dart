@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -372,7 +373,7 @@ class _WhatsAppAction extends StatelessWidget {
             ),
           ),
           child: Icon(
-            Icons.chat_bubble_rounded,
+            FontAwesomeIcons.whatsapp,
             size: iconSize,
             color: const Color(0xFF138A45),
           ),

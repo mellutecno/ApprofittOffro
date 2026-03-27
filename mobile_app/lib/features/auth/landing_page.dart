@@ -37,13 +37,14 @@ class LandingPage extends StatelessWidget {
                             'Nuove persone, tavoli veri, pasti condivisi davvero.',
                         subtitle:
                             'ApprofittOffro mette insieme chi offre un pasto e chi vuole viverlo con leggerezza, dal telefono e con profili reali.',
-                        footer: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                        centered: true,
+                        footer: const Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
                             _LandingBadge(text: 'Eventi aperti'),
-                            SizedBox(height: 10),
                             _LandingBadge(text: 'Profili reali'),
-                            SizedBox(height: 10),
                             _LandingBadge(text: 'Community attiva'),
                           ],
                         ),
@@ -86,11 +87,12 @@ class LandingPage extends StatelessWidget {
                       Text(
                         'Come funziona la community',
                         style: Theme.of(context).textTheme.titleLarge,
+                        textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
                       const _LandingStepCard(
                         step: '1',
-                        title: 'Scopri chi c\'e in giro',
+                        title: 'Scopri chi c e in giro',
                         body:
                             'Apri Approfitta e guarda colazioni, pranzi e cene pubblicati dalla community.',
                       ),
@@ -110,12 +112,13 @@ class LandingPage extends StatelessWidget {
                       Text(
                         'Perche nasce ApprofittOffro',
                         style: Theme.of(context).textTheme.titleLarge,
+                        textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
                       const _LandingInfoCard(
-                        title: 'Più community, meno rumore',
+                        title: 'Piu community, meno rumore',
                         body:
-                            'L\'idea non e collezionare prenotazioni: e creare un giro di persone che si riconoscono e tornano.',
+                            'L idea non e collezionare prenotazioni: e creare un giro di persone che si riconoscono e tornano.',
                       ),
                       const _LandingInfoCard(
                         title: 'Profili, follower e fiducia',
@@ -125,7 +128,7 @@ class LandingPage extends StatelessWidget {
                       const _LandingInfoCard(
                         title: 'Versione mobile pensata per crescere',
                         body:
-                            'Questa app Android e il primo passo verso una community più diretta, più bella e più semplice da usare.',
+                            'Questa app Android e il primo passo verso una community piu diretta, piu bella e piu semplice da usare.',
                       ),
                       const SizedBox(height: 28),
                     ],
@@ -180,8 +183,8 @@ class _LandingStepCard extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
               width: 38,
@@ -200,21 +203,18 @@ class _LandingStepCard extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontSize: 18,
-                        ),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontSize: 18,
                   ),
-                  const SizedBox(height: 6),
-                  Text(body),
-                ],
-              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              body,
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -238,16 +238,20 @@ class _LandingInfoCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
               title,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontSize: 18,
                   ),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            Text(body),
+            Text(
+              body,
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
