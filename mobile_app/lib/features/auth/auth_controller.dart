@@ -91,6 +91,10 @@ class AuthController extends ChangeNotifier {
 
       if (!_googleInitialized) {
         await _googleSignIn.initialize(
+          clientId:
+              AppConfig.googleAndroidClientId.isEmpty
+                  ? null
+                  : AppConfig.googleAndroidClientId,
           serverClientId: AppConfig.googleServerClientId,
         );
         _googleInitialized = true;
