@@ -42,6 +42,7 @@ class User(UserMixin, db.Model):
     nome = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
+    google_sub = db.Column(db.String(255), unique=True, nullable=True)
     foto_filename = db.Column(db.String(256), nullable=False)
     fascia_eta = db.Column(db.String(10), nullable=False)
     eta = db.Column(db.Integer, nullable=True)

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
@@ -41,19 +42,39 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     if (ok) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
-        Navigator.of(context, rootNavigator: true)
-            .popUntil((route) => route.isFirst);
-      });
+      _completeAuthAndClose();
       return;
     }
 
     final message = widget.authController.errorMessage ?? 'Login non riuscito.';
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _submitGoogle() async {
+    final ok = await widget.authController.loginWithGoogle();
+    if (!mounted) {
+      return;
+    }
+
+    if (ok) {
+      _completeAuthAndClose();
+      return;
+    }
+
+    final message =
+        widget.authController.errorMessage ?? 'Accesso Google non riuscito.';
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _completeAuthAndClose() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+    });
   }
 
   @override
@@ -136,6 +157,48 @@ class _LoginPageState extends State<LoginPage> {
                                             ),
                                           )
                                         : const Text('Accedi'),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Divider(
+                                          color: AppTheme.brown
+                                              .withValues(alpha: 0.18),
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                        ),
+                                        child: Text(
+                                          'oppure',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: AppTheme.brown
+                                                    .withValues(alpha: 0.62),
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Divider(
+                                          color: AppTheme.brown
+                                              .withValues(alpha: 0.18),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  OutlinedButton.icon(
+                                    onPressed: busy ? null : _submitGoogle,
+                                    icon: const FaIcon(
+                                      FontAwesomeIcons.google,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Continua con Google'),
                                   ),
                                   const SizedBox(height: 14),
                                   OutlinedButton.icon(

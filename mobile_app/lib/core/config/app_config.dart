@@ -8,4 +8,9 @@ class AppConfig {
     'GOOGLE_MAPS_ENABLED',
     defaultValue: false,
   );
+
+  static const String googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+    defaultValue: '',
+  );
 }

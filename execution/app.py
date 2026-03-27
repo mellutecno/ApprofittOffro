@@ -19,6 +19,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from functools import wraps
 
 from dotenv import load_dotenv
+from google.auth.transport.requests import Request as GoogleAuthRequest
+from google.oauth2 import id_token as google_id_token
 from flask import (
     Flask,
     render_template,
@@ -41,7 +43,7 @@ from flask_login import (
 )
 from functools import wraps
 from werkzeug.utils import secure_filename
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from models import (
     db,
@@ -138,6 +140,10 @@ app.config["R2_SECRET_ACCESS_KEY"] = os.getenv("R2_SECRET_ACCESS_KEY", "")
 app.config["R2_BUCKET_NAME"] = os.getenv("R2_BUCKET_NAME", "")
 app.config["R2_ENDPOINT_URL"] = os.getenv("R2_ENDPOINT_URL", "")
 app.config["GOOGLE_PLACES_API_KEY"] = os.getenv("GOOGLE_PLACES_API_KEY", "").strip()
+app.config["GOOGLE_OAUTH_CLIENT_IDS"] = os.getenv(
+    "GOOGLE_OAUTH_CLIENT_IDS",
+    os.getenv("GOOGLE_OAUTH_CLIENT_ID", ""),
+).strip()
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -150,11 +156,23 @@ MEAL_BOOKING_LEAD_HOURS = 6
 USER_SESSION_IDLE_TIMEOUT_MINUTES = 60
 ADMIN_SESSION_IDLE_TIMEOUT_MINUTES = 30
 REVIEW_EDIT_WINDOW_HOURS = 24
+DEFAULT_USER_LATITUDE = 41.9028
+DEFAULT_USER_LONGITUDE = 12.4964
 COMMUNITY_GENDER_FILTERS = [
     ("", "Tutti"),
     ("maschio", "Maschi"),
     ("femmina", "Femmine"),
 ]
+
+
+def get_google_oauth_client_ids():
+    """Restituisce i client OAuth Google ammessi per il login mobile."""
+    raw_value = app.config.get("GOOGLE_OAUTH_CLIENT_IDS", "")
+    return [item.strip() for item in re.split(r"[\s,;]+", raw_value) if item.strip()]
+
+
+def google_oauth_enabled():
+    return bool(get_google_oauth_client_ids())
 
 
 def local_now():
@@ -453,6 +471,7 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("eta", "ALTER TABLE users ADD COLUMN eta INTEGER"),
                 ("sesso", "ALTER TABLE users ADD COLUMN sesso VARCHAR(20) DEFAULT 'non_dico'"),
                 ("numero_telefono", "ALTER TABLE users ADD COLUMN numero_telefono VARCHAR(32)"),
+                ("google_sub", "ALTER TABLE users ADD COLUMN google_sub VARCHAR(255)"),
                 ("citta", "ALTER TABLE users ADD COLUMN citta VARCHAR(200)"),
                 ("cibi_preferiti", "ALTER TABLE users ADD COLUMN cibi_preferiti VARCHAR(300)"),
                 ("intolleranze", "ALTER TABLE users ADD COLUMN intolleranze VARCHAR(300)"),
@@ -495,9 +514,30 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 )
             """)
 
+        if table_exists("users"):
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)")
+
         conn.commit()
     finally:
         conn.close()
+
+
+def ensure_database_auth_compatibility():
+    """Allinea i campi auth aggiunti dopo il primo deploy anche su database non-SQLite."""
+    database_url = app.config["SQLALCHEMY_DATABASE_URI"]
+    if database_url.startswith("sqlite:///"):
+        return
+
+    try:
+        with db.engine.begin() as conn:
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub VARCHAR(255)"
+            )
+            conn.exec_driver_sql(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)"
+            )
+    except Exception as exc:
+        print(f"[SCHEMA_COMPAT_ERROR] {exc}")
 
 
 if app.config["SQLALCHEMY_DATABASE_URI"].startswith("sqlite:///"):
@@ -670,6 +710,17 @@ def process_image(file_storage, filename, size=(800, 800), return_payload=False)
     return payload["filename"]
 
 
+class MemoryUpload:
+    """Wrapper minimale per trattare bytes remoti come upload locale."""
+
+    def __init__(self, data, content_type="application/octet-stream"):
+        self.stream = io.BytesIO(data)
+        self.mimetype = content_type
+
+    def read(self):
+        return self.stream.read()
+
+
 def verify_image_payload_has_face(image_payload):
     """Verifica il volto su un file temporaneo locale ricavato dal payload elaborato."""
     suffix = os.path.splitext(image_payload["filename"])[1] or ".jpg"
@@ -685,6 +736,61 @@ def verify_image_payload_has_face(image_payload):
                 os.remove(temp_path)
             except OSError:
                 pass
+
+
+def ensure_default_profile_placeholder(filename="user_placeholder.png"):
+    """Crea un avatar neutro per i profili generati via provider esterni."""
+    try:
+        upload_storage.read(filename)
+        return filename
+    except StorageObjectNotFound:
+        pass
+
+    image = Image.new("RGB", (512, 512), "#F6EFE6")
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((48, 48, 464, 464), radius=140, fill="#E56F36")
+    draw.ellipse((168, 118, 344, 294), fill="#FFF8F1")
+    draw.rounded_rectangle((132, 286, 380, 430), radius=84, fill="#FFF8F1")
+
+    output = io.BytesIO()
+    image.save(output, "PNG")
+    upload_storage.save_bytes(filename, output.getvalue(), "image/png")
+    return filename
+
+
+def download_google_profile_photo(picture_url, user_key):
+    """Scarica e salva l'avatar Google, se disponibile."""
+    if not picture_url:
+        return None
+
+    try:
+        response = urlopen(
+            Request(
+                picture_url,
+                headers={"User-Agent": "ApprofittOffro/1.0"},
+            ),
+            timeout=8,
+        )
+        content_type = response.headers.get_content_type() or "image/jpeg"
+        image_bytes = response.read()
+        if not image_bytes:
+            return None
+
+        extension = "png" if "png" in content_type else "jpg"
+        payload = process_image(
+            MemoryUpload(image_bytes, content_type),
+            f"user_google_{user_key}_{uuid.uuid4().hex[:10]}.{extension}",
+            return_payload=True,
+        )
+        upload_storage.save_bytes(
+            payload["filename"],
+            payload["bytes"],
+            payload.get("content_type"),
+        )
+        return payload["filename"]
+    except Exception as exc:
+        print(f"[GOOGLE_PHOTO_ERROR] {exc}")
+        return None
 
 # ---------------------------------------------------------------------------
 # Inizializzazione
@@ -777,6 +883,127 @@ def replace_user_gallery(user, filenames):
     db.session.flush()
     db.session.expire(user, ["photos"])
     return old_filenames
+
+
+def build_google_display_name(identity_payload):
+    """Determina un nome utente pulito a partire dai dati Google."""
+    raw_name = str(identity_payload.get("name", "") or "").strip()
+    if raw_name:
+        return raw_name[:100]
+
+    email = str(identity_payload.get("email", "") or "").strip().lower()
+    local_part = email.split("@", 1)[0] if "@" in email else email
+    fallback = local_part.replace(".", " ").replace("_", " ").strip()
+    return (fallback.title() or "Nuovo utente")[:100]
+
+
+def verify_google_identity_token(raw_token):
+    """Verifica il token Google e restituisce i claim essenziali."""
+    if not google_oauth_enabled():
+        raise ValueError("Login Google non configurato su questo ambiente.")
+    if not raw_token:
+        raise ValueError("Token Google mancante.")
+
+    try:
+        identity_payload = google_id_token.verify_oauth2_token(
+            raw_token,
+            GoogleAuthRequest(),
+            audience=None,
+        )
+    except Exception as exc:
+        raise ValueError("Token Google non valido.") from exc
+
+    allowed_client_ids = get_google_oauth_client_ids()
+    audience = str(identity_payload.get("aud", "") or "").strip()
+    issuer = str(identity_payload.get("iss", "") or "").strip()
+    email = str(identity_payload.get("email", "") or "").strip().lower()
+    google_sub = str(identity_payload.get("sub", "") or "").strip()
+
+    if audience not in allowed_client_ids:
+        raise ValueError("Client Google non autorizzato.")
+    if issuer not in {"accounts.google.com", "https://accounts.google.com"}:
+        raise ValueError("Token Google non valido.")
+    if not identity_payload.get("email_verified"):
+        raise ValueError("L'account Google deve avere un'email verificata.")
+    if not email or not google_sub:
+        raise ValueError("Google non ha restituito dati sufficienti per il login.")
+
+    return {
+        "sub": google_sub,
+        "email": email,
+        "name": build_google_display_name(identity_payload),
+        "picture": str(identity_payload.get("picture", "") or "").strip(),
+    }
+
+
+def resolve_google_user(identity_payload):
+    """Trova o crea l'utente associato all'identità Google verificata."""
+    google_sub = identity_payload["sub"]
+    email = identity_payload["email"]
+    display_name = identity_payload["name"]
+    picture_url = identity_payload.get("picture", "")
+
+    user = User.query.filter_by(google_sub=google_sub).first()
+    if user:
+        if is_admin_user(user):
+            raise ValueError("Per ora l'accesso Google non è disponibile per gli account admin.")
+        if user.email != email:
+            conflicting_user = User.query.filter_by(email=email).first()
+            if conflicting_user and conflicting_user.id != user.id:
+                raise ValueError("Questa email Google è già collegata a un altro account.")
+            user.email = email
+        if not user.nome:
+            user.nome = display_name
+        user.verificato = True
+        user.verification_token = None
+        db.session.commit()
+        return user, False
+
+    user = User.query.filter_by(email=email).first()
+    if user:
+        if is_admin_user(user):
+            raise ValueError("Per ora l'accesso Google non è disponibile per gli account admin.")
+        if user.google_sub and user.google_sub != google_sub:
+            raise ValueError("Questo account è già collegato a un altro accesso Google.")
+        user.google_sub = google_sub
+        if not user.nome:
+            user.nome = display_name
+        user.verificato = True
+        user.verification_token = None
+        db.session.commit()
+        return user, False
+
+    photo_filename = (
+        download_google_profile_photo(picture_url, google_sub[:10])
+        or ensure_default_profile_placeholder()
+    )
+
+    user = User(
+        nome=display_name,
+        email=email,
+        password_hash="",
+        google_sub=google_sub,
+        foto_filename=photo_filename,
+        fascia_eta="18-25",
+        eta=None,
+        sesso="non_dico",
+        numero_telefono=None,
+        latitudine=DEFAULT_USER_LATITUDE,
+        longitudine=DEFAULT_USER_LONGITUDE,
+        citta="",
+        cibi_preferiti="",
+        intolleranze="",
+        bio="",
+        verificato=True,
+        verification_token=None,
+        is_admin=False,
+    )
+    user.set_password(uuid.uuid4().hex)
+    db.session.add(user)
+    db.session.flush()
+    replace_user_gallery(user, [photo_filename])
+    db.session.commit()
+    return user, True
 
 
 def get_followed_user_ids(user_id):
@@ -935,6 +1162,7 @@ def save_profile_update_for_user(user, payload, *, verified=None):
 # ---------------------------------------------------------------------------
 with app.app_context():
     db.create_all()
+    ensure_database_auth_compatibility()
 
 
 def profile_completed_required(f):
@@ -2278,6 +2506,37 @@ def api_login():
     session["login_at"] = now_ts
     return jsonify({
         "success": True,
+        "redirect": url_for("admin_dashboard") if is_admin_user(user) else url_for("dashboard"),
+    })
+
+
+@app.route("/api/auth/google", methods=["POST"])
+def api_google_login():
+    """Login mobile via Google ID token verificato lato server."""
+    data = request.get_json(silent=True) or {}
+    raw_token = str(data.get("id_token", "") or "").strip()
+
+    try:
+        identity_payload = verify_google_identity_token(raw_token)
+        user, created = resolve_google_user(identity_payload)
+    except ValueError as exc:
+        return jsonify({"success": False, "errors": [str(exc)]}), 400
+    except Exception as exc:
+        print(f"[GOOGLE_LOGIN_ERROR] {exc}")
+        return jsonify({
+            "success": False,
+            "errors": ["Non riesco a completare l'accesso Google adesso."],
+        }), 500
+
+    session.clear()
+    login_user(user, remember=False)
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    session["last_activity_at"] = now_ts
+    session["login_at"] = now_ts
+
+    return jsonify({
+        "success": True,
+        "created": created,
         "redirect": url_for("admin_dashboard") if is_admin_user(user) else url_for("dashboard"),
     })
 

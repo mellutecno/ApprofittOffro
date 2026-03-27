@@ -56,6 +56,21 @@ class ApiClient {
     return payload;
   }
 
+  Future<Map<String, dynamic>> loginWithGoogle({
+    required String idToken,
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/auth/google',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'id_token': idToken}),
+    );
+    final payload = _decodeJson(response.body);
+    _storeCookies(response);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
+  }
+
   Future<String> registerUser({
     required String nome,
     required String email,
