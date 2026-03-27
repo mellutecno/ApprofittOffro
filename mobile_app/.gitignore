@@ -6,7 +6,6 @@
 .metadata
 build/
 pubspec.lock
-android/
 ios/
 linux/
 macos/
