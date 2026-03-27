@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_hero_card.dart';
 import 'auth_controller.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required this.authController});
@@ -137,18 +138,26 @@ class _LoginPageState extends State<LoginPage> {
                                         : const Text('Accedi'),
                                   ),
                                   const SizedBox(height: 14),
-                                  Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(18),
-                                      border: Border.all(
-                                          color: AppTheme.cardBorder),
-                                    ),
-                                    child: const Text(
-                                      'Registrazione, recupero password e modifica profilo arrivano nel prossimo blocco Flutter.',
-                                      textAlign: TextAlign.center,
-                                    ),
+                                  OutlinedButton.icon(
+                                    onPressed: busy
+                                        ? null
+                                        : () {
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute<void>(
+                                                builder: (_) => RegisterPage(
+                                                  authController:
+                                                      widget.authController,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                    icon: const Icon(Icons.person_add_alt_1),
+                                    label: const Text('Crea un account'),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Recupero password e altri flussi secondari li porto nel blocco successivo.',
+                                    textAlign: TextAlign.center,
                                   ),
                                 ],
                               ),

@@ -55,6 +55,52 @@ class ApiClient {
     return payload;
   }
 
+  Future<String> registerUser({
+    required String nome,
+    required String email,
+    required String password,
+    required String confermaPassword,
+    required String numeroTelefono,
+    required String eta,
+    required String latitude,
+    required String longitude,
+    required String citta,
+    required List<String> photoPaths,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/register'),
+    );
+
+    request.fields.addAll({
+      'nome': nome,
+      'email': email,
+      'password': password,
+      'conferma_password': confermaPassword,
+      'numero_telefono': numeroTelefono,
+      'eta': eta,
+      'latitudine': latitude,
+      'longitudine': longitude,
+      'citta': citta,
+    });
+
+    for (final photoPath in photoPaths) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'foto',
+          photoPath,
+          filename: File(photoPath).uri.pathSegments.last,
+        ),
+      );
+    }
+
+    final response = await _sendMultipart(request);
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ??
+        'Registrazione completata con successo.';
+  }
+
   Future<void> logout() async {
     try {
       await _send(method: 'POST', path: '/api/logout');
@@ -183,6 +229,53 @@ class ApiClient {
     return payload['message']?.toString() ?? 'Offerta creata con successo.';
   }
 
+  Future<String> updateProfile({
+    required String nome,
+    required String email,
+    required String eta,
+    required String numeroTelefono,
+    required String citta,
+    required String preferredFoods,
+    required String intolerances,
+    required String bio,
+    List<String> photoPaths = const [],
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/user/update'),
+    );
+    if ((_cookieHeader ?? '').isNotEmpty) {
+      request.headers['Cookie'] = _cookieHeader!;
+    }
+
+    request.fields.addAll({
+      'nome': nome,
+      'email': email,
+      'eta': eta,
+      'numero_telefono': numeroTelefono,
+      'citta': citta,
+      'cibi_preferiti': preferredFoods,
+      'intolleranze': intolerances,
+      'bio': bio,
+    });
+
+    for (final photoPath in photoPaths) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'foto',
+          photoPath,
+          filename: File(photoPath).uri.pathSegments.last,
+        ),
+      );
+    }
+
+    final response = await _sendMultipart(request);
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    _storeCookies(response);
+    return payload['message']?.toString() ?? 'Profilo aggiornato con successo.';
+  }
+
   Future<http.Response> _send({
     required String method,
     required String path,
@@ -203,6 +296,11 @@ class ApiClient {
       default:
         throw UnsupportedError('Metodo HTTP non gestito: $method');
     }
+  }
+
+  Future<http.Response> _sendMultipart(http.MultipartRequest request) async {
+    final streamedResponse = await request.send();
+    return http.Response.fromStream(streamedResponse);
   }
 
   Map<String, dynamic> _decodeJson(String body) {
