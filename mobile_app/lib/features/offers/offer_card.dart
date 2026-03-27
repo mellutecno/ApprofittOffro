@@ -14,11 +14,13 @@ class OfferCard extends StatelessWidget {
     required this.offer,
     required this.apiClient,
     this.onClaim,
+    this.onEditOwn,
   });
 
   final Offer offer;
   final ApiClient apiClient;
   final Future<void> Function()? onClaim;
+  final VoidCallback? onEditOwn;
 
   @override
   Widget build(BuildContext context) {
@@ -40,9 +42,16 @@ class OfferCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppTheme.mist,
+                color: AppTheme.paper,
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(color: AppTheme.cardBorder),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x12000000),
+                    blurRadius: 20,
+                    offset: Offset(0, 10),
+                  ),
+                ],
               ),
               child: InkWell(
                 borderRadius: BorderRadius.circular(18),
@@ -112,13 +121,13 @@ class OfferCard extends StatelessWidget {
             const SizedBox(height: 18),
             _CenteredChip(
               label: offer.tipoPasto.toUpperCase(),
-              backgroundColor: mealColor.withOpacity(0.16),
+              backgroundColor: mealColor.withValues(alpha: 0.16),
               foregroundColor: mealColor,
             ),
             const SizedBox(height: 10),
             _CenteredChip(
               label: _formatWhenLabel(offer.dataOra),
-              backgroundColor: mealColor.withOpacity(0.10),
+              backgroundColor: mealColor.withValues(alpha: 0.10),
               foregroundColor: mealColor,
             ),
             const SizedBox(height: 18),
@@ -216,25 +225,71 @@ class OfferCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF8EE),
+                color: AppTheme.paper,
                 borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppTheme.cardBorder),
               ),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(offer.indirizzo),
-                  const SizedBox(height: 6),
-                  Text('Circa ${offer.distanceKm.toStringAsFixed(1)} km'),
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppTheme.peach.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.location_on_rounded,
+                      color: AppTheme.orange,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          offer.indirizzo,
+                          style: const TextStyle(
+                            color: AppTheme.espresso,
+                            fontWeight: FontWeight.w800,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Circa ${offer.distanceKm.toStringAsFixed(1)} km',
+                          style: TextStyle(
+                            color: AppTheme.brown.withValues(alpha: 0.72),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: () => _openExternalLink(_googleMapsDirectionsUrl()),
+                      child: Ink(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: AppTheme.peach.withValues(alpha: 0.72),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Icon(
+                          Icons.near_me_rounded,
+                          color: AppTheme.orange,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: () => _openExternalLink(_googleMapsDirectionsUrl()),
-                icon: const Icon(Icons.navigation_rounded),
-                label: const Text('Apri in Google Maps'),
               ),
             ),
             if (offer.descrizione.isNotEmpty) ...[
@@ -246,7 +301,9 @@ class OfferCard extends StatelessWidget {
             ],
             const SizedBox(height: 18),
             FilledButton(
-              onPressed: onClaim == null ? null : () => onClaim!.call(),
+              onPressed: offer.isOwn
+                  ? onEditOwn
+                  : (onClaim == null ? null : () => onClaim!.call()),
               child: Text(_ctaLabel()),
             ),
           ],
@@ -257,7 +314,7 @@ class OfferCard extends StatelessWidget {
 
   String _ctaLabel() {
     if (offer.isOwn) {
-      return 'La tua offerta';
+      return 'Modifica la tua offerta';
     }
     if (offer.alreadyClaimed) {
       return 'Sei gia\' dentro';

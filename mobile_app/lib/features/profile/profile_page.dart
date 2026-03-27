@@ -1,23 +1,69 @@
 import 'package:flutter/material.dart';
-
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
+import '../../models/offer.dart';
 import '../auth/auth_controller.dart';
+import '../create_offer/create_offer_page.dart';
+import '../offers/offer_card.dart';
 import 'profile_edit_page.dart';
 import 'public_profile_page.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key, required this.authController});
 
   final AuthController authController;
 
   @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  late Future<List<Offer>> _myOffersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _myOffersFuture = _loadMyOffers();
+  }
+
+  Future<List<Offer>> _loadMyOffers() async {
+    final offers = await widget.authController.apiClient.fetchOffers();
+    final myOffers = offers.where((offer) => offer.isOwn).toList()
+      ..sort((a, b) => b.dataOra.compareTo(a.dataOra));
+    return myOffers;
+  }
+
+  Future<void> _refreshAll() async {
+    await widget.authController.refreshCurrentUser();
+    final future = _loadMyOffers();
+    if (mounted) {
+      setState(() => _myOffersFuture = future);
+    }
+    await future;
+  }
+
+  Future<void> _openEditOffer(Offer offer) async {
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => CreateOfferPage(
+          authController: widget.authController,
+          initialOffer: offer,
+          onOfferCreated: _refreshAll,
+        ),
+      ),
+    );
+    if (updated == true) {
+      await _refreshAll();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: authController,
+      animation: widget.authController,
       builder: (context, _) {
-        final user = authController.currentUser;
-        final apiClient = authController.apiClient;
+        final user = widget.authController.currentUser;
+        final apiClient = widget.authController.apiClient;
         final photoUrl = user != null && user.photoFilename.isNotEmpty
             ? apiClient.buildUploadUrl(user.photoFilename)
             : null;
@@ -29,26 +75,33 @@ class ProfilePage extends StatelessWidget {
           body: user == null
               ? const Center(child: Text('Utente non disponibile.'))
               : RefreshIndicator(
-                  onRefresh: authController.refreshCurrentUser,
+                  onRefresh: _refreshAll,
                   child: ListView(
                     padding: const EdgeInsets.all(20),
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(22),
+                        padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           gradient: AppTheme.heroGradient,
-                          borderRadius: BorderRadius.circular(30),
+                          borderRadius: BorderRadius.circular(32),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x18000000),
+                              blurRadius: 24,
+                              offset: Offset(0, 14),
+                            ),
+                          ],
                         ),
                         child: Column(
                           children: [
                             Container(
-                              padding: const EdgeInsets.all(4),
+                              padding: const EdgeInsets.all(5),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.8),
+                                color: Colors.white.withValues(alpha: 0.88),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: CircleAvatar(
-                                radius: 46,
+                                radius: 48,
                                 backgroundImage: photoUrl != null
                                     ? NetworkImage(photoUrl)
                                     : null,
@@ -67,14 +120,15 @@ class ProfilePage extends StatelessWidget {
                             Text(
                               '${user.etaDisplay} anni - ${user.city}',
                               textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyLarge,
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 12),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 const Icon(
                                   Icons.star_rounded,
-                                  color: Color(0xFFD49B00),
+                                  color: AppTheme.gold,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
@@ -144,6 +198,66 @@ class ProfilePage extends StatelessWidget {
                           ),
                         ),
                       ],
+                      const SizedBox(height: 20),
+                      Text(
+                        'Le mie offerte',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 10),
+                      FutureBuilder<List<Offer>>(
+                        future: _myOffersFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState !=
+                              ConnectionState.done) {
+                            return const Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(20),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              ),
+                            );
+                          }
+
+                          if (snapshot.hasError) {
+                            return const Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(18),
+                                child: Text(
+                                  'Non riesco a caricare le tue offerte adesso.',
+                                ),
+                              ),
+                            );
+                          }
+
+                          final offers = snapshot.data ?? const <Offer>[];
+                          if (offers.isEmpty) {
+                            return const Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(18),
+                                child: Text(
+                                  'Non hai ancora offerte attive. Quando pubblichi il prossimo invito, lo trovi qui.',
+                                ),
+                              ),
+                            );
+                          }
+
+                          return Column(
+                            children: offers
+                                .map(
+                                  (offer) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: OfferCard(
+                                      offer: offer,
+                                      apiClient: apiClient,
+                                      onEditOwn: () => _openEditOffer(offer),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          );
+                        },
+                      ),
                       const SizedBox(height: 20),
                       Text(
                         'Dati personali',
@@ -226,12 +340,12 @@ class ProfilePage extends StatelessWidget {
                               await Navigator.of(context).push<bool>(
                             MaterialPageRoute<bool>(
                               builder: (_) => ProfileEditPage(
-                                authController: authController,
+                                authController: widget.authController,
                               ),
                             ),
                           );
                           if (updated == true) {
-                            await authController.refreshCurrentUser();
+                            await _refreshAll();
                           }
                         },
                         icon: const Icon(Icons.edit_outlined),
@@ -261,8 +375,9 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.paper,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.cardBorder),
       ),
       child: Column(
         children: [
@@ -297,10 +412,13 @@ class _InfoCard extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
-            Text(value),
+            Text(
+              value,
+              style: const TextStyle(height: 1.4),
+            ),
           ],
         ),
       ),

@@ -45,7 +45,7 @@ class BrandHeroCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.65),
+                  color: Colors.white.withValues(alpha: 0.65),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -75,7 +75,7 @@ class BrandHeroCard extends StatelessWidget {
             subtitle,
             textAlign: centered ? TextAlign.center : TextAlign.start,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppTheme.brown.withOpacity(0.84),
+                  color: AppTheme.brown.withValues(alpha: 0.84),
                   height: 1.45,
                 ),
           ),

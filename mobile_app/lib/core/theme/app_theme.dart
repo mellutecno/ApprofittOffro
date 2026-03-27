@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const cream = Color(0xFFFFF7ED);
-  static const sand = Color(0xFFF6E7D3);
-  static const peach = Color(0xFFFFE5D2);
-  static const orange = Color(0xFFE86E35);
-  static const brown = Color(0xFF5A3828);
-  static const sage = Color(0xFFDCEAD6);
-  static const mist = Color(0xFFFDFCF9);
-  static const cardBorder = Color(0xFFF0DDC6);
+  static const cream = Color(0xFFF6EFE6);
+  static const paper = Color(0xFFFFFCF7);
+  static const sand = Color(0xFFEADCC7);
+  static const peach = Color(0xFFF3D6C1);
+  static const orange = Color(0xFFD96938);
+  static const brown = Color(0xFF402C24);
+  static const espresso = Color(0xFF241713);
+  static const sage = Color(0xFFD7E1D0);
+  static const mist = Color(0xFFFBF7F1);
+  static const cardBorder = Color(0xFFE7D8C8);
+  static const moss = Color(0xFF56705B);
+  static const gold = Color(0xFFC59A3B);
 
   static const heroGradient = LinearGradient(
-    colors: [Color(0xFFFFE9D8), Color(0xFFF6ECD9), Color(0xFFE5F1DC)],
+    colors: [Color(0xFFF5D8C3), Color(0xFFF3E5D8), Color(0xFFDCE6D7)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -21,8 +25,8 @@ class AppTheme {
       seedColor: orange,
       brightness: Brightness.light,
       primary: orange,
-      surface: Colors.white,
-      secondary: peach,
+      surface: paper,
+      secondary: sand,
     );
 
     return ThemeData(
@@ -30,7 +34,7 @@ class AppTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: cream,
       appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.transparent,
+        backgroundColor: paper,
         foregroundColor: brown,
         elevation: 0,
         centerTitle: true,
@@ -38,20 +42,20 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
       ),
       cardTheme: CardThemeData(
-        color: Colors.white,
+        color: paper,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         elevation: 0,
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        surfaceTintColor: Colors.white,
-        shadowColor: const Color(0x14000000),
+        surfaceTintColor: paper,
+        shadowColor: const Color(0x1C000000),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: mist,
+        fillColor: paper,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-        hintStyle: TextStyle(color: brown.withOpacity(0.52)),
-        labelStyle: TextStyle(color: brown.withOpacity(0.72)),
+        hintStyle: TextStyle(color: brown.withValues(alpha: 0.52)),
+        labelStyle: TextStyle(color: brown.withValues(alpha: 0.72)),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
           borderSide: BorderSide.none,
@@ -83,6 +87,7 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: brown,
           side: const BorderSide(color: cardBorder),
+          backgroundColor: paper,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
@@ -94,9 +99,9 @@ class AppTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: Colors.white,
-        indicatorColor: sand,
-        surfaceTintColor: Colors.white,
+        backgroundColor: paper,
+        indicatorColor: peach,
+        surfaceTintColor: paper,
         shadowColor: const Color(0x12000000),
         labelTextStyle: WidgetStateProperty.all(
           const TextStyle(fontWeight: FontWeight.w600),
@@ -111,12 +116,12 @@ class AppTheme {
       textTheme: const TextTheme(
         headlineMedium: TextStyle(
           fontSize: 30,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w800,
           color: brown,
         ),
         titleLarge: TextStyle(
           fontSize: 20,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w800,
           color: brown,
         ),
         bodyLarge: TextStyle(color: brown, fontSize: 16),

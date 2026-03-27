@@ -262,6 +262,56 @@ class ApiClient {
     return payload['message']?.toString() ?? 'Offerta creata con successo.';
   }
 
+  Future<String> updateOffer({
+    required int offerId,
+    required String mealType,
+    required String localeName,
+    required String address,
+    String localePhone = '',
+    required String latitude,
+    required String longitude,
+    required int totalSeats,
+    required DateTime dateTime,
+    required String description,
+    String? photoPath,
+  }) async {
+    final request = http.MultipartRequest(
+      'PUT',
+      Uri.parse('$baseUrl/api/offers/$offerId'),
+    );
+    if ((_cookieHeader ?? '').isNotEmpty) {
+      request.headers['Cookie'] = _cookieHeader!;
+    }
+
+    request.fields.addAll({
+      'tipo_pasto': mealType,
+      'nome_locale': localeName,
+      'indirizzo': address,
+      'telefono_locale': localePhone,
+      'latitudine': latitude,
+      'longitudine': longitude,
+      'posti_totali': totalSeats.toString(),
+      'data_ora': dateTime.toIso8601String(),
+      'descrizione': description,
+    });
+
+    if (photoPath != null && photoPath.isNotEmpty) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'foto_locale',
+          photoPath,
+          filename: File(photoPath).uri.pathSegments.last,
+        ),
+      );
+    }
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Offerta aggiornata con successo.';
+  }
+
   Future<String> updateProfile({
     required String nome,
     required String email,

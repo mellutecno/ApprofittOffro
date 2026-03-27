@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_hero_card.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../auth/auth_controller.dart';
+import '../create_offer/create_offer_page.dart';
 import 'offer_card.dart';
 import 'offers_controller.dart';
 
@@ -145,6 +146,27 @@ class OffersPage extends StatelessWidget {
                     return OfferCard(
                       offer: offer,
                       apiClient: authController.apiClient,
+                      onEditOwn: offer.isOwn
+                          ? () async {
+                              final updated =
+                                  await Navigator.of(context).push<bool>(
+                                MaterialPageRoute<bool>(
+                                  builder: (_) => CreateOfferPage(
+                                    authController: authController,
+                                    initialOffer: offer,
+                                    onOfferCreated: () async {
+                                      await offersController.loadOffers();
+                                      await authController.refreshCurrentUser();
+                                    },
+                                  ),
+                                ),
+                              );
+                              if (updated == true) {
+                                await offersController.loadOffers();
+                                await authController.refreshCurrentUser();
+                              }
+                            }
+                          : null,
                       onClaim: offer.isOwn ||
                               offer.alreadyClaimed ||
                               offer.bookingClosed
@@ -190,9 +212,9 @@ class _MealChip extends StatelessWidget {
       selected: selected,
       label: Text(label),
       onSelected: (_) => onTap(value),
-      backgroundColor: Colors.white.withOpacity(0.72),
-      selectedColor: _colorForValue(value).withOpacity(0.18),
-      side: BorderSide(color: _colorForValue(value).withOpacity(0.34)),
+      backgroundColor: Colors.white.withValues(alpha: 0.72),
+      selectedColor: _colorForValue(value).withValues(alpha: 0.18),
+      side: BorderSide(color: _colorForValue(value).withValues(alpha: 0.34)),
       labelStyle: TextStyle(
         color: selected ? _colorForValue(value) : null,
         fontWeight: FontWeight.w700,

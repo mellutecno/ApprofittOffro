@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
+import '../../models/offer.dart';
 import '../../models/place_candidate.dart';
 import '../auth/auth_controller.dart';
 
@@ -22,10 +23,12 @@ class CreateOfferPage extends StatefulWidget {
     super.key,
     required this.authController,
     this.onOfferCreated,
+    this.initialOffer,
   });
 
   final AuthController authController;
   final Future<void> Function()? onOfferCreated;
+  final Offer? initialOffer;
 
   @override
   State<CreateOfferPage> createState() => _CreateOfferPageState();
@@ -66,7 +69,14 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   @override
   void initState() {
     super.initState();
-    if (AppConfig.googleMapsEnabled) {
+    final initialOffer = widget.initialOffer;
+    if (initialOffer != null) {
+      _prefillFromOffer(initialOffer);
+      if (AppConfig.googleMapsEnabled) {
+        _initialMapReady = true;
+        _initialLocationRequested = true;
+      }
+    } else if (AppConfig.googleMapsEnabled) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(_bootstrapCurrentLocation());
       });
@@ -86,6 +96,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isEditing = widget.initialOffer != null;
     final selectedDateText = _selectedDateTime == null
         ? 'Scegli data e ora'
         : DateFormat('EEEE d MMMM - HH:mm', 'it_IT')
@@ -101,13 +112,15 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
           children: [
             Text(
-              'Pubblica un invito vero',
+              isEditing ? 'Modifica la tua offerta' : 'Pubblica un invito vero',
               style: theme.textTheme.headlineMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Prima scegli il momento, poi apri la mappa solo quando ti serve e completa l’invito in pochi passaggi.',
+              isEditing
+                  ? 'Aggiorna momento, locale e dettagli del tuo invito senza perdere lo stile del tavolo che hai gia creato.'
+                  : 'Prima scegli il momento, poi apri la mappa solo quando ti serve e completa l’invito in pochi passaggi.',
               style: theme.textTheme.bodyLarge?.copyWith(
                 color: AppTheme.brown.withValues(alpha: 0.74),
                 height: 1.45,
@@ -338,7 +351,13 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               onPressed: _submitting ? null : _submit,
               icon: const Icon(Icons.send_rounded),
               label: Text(
-                _submitting ? 'Sto pubblicando...' : 'Pubblica offerta',
+                _submitting
+                    ? (isEditing
+                        ? 'Sto aggiornando...'
+                        : 'Sto pubblicando...')
+                    : (isEditing
+                        ? 'Salva modifiche'
+                        : 'Pubblica offerta'),
               ),
             ),
           ],
@@ -911,18 +930,32 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
     setState(() => _submitting = true);
     try {
-      final message = await widget.authController.apiClient.createOffer(
-        mealType: _mealType,
-        localeName: _localeController.text.trim(),
-        address: _addressController.text.trim(),
-        localePhone: _phoneController.text.trim(),
-        latitude: _selectedLatitude!.toString(),
-        longitude: _selectedLongitude!.toString(),
-        totalSeats: _totalSeats,
-        dateTime: _selectedDateTime!,
-        description: _descriptionController.text.trim(),
-        photoPath: _pickedImage?.path,
-      );
+      final message = widget.initialOffer == null
+          ? await widget.authController.apiClient.createOffer(
+              mealType: _mealType,
+              localeName: _localeController.text.trim(),
+              address: _addressController.text.trim(),
+              localePhone: _phoneController.text.trim(),
+              latitude: _selectedLatitude!.toString(),
+              longitude: _selectedLongitude!.toString(),
+              totalSeats: _totalSeats,
+              dateTime: _selectedDateTime!,
+              description: _descriptionController.text.trim(),
+              photoPath: _pickedImage?.path,
+            )
+          : await widget.authController.apiClient.updateOffer(
+              offerId: widget.initialOffer!.id,
+              mealType: _mealType,
+              localeName: _localeController.text.trim(),
+              address: _addressController.text.trim(),
+              localePhone: _phoneController.text.trim(),
+              latitude: _selectedLatitude!.toString(),
+              longitude: _selectedLongitude!.toString(),
+              totalSeats: _totalSeats,
+              dateTime: _selectedDateTime!,
+              description: _descriptionController.text.trim(),
+              photoPath: _pickedImage?.path,
+            );
 
       if (widget.onOfferCreated != null) {
         await widget.onOfferCreated!.call();
@@ -932,6 +965,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       }
 
       _showMessage(message);
+      if (widget.initialOffer != null) {
+        Navigator.of(context).pop(true);
+        return;
+      }
       _localeController.clear();
       _addressController.clear();
       _phoneController.clear();
@@ -976,6 +1013,20 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  void _prefillFromOffer(Offer offer) {
+    _mealType = offer.tipoPasto;
+    _totalSeats = offer.postiTotali;
+    _selectedDateTime = offer.dataOra;
+    _localeController.text = offer.nomeLocale;
+    _addressController.text = offer.indirizzo;
+    _phoneController.text = offer.telefonoLocale;
+    _descriptionController.text = offer.descrizione;
+    _selectedLatitude = offer.latitude;
+    _selectedLongitude = offer.longitude;
+    _selectedPlaceId = 'offer_${offer.id}';
+    _currentMapCenter = LatLng(offer.latitude, offer.longitude);
   }
 }
 
