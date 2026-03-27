@@ -46,7 +46,8 @@ class CommunityController extends ChangeNotifier {
           ? await apiClient.unfollowUser(user.id)
           : await apiClient.followUser(user.id);
       final isFollowing = payload['is_following'] == true;
-      final followersCount = payload['followers_count'] as int? ?? user.followersCount;
+      final followersCount =
+          payload['followers_count'] as int? ?? user.followersCount;
       _people = _people.map((person) {
         if (person.id != user.id) {
           return person;

@@ -96,14 +96,16 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> followUser(int userId) async {
-    final response = await _send(method: 'POST', path: '/api/users/$userId/follow');
+    final response =
+        await _send(method: 'POST', path: '/api/users/$userId/follow');
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return payload;
   }
 
   Future<Map<String, dynamic>> unfollowUser(int userId) async {
-    final response = await _send(method: 'POST', path: '/api/users/$userId/unfollow');
+    final response =
+        await _send(method: 'POST', path: '/api/users/$userId/unfollow');
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return payload;
@@ -127,7 +129,8 @@ class ApiClient {
   }
 
   Future<String> claimOffer(int offerId) async {
-    final response = await _send(method: 'POST', path: '/api/offers/$offerId/claim');
+    final response =
+        await _send(method: 'POST', path: '/api/offers/$offerId/claim');
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return payload['message']?.toString() ?? 'Hai approfittato dell\'offerta.';
@@ -262,7 +265,8 @@ class ApiClient {
       return;
     }
 
-    _cookieHeader = cookiePairs.entries.map((e) => '${e.key}=${e.value}').join('; ');
+    _cookieHeader =
+        cookiePairs.entries.map((e) => '${e.key}=${e.value}').join('; ');
     sessionStore.saveCookie(_cookieHeader!);
   }
 }

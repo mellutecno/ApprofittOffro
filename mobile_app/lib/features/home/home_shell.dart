@@ -63,14 +63,38 @@ class _HomeShellState extends State<HomeShell> {
     ];
 
     return Scaffold(
-      body: SafeArea(child: pages[_selectedIndex]),
+      body: SafeArea(
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          child: KeyedSubtree(
+            key: ValueKey<int>(_selectedIndex),
+            child: pages[_selectedIndex],
+          ),
+        ),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.restaurant_menu), label: 'Approfitta'),
-          NavigationDestination(icon: Icon(Icons.groups_rounded), label: 'Community'),
-          NavigationDestination(icon: Icon(Icons.add_circle_outline), label: 'Offri'),
-          NavigationDestination(icon: Icon(Icons.person_outline), label: 'Su di me'),
+          NavigationDestination(
+            icon: Icon(Icons.restaurant_menu_outlined),
+            selectedIcon: Icon(Icons.restaurant_menu_rounded),
+            label: 'Approfitta',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.groups_rounded),
+            selectedIcon: Icon(Icons.groups),
+            label: 'Community',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.add_circle_outline),
+            selectedIcon: Icon(Icons.add_circle),
+            label: 'Offri',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Su di me',
+          ),
         ],
         onDestinationSelected: (index) {
           setState(() => _selectedIndex = index);

@@ -54,7 +54,7 @@ class UserPreview {
       intolerances: intolerances,
       isVerified: isVerified,
       followersCount: followersCount ?? this.followersCount,
-      followingCount: followingCount ?? this.followingCount,
+      followingCount: this.followingCount,
       ratingAverage: ratingAverage,
       ratingCount: ratingCount,
       isFollowing: isFollowing ?? this.isFollowing,

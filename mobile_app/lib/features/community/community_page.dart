@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/brand_hero_card.dart';
+import '../../core/widgets/brand_wordmark.dart';
 import '../../models/user_preview.dart';
 import '../auth/auth_controller.dart';
 import '../profile/public_profile_page.dart';
@@ -54,41 +57,46 @@ class _CommunityPageState extends State<CommunityPage> {
               const SliverAppBar(
                 floating: true,
                 snap: true,
-                title: Text('Community'),
+                title: BrandWordmark(height: 24, alignment: Alignment.center),
               ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Profili da scoprire',
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Seleziona una fascia d\'eta e apri i profili che ti interessano davvero.',
-                      ),
-                      const SizedBox(height: 18),
-                      DropdownButtonFormField<String>(
-                        value: widget.communityController.selectedAgeRange,
-                        decoration: const InputDecoration(
-                          labelText: 'Seleziona',
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                  child: BrandHeroCard(
+                    eyebrow: 'COMMUNITY',
+                    title: 'Profili da scoprire',
+                    subtitle:
+                        'Apri i profili, guarda le foto e scegli le persone che vuoi seguire davvero.',
+                    footer: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Seleziona la fascia di eta',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.brown,
+                          ),
                         ),
-                        items: _ageRanges
-                            .map(
-                              (item) => DropdownMenuItem<String>(
-                                value: item.key,
-                                child: Text(item.value),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          widget.communityController.selectAgeRange(value ?? '');
-                        },
-                      ),
-                    ],
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          value: widget.communityController.selectedAgeRange,
+                          decoration:
+                              const InputDecoration(labelText: 'Seleziona'),
+                          items: _ageRanges
+                              .map(
+                                (item) => DropdownMenuItem<String>(
+                                  value: item.key,
+                                  child: Text(item.value),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            widget.communityController
+                                .selectAgeRange(value ?? '');
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -132,8 +140,8 @@ class _CommunityPageState extends State<CommunityPage> {
                       person: person,
                       authController: widget.authController,
                       onToggleFollow: () async {
-                        final message =
-                            await widget.communityController.toggleFollow(person);
+                        final message = await widget.communityController
+                            .toggleFollow(person);
                         await widget.authController.refreshCurrentUser();
                         if (!context.mounted || message == null) {
                           return;
@@ -193,10 +201,18 @@ class _CommunityUserCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundImage: imageUrl != null ? NetworkImage(imageUrl) : null,
-                    child: imageUrl == null ? const Icon(Icons.person) : null,
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: AppTheme.sand,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: CircleAvatar(
+                      radius: 28,
+                      backgroundImage:
+                          imageUrl != null ? NetworkImage(imageUrl) : null,
+                      child: imageUrl == null ? const Icon(Icons.person) : null,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -208,11 +224,28 @@ class _CommunityUserCard extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 4),
-                        Text('${person.etaDisplay} anni • ${person.cityLabel}'),
+                        Text('${person.etaDisplay} anni - ${person.cityLabel}'),
                         const SizedBox(height: 6),
-                        Text(
-                          '${person.followersCount} follower • ${person.ratingAverage.toStringAsFixed(1)} ★',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        Row(
+                          children: [
+                            Text(
+                              '${person.followersCount} follower',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 18,
+                              color: Color(0xFFD49B00),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              person.ratingAverage.toStringAsFixed(1),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -252,47 +285,11 @@ class _CommunityUserCard extends StatelessWidget {
                   Expanded(
                     child: FilledButton(
                       onPressed: onToggleFollow,
-                      child: Text(person.isFollowing ? 'Non seguire piu' : 'Segui'),
+                      child: Text(
+                          person.isFollowing ? 'Non seguire piu' : 'Segui'),
                     ),
                   ),
                 ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class ComingSoonPage extends StatelessWidget {
-  const ComingSoonPage({
-    required this.title,
-    required this.description,
-    required this.icon,
-  });
-
-  final String title;
-  final String description;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 56),
-              const SizedBox(height: 16),
-              Text(title, style: Theme.of(context).textTheme.headlineMedium),
-              const SizedBox(height: 12),
-              Text(
-                description,
-                textAlign: TextAlign.center,
               ),
             ],
           ),

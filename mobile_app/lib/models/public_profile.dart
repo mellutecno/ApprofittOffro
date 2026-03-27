@@ -20,7 +20,8 @@ class UserReview {
       id: json['id'] as int? ?? 0,
       rating: json['rating'] as int? ?? 0,
       comment: (json['commento'] ?? '').toString(),
-      createdAt: json['created_at'] != null && (json['created_at'] as String).isNotEmpty
+      createdAt: json['created_at'] != null &&
+              (json['created_at'] as String).isNotEmpty
           ? DateTime.tryParse(json['created_at'] as String)?.toLocal()
           : null,
       reviewer: json['reviewer'] is Map<String, dynamic>

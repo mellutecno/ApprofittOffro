@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/network/api_client.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/brand_wordmark.dart';
 import '../../models/public_profile.dart';
 import '../../models/user_preview.dart';
 
@@ -45,7 +47,9 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(payload['message']?.toString() ?? 'Operazione completata.')),
+        SnackBar(
+            content: Text(
+                payload['message']?.toString() ?? 'Operazione completata.')),
       );
       await _reload();
     } on ApiException catch (e) {
@@ -65,7 +69,9 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Profilo')),
+      appBar: AppBar(
+        title: const BrandWordmark(height: 24, alignment: Alignment.center),
+      ),
       body: FutureBuilder<PublicProfile>(
         future: _future,
         builder: (context, snapshot) {
@@ -126,15 +132,17 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                 if (!profile.user.isSelf) ...[
                   const SizedBox(height: 18),
                   FilledButton(
-                    onPressed: _isTogglingFollow ? null : () => _toggleFollow(profile),
-                    child: Text(profile.user.isFollowing ? 'Non seguire piu' : 'Segui'),
+                    onPressed:
+                        _isTogglingFollow ? null : () => _toggleFollow(profile),
+                    child: Text(
+                        profile.user.isFollowing ? 'Non seguire piu' : 'Segui'),
                   ),
                 ],
                 if (profile.user.galleryFilenames.isNotEmpty) ...[
                   const SizedBox(height: 20),
-                  const Text(
+                  Text(
                     'Foto',
-                    style: TextStyle(fontWeight: FontWeight.w800),
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
@@ -178,9 +186,9 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                       : 'Nessuna indicata',
                 ),
                 const SizedBox(height: 20),
-                const Text(
+                Text(
                   'Recensioni',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 10),
                 if (profile.reviews.isEmpty)
@@ -203,10 +211,17 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                                 Expanded(
                                   child: Text(
                                     review.reviewer?.nome ?? 'Utente',
-                                    style: const TextStyle(fontWeight: FontWeight.w700),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w700),
                                   ),
                                 ),
-                                Text('${review.rating} ★'),
+                                const Icon(
+                                  Icons.star_rounded,
+                                  color: Color(0xFFD49B00),
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 4),
+                                Text('${review.rating}'),
                               ],
                             ),
                             if (review.comment.isNotEmpty) ...[
@@ -216,7 +231,8 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                             if (review.createdAt != null) ...[
                               const SizedBox(height: 10),
                               Text(
-                                DateFormat('dd/MM/yyyy').format(review.createdAt!),
+                                DateFormat('dd/MM/yyyy')
+                                    .format(review.createdAt!),
                                 style: const TextStyle(color: Colors.black54),
                               ),
                             ],
@@ -250,31 +266,55 @@ class _ProfileHeader extends StatelessWidget {
         ? apiClient.buildUploadUrl(user.photoFilename)
         : null;
 
-    return Column(
-      children: [
-        CircleAvatar(
-          radius: 44,
-          backgroundImage: imageUrl != null ? NetworkImage(imageUrl) : null,
-          child: imageUrl == null ? const Icon(Icons.person, size: 40) : null,
-        ),
-        const SizedBox(height: 14),
-        Text(
-          user.nome,
-          style: Theme.of(context).textTheme.headlineMedium,
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '${user.etaDisplay} anni • ${user.cityLabel.isNotEmpty ? user.cityLabel : user.city}',
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '${user.ratingAverage.toStringAsFixed(1)} ★ su ${user.ratingCount} recensioni',
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: AppTheme.heroGradient,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.8),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: CircleAvatar(
+              radius: 44,
+              backgroundImage: imageUrl != null ? NetworkImage(imageUrl) : null,
+              child:
+                  imageUrl == null ? const Icon(Icons.person, size: 40) : null,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            user.nome,
+            style: Theme.of(context).textTheme.headlineMedium,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${user.etaDisplay} anni - ${user.cityLabel.isNotEmpty ? user.cityLabel : user.city}',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.star_rounded,
+                color: Color(0xFFD49B00),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${user.ratingAverage.toStringAsFixed(1)} su ${user.ratingCount} recensioni',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

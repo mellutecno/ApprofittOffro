@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/brand_wordmark.dart';
 import '../auth/auth_controller.dart';
 import 'public_profile_page.dart';
 
@@ -17,7 +19,9 @@ class ProfilePage extends StatelessWidget {
         : null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Su di me')),
+      appBar: AppBar(
+        title: const BrandWordmark(height: 24, alignment: Alignment.center),
+      ),
       body: user == null
           ? const Center(child: Text('Utente non disponibile.'))
           : RefreshIndicator(
@@ -25,31 +29,61 @@ class ProfilePage extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  Center(
-                    child: CircleAvatar(
-                      radius: 46,
-                      backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-                      child: photoUrl == null ? const Icon(Icons.person, size: 42) : null,
+                  Container(
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      gradient: AppTheme.heroGradient,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.8),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: CircleAvatar(
+                            radius: 46,
+                            backgroundImage: photoUrl != null
+                                ? NetworkImage(photoUrl)
+                                : null,
+                            child: photoUrl == null
+                                ? const Icon(Icons.person, size: 42)
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          user.nome,
+                          style: Theme.of(context).textTheme.headlineMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${user.etaDisplay} anni - ${user.city}',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.star_rounded,
+                              color: Color(0xFFD49B00),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${user.ratingAverage.toStringAsFixed(1)} su ${user.ratingCount} recensioni',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 18),
-                  Center(
-                    child: Text(
-                      user.nome,
-                      style: Theme.of(context).textTheme.headlineMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Center(child: Text('${user.etaDisplay} anni - ${user.city}')),
-                  const SizedBox(height: 8),
-                  Center(
-                    child: Text(
-                      '${user.ratingAverage.toStringAsFixed(1)} ★ su ${user.ratingCount} recensioni',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
                   Row(
                     children: [
                       Expanded(
@@ -76,9 +110,9 @@ class ProfilePage extends StatelessWidget {
                   ),
                   if (user.galleryFilenames.isNotEmpty) ...[
                     const SizedBox(height: 20),
-                    const Text(
+                    Text(
                       'Le tue foto',
-                      style: TextStyle(fontWeight: FontWeight.w800),
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 10),
                     SizedBox(
@@ -88,7 +122,8 @@ class ProfilePage extends StatelessWidget {
                         itemCount: user.galleryFilenames.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 10),
                         itemBuilder: (context, index) {
-                          final imageUrl = apiClient.buildUploadUrl(user.galleryFilenames[index]);
+                          final imageUrl = apiClient
+                              .buildUploadUrl(user.galleryFilenames[index]);
                           return ClipRRect(
                             borderRadius: BorderRadius.circular(18),
                             child: AspectRatio(
@@ -104,24 +139,36 @@ class ProfilePage extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: 20),
+                  Text(
+                    'Dati personali',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
                   _InfoCard(title: 'Email', value: user.email),
                   _InfoCard(
                     title: 'Numero di telefono',
-                    value: user.phoneNumber.isNotEmpty ? user.phoneNumber : 'Non indicato',
+                    value: user.phoneNumber.isNotEmpty
+                        ? user.phoneNumber
+                        : 'Non indicato',
                   ),
-                  if (user.bio.isNotEmpty) _InfoCard(title: 'Bio', value: user.bio),
+                  if (user.bio.isNotEmpty)
+                    _InfoCard(title: 'Bio', value: user.bio),
                   _InfoCard(
                     title: 'Cibi preferiti',
-                    value: user.preferredFoods.isNotEmpty ? user.preferredFoods : 'Non ancora indicati',
+                    value: user.preferredFoods.isNotEmpty
+                        ? user.preferredFoods
+                        : 'Non ancora indicati',
                   ),
                   _InfoCard(
                     title: 'Intolleranze',
-                    value: user.intolerances.isNotEmpty ? user.intolerances : 'Nessuna indicata',
+                    value: user.intolerances.isNotEmpty
+                        ? user.intolerances
+                        : 'Nessuna indicata',
                   ),
                   const SizedBox(height: 20),
-                  const Text(
+                  Text(
                     'Chi ti segue',
-                    style: TextStyle(fontWeight: FontWeight.w800),
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 10),
                   if (user.followers.isEmpty)
@@ -137,14 +184,18 @@ class ProfilePage extends StatelessWidget {
                         child: ListTile(
                           leading: CircleAvatar(
                             backgroundImage: follower.photoFilename.isNotEmpty
-                                ? NetworkImage(apiClient.buildUploadUrl(follower.photoFilename))
+                                ? NetworkImage(
+                                    apiClient
+                                        .buildUploadUrl(follower.photoFilename),
+                                  )
                                 : null,
                             child: follower.photoFilename.isEmpty
                                 ? const Icon(Icons.person_outline)
                                 : null,
                           ),
                           title: Text(follower.nome),
-                          subtitle: Text('${follower.etaDisplay} anni - ${follower.cityLabel}'),
+                          subtitle: Text(
+                              '${follower.etaDisplay} anni - ${follower.cityLabel}'),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () {
                             Navigator.of(context).push(

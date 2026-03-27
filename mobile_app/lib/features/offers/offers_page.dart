@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/brand_hero_card.dart';
+import '../../core/widgets/brand_wordmark.dart';
 import '../auth/auth_controller.dart';
 import 'offer_card.dart';
 import 'offers_controller.dart';
@@ -28,10 +31,12 @@ class OffersPage extends StatelessWidget {
               SliverAppBar(
                 floating: true,
                 snap: true,
-                title: const Text('Approfitta'),
+                title: const BrandWordmark(
+                    height: 24, alignment: Alignment.center),
                 actions: [
                   IconButton(
-                    onPressed: authController.isBusy ? null : authController.logout,
+                    onPressed:
+                        authController.isBusy ? null : authController.logout,
                     icon: const Icon(Icons.logout),
                     tooltip: 'Esci',
                   ),
@@ -39,46 +44,53 @@ class OffersPage extends StatelessWidget {
               ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Benvenuto a tavola',
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        user == null
-                            ? 'Scopri chi sta cucinando qualcosa di buono.'
-                            : 'Scopri chi ti sta cucinando qualcosa di buono vicino a ${user.city.isNotEmpty ? user.city : "te"}.',
-                      ),
-                      const SizedBox(height: 18),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          _MealChip(
-                            label: 'Colazioni',
-                            value: 'colazione',
-                            selected: offersController.selectedMealType == 'colazione',
-                            onTap: offersController.toggleMealType,
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                  child: BrandHeroCard(
+                    eyebrow: 'APPROFITTA',
+                    title: 'Benvenuto a tavola',
+                    subtitle: user == null
+                        ? 'Scopri chi sta cucinando qualcosa di buono e scegli il momento del pasto che ti interessa.'
+                        : 'Scopri chi ti sta cucinando qualcosa di buono vicino a ${user.city.isNotEmpty ? user.city : "te"}.',
+                    footer: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Filtra per momento del pasto',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.brown,
                           ),
-                          _MealChip(
-                            label: 'Pranzi',
-                            value: 'pranzo',
-                            selected: offersController.selectedMealType == 'pranzo',
-                            onTap: offersController.toggleMealType,
-                          ),
-                          _MealChip(
-                            label: 'Cene',
-                            value: 'cena',
-                            selected: offersController.selectedMealType == 'cena',
-                            onTap: offersController.toggleMealType,
-                          ),
-                        ],
-                      ),
-                    ],
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            _MealChip(
+                              label: 'Colazioni',
+                              value: 'colazione',
+                              selected: offersController.selectedMealType ==
+                                  'colazione',
+                              onTap: offersController.toggleMealType,
+                            ),
+                            _MealChip(
+                              label: 'Pranzi',
+                              value: 'pranzo',
+                              selected:
+                                  offersController.selectedMealType == 'pranzo',
+                              onTap: offersController.toggleMealType,
+                            ),
+                            _MealChip(
+                              label: 'Cene',
+                              value: 'cena',
+                              selected:
+                                  offersController.selectedMealType == 'cena',
+                              onTap: offersController.toggleMealType,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -93,7 +105,8 @@ class OffersPage extends StatelessWidget {
                   child: Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Text(offersController.errorMessage!, textAlign: TextAlign.center),
+                      child: Text(offersController.errorMessage!,
+                          textAlign: TextAlign.center),
                     ),
                   ),
                 )
@@ -118,10 +131,13 @@ class OffersPage extends StatelessWidget {
                     return OfferCard(
                       offer: offer,
                       apiClient: authController.apiClient,
-                      onClaim: offer.isOwn || offer.alreadyClaimed || offer.bookingClosed
+                      onClaim: offer.isOwn ||
+                              offer.alreadyClaimed ||
+                              offer.bookingClosed
                           ? null
                           : () async {
-                              final message = await offersController.claimOffer(offer);
+                              final message =
+                                  await offersController.claimOffer(offer);
                               if (!context.mounted || message == null) {
                                 return;
                               }
@@ -160,8 +176,9 @@ class _MealChip extends StatelessWidget {
       selected: selected,
       label: Text(label),
       onSelected: (_) => onTap(value),
-      selectedColor: _colorForValue(value).withOpacity(0.22),
-      side: BorderSide(color: _colorForValue(value).withOpacity(0.4)),
+      backgroundColor: Colors.white.withOpacity(0.72),
+      selectedColor: _colorForValue(value).withOpacity(0.18),
+      side: BorderSide(color: _colorForValue(value).withOpacity(0.34)),
       labelStyle: TextStyle(
         color: selected ? _colorForValue(value) : null,
         fontWeight: FontWeight.w700,

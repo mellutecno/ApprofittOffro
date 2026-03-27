@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/network/api_client.dart';
+import '../../core/theme/app_theme.dart';
 import '../../models/offer.dart';
 import '../profile/public_profile_page.dart';
 
@@ -20,9 +21,10 @@ class OfferCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mealColor = _mealColor(offer.tipoPasto);
-    final localeImageUrl = offer.fotoLocale.isNotEmpty && offer.fotoLocale != 'nessuna.jpg'
-        ? apiClient.buildUploadUrl(offer.fotoLocale)
-        : null;
+    final localeImageUrl =
+        offer.fotoLocale.isNotEmpty && offer.fotoLocale != 'nessuna.jpg'
+            ? apiClient.buildUploadUrl(offer.fotoLocale)
+            : null;
     final authorPhotoUrl = offer.autoreFoto.isNotEmpty
         ? apiClient.buildUploadUrl(offer.autoreFoto)
         : null;
@@ -33,17 +35,26 @@ class OfferCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(18),
-              onTap: () => _openProfile(context, offer.autoreId),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppTheme.mist,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: AppTheme.cardBorder),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () => _openProfile(context, offer.autoreId),
                 child: Row(
                   children: [
                     CircleAvatar(
                       radius: 28,
-                      backgroundImage: authorPhotoUrl != null ? NetworkImage(authorPhotoUrl) : null,
-                      child: authorPhotoUrl == null ? const Icon(Icons.person) : null,
+                      backgroundImage: authorPhotoUrl != null
+                          ? NetworkImage(authorPhotoUrl)
+                          : null,
+                      child: authorPhotoUrl == null
+                          ? const Icon(Icons.person)
+                          : null,
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -55,20 +66,32 @@ class OfferCard extends StatelessWidget {
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            '${offer.autoreEta} anni - ${offer.autoreRatingAverage.toStringAsFixed(1)} ★',
+                          Row(
+                            children: [
+                              Text('${offer.autoreEta} anni'),
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.star_rounded,
+                                size: 18,
+                                color: Color(0xFFD49B00),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                  offer.autoreRatingAverage.toStringAsFixed(1)),
+                            ],
                           ),
                           const SizedBox(height: 6),
                           Text(
                             'Visualizza profilo',
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ],
                       ),
                     ),
+                    const Icon(Icons.chevron_right_rounded),
                   ],
                 ),
               ),
@@ -101,7 +124,7 @@ class OfferCard extends StatelessWidget {
               ),
               child: offer.participants.isEmpty
                   ? const Text(
-                      'Per ora nessuno si e` ancora aggiunto.',
+                      'Per ora nessuno si e\' ancora aggiunto.',
                       textAlign: TextAlign.center,
                     )
                   : Wrap(
@@ -110,7 +133,8 @@ class OfferCard extends StatelessWidget {
                       runSpacing: 12,
                       children: offer.participants.map((participant) {
                         final photoUrl = participant.photoFilename.isNotEmpty
-                            ? apiClient.buildUploadUrl(participant.photoFilename)
+                            ? apiClient
+                                .buildUploadUrl(participant.photoFilename)
                             : null;
                         return InkWell(
                           borderRadius: BorderRadius.circular(18),
@@ -120,8 +144,12 @@ class OfferCard extends StatelessWidget {
                             children: [
                               CircleAvatar(
                                 radius: 26,
-                                backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
-                                child: photoUrl == null ? const Icon(Icons.person_outline) : null,
+                                backgroundImage: photoUrl != null
+                                    ? NetworkImage(photoUrl)
+                                    : null,
+                                child: photoUrl == null
+                                    ? const Icon(Icons.person_outline)
+                                    : null,
                               ),
                               const SizedBox(height: 6),
                               SizedBox(
@@ -202,7 +230,7 @@ class OfferCard extends StatelessWidget {
       return 'La tua offerta';
     }
     if (offer.alreadyClaimed) {
-      return 'Sei gia` dentro';
+      return 'Sei gia\' dentro';
     }
     if (offer.bookingClosed) {
       return 'Prenotazioni chiuse';

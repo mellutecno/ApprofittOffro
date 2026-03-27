@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/brand_hero_card.dart';
+import '../../core/widgets/brand_wordmark.dart';
 import '../auth/auth_controller.dart';
 
 class CreateOfferPage extends StatefulWidget {
@@ -49,158 +52,233 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     final selectedDateTime = _combinedDateTime;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Offri')),
+      appBar: AppBar(
+        title: const BrandWordmark(height: 24, alignment: Alignment.center),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
           children: [
-            Text(
-              'Pubblica un nuovo invito',
-              style: Theme.of(context).textTheme.headlineMedium,
+            BrandHeroCard(
+              eyebrow: 'OFFRI',
+              title: 'Pubblica un invito vero',
+              subtitle:
+                  'Per ora scegliamo il locale in modo manuale. Nel prossimo blocco sostituiamo tutto con Google Maps.',
             ),
-            const SizedBox(height: 10),
-            const Text(
-              'Per ora la scelta del locale e` manuale. La mappa Google arriva nel passo successivo.',
-            ),
-            const SizedBox(height: 20),
-            DropdownButtonFormField<String>(
-              value: _mealType,
-              decoration: const InputDecoration(labelText: 'Tipo di pasto'),
-              items: const [
-                DropdownMenuItem(value: 'colazione', child: Text('Colazione')),
-                DropdownMenuItem(value: 'pranzo', child: Text('Pranzo')),
-                DropdownMenuItem(value: 'cena', child: Text('Cena')),
-              ],
-              onChanged: _submitting
-                  ? null
-                  : (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() => _mealType = value);
-                    },
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _localeController,
-              enabled: !_submitting,
-              decoration: const InputDecoration(labelText: 'Nome del locale'),
-              validator: (value) {
-                if ((value ?? '').trim().isEmpty) {
-                  return 'Inserisci il nome del locale.';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _addressController,
-              enabled: !_submitting,
-              decoration: const InputDecoration(labelText: 'Indirizzo'),
-              validator: (value) {
-                if ((value ?? '').trim().isEmpty) {
-                  return 'Inserisci l\'indirizzo.';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _latitudeController,
-                    enabled: !_submitting,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: true,
+            const SizedBox(height: 18),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Che tipo di pasto vuoi offrire?',
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
-                    decoration: const InputDecoration(labelText: 'Latitudine'),
-                    validator: _validateCoordinate,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _longitudeController,
-                    enabled: !_submitting,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: true,
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        _MealChoiceChip(
+                          label: 'Colazione',
+                          value: 'colazione',
+                          currentValue: _mealType,
+                          onSelected: _submitting
+                              ? null
+                              : (value) => setState(() => _mealType = value),
+                        ),
+                        _MealChoiceChip(
+                          label: 'Pranzo',
+                          value: 'pranzo',
+                          currentValue: _mealType,
+                          onSelected: _submitting
+                              ? null
+                              : (value) => setState(() => _mealType = value),
+                        ),
+                        _MealChoiceChip(
+                          label: 'Cena',
+                          value: 'cena',
+                          currentValue: _mealType,
+                          onSelected: _submitting
+                              ? null
+                              : (value) => setState(() => _mealType = value),
+                        ),
+                      ],
                     ),
-                    decoration: const InputDecoration(labelText: 'Longitudine'),
-                    validator: _validateCoordinate,
-                  ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<int>(
+                      value: _totalSeats,
+                      decoration:
+                          const InputDecoration(labelText: 'Posti totali'),
+                      items: List.generate(
+                        8,
+                        (index) => DropdownMenuItem(
+                          value: index + 1,
+                          child: Text('${index + 1}'),
+                        ),
+                      ),
+                      onChanged: _submitting
+                          ? null
+                          : (value) {
+                              if (value == null) {
+                                return;
+                              }
+                              setState(() => _totalSeats = value);
+                            },
+                    ),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: _submitting ? null : _pickDateTime,
+                      icon: const Icon(Icons.schedule_outlined),
+                      label: Text(
+                        selectedDateTime == null
+                            ? 'Scegli data e ora'
+                            : DateFormat('dd/MM/yyyy - HH:mm')
+                                .format(selectedDateTime),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Temporaneo: per ora inseriamo le coordinate a mano. Le sostituiamo con Google Maps nella prossima fase.',
-              style: TextStyle(fontSize: 12),
-            ),
-            const SizedBox(height: 14),
-            DropdownButtonFormField<int>(
-              value: _totalSeats,
-              decoration: const InputDecoration(labelText: 'Posti totali'),
-              items: List.generate(
-                8,
-                (index) => DropdownMenuItem(
-                  value: index + 1,
-                  child: Text('${index + 1}'),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Dove si va?',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: _localeController,
+                      enabled: !_submitting,
+                      decoration:
+                          const InputDecoration(labelText: 'Nome del locale'),
+                      validator: (value) {
+                        if ((value ?? '').trim().isEmpty) {
+                          return 'Inserisci il nome del locale.';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: _addressController,
+                      enabled: !_submitting,
+                      decoration: const InputDecoration(labelText: 'Indirizzo'),
+                      validator: (value) {
+                        if ((value ?? '').trim().isEmpty) {
+                          return 'Inserisci l\'indirizzo.';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ),
               ),
-              onChanged: _submitting
-                  ? null
-                  : (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() => _totalSeats = value);
-                    },
             ),
-            const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: _submitting ? null : _pickDateTime,
-              icon: const Icon(Icons.schedule_outlined),
-              label: Text(
-                selectedDateTime == null
-                    ? 'Scegli data e ora'
-                    : DateFormat('dd/MM/yyyy - HH:mm').format(selectedDateTime),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Coordinate',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Temporaneo: per ora inseriamo latitudine e longitudine a mano. Qui poi entra Google Maps.',
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _latitudeController,
+                            enabled: !_submitting,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                              signed: true,
+                            ),
+                            decoration:
+                                const InputDecoration(labelText: 'Latitudine'),
+                            validator: _validateCoordinate,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _longitudeController,
+                            enabled: !_submitting,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                              signed: true,
+                            ),
+                            decoration:
+                                const InputDecoration(labelText: 'Longitudine'),
+                            validator: _validateCoordinate,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _descriptionController,
-              enabled: !_submitting,
-              minLines: 4,
-              maxLines: 6,
-              decoration: const InputDecoration(
-                labelText: 'Descrizione',
-                alignLabelWithHint: true,
-              ),
-              validator: (value) {
-                if ((value ?? '').trim().length < 30) {
-                  return 'Scrivi almeno 30 caratteri.';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: _submitting ? null : _pickImage,
-              icon: const Icon(Icons.photo_camera_back_outlined),
-              label: Text(
-                _pickedImage == null
-                    ? 'Aggiungi foto locale (opzionale)'
-                    : 'Foto selezionata: ${_pickedImage!.name}',
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Racconta qualcosa',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: _descriptionController,
+                      enabled: !_submitting,
+                      minLines: 4,
+                      maxLines: 6,
+                      decoration: const InputDecoration(
+                        labelText: 'Descrizione',
+                        alignLabelWithHint: true,
+                      ),
+                      validator: (value) {
+                        if ((value ?? '').trim().length < 30) {
+                          return 'Scrivi almeno 30 caratteri.';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: _submitting ? null : _pickImage,
+                      icon: const Icon(Icons.photo_camera_back_outlined),
+                      label: Text(
+                        _pickedImage == null
+                            ? 'Aggiungi foto locale (opzionale)'
+                            : 'Foto selezionata: ${_pickedImage!.name}',
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 18),
             FilledButton(
               onPressed: _submitting ? null : _submit,
-              child: Text(_submitting ? 'Sto pubblicando...' : 'Pubblica offerta'),
+              child:
+                  Text(_submitting ? 'Sto pubblicando...' : 'Pubblica offerta'),
             ),
           ],
         ),
@@ -246,7 +324,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
     final pickedTime = await showTimePicker(
       context: context,
-      initialTime: _selectedTime ?? TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
+      initialTime: _selectedTime ??
+          TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
     );
     if (pickedTime == null) {
       return;
@@ -326,6 +405,44 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
+    );
+  }
+}
+
+class _MealChoiceChip extends StatelessWidget {
+  const _MealChoiceChip({
+    required this.label,
+    required this.value,
+    required this.currentValue,
+    required this.onSelected,
+  });
+
+  final String label;
+  final String value;
+  final String currentValue;
+  final ValueChanged<String>? onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = currentValue == value;
+    final color = switch (value) {
+      'colazione' => const Color(0xFFD49B00),
+      'pranzo' => const Color(0xFF3D8B5A),
+      'cena' => const Color(0xFF7A4EC7),
+      _ => AppTheme.orange,
+    };
+
+    return ChoiceChip(
+      selected: selected,
+      label: Text(label),
+      onSelected: onSelected == null ? null : (_) => onSelected!(value),
+      backgroundColor: Colors.white,
+      selectedColor: color.withOpacity(0.16),
+      side: BorderSide(color: color.withOpacity(0.36)),
+      labelStyle: TextStyle(
+        color: selected ? color : AppTheme.brown,
+        fontWeight: FontWeight.w800,
+      ),
     );
   }
 }
