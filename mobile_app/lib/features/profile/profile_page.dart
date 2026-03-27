@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
@@ -56,7 +58,11 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
     if (result?.changed == true) {
-      await _refreshAll();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_refreshAll());
+        }
+      });
     }
   }
 

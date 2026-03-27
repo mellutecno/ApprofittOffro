@@ -51,6 +51,17 @@ class AppUser {
   final int offersCount;
   final int claimsCount;
 
+  bool get hasAnyProfilePhoto =>
+      photoFilename.trim().isNotEmpty ||
+      galleryFilenames.any((filename) => filename.trim().isNotEmpty);
+
+  bool get needsMandatoryProfileSetup =>
+      !hasAnyProfilePhoto ||
+      phoneNumber.trim().isEmpty ||
+      city.trim().isEmpty ||
+      bio.trim().isEmpty ||
+      preferredFoods.trim().isEmpty;
+
   factory AppUser.fromJson(Map<String, dynamic> json) {
     final stats = json['stats'] as Map<String, dynamic>? ?? const {};
     return AppUser(

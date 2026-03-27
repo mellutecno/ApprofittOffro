@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -157,8 +159,10 @@ class OffersPage extends StatelessWidget {
                                 ),
                               );
                               if (result?.changed == true) {
-                                await offersController.loadOffers();
-                                await authController.refreshCurrentUser();
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  unawaited(offersController.loadOffers());
+                                  unawaited(authController.refreshCurrentUser());
+                                });
                               }
                             }
                           : null,

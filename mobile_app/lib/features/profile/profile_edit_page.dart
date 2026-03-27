@@ -15,9 +15,14 @@ import '../../core/widgets/brand_wordmark.dart';
 import '../auth/auth_controller.dart';
 
 class ProfileEditPage extends StatefulWidget {
-  const ProfileEditPage({super.key, required this.authController});
+  const ProfileEditPage({
+    super.key,
+    required this.authController,
+    this.requireCompletion = false,
+  });
 
   final AuthController authController;
+  final bool requireCompletion;
 
   @override
   State<ProfileEditPage> createState() => _ProfileEditPageState();
@@ -292,6 +297,19 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       _showMessage('Scegli il tuo indirizzo dalla mappa.');
       return;
     }
+    if (widget.requireCompletion && _selectedPhotos.isEmpty) {
+      _showMessage('Carica almeno una foto reale prima di continuare.');
+      return;
+    }
+    if (widget.requireCompletion && _bioController.text.trim().isEmpty) {
+      _showMessage('Scrivi una bio prima di continuare.');
+      return;
+    }
+    if (widget.requireCompletion &&
+        _preferitiController.text.trim().isEmpty) {
+      _showMessage('Inserisci i tuoi cibi preferiti prima di continuare.');
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {
@@ -340,14 +358,17 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     final user = widget.authController.currentUser!;
     final busyMap = _isLocating || _isResolvingAddress;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const BrandWordmark(height: 24, alignment: Alignment.center),
-      ),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
+    return WillPopScope(
+      onWillPop: () async => !widget.requireCompletion,
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: !widget.requireCompletion,
+          title: const BrandWordmark(height: 24, alignment: Alignment.center),
+        ),
+        body: SafeArea(
+          child: Form(
+            key: _formKey,
+            child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
               Container(
@@ -360,12 +381,16 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Modifica il tuo profilo',
+                      widget.requireCompletion
+                          ? 'Completa subito il tuo profilo'
+                          : 'Modifica il tuo profilo',
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 10),
-                    const Text(
-                      'Puoi aggiornare dati, bio e galleria. Se cambi le foto, la prima deve mostrare bene il volto.',
+                    Text(
+                      widget.requireCompletion
+                          ? 'Prima di entrare nella community carica foto reali, bio e preferenze. Qui non puoi uscire finche non completi tutto.'
+                          : 'Puoi aggiornare dati, bio e galleria. Se cambi le foto, la prima deve mostrare bene il volto.',
                     ),
                     if (user.galleryFilenames.isNotEmpty) ...[
                       const SizedBox(height: 14),
@@ -572,10 +597,15 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text('Salva modifiche'),
+                    : Text(
+                        widget.requireCompletion
+                            ? 'Completa il profilo'
+                            : 'Salva modifiche',
+                      ),
               ),
               const SizedBox(height: 24),
             ],
+            ),
           ),
         ),
       ),

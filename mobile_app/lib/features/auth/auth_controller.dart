@@ -15,11 +15,21 @@ class AuthController extends ChangeNotifier {
   bool _isBusy = false;
   String? _errorMessage;
   bool _googleInitialized = false;
+  bool _pendingProfileCompletion = false;
 
   AppUser? get currentUser => _currentUser;
   bool get isBusy => _isBusy;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _currentUser != null;
+  bool get pendingProfileCompletion =>
+      _pendingProfileCompletion ||
+      (_currentUser?.needsMandatoryProfileSetup ?? false);
+
+  bool consumePendingProfileCompletion() {
+    final shouldComplete = pendingProfileCompletion;
+    _pendingProfileCompletion = false;
+    return shouldComplete;
+  }
 
   Future<void> initialize() async {
     await apiClient.initialize();
@@ -28,9 +38,12 @@ class AuthController extends ChangeNotifier {
     }
     try {
       _currentUser = await apiClient.fetchCurrentUser();
+      _pendingProfileCompletion =
+          _currentUser?.needsMandatoryProfileSetup ?? false;
     } catch (_) {
       await apiClient.logout();
       _currentUser = null;
+      _pendingProfileCompletion = false;
     }
     notifyListeners();
   }
@@ -44,6 +57,8 @@ class AuthController extends ChangeNotifier {
 
     try {
       _currentUser = await apiClient.fetchCurrentUser();
+      _pendingProfileCompletion =
+          _currentUser?.needsMandatoryProfileSetup ?? false;
       _errorMessage = null;
     } on ApiException catch (e) {
       _errorMessage = e.message;
@@ -63,6 +78,7 @@ class AuthController extends ChangeNotifier {
     try {
       await apiClient.login(email: email, password: password);
       _currentUser = await apiClient.fetchCurrentUser();
+      _pendingProfileCompletion = false;
       notifyListeners();
       return true;
     } on ApiException catch (e) {
@@ -108,8 +124,11 @@ class AuthController extends ChangeNotifier {
         );
       }
 
-      await apiClient.loginWithGoogle(idToken: idToken);
+      final payload = await apiClient.loginWithGoogle(idToken: idToken);
       _currentUser = await apiClient.fetchCurrentUser();
+      _pendingProfileCompletion =
+          payload['created'] == true ||
+          (_currentUser?.needsMandatoryProfileSetup ?? false);
       notifyListeners();
       return true;
     } on GoogleSignInException catch (e) {
@@ -144,6 +163,7 @@ class AuthController extends ChangeNotifier {
       }
       await apiClient.logout();
       _currentUser = null;
+      _pendingProfileCompletion = false;
       _errorMessage = null;
       notifyListeners();
     } finally {

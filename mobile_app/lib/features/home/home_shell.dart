@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../auth/auth_controller.dart';
@@ -7,6 +9,7 @@ import '../create_offer/create_offer_page.dart';
 import '../offers/offers_controller.dart';
 import '../offers/offers_page.dart';
 import '../profile/profile_page.dart';
+import '../profile/profile_edit_page.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.authController});
@@ -21,6 +24,7 @@ class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
   late final OffersController _offersController;
   late final CommunityController _communityController;
+  bool _mandatoryProfileFlowOpen = false;
 
   @override
   void initState() {
@@ -29,13 +33,62 @@ class _HomeShellState extends State<HomeShell> {
       ..loadOffers();
     _communityController = CommunityController(widget.authController.apiClient)
       ..loadPeople();
+    widget.authController.addListener(_handleAuthStateChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_maybeOpenMandatoryProfileSetup());
+    });
   }
 
   @override
   void dispose() {
+    widget.authController.removeListener(_handleAuthStateChanged);
     _offersController.dispose();
     _communityController.dispose();
     super.dispose();
+  }
+
+  void _handleAuthStateChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_maybeOpenMandatoryProfileSetup());
+    });
+  }
+
+  Future<void> _maybeOpenMandatoryProfileSetup() async {
+    if (!mounted || _mandatoryProfileFlowOpen) {
+      return;
+    }
+    if (!widget.authController.isAuthenticated) {
+      return;
+    }
+    if (!widget.authController.consumePendingProfileCompletion()) {
+      return;
+    }
+
+    _mandatoryProfileFlowOpen = true;
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => ProfileEditPage(
+          authController: widget.authController,
+          requireCompletion: true,
+        ),
+      ),
+    );
+
+    await widget.authController.refreshCurrentUser();
+    await _offersController.loadOffers();
+    await _communityController.loadPeople();
+    _mandatoryProfileFlowOpen = false;
+
+    if (!mounted) {
+      return;
+    }
+
+    if (widget.authController.currentUser?.needsMandatoryProfileSetup ??
+        false) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_maybeOpenMandatoryProfileSetup());
+      });
+    }
   }
 
   @override
