@@ -37,7 +37,18 @@ class _LoginPageState extends State<LoginPage> {
       password: _passwordController.text,
     );
 
-    if (!mounted || ok) {
+    if (!mounted) {
+      return;
+    }
+
+    if (ok) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        Navigator.of(context, rootNavigator: true)
+            .popUntil((route) => route.isFirst);
+      });
       return;
     }
 
