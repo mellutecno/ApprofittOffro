@@ -64,14 +64,14 @@ class _CommunityPageState extends State<CommunityPage> {
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
                   child: BrandHeroCard(
                     eyebrow: 'COMMUNITY',
-                    title: 'Profili da scoprire',
+                    title: 'Persone da seguire davvero',
                     subtitle:
-                        'Apri i profili, guarda le foto e scegli le persone che vuoi seguire davvero.',
+                        'Apri i profili, guarda le foto e costruisci il tuo giro nella community.',
                     footer: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Seleziona la fascia di eta',
+                          'Scegli la fascia di eta',
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
                             color: AppTheme.brown,

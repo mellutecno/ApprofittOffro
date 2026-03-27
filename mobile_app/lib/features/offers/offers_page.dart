@@ -47,15 +47,15 @@ class OffersPage extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
                   child: BrandHeroCard(
                     eyebrow: 'APPROFITTA',
-                    title: 'Benvenuto a tavola',
+                    title: 'Eventi aperti della community',
                     subtitle: user == null
-                        ? 'Scopri chi sta cucinando qualcosa di buono e scegli il momento del pasto che ti interessa.'
-                        : 'Scopri chi ti sta cucinando qualcosa di buono vicino a ${user.city.isNotEmpty ? user.city : "te"}.',
+                        ? 'Scopri chi sta condividendo una colazione, un pranzo o una cena e scegli dove entrare.'
+                        : 'Scopri chi sta condividendo qualcosa di buono vicino a ${user.city.isNotEmpty ? user.city : "te"}.',
                     footer: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Filtra per momento del pasto',
+                          'Scegli il momento del pasto',
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
                             color: AppTheme.brown,
@@ -117,7 +117,7 @@ class OffersPage extends StatelessWidget {
                     child: Padding(
                       padding: EdgeInsets.all(24),
                       child: Text(
-                        'Per ora non ci sono eventi disponibili in questa vista. Appena ne arriva uno, lo vedrai qui.',
+                        'Per questa selezione non vedo ancora eventi aperti. Appena arriva un nuovo tavolo, lo troverai qui.',
                         textAlign: TextAlign.center,
                       ),
                     ),

@@ -5,7 +5,7 @@ import 'core/network/session_store.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/brand_wordmark.dart';
 import 'features/auth/auth_controller.dart';
-import 'features/auth/login_page.dart';
+import 'features/auth/landing_page.dart';
 import 'features/home/home_shell.dart';
 
 class ApprofittOffroMobileApp extends StatefulWidget {
@@ -53,7 +53,7 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp> {
               if (_authController.isAuthenticated) {
                 return HomeShell(authController: _authController);
               }
-              return LoginPage(authController: _authController);
+              return LandingPage(authController: _authController);
             },
           );
         },

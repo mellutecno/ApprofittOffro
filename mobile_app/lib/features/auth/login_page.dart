@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_hero_card.dart';
+import '../../core/widgets/brand_wordmark.dart';
 import 'auth_controller.dart';
 import 'register_page.dart';
 
@@ -52,6 +53,9 @@ class _LoginPageState extends State<LoginPage> {
       builder: (context, _) {
         final busy = widget.authController.isBusy;
         return Scaffold(
+          appBar: AppBar(
+            title: const BrandWordmark(height: 24, alignment: Alignment.center),
+          ),
           body: DecoratedBox(
             decoration: const BoxDecoration(gradient: AppTheme.heroGradient),
             child: SafeArea(
@@ -63,10 +67,10 @@ class _LoginPageState extends State<LoginPage> {
                     child: Column(
                       children: [
                         const BrandHeroCard(
-                          eyebrow: 'APP MOBILE',
-                          title: 'Entra e inizia a muoverti nella community.',
+                          eyebrow: 'ACCESSO',
+                          title: 'Rientra nella community quando vuoi.',
                           subtitle:
-                              'Questa e\' la versione Android utenti di ApprofittOffro. Backend e admin restano sul sistema web attuale.',
+                              'Accedi con le stesse credenziali che usi gia sul sito e riparti da eventi, profili e offerte aperte.',
                         ),
                         const SizedBox(height: 18),
                         Card(
@@ -78,14 +82,14 @@ class _LoginPageState extends State<LoginPage> {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   Text(
-                                    'Accedi',
+                                    'Bentornato',
                                     style:
                                         Theme.of(context).textTheme.titleLarge,
                                     textAlign: TextAlign.center,
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Usa le stesse credenziali che hai gia\' sul sito.',
+                                    'Entra e torna subito tra profili, pasti e community attiva.',
                                     style:
                                         Theme.of(context).textTheme.bodyMedium,
                                     textAlign: TextAlign.center,
