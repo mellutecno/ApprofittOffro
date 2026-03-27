@@ -143,6 +143,7 @@ class OffersPage extends StatelessWidget {
                     return OfferCard(
                       offer: offer,
                       apiClient: authController.apiClient,
+                      allowProfileOpen: !offer.isOwn,
                       onEditOwn: offer.isOwn
                           ? () async {
                               final result = await Navigator.of(context)

@@ -72,7 +72,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     final user = widget.authController.currentUser!;
     _nomeController = TextEditingController(text: user.nome);
     _emailController = TextEditingController(text: user.email);
-    _etaController = TextEditingController(text: user.etaDisplay);
+    final shouldBlankAgeForOnboarding =
+        widget.requireCompletion && user.etaDisplay.contains('-');
+    _etaController = TextEditingController(
+      text: shouldBlankAgeForOnboarding ? '' : user.etaDisplay,
+    );
     _selectedGender = user.gender;
     _telefonoController = TextEditingController(text: user.phoneNumber);
     _addressController = TextEditingController(text: user.city);

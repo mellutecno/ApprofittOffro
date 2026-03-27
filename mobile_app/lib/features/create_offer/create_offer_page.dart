@@ -67,6 +67,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   bool _mapExpanded = false;
   bool _loadingNearbyPlaces = false;
   bool _nearbyPlacesLoaded = false;
+  String? _pendingDeletionReason;
   GoogleMapController? _mapController;
   LatLng _currentMapCenter = _fallbackMapTarget;
   double? _selectedLatitude;
@@ -412,7 +413,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.delete_outline_rounded),
-                      label: const Text('Elimina offerta'),
+                      label: Text(
+                        (_pendingDeletionReason ?? '').trim().isEmpty
+                            ? 'Elimina offerta'
+                            : 'Conferma eliminazione',
+                      ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF8A4336),
                         side: const BorderSide(color: Color(0xFFD7B4AC)),
@@ -1111,10 +1116,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
 
-    final reasonController = TextEditingController();
-    String? validationMessage;
+    if ((_pendingDeletionReason ?? '').trim().isEmpty) {
+      final reasonController = TextEditingController();
+      String? validationMessage;
 
-    final reason = await showDialog<String>(
+      final reason = await showDialog<String>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
@@ -1161,18 +1167,25 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                     }
                     Navigator.of(context).pop(trimmedReason);
                   },
-                  child: const Text('Elimina'),
+                  child: const Text('Salva motivo'),
                 ),
               ],
             );
           },
         );
       },
-    );
+      );
 
-    reasonController.dispose();
+      reasonController.dispose();
 
-    if (reason == null || !mounted) {
+      if (reason == null || !mounted) {
+        return;
+      }
+
+      setState(() => _pendingDeletionReason = reason);
+      _showMessage(
+        'Motivo salvato. Premi di nuovo "Elimina offerta" per confermare.',
+      );
       return;
     }
 
@@ -1181,7 +1194,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     try {
       await widget.authController.apiClient.deleteOffer(
         offer.id,
-        motivazione: reason,
+        motivazione: _pendingDeletionReason!.trim(),
       );
       if (!mounted) {
         return;
