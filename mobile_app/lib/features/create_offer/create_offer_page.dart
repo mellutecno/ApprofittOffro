@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -36,6 +39,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   final _longitudeController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _picker = ImagePicker();
+  final Completer<GoogleMapController> _mapControllerCompleter = Completer();
 
   String _mealType = 'colazione';
   int _totalSeats = 2;
@@ -45,6 +49,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   bool _isLocating = false;
   bool _showManualCoordinates = false;
   bool _submitting = false;
+  GoogleMapController? _mapController;
 
   @override
   void dispose() {
@@ -53,6 +58,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     _latitudeController.dispose();
     _longitudeController.dispose();
     _descriptionController.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
@@ -340,6 +346,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                         target: _mapTarget,
                         markers: _mapMarkers,
                         enabled: !_submitting,
+                        onMapCreated: _handleMapCreated,
                         onLongPress: _submitting ? null : _setLocationFromMap,
                       ),
                       const SizedBox(height: 10),
@@ -374,7 +381,9 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                           borderRadius: BorderRadius.circular(18),
                         ),
                         child: Text(
-                          'Coordinate pronte: ${_latitudeController.text} / ${_longitudeController.text}',
+                          AppConfig.googleMapsEnabled
+                              ? 'Posizione agganciata sulla mappa.'
+                              : 'Coordinate pronte: ${_latitudeController.text} / ${_longitudeController.text}',
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             color: AppTheme.brown,
@@ -388,26 +397,29 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                           color: AppTheme.brown.withValues(alpha: 0.72),
                         ),
                       ),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: _submitting
-                          ? null
-                          : () => setState(() {
-                                _showManualCoordinates =
-                                    !_showManualCoordinates;
-                              }),
-                      icon: Icon(
-                        _showManualCoordinates
-                            ? Icons.expand_less_rounded
-                            : Icons.edit_location_alt_outlined,
+                    if (!AppConfig.googleMapsEnabled) ...[
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: _submitting
+                            ? null
+                            : () => setState(() {
+                                  _showManualCoordinates =
+                                      !_showManualCoordinates;
+                                }),
+                        icon: Icon(
+                          _showManualCoordinates
+                              ? Icons.expand_less_rounded
+                              : Icons.edit_location_alt_outlined,
+                        ),
+                        label: Text(
+                          _showManualCoordinates
+                              ? 'Nascondi coordinate manuali'
+                              : 'Inserisci coordinate manuali',
+                        ),
                       ),
-                      label: Text(
-                        _showManualCoordinates
-                            ? 'Nascondi coordinate manuali'
-                            : 'Inserisci coordinate manuali',
-                      ),
-                    ),
-                    if (_showManualCoordinates) ...[
+                    ],
+                    if (!AppConfig.googleMapsEnabled &&
+                        _showManualCoordinates) ...[
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -695,7 +707,16 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       _latitudeController.text = position.latitude.toStringAsFixed(6);
       _longitudeController.text = position.longitude.toStringAsFixed(6);
       setState(() => _showManualCoordinates = false);
-      _showMessage('Posizione acquisita correttamente.');
+      if (AppConfig.googleMapsEnabled) {
+        await _animateMapTo(
+          LatLng(position.latitude, position.longitude),
+        );
+      }
+      _showMessage(
+        AppConfig.googleMapsEnabled
+            ? 'Posizione acquisita e mostrata sulla mappa.'
+            : 'Posizione acquisita correttamente.',
+      );
     } catch (error) {
       _showMessage(error.toString().replaceFirst('Exception: ', ''));
     } finally {
@@ -710,6 +731,29 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     _longitudeController.text = position.longitude.toStringAsFixed(6);
     setState(() => _showManualCoordinates = false);
     _showMessage('Posizione aggiornata dalla mappa.');
+  }
+
+  void _handleMapCreated(GoogleMapController controller) {
+    _mapController = controller;
+    if (!_mapControllerCompleter.isCompleted) {
+      _mapControllerCompleter.complete(controller);
+    }
+  }
+
+  Future<void> _animateMapTo(LatLng target) async {
+    final controller =
+        _mapController ??
+        (_mapControllerCompleter.isCompleted
+            ? await _mapControllerCompleter.future
+            : null);
+    if (controller == null) {
+      return;
+    }
+    await controller.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: target, zoom: 16),
+      ),
+    );
   }
 
   Future<void> _submit() async {
@@ -799,12 +843,14 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
     required this.target,
     required this.markers,
     required this.enabled,
+    required this.onMapCreated,
     required this.onLongPress,
   });
 
   final LatLng target;
   final Set<Marker> markers;
   final bool enabled;
+  final ValueChanged<GoogleMapController> onMapCreated;
   final ValueChanged<LatLng>? onLongPress;
 
   @override
@@ -814,6 +860,7 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
       child: SizedBox(
         height: 240,
         child: GoogleMap(
+          onMapCreated: onMapCreated,
           initialCameraPosition: CameraPosition(
             target: target,
             zoom: markers.isEmpty ? 11 : 15,
@@ -824,6 +871,15 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
           myLocationEnabled: false,
           zoomControlsEnabled: false,
           compassEnabled: false,
+          scrollGesturesEnabled: true,
+          zoomGesturesEnabled: true,
+          rotateGesturesEnabled: true,
+          tiltGesturesEnabled: true,
+          gestureRecognizers: {
+            Factory<OneSequenceGestureRecognizer>(
+              () => EagerGestureRecognizer(),
+            ),
+          },
           onLongPress: enabled ? onLongPress : null,
         ),
       ),
