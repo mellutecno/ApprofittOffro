@@ -230,7 +230,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             ),
             const SizedBox(height: 16),
             _SectionCard(
-              title: 'Scegli il posto',
+              title: 'Dove',
               subtitle:
                   'Nome, indirizzo e telefono si compilano in automatico quando selezioni un locale sulla mappa.',
               child: Column(
