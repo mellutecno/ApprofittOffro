@@ -1027,6 +1027,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
 
+    var shouldCloseEditor = false;
     setState(() => _submitting = true);
     try {
       final message = widget.initialOffer == null
@@ -1061,12 +1062,13 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       }
 
       if (widget.initialOffer != null) {
-        Navigator.of(context).pop(
-          CreateOfferPageResult(
-            changed: true,
-            message: message,
-          ),
-        );
+        shouldCloseEditor = true;
+        final navigator = Navigator.of(context);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (navigator.mounted) {
+            navigator.pop(const CreateOfferPageResult(changed: true));
+          }
+        });
         return;
       }
       _showMessage(message);
@@ -1095,7 +1097,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     } catch (error) {
       _showMessage(error.toString());
     } finally {
-      if (mounted) {
+      if (mounted && !shouldCloseEditor) {
         setState(() => _submitting = false);
       }
     }
@@ -1172,25 +1174,28 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
 
+    var shouldCloseEditor = false;
     setState(() => _deleting = true);
     try {
-      final message = await widget.authController.apiClient.deleteOffer(
+      await widget.authController.apiClient.deleteOffer(
         offer.id,
         motivazione: reason,
       );
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pop(
-        CreateOfferPageResult(
-          changed: true,
-          message: message,
-        ),
-      );
+      shouldCloseEditor = true;
+      final navigator = Navigator.of(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (navigator.mounted) {
+          navigator.pop(const CreateOfferPageResult(changed: true));
+        }
+      });
+      return;
     } catch (error) {
       _showMessage(error.toString());
     } finally {
-      if (mounted) {
+      if (mounted && !shouldCloseEditor) {
         setState(() => _deleting = false);
       }
     }

@@ -159,16 +159,6 @@ class OffersPage extends StatelessWidget {
                               if (result?.changed == true) {
                                 await offersController.loadOffers();
                                 await authController.refreshCurrentUser();
-                                if (!context.mounted) {
-                                  return;
-                                }
-                                final message = result?.message;
-                                if (message != null &&
-                                    message.trim().isNotEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(message)),
-                                  );
-                                }
                               }
                             }
                           : null,

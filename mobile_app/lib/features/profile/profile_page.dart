@@ -57,15 +57,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
     if (result?.changed == true) {
       await _refreshAll();
-      if (!mounted) {
-        return;
-      }
-      final message = result?.message;
-      if (message != null && message.trim().isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
-      }
     }
   }
 

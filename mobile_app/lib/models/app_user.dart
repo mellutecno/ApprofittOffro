@@ -11,6 +11,8 @@ class AppUser {
     required this.etaDisplay,
     required this.gender,
     required this.city,
+    required this.latitude,
+    required this.longitude,
     required this.bio,
     required this.phoneNumber,
     required this.isVerified,
@@ -34,6 +36,8 @@ class AppUser {
   final String etaDisplay;
   final String gender;
   final String city;
+  final double? latitude;
+  final double? longitude;
   final String bio;
   final String phoneNumber;
   final bool isVerified;
@@ -61,6 +65,8 @@ class AppUser {
       etaDisplay: (json['eta_display'] ?? json['eta'] ?? '').toString(),
       gender: (json['sesso'] ?? 'non_dico').toString(),
       city: (json['citta'] ?? '').toString(),
+      latitude: (json['lat'] as num?)?.toDouble(),
+      longitude: (json['lon'] as num?)?.toDouble(),
       bio: (json['bio'] ?? '').toString(),
       phoneNumber: (json['numero_telefono'] ?? '').toString(),
       isVerified: json['verificato'] == true,
