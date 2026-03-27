@@ -5,6 +5,7 @@ class UserPreview {
     required this.photoFilename,
     required this.galleryFilenames,
     required this.etaDisplay,
+    required this.gender,
     required this.city,
     required this.cityLabel,
     required this.bio,
@@ -24,6 +25,7 @@ class UserPreview {
   final String photoFilename;
   final List<String> galleryFilenames;
   final String etaDisplay;
+  final String gender;
   final String city;
   final String cityLabel;
   final String bio;
@@ -47,6 +49,7 @@ class UserPreview {
       photoFilename: photoFilename,
       galleryFilenames: galleryFilenames,
       etaDisplay: etaDisplay,
+      gender: gender,
       city: city,
       cityLabel: cityLabel,
       bio: bio,
@@ -71,6 +74,7 @@ class UserPreview {
           .map((item) => item.toString())
           .toList(),
       etaDisplay: (json['eta_display'] ?? json['eta'] ?? '').toString(),
+      gender: (json['sesso'] ?? 'non_dico').toString(),
       city: (json['citta'] ?? '').toString(),
       cityLabel: (json['city_label'] ?? json['citta'] ?? '').toString(),
       bio: (json['bio'] ?? '').toString(),

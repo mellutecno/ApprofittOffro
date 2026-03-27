@@ -32,6 +32,11 @@ class _CommunityPageState extends State<CommunityPage> {
     MapEntry('56-65', '56-65 anni'),
     MapEntry('65+', '65+ anni'),
   ];
+  static const List<MapEntry<String, String>> _genderFilters = [
+    MapEntry('', 'Tutti'),
+    MapEntry('maschio', 'Maschi'),
+    MapEntry('femmina', 'Femmine'),
+  ];
 
   @override
   void initState() {
@@ -81,24 +86,47 @@ class _CommunityPageState extends State<CommunityPage> {
                         ),
                         const SizedBox(height: 12),
                         ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 260),
-                          child: DropdownButtonFormField<String>(
-                            initialValue:
-                                widget.communityController.selectedAgeRange,
-                            decoration:
-                                const InputDecoration(labelText: 'Seleziona'),
-                            items: _ageRanges
-                                .map(
-                                  (item) => DropdownMenuItem<String>(
-                                    value: item.key,
-                                    child: Text(item.value),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              widget.communityController
-                                  .selectAgeRange(value ?? '');
-                            },
+                          constraints: const BoxConstraints(maxWidth: 320),
+                          child: Column(
+                            children: [
+                              DropdownButtonFormField<String>(
+                                initialValue:
+                                    widget.communityController.selectedAgeRange,
+                                decoration:
+                                    const InputDecoration(labelText: 'Eta'),
+                                items: _ageRanges
+                                    .map(
+                                      (item) => DropdownMenuItem<String>(
+                                        value: item.key,
+                                        child: Text(item.value),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) {
+                                  widget.communityController
+                                      .selectAgeRange(value ?? '');
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String>(
+                                initialValue:
+                                    widget.communityController.selectedGender,
+                                decoration:
+                                    const InputDecoration(labelText: 'Sesso'),
+                                items: _genderFilters
+                                    .map(
+                                      (item) => DropdownMenuItem<String>(
+                                        value: item.key,
+                                        child: Text(item.value),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) {
+                                  widget.communityController
+                                      .selectGender(value ?? '');
+                                },
+                              ),
+                            ],
                           ),
                         ),
                       ],

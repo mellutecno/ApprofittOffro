@@ -43,7 +43,18 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 from PIL import Image
 
-from models import db, User, Offer, Claim, Review, TIPI_PASTO, FASCE_ETA, UserPhoto, UserFollow
+from models import (
+    db,
+    User,
+    Offer,
+    Claim,
+    Review,
+    TIPI_PASTO,
+    FASCE_ETA,
+    SESSI_UTENTE,
+    UserPhoto,
+    UserFollow,
+)
 from verify_photo import verifica_volto
 from upload_storage import create_upload_storage, StorageObjectNotFound
 
@@ -139,6 +150,11 @@ MEAL_BOOKING_LEAD_HOURS = 6
 USER_SESSION_IDLE_TIMEOUT_MINUTES = 60
 ADMIN_SESSION_IDLE_TIMEOUT_MINUTES = 30
 REVIEW_EDIT_WINDOW_HOURS = 24
+COMMUNITY_GENDER_FILTERS = [
+    ("", "Tutti"),
+    ("maschio", "Maschi"),
+    ("femmina", "Femmine"),
+]
 
 
 def local_now():
@@ -435,6 +451,7 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
         legacy_columns = {
             "users": [
                 ("eta", "ALTER TABLE users ADD COLUMN eta INTEGER"),
+                ("sesso", "ALTER TABLE users ADD COLUMN sesso VARCHAR(20) DEFAULT 'non_dico'"),
                 ("numero_telefono", "ALTER TABLE users ADD COLUMN numero_telefono VARCHAR(32)"),
                 ("citta", "ALTER TABLE users ADD COLUMN citta VARCHAR(200)"),
                 ("cibi_preferiti", "ALTER TABLE users ADD COLUMN cibi_preferiti VARCHAR(300)"),
@@ -803,6 +820,7 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
         "eta",
         user.eta if user.eta is not None else user.fascia_eta,
     )
+    sesso_raw = source.get("sesso", user.sesso or "non_dico")
     lat_raw = str(source.get("latitudine", "") or "").strip()
     lon_raw = str(source.get("longitudine", "") or "").strip()
     citta = str(source.get("citta", user.citta or "") or "").strip()
@@ -823,6 +841,9 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
     eta, eta_error = parse_age_value(eta_raw)
     if eta_error:
         errors.append(eta_error)
+    sesso, sesso_error = parse_gender_value(sesso_raw)
+    if sesso_error:
+        errors.append(sesso_error)
 
     existing_user = User.query.filter_by(email=email).first()
     if email != user.email and existing_user and existing_user.id != user.id:
@@ -857,6 +878,7 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
         "nome": nome,
         "email": email,
         "eta": eta if not eta_error else None,
+        "sesso": sesso,
         "numero_telefono": numero_telefono,
         "citta": citta,
         "latitudine": latitudine,
@@ -878,6 +900,7 @@ def save_profile_update_for_user(user, payload, *, verified=None):
     user.email = payload["email"]
     user.fascia_eta = str(payload["eta"])
     user.eta = payload["eta"]
+    user.sesso = payload["sesso"]
     user.numero_telefono = payload["numero_telefono"]
     user.citta = payload["citta"]
     if payload["latitudine"] is not None and payload["longitudine"] is not None:
@@ -1093,6 +1116,26 @@ def parse_age_range_filter(age_range_raw):
         return "", None, "Seleziona una fascia d'età valida."
 
     return age_range, (min_age, max_age), None
+
+
+def parse_gender_value(gender_raw, *, default="non_dico", allow_empty=False):
+    gender = str(gender_raw if gender_raw is not None else default).strip().lower()
+    valid_values = {value for value, _ in SESSI_UTENTE}
+    if allow_empty and not gender:
+        return "", None
+    if not gender:
+        gender = default
+    if gender not in valid_values:
+        return default, "Seleziona un sesso valido."
+    return gender, None
+
+
+def parse_community_gender_filter(gender_raw):
+    gender = str(gender_raw or "").strip().lower()
+    valid_values = {value for value, _ in COMMUNITY_GENDER_FILTERS}
+    if gender not in valid_values:
+        return "", "Seleziona un filtro sesso valido."
+    return gender, None
 
 
 def get_safe_next_url(default_endpoint="people_page"):
@@ -1417,6 +1460,7 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
         "gallery_filenames": gallery_filenames,
         "eta": user.eta,
         "eta_display": user.eta_display,
+        "sesso": user.sesso or "non_dico",
         "citta": user.citta or "",
         "city_label": extract_city_label(user.citta),
         "bio": user.bio or "",
@@ -2126,10 +2170,12 @@ def api_register():
         conferma_password = request.form.get("conferma_password", "")
         numero_telefono_raw = request.form.get("numero_telefono", "")
         eta_raw = request.form.get("eta", "")
+        sesso_raw = request.form.get("sesso", "non_dico")
         lat = request.form.get("latitudine")
         lon = request.form.get("longitudine")
         citta = request.form.get("citta", "").strip()
         eta, eta_error = parse_age_value(eta_raw)
+        sesso, sesso_error = parse_gender_value(sesso_raw)
         numero_telefono, phone_error = normalize_phone_number(numero_telefono_raw)
 
         # Validazione campi
@@ -2146,6 +2192,8 @@ def api_register():
             errors.append("Le due password non coincidono.")
         if eta_error:
             errors.append(eta_error)
+        if sesso_error:
+            errors.append(sesso_error)
         if not lat or not lon:
             errors.append("Seleziona la tua posizione sulla mappa.")
 
@@ -2173,6 +2221,7 @@ def api_register():
             foto_filename=photo_filenames[0],
             fascia_eta=str(eta),
             eta=eta,
+            sesso=sesso,
             numero_telefono=numero_telefono,
             latitudine=float(lat),
             longitudine=float(lon),
@@ -2846,6 +2895,11 @@ def api_people():
     )
     if age_range_error:
         return jsonify({"success": False, "error": age_range_error}), 400
+    selected_gender, gender_error = parse_community_gender_filter(
+        request.args.get("gender")
+    )
+    if gender_error:
+        return jsonify({"success": False, "error": gender_error}), 400
 
     people_query = User.query.options(selectinload(User.photos)).filter(
         User.id != current_user.id,
@@ -2867,13 +2921,18 @@ def api_people():
     elif isinstance(parsed_age_range, int):
         people_query = people_query.filter(User.eta >= parsed_age_range)
 
+    if selected_gender:
+        people_query = people_query.filter(User.sesso == selected_gender)
+
     people = people_query.order_by(User.eta.asc(), User.nome.asc()).all()
     followed_user_ids = get_followed_user_ids(current_user.id)
 
     return jsonify({
         "success": True,
         "selected_age_range": selected_age_range,
+        "selected_gender": selected_gender,
         "age_ranges": [{"value": value, "label": label} for value, label in FASCE_ETA],
+        "gender_filters": [{"value": value, "label": label} for value, label in COMMUNITY_GENDER_FILTERS],
         "people": [
             serialize_user_preview(
                 person,

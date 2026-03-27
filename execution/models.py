@@ -20,6 +20,12 @@ FASCE_ETA = [
     ("65+", "65+ anni"),
 ]
 
+SESSI_UTENTE = [
+    ("maschio", "Maschio"),
+    ("femmina", "Femmina"),
+    ("non_dico", "Preferisco non dirlo"),
+]
+
 # Tipi di pasto
 TIPI_PASTO = [
     ("colazione", "Colazione"),
@@ -39,6 +45,7 @@ class User(UserMixin, db.Model):
     foto_filename = db.Column(db.String(256), nullable=False)
     fascia_eta = db.Column(db.String(10), nullable=False)
     eta = db.Column(db.Integer, nullable=True)
+    sesso = db.Column(db.String(20), nullable=True, default="non_dico")
     numero_telefono = db.Column(db.String(32), nullable=True)
     latitudine = db.Column(db.Float, nullable=False)
     longitudine = db.Column(db.Float, nullable=False)

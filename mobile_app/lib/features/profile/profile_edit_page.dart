@@ -17,6 +17,14 @@ class ProfileEditPage extends StatefulWidget {
 }
 
 class _ProfileEditPageState extends State<ProfileEditPage> {
+  static const List<DropdownMenuItem<String>> _genderItems = [
+    DropdownMenuItem(value: 'maschio', child: Text('Maschio')),
+    DropdownMenuItem(value: 'femmina', child: Text('Femmina')),
+    DropdownMenuItem(
+      value: 'non_dico',
+      child: Text('Preferisco non dirlo'),
+    ),
+  ];
   final _formKey = GlobalKey<FormState>();
   final _picker = ImagePicker();
 
@@ -31,6 +39,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   List<XFile> _selectedPhotos = const [];
   bool _isSaving = false;
+  late String _selectedGender;
 
   @override
   void initState() {
@@ -39,6 +48,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     _nomeController = TextEditingController(text: user.nome);
     _emailController = TextEditingController(text: user.email);
     _etaController = TextEditingController(text: user.etaDisplay);
+    _selectedGender = user.gender;
     _telefonoController = TextEditingController(text: user.phoneNumber);
     _cittaController = TextEditingController(text: user.city);
     _bioController = TextEditingController(text: user.bio);
@@ -88,6 +98,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         nome: _nomeController.text.trim(),
         email: _emailController.text.trim(),
         eta: _etaController.text.trim(),
+        gender: _selectedGender,
         numeroTelefono: _telefonoController.text.trim(),
         citta: _cittaController.text.trim(),
         preferredFoods: _preferitiController.text.trim(),
@@ -210,6 +221,18 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           value == null || value.trim().isEmpty
                               ? 'Inserisci l\'eta.'
                               : null,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedGender,
+                      decoration: const InputDecoration(labelText: 'Sesso'),
+                      items: _genderItems,
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() => _selectedGender = value);
+                      },
                     ),
                     const SizedBox(height: 12),
                     TextFormField(

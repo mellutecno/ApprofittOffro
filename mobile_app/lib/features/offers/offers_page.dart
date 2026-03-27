@@ -53,40 +53,36 @@ class OffersPage extends StatelessWidget {
                     footer: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        const Text(
-                          'Scegli il momento del pasto',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.brown,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 10,
-                          runSpacing: 10,
+                        Row(
                           children: [
-                            _MealChip(
-                              label: 'Colazioni',
-                              value: 'colazione',
-                              selected: offersController.selectedMealType ==
-                                  'colazione',
-                              onTap: offersController.toggleMealType,
+                            Expanded(
+                              child: _MealChip(
+                                label: 'Colazioni',
+                                value: 'colazione',
+                                selected: offersController.selectedMealType ==
+                                    'colazione',
+                                onTap: offersController.toggleMealType,
+                              ),
                             ),
-                            _MealChip(
-                              label: 'Pranzi',
-                              value: 'pranzo',
-                              selected:
-                                  offersController.selectedMealType == 'pranzo',
-                              onTap: offersController.toggleMealType,
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _MealChip(
+                                label: 'Pranzi',
+                                value: 'pranzo',
+                                selected:
+                                    offersController.selectedMealType == 'pranzo',
+                                onTap: offersController.toggleMealType,
+                              ),
                             ),
-                            _MealChip(
-                              label: 'Cene',
-                              value: 'cena',
-                              selected:
-                                  offersController.selectedMealType == 'cena',
-                              onTap: offersController.toggleMealType,
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _MealChip(
+                                label: 'Cene',
+                                value: 'cena',
+                                selected:
+                                    offersController.selectedMealType == 'cena',
+                                onTap: offersController.toggleMealType,
+                              ),
                             ),
                           ],
                         ),
@@ -208,18 +204,24 @@ class _MealChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FilterChip(
-      selected: selected,
-      label: Text(label),
-      onSelected: (_) => onTap(value),
-      backgroundColor: Colors.white.withValues(alpha: 0.72),
-      selectedColor: _colorForValue(value).withValues(alpha: 0.18),
-      side: BorderSide(color: _colorForValue(value).withValues(alpha: 0.34)),
-      labelStyle: TextStyle(
-        color: selected ? _colorForValue(value) : null,
-        fontWeight: FontWeight.w700,
+    return SizedBox(
+      height: 48,
+      child: FilterChip(
+        selected: selected,
+        label: SizedBox(
+          width: double.infinity,
+          child: Text(label, textAlign: TextAlign.center),
+        ),
+        onSelected: (_) => onTap(value),
+        backgroundColor: Colors.white.withValues(alpha: 0.72),
+        selectedColor: _colorForValue(value).withValues(alpha: 0.18),
+        side: BorderSide(color: _colorForValue(value).withValues(alpha: 0.34)),
+        labelStyle: TextStyle(
+          color: selected ? _colorForValue(value) : null,
+          fontWeight: FontWeight.w700,
+        ),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
       ),
-      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 

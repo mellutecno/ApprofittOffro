@@ -9,6 +9,7 @@ class AppUser {
     required this.photoFilename,
     required this.galleryFilenames,
     required this.etaDisplay,
+    required this.gender,
     required this.city,
     required this.bio,
     required this.phoneNumber,
@@ -31,6 +32,7 @@ class AppUser {
   final String photoFilename;
   final List<String> galleryFilenames;
   final String etaDisplay;
+  final String gender;
   final String city;
   final String bio;
   final String phoneNumber;
@@ -57,6 +59,7 @@ class AppUser {
           .map((item) => item.toString())
           .toList(),
       etaDisplay: (json['eta_display'] ?? json['eta'] ?? '').toString(),
+      gender: (json['sesso'] ?? 'non_dico').toString(),
       city: (json['citta'] ?? '').toString(),
       bio: (json['bio'] ?? '').toString(),
       phoneNumber: (json['numero_telefono'] ?? '').toString(),

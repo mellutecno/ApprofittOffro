@@ -25,6 +25,14 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   static const LatLng _fallbackMapTarget = LatLng(45.070339, 7.686864);
+  static const List<DropdownMenuItem<String>> _genderItems = [
+    DropdownMenuItem(value: 'maschio', child: Text('Maschio')),
+    DropdownMenuItem(value: 'femmina', child: Text('Femmina')),
+    DropdownMenuItem(
+      value: 'non_dico',
+      child: Text('Preferisco non dirlo'),
+    ),
+  ];
 
   final _formKey = GlobalKey<FormState>();
   final _picker = ImagePicker();
@@ -46,6 +54,7 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _mapReady = !AppConfig.googleMapsEnabled;
   GoogleMapController? _mapController;
   LatLng _currentMapCenter = _fallbackMapTarget;
+  String _selectedGender = 'non_dico';
   double? _latitude;
   double? _longitude;
   Set<Marker> _markers = const <Marker>{};
@@ -266,6 +275,7 @@ class _RegisterPageState extends State<RegisterPage> {
         confermaPassword: _confirmController.text,
         numeroTelefono: _telefonoController.text.trim(),
         eta: _etaController.text.trim(),
+        gender: _selectedGender,
         latitude: _latitude!.toString(),
         longitude: _longitude!.toString(),
         citta: _addressController.text.trim(),
@@ -412,6 +422,19 @@ class _RegisterPageState extends State<RegisterPage> {
                                     value == null || value.trim().isEmpty
                                         ? 'Inserisci l\'eta.'
                                         : null,
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String>(
+                                initialValue: _selectedGender,
+                                decoration:
+                                    const InputDecoration(labelText: 'Sesso'),
+                                items: _genderItems,
+                                onChanged: (value) {
+                                  if (value == null) {
+                                    return;
+                                  }
+                                  setState(() => _selectedGender = value);
+                                },
                               ),
                               const SizedBox(height: 18),
                               Text(

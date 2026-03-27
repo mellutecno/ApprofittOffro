@@ -63,6 +63,7 @@ class ApiClient {
     required String confermaPassword,
     required String numeroTelefono,
     required String eta,
+    required String gender,
     required String latitude,
     required String longitude,
     required String citta,
@@ -80,6 +81,7 @@ class ApiClient {
       'conferma_password': confermaPassword,
       'numero_telefono': numeroTelefono,
       'eta': eta,
+      'sesso': gender,
       'latitudine': latitude,
       'longitudine': longitude,
       'citta': citta,
@@ -118,10 +120,16 @@ class ApiClient {
     return AppUser.fromJson(payload['user'] as Map<String, dynamic>);
   }
 
-  Future<List<UserPreview>> fetchPeople({String ageRange = ''}) async {
+  Future<List<UserPreview>> fetchPeople({
+    String ageRange = '',
+    String gender = '',
+  }) async {
     final query = <String, String>{};
     if (ageRange.isNotEmpty) {
       query['age_range'] = ageRange;
+    }
+    if (gender.isNotEmpty) {
+      query['gender'] = gender;
     }
     final path = query.isEmpty
         ? '/api/people'
@@ -316,6 +324,7 @@ class ApiClient {
     required String nome,
     required String email,
     required String eta,
+    required String gender,
     required String numeroTelefono,
     required String citta,
     required String preferredFoods,
@@ -335,6 +344,7 @@ class ApiClient {
       'nome': nome,
       'email': email,
       'eta': eta,
+      'sesso': gender,
       'numero_telefono': numeroTelefono,
       'citta': citta,
       'cibi_preferiti': preferredFoods,

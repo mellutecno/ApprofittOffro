@@ -11,11 +11,13 @@ class CommunityController extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   String _selectedAgeRange = '';
+  String _selectedGender = '';
   List<UserPreview> _people = const [];
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String get selectedAgeRange => _selectedAgeRange;
+  String get selectedGender => _selectedGender;
   List<UserPreview> get people => _people;
 
   Future<void> loadPeople() async {
@@ -24,7 +26,10 @@ class CommunityController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _people = await apiClient.fetchPeople(ageRange: _selectedAgeRange);
+      _people = await apiClient.fetchPeople(
+        ageRange: _selectedAgeRange,
+        gender: _selectedGender,
+      );
     } on ApiException catch (e) {
       _errorMessage = e.message;
     } catch (_) {
@@ -37,6 +42,11 @@ class CommunityController extends ChangeNotifier {
 
   Future<void> selectAgeRange(String value) async {
     _selectedAgeRange = value;
+    await loadPeople();
+  }
+
+  Future<void> selectGender(String value) async {
+    _selectedGender = value;
     await loadPeople();
   }
 
