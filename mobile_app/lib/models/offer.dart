@@ -49,6 +49,8 @@ class Offer {
     required this.participants,
     required this.isOwn,
     required this.alreadyClaimed,
+    required this.canClaim,
+    required this.claimStatus,
   });
 
   final int id;
@@ -77,8 +79,37 @@ class Offer {
   final List<Participant> participants;
   final bool isOwn;
   final bool alreadyClaimed;
+  final bool canClaim;
+  final String claimStatus;
 
   factory Offer.fromJson(Map<String, dynamic> json) {
+    final stato = (json['stato'] ?? '').toString();
+    final dataOra = DateTime.parse(json['data_ora'] as String);
+    final postiDisponibili = json['posti_disponibili'] as int? ?? 0;
+    final bookingClosed = json['booking_closed'] == true;
+    final isOwn = json['is_own'] == true;
+    final alreadyClaimed = json['already_claimed'] == true;
+    final now = DateTime.now();
+
+    var claimStatus = (json['claim_status'] ?? '').toString();
+    if (claimStatus.isEmpty) {
+      if (alreadyClaimed) {
+        claimStatus = 'claimed';
+      } else if (stato != 'attiva' || postiDisponibili <= 0) {
+        claimStatus = 'full';
+      } else if (dataOra.toLocal().isBefore(now)) {
+        claimStatus = 'started';
+      } else if (bookingClosed) {
+        claimStatus = 'booking_closed';
+      } else {
+        claimStatus = 'open';
+      }
+    }
+
+    final canClaim = json.containsKey('can_claim')
+        ? json['can_claim'] == true
+        : (!isOwn && !alreadyClaimed && claimStatus == 'open');
+
     return Offer(
       id: json['id'] as int,
       tipoPasto: (json['tipo_pasto'] ?? '').toString(),
@@ -89,10 +120,10 @@ class Offer {
       longitude: (json['lon'] as num?)?.toDouble() ?? 0,
       distanceKm: (json['distance_km'] as num?)?.toDouble() ?? 0,
       postiTotali: json['posti_totali'] as int? ?? 0,
-      postiDisponibili: json['posti_disponibili'] as int? ?? 0,
-      stato: (json['stato'] ?? '').toString(),
-      dataOra: DateTime.parse(json['data_ora'] as String),
-      bookingClosed: json['booking_closed'] == true,
+      postiDisponibili: postiDisponibili,
+      stato: stato,
+      dataOra: dataOra,
+      bookingClosed: bookingClosed,
       descrizione: (json['descrizione'] ?? '').toString(),
       fotoLocale: (json['foto_locale'] ?? '').toString(),
       autoreNome: (json['autore'] ?? '').toString(),
@@ -110,8 +141,10 @@ class Offer {
           .cast<Map<String, dynamic>>()
           .map(Participant.fromJson)
           .toList(),
-      isOwn: json['is_own'] == true,
-      alreadyClaimed: json['already_claimed'] == true,
+      isOwn: isOwn,
+      alreadyClaimed: alreadyClaimed,
+      canClaim: canClaim,
+      claimStatus: claimStatus,
     );
   }
 }

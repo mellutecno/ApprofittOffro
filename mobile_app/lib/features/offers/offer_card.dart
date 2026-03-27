@@ -323,7 +323,9 @@ class OfferCard extends StatelessWidget {
               FilledButton(
                 onPressed: offer.isOwn
                     ? onEditOwn
-                    : (onClaim == null ? null : () => onClaim!.call()),
+                    : (!offer.canClaim || onClaim == null
+                        ? null
+                        : () => onClaim!.call()),
                 child: Text(_ctaLabel()),
               ),
           ],
@@ -336,11 +338,15 @@ class OfferCard extends StatelessWidget {
     if (offer.isOwn) {
       return 'Modifica la tua offerta';
     }
-    if (offer.alreadyClaimed) {
-      return 'Sei gia\' dentro';
+    if (offer.alreadyClaimed || offer.claimStatus == 'claimed') {
+      return 'Hai approfittato';
     }
-    if (offer.bookingClosed) {
-      return 'Prenotazioni chiuse';
+    if (offer.claimStatus == 'full') {
+      return 'Completa · non piu\' prenotabile';
+    }
+    if (offer.claimStatus == 'booking_closed' ||
+        offer.claimStatus == 'started') {
+      return 'Non piu\' prenotabile';
     }
     return 'Approfitta';
   }

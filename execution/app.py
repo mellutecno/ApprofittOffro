@@ -2297,6 +2297,7 @@ def api_get_offers():
         dist = calculate_distance(search_lat, search_lon, o.latitudine, o.longitudine)
         booking_deadline = get_offer_booking_deadline(o)
         booking_closed = is_offer_booking_closed(o, now)
+        has_started = o.data_ora <= now
         author_rating = get_user_rating(o.autore.id)
         
         # Scarta l'offerta se si trova oltre il raggio specificato dal filtro
@@ -2316,6 +2317,22 @@ def api_get_offers():
             if already_claimed and not is_own:
                 host_whatsapp_link = build_whatsapp_offer_link(current_user, o.autore, o)
 
+        claim_status = "open"
+        if already_claimed:
+            claim_status = "claimed"
+        elif o.stato != "attiva" or o.posti_disponibili <= 0:
+            claim_status = "full"
+        elif has_started:
+            claim_status = "started"
+        elif booking_closed:
+            claim_status = "booking_closed"
+
+        can_claim = (
+            (not is_own)
+            and (not already_claimed)
+            and claim_status == "open"
+        )
+
         result.append({
             "id": o.id,
             "tipo_pasto": o.tipo_pasto,
@@ -2331,6 +2348,7 @@ def api_get_offers():
             "data_ora": o.data_ora.isoformat(),
             "booking_deadline": booking_deadline.isoformat(),
             "booking_closed": booking_closed,
+            "has_started": has_started,
             "descrizione": o.descrizione or "",
             "foto_locale": getattr(o, "foto_locale", "nessuna.jpg"),
             "autore": o.autore.nome,
@@ -2357,6 +2375,8 @@ def api_get_offers():
             ],
             "is_own": is_own,
             "already_claimed": already_claimed,
+            "can_claim": can_claim,
+            "claim_status": claim_status,
         })
 
     return jsonify({"success": True, "offers": result})
