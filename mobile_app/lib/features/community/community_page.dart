@@ -217,14 +217,15 @@ class _CommunityFilterTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          padding: const EdgeInsets.only(bottom: 8),
           child: Text(
             label,
+            textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.brown.withValues(alpha: 0.72),
+                  color: AppTheme.brown.withValues(alpha: 0.78),
                   fontWeight: FontWeight.w800,
                 ),
           ),
@@ -233,14 +234,14 @@ class _CommunityFilterTile extends StatelessWidget {
           height: 54,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            color: AppTheme.peach.withValues(alpha: 0.34),
+            color: const Color(0xFFF0E4DA),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppTheme.cardBorder),
+            border: Border.all(color: const Color(0xFFD9C4AE)),
             boxShadow: const [
               BoxShadow(
-                color: Color(0x10000000),
-                blurRadius: 12,
-                offset: Offset(0, 6),
+                color: Color(0x12000000),
+                blurRadius: 10,
+                offset: Offset(0, 5),
               ),
             ],
           ),

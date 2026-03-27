@@ -111,7 +111,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(
+            return const Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
@@ -138,30 +138,6 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                   onOpenGallery: () => _openGallery(profile.user),
                 ),
                 const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _StatCard(
-                        label: 'Offerte',
-                        value: profile.offersCount.toString(),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _StatCard(
-                        label: 'Recuperi',
-                        value: profile.claimsCount.toString(),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _StatCard(
-                        label: 'Follower',
-                        value: profile.user.followersCount.toString(),
-                      ),
-                    ),
-                  ],
-                ),
                 if (!profile.user.isSelf) ...[
                   const SizedBox(height: 18),
                   FilledButton(
@@ -318,7 +294,7 @@ class _ProfileHeader extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: CircleAvatar(
@@ -356,40 +332,6 @@ class _ProfileHeader extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            textAlign: TextAlign.center,
           ),
         ],
       ),

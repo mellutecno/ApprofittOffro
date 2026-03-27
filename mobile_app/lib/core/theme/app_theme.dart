@@ -5,7 +5,7 @@ class AppTheme {
   static const paper = Color(0xFFFFFCF7);
   static const sand = Color(0xFFEADCC7);
   static const peach = Color(0xFFF3D6C1);
-  static const orange = Color(0xFFB86F52);
+  static const orange = Color(0xFFA36D60);
   static const brown = Color(0xFF402C24);
   static const espresso = Color(0xFF241713);
   static const sage = Color(0xFFD7E1D0);
@@ -74,6 +74,7 @@ class AppTheme {
           backgroundColor: orange,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
