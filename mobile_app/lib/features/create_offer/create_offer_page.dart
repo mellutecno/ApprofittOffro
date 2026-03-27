@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
@@ -35,6 +38,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   XFile? _pickedImage;
+  bool _isLocating = false;
+  bool _showManualCoordinates = false;
   bool _submitting = false;
 
   @override
@@ -50,6 +55,14 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   @override
   Widget build(BuildContext context) {
     final selectedDateTime = _combinedDateTime;
+    final theme = Theme.of(context);
+    final locationReady = _parsedLatitude != null && _parsedLongitude != null;
+    final summaryDate = selectedDateTime == null
+        ? 'Scegli data e ora'
+        : DateFormat('EEE d MMM - HH:mm', 'it_IT').format(selectedDateTime);
+    final summaryPlace = _localeController.text.trim().isEmpty
+        ? 'Scegli il locale'
+        : _localeController.text.trim();
 
     return Scaffold(
       appBar: AppBar(
@@ -60,25 +73,68 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
           children: [
-            BrandHeroCard(
+            const BrandHeroCard(
               eyebrow: 'OFFRI',
+              centered: true,
               title: 'Pubblica un invito vero',
               subtitle:
-                  'Per ora scegliamo il locale in modo manuale. Nel prossimo blocco sostituiamo tutto con Google Maps.',
+                  'Crea un invito pulito da mobile. Oggi scegli il locale in modo manuale, poi qui entreranno Google Maps e Places.',
+            ),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(26),
+                border: Border.all(color: AppTheme.cardBorder),
+              ),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _SummaryPill(
+                    icon: Icons.restaurant_rounded,
+                    label: _mealLabel(_mealType),
+                  ),
+                  _SummaryPill(
+                    icon: Icons.schedule_rounded,
+                    label: summaryDate,
+                  ),
+                  _SummaryPill(
+                    icon: Icons.people_alt_rounded,
+                    label: '$_totalSeats posti',
+                  ),
+                  _SummaryPill(
+                    icon: Icons.storefront_rounded,
+                    label: summaryPlace,
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 18),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(18),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      'Che tipo di pasto vuoi offrire?',
-                      style: Theme.of(context).textTheme.titleLarge,
+                      '1. Scegli il momento',
+                      style: theme.textTheme.titleLarge,
+                      textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Decidi il tipo di tavolo, quanti posti aprire e quando vuoi trovarti.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.brown.withValues(alpha: 0.72),
+                        height: 1.4,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
                     Wrap(
+                      alignment: WrapAlignment.center,
                       spacing: 10,
                       runSpacing: 10,
                       children: [
@@ -109,36 +165,94 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<int>(
-                      value: _totalSeats,
-                      decoration:
-                          const InputDecoration(labelText: 'Posti totali'),
-                      items: List.generate(
-                        8,
-                        (index) => DropdownMenuItem(
-                          value: index + 1,
-                          child: Text('${index + 1}'),
-                        ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
                       ),
-                      onChanged: _submitting
-                          ? null
-                          : (value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setState(() => _totalSeats = value);
-                            },
+                      decoration: BoxDecoration(
+                        color: AppTheme.mist,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: AppTheme.cardBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Posti totali',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.brown,
+                              ),
+                            ),
+                          ),
+                          _CounterButton(
+                            icon: Icons.remove,
+                            onTap: _submitting || _totalSeats <= 1
+                                ? null
+                                : () => setState(() => _totalSeats -= 1),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            child: Text(
+                              '$_totalSeats',
+                              style: theme.textTheme.headlineMedium?.copyWith(
+                                fontSize: 28,
+                              ),
+                            ),
+                          ),
+                          _CounterButton(
+                            icon: Icons.add,
+                            onTap: _submitting || _totalSeats >= 8
+                                ? null
+                                : () => setState(() => _totalSeats += 1),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 14),
-                    OutlinedButton.icon(
-                      onPressed: _submitting ? null : _pickDateTime,
-                      icon: const Icon(Icons.schedule_outlined),
-                      label: Text(
-                        selectedDateTime == null
-                            ? 'Scegli data e ora'
-                            : DateFormat('dd/MM/yyyy - HH:mm')
-                                .format(selectedDateTime),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _submitting ? null : _pickDate,
+                            icon: const Icon(Icons.calendar_today_outlined),
+                            label: Text(
+                              _selectedDate == null
+                                  ? 'Data'
+                                  : DateFormat('EEE d MMM', 'it_IT')
+                                      .format(_selectedDate!),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _submitting ? null : _pickTime,
+                            icon: const Icon(Icons.schedule_outlined),
+                            label: Text(
+                              _selectedTime == null
+                                  ? 'Ora'
+                                  : _selectedTime!.format(context),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (selectedDateTime != null) ...[
+                      const SizedBox(height: 12),
+                      _InlineInfoBanner(
+                        icon: Icons.event_available_rounded,
+                        text:
+                            'Invito fissato per ${DateFormat('EEEE d MMMM - HH:mm', 'it_IT').format(selectedDateTime)}.',
                       ),
+                    ],
+                    const SizedBox(height: 6),
+                    TextButton.icon(
+                      onPressed: _submitting ? null : _pickDateTime,
+                      icon: const Icon(Icons.edit_calendar_rounded),
+                      label: const Text('Apri selettore completo'),
                     ),
                   ],
                 ),
@@ -151,15 +265,26 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Dove si va?',
-                      style: Theme.of(context).textTheme.titleLarge,
+                      '2. Scegli il posto',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Per ora inseriamo il locale manualmente. Intanto puoi usare la posizione del telefono per evitare di scrivere coordinate a mano.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.brown.withValues(alpha: 0.72),
+                        height: 1.4,
+                      ),
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
                       controller: _localeController,
                       enabled: !_submitting,
-                      decoration:
-                          const InputDecoration(labelText: 'Nome del locale'),
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Nome del locale',
+                        prefixIcon: Icon(Icons.storefront_outlined),
+                      ),
                       validator: (value) {
                         if ((value ?? '').trim().isEmpty) {
                           return 'Inserisci il nome del locale.';
@@ -171,7 +296,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                     TextFormField(
                       controller: _addressController,
                       enabled: !_submitting,
-                      decoration: const InputDecoration(labelText: 'Indirizzo'),
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Indirizzo',
+                        prefixIcon: Icon(Icons.location_on_outlined),
+                      ),
                       validator: (value) {
                         if ((value ?? '').trim().isEmpty) {
                           return 'Inserisci l\'indirizzo.';
@@ -190,45 +319,107 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Coordinate',
-                      style: Theme.of(context).textTheme.titleLarge,
+                      '3. Posizione',
+                      style: theme.textTheme.titleLarge,
                     ),
                     const SizedBox(height: 10),
-                    const Text(
-                      'Temporaneo: per ora inseriamo latitudine e longitudine a mano. Qui poi entra Google Maps.',
+                    Text(
+                      'Usa la posizione del telefono o, se preferisci, inserisci le coordinate manualmente. Qui poi entreranno Google Maps e Places.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.brown.withValues(alpha: 0.72),
+                        height: 1.4,
+                      ),
                     ),
                     const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _latitudeController,
-                            enabled: !_submitting,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                              signed: true,
-                            ),
-                            decoration:
-                                const InputDecoration(labelText: 'Latitudine'),
-                            validator: _validateCoordinate,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _longitudeController,
-                            enabled: !_submitting,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                              signed: true,
-                            ),
-                            decoration:
-                                const InputDecoration(labelText: 'Longitudine'),
-                            validator: _validateCoordinate,
-                          ),
-                        ),
-                      ],
+                    OutlinedButton.icon(
+                      onPressed: _submitting || _isLocating
+                          ? null
+                          : _useCurrentLocation,
+                      icon: const Icon(Icons.my_location_rounded),
+                      label: Text(
+                        locationReady
+                            ? 'Posizione del telefono acquisita'
+                            : 'Usa la posizione del telefono',
+                      ),
                     ),
+                    const SizedBox(height: 12),
+                    if (locationReady)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppTheme.sage,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Text(
+                          'Coordinate pronte: ${_latitudeController.text} / ${_longitudeController.text}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.brown,
+                          ),
+                        ),
+                      )
+                    else
+                      Text(
+                        'Se la posizione automatica non va, puoi sempre compilare i campi manuali.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.brown.withValues(alpha: 0.72),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _submitting
+                          ? null
+                          : () => setState(() {
+                                _showManualCoordinates =
+                                    !_showManualCoordinates;
+                              }),
+                      icon: Icon(
+                        _showManualCoordinates
+                            ? Icons.expand_less_rounded
+                            : Icons.edit_location_alt_outlined,
+                      ),
+                      label: Text(
+                        _showManualCoordinates
+                            ? 'Nascondi coordinate manuali'
+                            : 'Inserisci coordinate manuali',
+                      ),
+                    ),
+                    if (_showManualCoordinates) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _latitudeController,
+                              enabled: !_submitting,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                decimal: true,
+                                signed: true,
+                              ),
+                              decoration: const InputDecoration(
+                                  labelText: 'Latitudine'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _longitudeController,
+                              enabled: !_submitting,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                decimal: true,
+                                signed: true,
+                              ),
+                              decoration: const InputDecoration(
+                                labelText: 'Longitudine',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -240,18 +431,31 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Racconta qualcosa',
-                      style: Theme.of(context).textTheme.titleLarge,
+                      '4. Racconta l’invito',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Spiega che atmosfera vuoi creare, cosa ti va di condividere e perche qualcuno dovrebbe unirsi volentieri.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.brown.withValues(alpha: 0.72),
+                        height: 1.4,
+                      ),
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
                       controller: _descriptionController,
                       enabled: !_submitting,
-                      minLines: 4,
-                      maxLines: 6,
+                      minLines: 5,
+                      maxLines: 7,
+                      textCapitalization: TextCapitalization.sentences,
                       decoration: const InputDecoration(
                         labelText: 'Descrizione',
                         alignLabelWithHint: true,
+                        prefixIcon: Padding(
+                          padding: EdgeInsets.only(bottom: 72),
+                          child: Icon(Icons.notes_rounded),
+                        ),
                       ),
                       validator: (value) {
                         if ((value ?? '').trim().length < 30) {
@@ -267,17 +471,38 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                       label: Text(
                         _pickedImage == null
                             ? 'Aggiungi foto locale (opzionale)'
-                            : 'Foto selezionata: ${_pickedImage!.name}',
+                            : 'Cambia foto del locale',
                       ),
                     ),
+                    if (_pickedImage != null) ...[
+                      const SizedBox(height: 14),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: AspectRatio(
+                          aspectRatio: 16 / 10,
+                          child: Image.file(
+                            File(_pickedImage!.path),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _pickedImage!.name,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.brown.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 18),
-            FilledButton(
+            FilledButton.icon(
               onPressed: _submitting ? null : _submit,
-              child:
+              icon: const Icon(Icons.send_rounded),
+              label:
                   Text(_submitting ? 'Sto pubblicando...' : 'Pubblica offerta'),
             ),
           ],
@@ -285,6 +510,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       ),
     );
   }
+
+  double? get _parsedLatitude => _tryParseCoordinate(_latitudeController.text);
+
+  double? get _parsedLongitude =>
+      _tryParseCoordinate(_longitudeController.text);
 
   DateTime? get _combinedDateTime {
     if (_selectedDate == null || _selectedTime == null) {
@@ -299,15 +529,42 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     );
   }
 
-  String? _validateCoordinate(String? value) {
+  double? _tryParseCoordinate(String? value) {
     final raw = (value ?? '').trim();
     if (raw.isEmpty) {
-      return 'Obbligatoria';
+      return null;
     }
-    if (double.tryParse(raw.replaceAll(',', '.')) == null) {
-      return 'Numero non valido';
+    return double.tryParse(raw.replaceAll(',', '.'));
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? now,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+      locale: const Locale('it'),
+    );
+    if (pickedDate == null || !mounted) {
+      return;
     }
-    return null;
+
+    setState(() => _selectedDate = pickedDate);
+  }
+
+  Future<void> _pickTime() async {
+    final now = DateTime.now();
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime ??
+          TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
+    );
+    if (pickedTime == null || !mounted) {
+      return;
+    }
+
+    setState(() => _selectedTime = pickedTime);
   }
 
   Future<void> _pickDateTime() async {
@@ -349,6 +606,51 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     setState(() => _pickedImage = image);
   }
 
+  Future<void> _useCurrentLocation() async {
+    setState(() => _isLocating = true);
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Attiva la posizione del telefono e riprova.');
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied) {
+        throw Exception('Permesso posizione negato.');
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception(
+          'Permesso posizione negato in modo permanente. Riattivalo dalle impostazioni.',
+        );
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      _latitudeController.text = position.latitude.toStringAsFixed(6);
+      _longitudeController.text = position.longitude.toStringAsFixed(6);
+      setState(() => _showManualCoordinates = false);
+      _showMessage('Posizione acquisita correttamente.');
+    } catch (error) {
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) {
+        setState(() => _isLocating = false);
+      }
+    }
+  }
+
   Future<void> _submit() async {
     final selectedDateTime = _combinedDateTime;
     if (!_formKey.currentState!.validate()) {
@@ -358,6 +660,14 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       _showMessage('Seleziona data e ora.');
       return;
     }
+    final parsedLatitude = _parsedLatitude;
+    final parsedLongitude = _parsedLongitude;
+    if (parsedLatitude == null || parsedLongitude == null) {
+      _showMessage(
+        'Acquisisci la posizione del telefono oppure inserisci coordinate valide.',
+      );
+      return;
+    }
 
     setState(() => _submitting = true);
     try {
@@ -365,8 +675,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         mealType: _mealType,
         localeName: _localeController.text.trim(),
         address: _addressController.text.trim(),
-        latitude: _latitudeController.text.trim().replaceAll(',', '.'),
-        longitude: _longitudeController.text.trim().replaceAll(',', '.'),
+        latitude: parsedLatitude.toString(),
+        longitude: parsedLongitude.toString(),
         totalSeats: _totalSeats,
         dateTime: selectedDateTime,
         description: _descriptionController.text.trim(),
@@ -392,6 +702,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         _selectedDate = null;
         _selectedTime = null;
         _pickedImage = null;
+        _showManualCoordinates = false;
       });
     } catch (error) {
       _showMessage(error.toString());
@@ -405,6 +716,118 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
+    );
+  }
+
+  String _mealLabel(String value) {
+    switch (value) {
+      case 'colazione':
+        return 'Colazione';
+      case 'pranzo':
+        return 'Pranzo';
+      case 'cena':
+        return 'Cena';
+      default:
+        return value;
+    }
+  }
+}
+
+class _SummaryPill extends StatelessWidget {
+  const _SummaryPill({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.mist,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: AppTheme.orange),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppTheme.brown,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineInfoBanner extends StatelessWidget {
+  const _InlineInfoBanner({
+    required this.icon,
+    required this.text,
+  });
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.peach.withValues(alpha: 0.52),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: AppTheme.orange),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.brown,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CounterButton extends StatelessWidget {
+  const _CounterButton({
+    required this.icon,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Ink(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: onTap == null ? AppTheme.cardBorder : AppTheme.sand,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Icon(icon, color: AppTheme.brown),
+      ),
     );
   }
 }
@@ -437,8 +860,9 @@ class _MealChoiceChip extends StatelessWidget {
       label: Text(label),
       onSelected: onSelected == null ? null : (_) => onSelected!(value),
       backgroundColor: Colors.white,
-      selectedColor: color.withOpacity(0.16),
-      side: BorderSide(color: color.withOpacity(0.36)),
+      selectedColor: color.withValues(alpha: 0.16),
+      side: BorderSide(color: color.withValues(alpha: 0.36)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       labelStyle: TextStyle(
         color: selected ? color : AppTheme.brown,
         fontWeight: FontWeight.w800,
