@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../../models/app_user.dart';
 import '../../models/offer.dart';
+import '../../models/place_candidate.dart';
 import '../../models/public_profile.dart';
 import '../../models/user_preview.dart';
 import '../config/app_config.dart';
@@ -171,6 +172,26 @@ class ApiClient {
     return (payload['offers'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>()
         .map(Offer.fromJson)
+        .toList();
+  }
+
+  Future<List<PlaceCandidate>> fetchNearbyPlaces({
+    required double latitude,
+    required double longitude,
+    int radiusMeters = 1000,
+  }) async {
+    final path =
+        '/api/places/nearby?${Uri(queryParameters: {
+          'lat': latitude.toString(),
+          'lon': longitude.toString(),
+          'radius': radiusMeters.toString(),
+        }).query}';
+    final response = await _send(method: 'GET', path: path);
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return (payload['places'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>()
+        .map(PlaceCandidate.fromJson)
         .toList();
   }
 

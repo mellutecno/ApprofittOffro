@@ -126,6 +126,7 @@ app.config["R2_ACCESS_KEY_ID"] = os.getenv("R2_ACCESS_KEY_ID", "")
 app.config["R2_SECRET_ACCESS_KEY"] = os.getenv("R2_SECRET_ACCESS_KEY", "")
 app.config["R2_BUCKET_NAME"] = os.getenv("R2_BUCKET_NAME", "")
 app.config["R2_ENDPOINT_URL"] = os.getenv("R2_ENDPOINT_URL", "")
+app.config["GOOGLE_PLACES_API_KEY"] = os.getenv("GOOGLE_PLACES_API_KEY", "").strip()
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -1766,6 +1767,84 @@ def request_entity_too_large(error):
     return jsonify({"success": False, "errors": ["Le foto sono troppo pesanti (Max 64MB complessivi). Compressione fallita."]}), 413
 
 
+def google_places_enabled():
+    return bool(app.config.get("GOOGLE_PLACES_API_KEY"))
+
+
+def search_google_nearby_places(latitude, longitude, radius=900, max_results=18):
+    """Cerca locali vicini tramite Google Places API (New)."""
+    api_key = app.config.get("GOOGLE_PLACES_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("Google Places non configurato.")
+
+    request_url = "https://places.googleapis.com/v1/places:searchNearby"
+    request_payload = {
+        "includedTypes": [
+            "restaurant",
+            "cafe",
+            "bar",
+            "bakery",
+            "meal_takeaway",
+        ],
+        "maxResultCount": max(1, min(int(max_results), 20)),
+        "locationRestriction": {
+            "circle": {
+                "center": {
+                    "latitude": float(latitude),
+                    "longitude": float(longitude),
+                },
+                "radius": float(max(100, min(radius, 3000))),
+            }
+        },
+        "rankPreference": "POPULARITY",
+        "languageCode": "it",
+        "regionCode": "IT",
+    }
+    req = Request(
+        request_url,
+        data=json.dumps(request_payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": api_key,
+            "X-Goog-FieldMask": ",".join([
+                "places.id",
+                "places.displayName",
+                "places.formattedAddress",
+                "places.location",
+                "places.primaryType",
+            ]),
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(req, timeout=12) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Google Places HTTP {exc.code}: {details}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"Google Places non raggiungibile: {exc}") from exc
+
+    places = []
+    for place in payload.get("places", []):
+        location = place.get("location") or {}
+        display_name = place.get("displayName") or {}
+        lat = location.get("latitude")
+        lon = location.get("longitude")
+        if lat is None or lon is None:
+            continue
+        places.append({
+            "id": place.get("id", ""),
+            "name": display_name.get("text", "").strip(),
+            "address": (place.get("formattedAddress") or "").strip(),
+            "latitude": float(lat),
+            "longitude": float(lon),
+            "primary_type": (place.get("primaryType") or "").strip(),
+        })
+    return places
+
+
 @app.route("/api/geocode")
 def api_geocode():
     """Proxy sicuro per l'API di Reverse Geocoding per aggirare Adblockers da cellulare e Rate Limit IP."""
@@ -1816,6 +1895,48 @@ def api_geocode():
         pass
     
     return jsonify({"address": "Posizione Mappa"})
+
+
+@app.route("/api/places/nearby", methods=["GET"])
+@login_required
+def api_places_nearby():
+    """Restituisce locali Google Places vicini al punto richiesto."""
+    lat = request.args.get("lat", "").strip()
+    lon = request.args.get("lon", "").strip()
+    radius = request.args.get("radius", "1000").strip()
+
+    if not google_places_enabled():
+        return jsonify({
+            "success": False,
+            "error": "Google Places non configurato su questo ambiente.",
+        }), 503
+
+    try:
+        latitude = float(lat.replace(",", "."))
+        longitude = float(lon.replace(",", "."))
+        radius_m = int(float(radius.replace(",", ".")))
+    except ValueError:
+        return jsonify({
+            "success": False,
+            "error": "Coordinate o raggio non validi.",
+        }), 400
+
+    try:
+        places = search_google_nearby_places(
+            latitude,
+            longitude,
+            radius=radius_m,
+        )
+        return jsonify({
+            "success": True,
+            "places": places,
+        })
+    except Exception as exc:
+        print(f"[GOOGLE_PLACES_ERROR] {exc}")
+        return jsonify({
+            "success": False,
+            "error": "Impossibile recuperare i locali vicini in questo momento.",
+        }), 502
 
 
 @app.route("/api/register", methods=["POST"])

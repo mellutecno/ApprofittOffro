@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/config/app_config.dart';
+import '../../models/place_candidate.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_hero_card.dart';
 import '../../core/widgets/brand_wordmark.dart';
@@ -49,7 +50,12 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   bool _isLocating = false;
   bool _showManualCoordinates = false;
   bool _submitting = false;
+  bool _isLoadingPlaces = false;
   GoogleMapController? _mapController;
+  LatLng _currentMapCenter = _fallbackMapTarget;
+  LatLng? _lastPlacesRequestCenter;
+  List<PlaceCandidate> _nearbyPlaces = const [];
+  String? _placesError;
 
   @override
   void dispose() {
@@ -280,7 +286,9 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Per ora inseriamo il locale manualmente. Intanto puoi usare la posizione del telefono per evitare di scrivere coordinate a mano.',
+                      AppConfig.googleMapsEnabled
+                          ? 'Puoi toccare un locale sulla mappa per riempire automaticamente nome e indirizzo, oppure correggerli a mano.'
+                          : 'Per ora inseriamo il locale manualmente. Intanto puoi usare la posizione del telefono per evitare di scrivere coordinate a mano.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: AppTheme.brown.withValues(alpha: 0.72),
                         height: 1.4,
@@ -347,15 +355,34 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                         markers: _mapMarkers,
                         enabled: !_submitting,
                         onMapCreated: _handleMapCreated,
+                        onCameraMove: _handleMapCameraMove,
+                        onCameraIdle: _handleMapCameraIdle,
                         onLongPress: _submitting ? null : _setLocationFromMap,
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Tocco lungo sulla mappa per fissare subito il punto esatto del locale.',
+                        'Muovi la mappa, tocca un locale per riempire i campi e fai un tocco lungo solo se vuoi fissare un punto manuale.',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: AppTheme.brown.withValues(alpha: 0.72),
                         ),
                       ),
+                      const SizedBox(height: 10),
+                      if (_isLoadingPlaces)
+                        const _InlineInfoBanner(
+                          icon: Icons.store_mall_directory_outlined,
+                          text: 'Sto caricando i locali vicini alla zona che stai guardando.',
+                        )
+                      else if (_placesError != null)
+                        _InlineInfoBanner(
+                          icon: Icons.info_outline_rounded,
+                          text: _placesError!,
+                        )
+                      else if (_nearbyPlaces.isNotEmpty)
+                        _InlineInfoBanner(
+                          icon: Icons.place_outlined,
+                          text:
+                              '${_nearbyPlaces.length} locali trovati in questa zona. Tocca un marker per usare nome e indirizzo.',
+                        ),
                     ] else ...[
                       const _GoogleMapsPlaceholderCard(),
                     ],
@@ -560,26 +587,44 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   }
 
   Set<Marker> get _mapMarkers {
-    final latitude = _parsedLatitude;
-    final longitude = _parsedLongitude;
-    if (latitude == null || longitude == null) {
-      return const <Marker>{};
+    final markers = <Marker>{};
+    for (final place in _nearbyPlaces) {
+      markers.add(
+        Marker(
+          markerId: MarkerId('place_${place.id}'),
+          position: LatLng(place.latitude, place.longitude),
+          infoWindow: InfoWindow(
+            title: place.name,
+            snippet: place.address,
+          ),
+          onTap: () => _selectPlace(place),
+        ),
+      );
     }
 
-    return {
-      Marker(
-        markerId: const MarkerId('selected_offer_location'),
-        position: LatLng(latitude, longitude),
-        infoWindow: InfoWindow(
-          title: _localeController.text.trim().isEmpty
-              ? 'Posizione selezionata'
-              : _localeController.text.trim(),
-          snippet: _addressController.text.trim().isEmpty
-              ? 'Tavolo in preparazione'
-              : _addressController.text.trim(),
+    final latitude = _parsedLatitude;
+    final longitude = _parsedLongitude;
+    if (latitude != null && longitude != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('selected_offer_location'),
+          position: LatLng(latitude, longitude),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueOrange,
+          ),
+          infoWindow: InfoWindow(
+            title: _localeController.text.trim().isEmpty
+                ? 'Posizione selezionata'
+                : _localeController.text.trim(),
+            snippet: _addressController.text.trim().isEmpty
+                ? 'Tavolo in preparazione'
+                : _addressController.text.trim(),
+          ),
         ),
-      ),
-    };
+      );
+    }
+
+    return markers;
   }
 
   DateTime? get _combinedDateTime {
@@ -708,9 +753,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       _longitudeController.text = position.longitude.toStringAsFixed(6);
       setState(() => _showManualCoordinates = false);
       if (AppConfig.googleMapsEnabled) {
-        await _animateMapTo(
-          LatLng(position.latitude, position.longitude),
-        );
+        final target = LatLng(position.latitude, position.longitude);
+        _currentMapCenter = target;
+        await _animateMapTo(target);
+        await _loadNearbyPlaces(target, force: true);
       }
       _showMessage(
         AppConfig.googleMapsEnabled
@@ -733,11 +779,30 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     _showMessage('Posizione aggiornata dalla mappa.');
   }
 
+  void _selectPlace(PlaceCandidate place) {
+    _localeController.text = place.name;
+    _addressController.text = place.address;
+    _latitudeController.text = place.latitude.toStringAsFixed(6);
+    _longitudeController.text = place.longitude.toStringAsFixed(6);
+    setState(() => _showManualCoordinates = false);
+    _showMessage('Locale selezionato dalla mappa.');
+  }
+
   void _handleMapCreated(GoogleMapController controller) {
     _mapController = controller;
     if (!_mapControllerCompleter.isCompleted) {
       _mapControllerCompleter.complete(controller);
     }
+    _currentMapCenter = _mapTarget;
+    unawaited(_loadNearbyPlaces(_currentMapCenter, force: true));
+  }
+
+  void _handleMapCameraMove(CameraPosition position) {
+    _currentMapCenter = position.target;
+  }
+
+  Future<void> _handleMapCameraIdle() async {
+    await _loadNearbyPlaces(_currentMapCenter);
   }
 
   Future<void> _animateMapTo(LatLng target) async {
@@ -754,6 +819,58 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         CameraPosition(target: target, zoom: 16),
       ),
     );
+  }
+
+  Future<void> _loadNearbyPlaces(LatLng center, {bool force = false}) async {
+    if (!AppConfig.googleMapsEnabled) {
+      return;
+    }
+
+    if (!force && _lastPlacesRequestCenter != null) {
+      final movedMeters = Geolocator.distanceBetween(
+        _lastPlacesRequestCenter!.latitude,
+        _lastPlacesRequestCenter!.longitude,
+        center.latitude,
+        center.longitude,
+      );
+      if (movedMeters < 180) {
+        return;
+      }
+    }
+
+    setState(() {
+      _isLoadingPlaces = true;
+      _placesError = null;
+    });
+
+    try {
+      final places = await widget.authController.apiClient.fetchNearbyPlaces(
+        latitude: center.latitude,
+        longitude: center.longitude,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _nearbyPlaces = places;
+        _lastPlacesRequestCenter = center;
+        _placesError = places.isEmpty
+            ? 'In questa zona non ho trovato locali utili. Sposta un po’ la mappa e riprova.'
+            : null;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _nearbyPlaces = const [];
+        _placesError = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingPlaces = false);
+      }
+    }
   }
 
   Future<void> _submit() async {
@@ -844,6 +961,8 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
     required this.markers,
     required this.enabled,
     required this.onMapCreated,
+    required this.onCameraMove,
+    required this.onCameraIdle,
     required this.onLongPress,
   });
 
@@ -851,6 +970,8 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
   final Set<Marker> markers;
   final bool enabled;
   final ValueChanged<GoogleMapController> onMapCreated;
+  final ValueChanged<CameraPosition> onCameraMove;
+  final Future<void> Function() onCameraIdle;
   final ValueChanged<LatLng>? onLongPress;
 
   @override
@@ -875,6 +996,8 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
           zoomGesturesEnabled: true,
           rotateGesturesEnabled: true,
           tiltGesturesEnabled: true,
+          onCameraMove: onCameraMove,
+          onCameraIdle: onCameraIdle,
           gestureRecognizers: {
             Factory<OneSequenceGestureRecognizer>(
               () => EagerGestureRecognizer(),
