@@ -60,8 +60,7 @@ class _CommunityPageState extends State<CommunityPage> {
           child: CustomScrollView(
             slivers: [
               const SliverAppBar(
-                floating: true,
-                snap: true,
+                pinned: true,
                 title: BrandWordmark(height: 24, alignment: Alignment.center),
               ),
               SliverToBoxAdapter(
@@ -94,7 +93,6 @@ class _CommunityPageState extends State<CommunityPage> {
                                   Expanded(
                                     child: _CommunityFilterTile(
                                       label: 'Eta',
-                                      icon: Icons.cake_outlined,
                                       value: widget.communityController
                                           .selectedAgeRange,
                                       options: _ageRanges,
@@ -108,7 +106,6 @@ class _CommunityPageState extends State<CommunityPage> {
                                   Expanded(
                                     child: _CommunityFilterTile(
                                       label: 'Sesso',
-                                      icon: Icons.people_alt_outlined,
                                       value: widget
                                           .communityController.selectedGender,
                                       options: _genderFilters,
@@ -207,58 +204,47 @@ class _CommunityPageState extends State<CommunityPage> {
 class _CommunityFilterTile extends StatelessWidget {
   const _CommunityFilterTile({
     required this.label,
-    required this.icon,
     required this.value,
     required this.options,
     required this.onChanged,
   });
 
   final String label;
-  final IconData icon;
   final String value;
   final List<MapEntry<String, String>> options;
   final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.cardBorder),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 14,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: AppTheme.brown.withValues(alpha: 0.72),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.brown.withValues(alpha: 0.72),
-                        fontWeight: FontWeight.w800,
-                      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.brown.withValues(alpha: 0.72),
+                  fontWeight: FontWeight.w800,
                 ),
+          ),
+        ),
+        Container(
+          height: 54,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: AppTheme.peach.withValues(alpha: 0.34),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppTheme.cardBorder),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x10000000),
+                blurRadius: 12,
+                offset: Offset(0, 6),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          DropdownButtonHideUnderline(
+          child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: value,
               isExpanded: true,
@@ -291,8 +277,8 @@ class _CommunityFilterTile extends StatelessWidget {
               },
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

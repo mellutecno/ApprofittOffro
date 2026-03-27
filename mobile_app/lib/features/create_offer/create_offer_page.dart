@@ -129,7 +129,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             ),
             const SizedBox(height: 20),
             _SectionCard(
-              title: 'Scegli il momento',
+              title: null,
               subtitle:
                   'Decidi il tipo di pasto, data e ora complete e quanti posti vuoi aprire.',
               child: Column(
@@ -223,14 +223,14 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             ),
             const SizedBox(height: 16),
             _SectionCard(
-              title: 'Scegli dalla mappa',
+              title: null,
               subtitle:
                   'Apri la mappa solo quando ti serve, spostati con il GPS e poi carica i locali vicini.',
               child: _buildMapSection(),
             ),
             const SizedBox(height: 16),
             _SectionCard(
-              title: 'Dove',
+              title: null,
               subtitle:
                   'Nome, indirizzo e telefono si compilano in automatico quando selezioni un locale sulla mappa.',
               child: Column(
@@ -287,7 +287,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             ),
             const SizedBox(height: 16),
             _SectionCard(
-              title: 'Racconta l\'invito',
+              title: null,
               subtitle:
                   'Spiega che atmosfera vuoi creare e cosa ti va di condividere.',
               child: Column(
@@ -1037,7 +1037,7 @@ class _SectionCard extends StatelessWidget {
     required this.child,
   });
 
-  final String title;
+  final String? title;
   final String subtitle;
   final Widget child;
 
@@ -1050,8 +1050,10 @@ class _SectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: theme.textTheme.titleLarge),
-            const SizedBox(height: 8),
+            if (title != null && title!.trim().isNotEmpty) ...[
+              Text(title!, style: theme.textTheme.titleLarge),
+              const SizedBox(height: 8),
+            ],
             Text(
               subtitle,
               style: theme.textTheme.bodyMedium?.copyWith(

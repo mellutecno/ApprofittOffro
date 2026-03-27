@@ -28,8 +28,7 @@ class OffersPage extends StatelessWidget {
           child: CustomScrollView(
             slivers: [
               SliverAppBar(
-                floating: true,
-                snap: true,
+                pinned: true,
                 title: const BrandWordmark(
                     height: 24, alignment: Alignment.center),
                 actions: [
