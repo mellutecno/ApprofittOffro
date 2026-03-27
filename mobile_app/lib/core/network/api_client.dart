@@ -195,6 +195,16 @@ class ApiClient {
         .toList();
   }
 
+  Future<PlaceCandidate> fetchPlaceDetails(String placeId) async {
+    final encodedId = Uri.encodeComponent(placeId);
+    final response = await _send(method: 'GET', path: '/api/places/$encodedId');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return PlaceCandidate.fromJson(
+      (payload['place'] as Map<String, dynamic>? ?? <String, dynamic>{}),
+    );
+  }
+
   Future<String> claimOffer(int offerId) async {
     final response =
         await _send(method: 'POST', path: '/api/offers/$offerId/claim');

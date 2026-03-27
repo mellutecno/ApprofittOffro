@@ -228,6 +228,15 @@ class OfferCard extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () => _openExternalLink(_googleMapsDirectionsUrl()),
+                icon: const Icon(Icons.navigation_rounded),
+                label: const Text('Apri in Google Maps'),
+              ),
+            ),
             if (offer.descrizione.isNotEmpty) ...[
               const SizedBox(height: 14),
               Text(
@@ -305,6 +314,10 @@ class OfferCard extends StatelessWidget {
       return;
     }
     await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  String _googleMapsDirectionsUrl() {
+    return 'https://www.google.com/maps/dir/?api=1&destination=${offer.latitude},${offer.longitude}';
   }
 }
 

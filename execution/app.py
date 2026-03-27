@@ -1771,6 +1771,75 @@ def google_places_enabled():
     return bool(app.config.get("GOOGLE_PLACES_API_KEY"))
 
 
+GOOGLE_PLACES_ALLOWED_PRIMARY_TYPES = {
+    "restaurant",
+    "cafe",
+    "bar",
+    "bakery",
+    "meal_takeaway",
+    "pizza_restaurant",
+    "coffee_shop",
+    "fast_food_restaurant",
+    "brunch_restaurant",
+    "sandwich_shop",
+}
+
+GOOGLE_PLACES_EXCLUDED_PRIMARY_TYPES = {
+    "shopping_mall",
+    "supermarket",
+    "grocery_store",
+    "convenience_store",
+    "market",
+    "store",
+    "department_store",
+}
+
+GOOGLE_PLACES_EXCLUDED_KEYWORDS = (
+    "centro commerciale",
+    "shopping center",
+    "shopping mall",
+    "supermercato",
+    "ipermercato",
+    "minimarket",
+    "market",
+    "iper ",
+)
+
+
+def is_google_place_relevant(place_name, place_address, primary_type):
+    """Filtra solo i locali coerenti con colazione, pranzo e cena."""
+    normalized_type = (primary_type or "").strip().lower()
+    normalized_name = (place_name or "").strip().lower()
+    normalized_address = (place_address or "").strip().lower()
+    haystack = f"{normalized_name} {normalized_address}"
+
+    if normalized_type in GOOGLE_PLACES_EXCLUDED_PRIMARY_TYPES:
+        return False
+
+    if any(keyword in haystack for keyword in GOOGLE_PLACES_EXCLUDED_KEYWORDS):
+        return False
+
+    if normalized_type in GOOGLE_PLACES_ALLOWED_PRIMARY_TYPES:
+        return True
+
+    # Fallback prudente: alcuni locali buoni arrivano con type generico ma nome parlante.
+    useful_keywords = (
+        "ristor",
+        "pizzer",
+        "pizza",
+        "bar",
+        "pub",
+        "caff",
+        "cafeter",
+        "brunch",
+        "oster",
+        "trattor",
+        "bistrot",
+        "bakery",
+    )
+    return any(keyword in haystack for keyword in useful_keywords)
+
+
 def search_google_nearby_places(latitude, longitude, radius=900, max_results=18):
     """Cerca locali vicini tramite Google Places API (New)."""
     api_key = app.config.get("GOOGLE_PLACES_API_KEY", "").strip()
@@ -1785,6 +1854,14 @@ def search_google_nearby_places(latitude, longitude, radius=900, max_results=18)
             "bar",
             "bakery",
             "meal_takeaway",
+        ],
+        "excludedTypes": [
+            "shopping_mall",
+            "supermarket",
+            "grocery_store",
+            "market",
+            "department_store",
+            "convenience_store",
         ],
         "maxResultCount": max(1, min(int(max_results), 20)),
         "locationRestriction": {
@@ -1834,15 +1911,68 @@ def search_google_nearby_places(latitude, longitude, radius=900, max_results=18)
         lon = location.get("longitude")
         if lat is None or lon is None:
             continue
+        place_name = display_name.get("text", "").strip()
+        place_address = (place.get("formattedAddress") or "").strip()
+        primary_type = (place.get("primaryType") or "").strip()
+        if not is_google_place_relevant(place_name, place_address, primary_type):
+            continue
         places.append({
             "id": place.get("id", ""),
-            "name": display_name.get("text", "").strip(),
-            "address": (place.get("formattedAddress") or "").strip(),
+            "name": place_name,
+            "address": place_address,
             "latitude": float(lat),
             "longitude": float(lon),
-            "primary_type": (place.get("primaryType") or "").strip(),
+            "primary_type": primary_type,
         })
     return places
+
+
+def get_google_place_details(place_id):
+    """Recupera dettagli mirati del locale selezionato."""
+    api_key = app.config.get("GOOGLE_PLACES_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("Google Places non configurato.")
+
+    safe_place_id = quote(place_id.strip(), safe="")
+    request_url = f"https://places.googleapis.com/v1/places/{safe_place_id}"
+    req = Request(
+        request_url,
+        headers={
+            "X-Goog-Api-Key": api_key,
+            "X-Goog-FieldMask": ",".join(
+                [
+                    "id",
+                    "displayName",
+                    "formattedAddress",
+                    "location",
+                    "primaryType",
+                    "nationalPhoneNumber",
+                ]
+            ),
+        },
+        method="GET",
+    )
+
+    try:
+        with urlopen(req, timeout=12) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Google Places HTTP {exc.code}: {details}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"Google Places non raggiungibile: {exc}") from exc
+
+    location = payload.get("location") or {}
+    display_name = payload.get("displayName") or {}
+    return {
+        "id": payload.get("id", ""),
+        "name": display_name.get("text", "").strip(),
+        "address": (payload.get("formattedAddress") or "").strip(),
+        "latitude": float(location.get("latitude") or 0),
+        "longitude": float(location.get("longitude") or 0),
+        "primary_type": (payload.get("primaryType") or "").strip(),
+        "phone_number": (payload.get("nationalPhoneNumber") or "").strip(),
+    }
 
 
 @app.route("/api/geocode")
@@ -1927,16 +2057,49 @@ def api_places_nearby():
             longitude,
             radius=radius_m,
         )
-        return jsonify({
-            "success": True,
-            "places": places,
-        })
     except Exception as exc:
         print(f"[GOOGLE_PLACES_ERROR] {exc}")
         return jsonify({
             "success": False,
             "error": "Impossibile recuperare i locali vicini in questo momento.",
         }), 502
+
+    return jsonify({
+        "success": True,
+        "places": places,
+    })
+
+
+@app.route("/api/places/<path:place_id>", methods=["GET"])
+@login_required
+def api_place_details(place_id):
+    """Restituisce i dettagli essenziali del locale Google selezionato."""
+    if not google_places_enabled():
+        return jsonify({
+            "success": False,
+            "error": "Google Places non configurato su questo ambiente.",
+        }), 503
+
+    safe_place_id = (place_id or "").strip()
+    if not safe_place_id:
+        return jsonify({
+            "success": False,
+            "error": "Identificativo locale mancante.",
+        }), 400
+
+    try:
+        place = get_google_place_details(safe_place_id)
+    except Exception as exc:
+        print(f"[GOOGLE_PLACE_DETAILS_ERROR] {exc}")
+        return jsonify({
+            "success": False,
+            "error": str(exc),
+        }), 502
+
+    return jsonify({
+        "success": True,
+        "place": place,
+    })
 
 
 @app.route("/api/register", methods=["POST"])

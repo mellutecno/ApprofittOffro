@@ -6,6 +6,7 @@ class PlaceCandidate {
     required this.latitude,
     required this.longitude,
     required this.primaryType,
+    this.phoneNumber = '',
   });
 
   final String id;
@@ -14,6 +15,7 @@ class PlaceCandidate {
   final double latitude;
   final double longitude;
   final String primaryType;
+  final String phoneNumber;
 
   factory PlaceCandidate.fromJson(Map<String, dynamic> json) {
     return PlaceCandidate(
@@ -23,6 +25,7 @@ class PlaceCandidate {
       latitude: (json['latitude'] as num?)?.toDouble() ?? 0,
       longitude: (json['longitude'] as num?)?.toDouble() ?? 0,
       primaryType: (json['primary_type'] ?? '').toString(),
+      phoneNumber: (json['phone_number'] ?? '').toString(),
     );
   }
 }

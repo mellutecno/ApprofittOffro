@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_config.dart';
 import '../../models/place_candidate.dart';
@@ -56,6 +57,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   LatLng? _lastPlacesRequestCenter;
   List<PlaceCandidate> _nearbyPlaces = const [];
   String? _placesError;
+  String? _selectedPlaceId;
+  String _selectedPlacePhone = '';
 
   @override
   void dispose() {
@@ -287,7 +290,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                     const SizedBox(height: 8),
                     Text(
                       AppConfig.googleMapsEnabled
-                          ? 'Puoi toccare un locale sulla mappa per riempire automaticamente nome e indirizzo, oppure correggerli a mano.'
+                          ? 'Muovi la mappa, scegli un locale vero tra quelli trovati e lascia che nome e indirizzo si riempiano da soli.'
                           : 'Per ora inseriamo il locale manualmente. Intanto puoi usare la posizione del telefono per evitare di scrivere coordinate a mano.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: AppTheme.brown.withValues(alpha: 0.72),
@@ -342,7 +345,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Usa la posizione del telefono o, se preferisci, inserisci le coordinate manualmente. Qui poi entreranno Google Maps e Places.',
+                      'Usa il GPS del telefono, esplora la mappa e scegli solo locali adatti a colazione, pranzo o cena.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: AppTheme.brown.withValues(alpha: 0.72),
                         height: 1.4,
@@ -361,7 +364,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Muovi la mappa, tocca un locale per riempire i campi e fai un tocco lungo solo se vuoi fissare un punto manuale.',
+                        'Tocca un locale o una etichetta qui sotto per riempire i campi. Il tocco lungo sulla mappa serve solo per fissare un punto manuale.',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: AppTheme.brown.withValues(alpha: 0.72),
                         ),
@@ -379,10 +382,19 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                         )
                       else if (_nearbyPlaces.isNotEmpty)
                         _InlineInfoBanner(
-                          icon: Icons.place_outlined,
+                          icon: Icons.storefront_outlined,
                           text:
-                              '${_nearbyPlaces.length} locali trovati in questa zona. Tocca un marker per usare nome e indirizzo.',
+                              '${_nearbyPlaces.length} locali trovati in questa zona. Tocca una etichetta o un marker per usare nome e indirizzo.',
                         ),
+                      if (_nearbyPlaces.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        _NearbyPlacesScroller(
+                          places: _nearbyPlaces,
+                          selectedPlaceId: _selectedPlaceId,
+                          onTap: _handlePlaceChipTap,
+                          typeLabelFor: _placeTypeLabel,
+                        ),
+                      ],
                     ] else ...[
                       const _GoogleMapsPlaceholderCard(),
                     ],
@@ -424,6 +436,14 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                           color: AppTheme.brown.withValues(alpha: 0.72),
                         ),
                       ),
+                    if (_selectedPlacePhone.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _callSelectedPlace,
+                        icon: const Icon(Icons.call_outlined),
+                        label: Text('Chiama locale: $_selectedPlacePhone'),
+                      ),
+                    ],
                     if (!AppConfig.googleMapsEnabled) ...[
                       const SizedBox(height: 8),
                       TextButton.icon(
@@ -593,9 +613,12 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         Marker(
           markerId: MarkerId('place_${place.id}'),
           position: LatLng(place.latitude, place.longitude),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            _markerHueForPlace(place),
+          ),
           infoWindow: InfoWindow(
-            title: place.name,
-            snippet: place.address,
+            title: _placeTypeLabel(place),
+            snippet: place.name,
           ),
           onTap: () => _selectPlace(place),
         ),
@@ -751,7 +774,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
       _latitudeController.text = position.latitude.toStringAsFixed(6);
       _longitudeController.text = position.longitude.toStringAsFixed(6);
-      setState(() => _showManualCoordinates = false);
+      setState(() {
+        _showManualCoordinates = false;
+        _selectedPlaceId = null;
+        _selectedPlacePhone = '';
+      });
       if (AppConfig.googleMapsEnabled) {
         final target = LatLng(position.latitude, position.longitude);
         _currentMapCenter = target;
@@ -775,17 +802,33 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   void _setLocationFromMap(LatLng position) {
     _latitudeController.text = position.latitude.toStringAsFixed(6);
     _longitudeController.text = position.longitude.toStringAsFixed(6);
-    setState(() => _showManualCoordinates = false);
+    setState(() {
+      _showManualCoordinates = false;
+      _selectedPlaceId = null;
+      _selectedPlacePhone = '';
+    });
     _showMessage('Posizione aggiornata dalla mappa.');
   }
 
-  void _selectPlace(PlaceCandidate place) {
+  Future<void> _selectPlace(PlaceCandidate place) async {
     _localeController.text = place.name;
     _addressController.text = place.address;
     _latitudeController.text = place.latitude.toStringAsFixed(6);
     _longitudeController.text = place.longitude.toStringAsFixed(6);
-    setState(() => _showManualCoordinates = false);
+    setState(() {
+      _showManualCoordinates = false;
+      _selectedPlaceId = place.id;
+      _selectedPlacePhone = place.phoneNumber;
+    });
+    await _animateMapTo(LatLng(place.latitude, place.longitude));
+    if (place.id.isNotEmpty && place.phoneNumber.isEmpty) {
+      await _hydrateSelectedPlaceDetails(place);
+    }
     _showMessage('Locale selezionato dalla mappa.');
+  }
+
+  Future<void> _handlePlaceChipTap(PlaceCandidate place) async {
+    await _selectPlace(place);
   }
 
   void _handleMapCreated(GoogleMapController controller) {
@@ -848,13 +891,14 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         latitude: center.latitude,
         longitude: center.longitude,
       );
+      final filteredPlaces = places.where(_isPlaceRelevant).toList();
       if (!mounted) {
         return;
       }
       setState(() {
-        _nearbyPlaces = places;
+        _nearbyPlaces = filteredPlaces;
         _lastPlacesRequestCenter = center;
-        _placesError = places.isEmpty
+        _placesError = filteredPlaces.isEmpty
             ? 'In questa zona non ho trovato locali utili. Sposta un po’ la mappa e riprova.'
             : null;
       });
@@ -911,7 +955,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       if (!mounted) {
         return;
       }
-      _showMessage(message);
+        _showMessage(message);
       _formKey.currentState!.reset();
       _localeController.clear();
       _addressController.clear();
@@ -925,6 +969,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         _selectedTime = null;
         _pickedImage = null;
         _showManualCoordinates = false;
+        _selectedPlaceId = null;
+        _selectedPlacePhone = '';
       });
     } catch (error) {
       _showMessage(error.toString());
@@ -952,6 +998,105 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       default:
         return value;
     }
+  }
+
+  Future<void> _hydrateSelectedPlaceDetails(PlaceCandidate place) async {
+    try {
+      final details =
+          await widget.authController.apiClient.fetchPlaceDetails(place.id);
+      if (!mounted || _selectedPlaceId != place.id) {
+        return;
+      }
+      if (details.name.isNotEmpty) {
+        _localeController.text = details.name;
+      }
+      if (details.address.isNotEmpty) {
+        _addressController.text = details.address;
+      }
+      if (details.latitude != 0 && details.longitude != 0) {
+        _latitudeController.text = details.latitude.toStringAsFixed(6);
+        _longitudeController.text = details.longitude.toStringAsFixed(6);
+      }
+      setState(() {
+        _selectedPlacePhone = details.phoneNumber;
+      });
+    } catch (_) {
+      // Se il dettaglio fallisce, manteniamo comunque la selezione base del locale.
+    }
+  }
+
+  Future<void> _callSelectedPlace() async {
+    if (_selectedPlacePhone.trim().isEmpty) {
+      return;
+    }
+    final digits = _selectedPlacePhone
+        .replaceAll(RegExp(r'[^0-9+]'), '')
+        .trim();
+    final uri = Uri.tryParse('tel:$digits');
+    if (uri == null) {
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  String _placeTypeLabel(PlaceCandidate place) {
+    final type = place.primaryType.toLowerCase().trim();
+    final name = place.name.toLowerCase().trim();
+
+    if (type == 'bar' || name.contains('bar ')) {
+      return 'Bar';
+    }
+    if (type == 'bakery') {
+      return 'Pasticceria';
+    }
+    if (type == 'cafe' || type == 'coffee_shop') {
+      return 'Caffe';
+    }
+    if (type == 'meal_takeaway' || type == 'fast_food_restaurant') {
+      return 'Tavola veloce';
+    }
+    if (name.contains('pizzeria') || name.contains('pizza')) {
+      return 'Pizzeria';
+    }
+    if (name.contains('pub')) {
+      return 'Pub';
+    }
+    if (name.contains('brunch')) {
+      return 'Brunch';
+    }
+    return 'Ristorante';
+  }
+
+  double _markerHueForPlace(PlaceCandidate place) {
+    switch (_placeTypeLabel(place)) {
+      case 'Bar':
+      case 'Caffe':
+      case 'Pasticceria':
+        return BitmapDescriptor.hueYellow;
+      case 'Pizzeria':
+        return BitmapDescriptor.hueRed;
+      case 'Pub':
+        return BitmapDescriptor.hueViolet;
+      case 'Tavola veloce':
+        return BitmapDescriptor.hueAzure;
+      default:
+        return BitmapDescriptor.hueRose;
+    }
+  }
+
+  bool _isPlaceRelevant(PlaceCandidate place) {
+    final haystack =
+        '${place.name} ${place.address} ${place.primaryType}'.toLowerCase();
+    const excludedKeywords = [
+      'centro commerciale',
+      'shopping center',
+      'shopping mall',
+      'supermercato',
+      'ipermercato',
+      'market',
+      'grocery',
+    ];
+    return !excludedKeywords.any(haystack.contains);
   }
 }
 
@@ -1088,6 +1233,85 @@ class _GoogleMapsPlaceholderCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NearbyPlacesScroller extends StatelessWidget {
+  const _NearbyPlacesScroller({
+    required this.places,
+    required this.selectedPlaceId,
+    required this.onTap,
+    required this.typeLabelFor,
+  });
+
+  final List<PlaceCandidate> places;
+  final String? selectedPlaceId;
+  final Future<void> Function(PlaceCandidate place) onTap;
+  final String Function(PlaceCandidate place) typeLabelFor;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 92,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: places.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final place = places[index];
+          final selected = selectedPlaceId == place.id;
+          return InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => onTap(place),
+            child: Ink(
+              width: 198,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: selected ? AppTheme.peach : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: selected ? AppTheme.orange : AppTheme.cardBorder,
+                  width: selected ? 1.5 : 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    typeLabelFor(place),
+                    style: const TextStyle(
+                      color: AppTheme.orange,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    place.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.brown,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    place.address,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppTheme.brown.withValues(alpha: 0.72),
+                      fontSize: 12,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

@@ -27,6 +27,8 @@ class Offer {
     required this.tipoPasto,
     required this.nomeLocale,
     required this.indirizzo,
+    required this.latitude,
+    required this.longitude,
     required this.distanceKm,
     required this.postiTotali,
     required this.postiDisponibili,
@@ -52,6 +54,8 @@ class Offer {
   final String tipoPasto;
   final String nomeLocale;
   final String indirizzo;
+  final double latitude;
+  final double longitude;
   final double distanceKm;
   final int postiTotali;
   final int postiDisponibili;
@@ -78,6 +82,8 @@ class Offer {
       tipoPasto: (json['tipo_pasto'] ?? '').toString(),
       nomeLocale: (json['nome_locale'] ?? '').toString(),
       indirizzo: (json['indirizzo'] ?? '').toString(),
+      latitude: (json['lat'] as num?)?.toDouble() ?? 0,
+      longitude: (json['lon'] as num?)?.toDouble() ?? 0,
       distanceKm: (json['distance_km'] as num?)?.toDouble() ?? 0,
       postiTotali: json['posti_totali'] as int? ?? 0,
       postiDisponibili: json['posti_disponibili'] as int? ?? 0,
