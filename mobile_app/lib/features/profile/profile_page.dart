@@ -37,7 +37,9 @@ class _ProfilePageState extends State<ProfilePage> {
     await widget.authController.refreshCurrentUser();
     final future = _loadMyOffers();
     if (mounted) {
-      setState(() => _myOffersFuture = future);
+      setState(() {
+        _myOffersFuture = future;
+      });
     }
     await future;
   }
@@ -48,7 +50,6 @@ class _ProfilePageState extends State<ProfilePage> {
         builder: (_) => CreateOfferPage(
           authController: widget.authController,
           initialOffer: offer,
-          onOfferCreated: _refreshAll,
         ),
       ),
     );

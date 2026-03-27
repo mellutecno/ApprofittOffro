@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart' as geocoding;
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,7 +12,6 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_hero_card.dart';
-import '../../models/place_candidate.dart';
 import 'auth_controller.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -41,16 +41,13 @@ class _RegisterPageState extends State<RegisterPage> {
   List<XFile> _selectedPhotos = const [];
   bool _isSaving = false;
   bool _isLocating = false;
-  bool _loadingNearbyPlaces = false;
+  bool _isResolvingAddress = false;
   bool _initialLocationRequested = false;
   bool _mapReady = !AppConfig.googleMapsEnabled;
   GoogleMapController? _mapController;
   LatLng _currentMapCenter = _fallbackMapTarget;
   double? _latitude;
   double? _longitude;
-  String? _selectedPlaceId;
-  String _selectedPlaceName = '';
-  List<PlaceCandidate> _nearbyPlaces = const [];
   Set<Marker> _markers = const <Marker>{};
 
   @override
@@ -130,7 +127,7 @@ class _RegisterPageState extends State<RegisterPage> {
         _mapReady = true;
       });
       await _animateMapTo(target, zoom: 16.1);
-      await _refreshNearbyPlaces(target: target);
+      await _setSelectedLocation(target, showErrors: !silent);
     } catch (error) {
       if (!mounted) {
         return;
@@ -146,68 +143,63 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  Future<void> _refreshNearbyPlaces({LatLng? target}) async {
-    if (_loadingNearbyPlaces) {
-      return;
-    }
+  Future<void> _setSelectedLocation(
+    LatLng target, {
+    bool showErrors = true,
+  }) async {
+    setState(() {
+      _currentMapCenter = target;
+      _latitude = target.latitude;
+      _longitude = target.longitude;
+      _markers = {
+        Marker(
+          markerId: const MarkerId('selected-address'),
+          position: target,
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueOrange,
+          ),
+        ),
+      };
+    });
 
-    final center = target ?? _currentMapCenter;
-    setState(() => _loadingNearbyPlaces = true);
+    await _resolveAddress(target, showErrors: showErrors);
+  }
+
+  Future<void> _resolveAddress(
+    LatLng target, {
+    bool showErrors = true,
+  }) async {
+    setState(() => _isResolvingAddress = true);
     try {
-      final places = await widget.authController.apiClient.fetchNearbyPlaces(
-        latitude: center.latitude,
-        longitude: center.longitude,
+      final placemarks = await geocoding.placemarkFromCoordinates(
+        target.latitude,
+        target.longitude,
       );
       if (!mounted) {
         return;
       }
 
-      _nearbyPlaces = places;
-      await _rebuildMarkers();
-    } catch (error) {
-      if (mounted) {
-        _showMessage('Non riesco a caricare i locali vicini.');
+      final place = placemarks.isEmpty ? null : placemarks.first;
+      final parts = <String>[
+        if ((place?.street ?? '').trim().isNotEmpty) place!.street!.trim(),
+        if ((place?.subLocality ?? '').trim().isNotEmpty)
+          place!.subLocality!.trim(),
+        if ((place?.locality ?? '').trim().isNotEmpty) place!.locality!.trim(),
+        if ((place?.administrativeArea ?? '').trim().isNotEmpty)
+          place!.administrativeArea!.trim(),
+      ];
+      _addressController.text = parts.isEmpty
+          ? '${target.latitude.toStringAsFixed(5)}, ${target.longitude.toStringAsFixed(5)}'
+          : parts.toSet().join(', ');
+    } catch (_) {
+      if (showErrors && mounted) {
+        _showMessage('Non riesco a leggere l’indirizzo da questa posizione.');
       }
     } finally {
       if (mounted) {
-        setState(() => _loadingNearbyPlaces = false);
+        setState(() => _isResolvingAddress = false);
       }
     }
-  }
-
-  Future<void> _rebuildMarkers() async {
-    final markers = _nearbyPlaces.map((place) {
-      final selected = _selectedPlaceId == place.id;
-      return Marker(
-        markerId: MarkerId(place.id),
-        position: LatLng(place.latitude, place.longitude),
-        infoWindow: InfoWindow(
-          title: place.name,
-          snippet: place.address,
-        ),
-        icon: selected
-            ? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange)
-            : BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueRed,
-              ),
-        onTap: () => _selectPlace(place),
-      );
-    }).toSet();
-
-    setState(() => _markers = markers);
-  }
-
-  Future<void> _selectPlace(PlaceCandidate place) async {
-    setState(() {
-      _selectedPlaceId = place.id;
-      _selectedPlaceName = place.name;
-      _addressController.text = place.address;
-      _latitude = place.latitude;
-      _longitude = place.longitude;
-      _currentMapCenter = LatLng(place.latitude, place.longitude);
-    });
-    await _rebuildMarkers();
-    await _animateMapTo(_currentMapCenter, zoom: 17);
   }
 
   Future<void> _animateMapTo(LatLng target, {double zoom = 15.6}) async {
@@ -320,6 +312,8 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final busyMap = _isLocating || _isResolvingAddress;
+
     return Scaffold(
       body: DecoratedBox(
         decoration: const BoxDecoration(gradient: AppTheme.heroGradient),
@@ -338,6 +332,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         title: 'Crea il tuo profilo direttamente dal telefono.',
                         subtitle:
                             'La prima foto deve mostrare bene il volto. Le altre devono essere foto reali della stessa persona.',
+                        centered: true,
                       ),
                       const SizedBox(height: 18),
                       Card(
@@ -426,7 +421,7 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Apri la mappa, spostati se serve e tocca un locale o un punto vicino per compilare l’indirizzo.',
+                                'Tocca la mappa nel punto giusto oppure usa il GPS in alto a destra.',
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodyMedium
@@ -438,18 +433,15 @@ class _RegisterPageState extends State<RegisterPage> {
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 14),
-                              _buildMapSection(),
+                              _buildMapSection(busyMap),
                               const SizedBox(height: 14),
                               TextFormField(
                                 controller: _addressController,
                                 readOnly: true,
-                                decoration: InputDecoration(
+                                decoration: const InputDecoration(
                                   labelText: 'Indirizzo',
                                   prefixIcon:
-                                      const Icon(Icons.location_on_outlined),
-                                  helperText: _selectedPlaceName.isEmpty
-                                      ? 'Sceglilo direttamente dalla mappa'
-                                      : _selectedPlaceName,
+                                      Icon(Icons.location_on_outlined),
                                 ),
                                 validator: (value) =>
                                     value == null || value.trim().isEmpty
@@ -523,7 +515,7 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Widget _buildMapSection() {
+  Widget _buildMapSection(bool busyMap) {
     if (!AppConfig.googleMapsEnabled) {
       return const _RegisterMapPlaceholder();
     }
@@ -554,10 +546,7 @@ class _RegisterPageState extends State<RegisterPage> {
               zoomGesturesEnabled: true,
               rotateGesturesEnabled: true,
               tiltGesturesEnabled: true,
-              onCameraMove: (position) {
-                _currentMapCenter = position.target;
-              },
-              onCameraIdle: () => unawaited(_refreshNearbyPlaces()),
+              onTap: (target) => unawaited(_setSelectedLocation(target)),
               gestureRecognizers: {
                 Factory<OneSequenceGestureRecognizer>(
                   EagerGestureRecognizer.new,
@@ -596,7 +585,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
               ),
             ),
-            if (_isLocating || _loadingNearbyPlaces)
+            if (busyMap)
               const Positioned(
                 bottom: 14,
                 left: 14,

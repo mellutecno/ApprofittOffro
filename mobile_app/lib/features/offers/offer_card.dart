@@ -300,12 +300,32 @@ class OfferCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 18),
-            FilledButton(
-              onPressed: offer.isOwn
-                  ? onEditOwn
-                  : (onClaim == null ? null : () => onClaim!.call()),
-              child: Text(_ctaLabel()),
-            ),
+            if (offer.isOwn && offer.telefonoLocale.trim().isNotEmpty)
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: onEditOwn,
+                      child: const Text('Modifica la tua offerta'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _callLocalPhone,
+                      icon: const Icon(Icons.call_outlined),
+                      label: const Text('Prenota il locale'),
+                    ),
+                  ),
+                ],
+              )
+            else
+              FilledButton(
+                onPressed: offer.isOwn
+                    ? onEditOwn
+                    : (onClaim == null ? null : () => onClaim!.call()),
+                child: Text(_ctaLabel()),
+              ),
           ],
         ),
       ),
@@ -367,6 +387,18 @@ class OfferCard extends StatelessWidget {
 
   Future<void> _openExternalLink(String rawUrl) async {
     final uri = Uri.tryParse(rawUrl);
+    if (uri == null) {
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _callLocalPhone() async {
+    final digits = offer.telefonoLocale.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (digits.isEmpty) {
+      return;
+    }
+    final uri = Uri.tryParse('tel:$digits');
     if (uri == null) {
       return;
     }

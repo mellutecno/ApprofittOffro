@@ -51,7 +51,9 @@ class _LandingPageState extends State<LandingPage> {
 
   Future<void> _reloadOffers() async {
     final future = widget.authController.apiClient.fetchOffers();
-    setState(() => _offersFuture = future);
+    setState(() {
+      _offersFuture = future;
+    });
     await future;
   }
 

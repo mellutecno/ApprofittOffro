@@ -33,7 +33,9 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
 
   Future<void> _reload() async {
     final future = widget.apiClient.fetchPublicUser(widget.userId);
-    setState(() => _future = future);
+    setState(() {
+      _future = future;
+    });
     await future;
   }
 
