@@ -126,6 +126,20 @@ class _CommunityPageState extends State<CommunityPage> {
                                       .selectGender(value ?? '');
                                 },
                               ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Nei risultati trovi sempre gli altri profili della community, mai il tuo.',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color:
+                                          AppTheme.brown.withValues(alpha: 0.72),
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.35,
+                                    ),
+                              ),
                             ],
                           ),
                         ),
