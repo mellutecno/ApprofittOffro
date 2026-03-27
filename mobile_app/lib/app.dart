@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/network/api_client.dart';
 import 'core/network/session_store.dart';
@@ -40,6 +41,16 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp> {
       title: 'ApprofittOffro',
       theme: AppTheme.light(),
       debugShowCheckedModeBanner: false,
+      locale: const Locale('it', 'IT'),
+      supportedLocales: const [
+        Locale('it', 'IT'),
+        Locale('en', 'US'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       home: FutureBuilder<void>(
         future: _bootstrapFuture,
         builder: (context, snapshot) {
