@@ -129,7 +129,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             ),
             const SizedBox(height: 20),
             _SectionCard(
-              title: '1. Scegli il momento',
+              title: 'Scegli il momento',
               subtitle:
                   'Decidi il tipo di pasto, data e ora complete e quanti posti vuoi aprire.',
               child: Column(
@@ -223,14 +223,14 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             ),
             const SizedBox(height: 16),
             _SectionCard(
-              title: '2. Scegli dalla mappa',
+              title: 'Scegli dalla mappa',
               subtitle:
                   'Apri la mappa solo quando ti serve, spostati con il GPS e poi carica i locali vicini.',
               child: _buildMapSection(),
             ),
             const SizedBox(height: 16),
             _SectionCard(
-              title: '3. Scegli il posto',
+              title: 'Scegli il posto',
               subtitle:
                   'Nome, indirizzo e telefono si compilano in automatico quando selezioni un locale sulla mappa.',
               child: Column(
@@ -287,7 +287,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             ),
             const SizedBox(height: 16),
             _SectionCard(
-              title: '4. Racconta l\'invito',
+              title: 'Racconta l\'invito',
               subtitle:
                   'Spiega che atmosfera vuoi creare e cosa ti va di condividere.',
               child: Column(

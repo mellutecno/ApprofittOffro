@@ -185,31 +185,6 @@ class _ProfilePageState extends State<ProfilePage> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _StatCard(
-                              label: 'Offerte',
-                              value: user.offersCount.toString(),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _StatCard(
-                              label: 'Recuperi',
-                              value: user.claimsCount.toString(),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _StatCard(
-                              label: 'Follower',
-                              value: user.followersCount.toString(),
-                            ),
-                          ),
-                        ],
-                      ),
                       if (user.galleryFilenames.isNotEmpty) ...[
                         const SizedBox(height: 20),
                         Text(
@@ -402,38 +377,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
         );
       },
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-      decoration: BoxDecoration(
-        color: AppTheme.paper,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.cardBorder),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 6),
-          Text(label, textAlign: TextAlign.center),
-        ],
-      ),
     );
   }
 }

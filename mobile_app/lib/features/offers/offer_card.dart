@@ -319,7 +319,7 @@ class OfferCard extends StatelessWidget {
                     child: OutlinedButton.icon(
                       onPressed: _callLocalPhone,
                       icon: const Icon(Icons.call_outlined),
-                      label: const Text('Prenota il locale'),
+                      label: const Text('Chiama il locale'),
                     ),
                   ),
                 ],
