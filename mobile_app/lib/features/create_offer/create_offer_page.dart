@@ -50,6 +50,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   DateTime? _selectedDateTime;
   XFile? _pickedImage;
   bool _submitting = false;
+  bool _deleting = false;
   bool _isLocating = false;
   bool _initialLocationRequested = false;
   bool _initialMapReady = !AppConfig.googleMapsEnabled;
@@ -65,6 +66,24 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   List<PlaceCandidate> _nearbyPlaces = const [];
   Set<Marker> _nearbyMarkers = const <Marker>{};
   final Map<String, BitmapDescriptor> _markerIconCache = {};
+
+  int get _occupiedSeats {
+    final initialOffer = widget.initialOffer;
+    if (initialOffer == null) {
+      return 0;
+    }
+    return (initialOffer.postiTotali - initialOffer.postiDisponibili).clamp(
+      0,
+      initialOffer.postiTotali,
+    );
+  }
+
+  int get _minimumSeatsAllowed {
+    if (widget.initialOffer == null) {
+      return 1;
+    }
+    return _occupiedSeats == 0 ? 1 : _occupiedSeats;
+  }
 
   @override
   void initState() {
@@ -190,18 +209,36 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                     ),
                     child: Row(
                       children: [
-                        const Expanded(
-                          child: Text(
-                            'Posti totali',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: AppTheme.brown,
-                            ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Posti totali',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.brown,
+                                ),
+                              ),
+                              if (widget.initialOffer != null &&
+                                  _occupiedSeats > 0) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Minimo $_minimumSeatsAllowed: $_occupiedSeats partecipanti gia dentro.',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.brown.withValues(alpha: 0.66),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         _CounterButton(
                           icon: Icons.remove,
-                          onTap: _submitting || _totalSeats <= 1
+                          onTap: _submitting ||
+                                  _deleting ||
+                                  _totalSeats <= _minimumSeatsAllowed
                               ? null
                               : () => setState(() => _totalSeats -= 1),
                         ),
@@ -216,7 +253,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                         ),
                         _CounterButton(
                           icon: Icons.add,
-                          onTap: _submitting || _totalSeats >= 8
+                          onTap: _submitting || _deleting || _totalSeats >= 8
                               ? null
                               : () => setState(() => _totalSeats += 1),
                         ),
@@ -352,19 +389,56 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               ),
             ),
             const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: _submitting ? null : _submit,
-              icon: const Icon(Icons.send_rounded),
-              label: Text(
-                _submitting
-                    ? (isEditing
-                        ? 'Sto aggiornando...'
-                        : 'Sto pubblicando...')
-                    : (isEditing
-                        ? 'Salva modifiche'
-                        : 'Pubblica offerta'),
+            if (isEditing)
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _submitting || _deleting ? null : _deleteOffer,
+                      icon: _deleting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.delete_outline_rounded),
+                      label: const Text('Elimina offerta'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF8A4336),
+                        side: const BorderSide(color: Color(0xFFD7B4AC)),
+                        backgroundColor: const Color(0xFFF7ECE8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _submitting || _deleting ? null : _submit,
+                      icon: _submitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.save_rounded),
+                      label: Text(
+                        _submitting ? 'Sto salvando...' : 'Salva modifiche',
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else
+              FilledButton.icon(
+                onPressed: _submitting || _deleting ? null : _submit,
+                icon: const Icon(Icons.send_rounded),
+                label: Text(
+                  _submitting ? 'Sto pubblicando...' : 'Pubblica offerta',
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -928,6 +1002,12 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       _showMessage('Scegli data e ora dell\'invito.');
       return;
     }
+    if (_totalSeats < _minimumSeatsAllowed) {
+      _showMessage(
+        'Non puoi scendere sotto $_minimumSeatsAllowed posti: ci sono gia partecipanti confermati.',
+      );
+      return;
+    }
     if (_mealType == null || _mealType!.trim().isEmpty) {
       _showMessage('Scegli il momento del pasto.');
       return;
@@ -1002,6 +1082,60 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
+      }
+    }
+  }
+
+  Future<void> _deleteOffer() async {
+    final offer = widget.initialOffer;
+    if (offer == null) {
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Elimina offerta'),
+          content: Text(
+            'Vuoi davvero eliminare l\'offerta per ${offer.nomeLocale}? Chi ha gia approfittato verra avvisato.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Annulla'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Elimina'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true || !mounted) {
+      return;
+    }
+
+    setState(() => _deleting = true);
+    try {
+      final message = await widget.authController.apiClient.deleteOffer(
+        offer.id,
+      );
+      if (widget.onOfferCreated != null) {
+        await widget.onOfferCreated!.call();
+      }
+      if (!mounted) {
+        return;
+      }
+      _showMessage(message);
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      _showMessage(error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _deleting = false);
       }
     }
   }

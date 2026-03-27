@@ -335,6 +335,22 @@ class ApiClient {
     return payload['message']?.toString() ?? 'Offerta aggiornata con successo.';
   }
 
+  Future<String> deleteOffer(
+    int offerId, {
+    String motivazione = 'Eliminata dall\'autore dall\'app mobile.',
+  }) async {
+    final response = await _send(
+      method: 'DELETE',
+      path: '/api/offers/$offerId',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'motivazione': motivazione}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ??
+        'Offerta eliminata con successo.';
+  }
+
   Future<String> updateProfile({
     required String nome,
     required String email,
@@ -401,6 +417,14 @@ class ApiClient {
         return http.get(uri, headers: mergedHeaders);
       case 'POST':
         return http.post(uri, headers: mergedHeaders, body: body);
+      case 'DELETE':
+        final request = http.Request('DELETE', uri)
+          ..headers.addAll(mergedHeaders);
+        if (body != null) {
+          request.body = body.toString();
+        }
+        final streamedResponse = await request.send();
+        return http.Response.fromStream(streamedResponse);
       default:
         throw UnsupportedError('Metodo HTTP non gestito: $method');
     }

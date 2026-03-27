@@ -2833,6 +2833,20 @@ def api_edit_offer(offer_id):
             "errors": [get_offer_publication_too_late_message(tipo_pasto)],
         }), 400
 
+    try:
+        requested_posti = int(posti)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "errors": ["Numero posti non valido."]}), 400
+
+    occupied_seats = max(0, offer.posti_totali - offer.posti_disponibili)
+    if requested_posti < occupied_seats:
+        return jsonify({
+            "success": False,
+            "errors": [
+                f"Non puoi scendere sotto {occupied_seats} posti: ci sono gia partecipanti confermati."
+            ],
+        }), 400
+
     if foto_locale and foto_locale.filename:
         ext = foto_locale.filename.rsplit(".", 1)[1].lower()
         filename = f"offer_{offer.user_id}_{int(datetime.now().timestamp())}.{ext}"
@@ -2845,8 +2859,8 @@ def api_edit_offer(offer_id):
     offer.latitudine = float(lat)
     offer.longitudine = float(lon)
     
-    diff_posti = int(posti) - offer.posti_totali
-    offer.posti_totali = int(posti)
+    diff_posti = requested_posti - offer.posti_totali
+    offer.posti_totali = requested_posti
     offer.posti_disponibili = max(0, offer.posti_disponibili + diff_posti)
     
     offer.data_ora = data_ora
