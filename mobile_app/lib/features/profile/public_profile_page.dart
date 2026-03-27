@@ -113,7 +113,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
           if (snapshot.hasError) {
             return const Center(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.all(24),
                 child: Text(
                   'Non riesco a caricare il profilo adesso.',
                   textAlign: TextAlign.center,

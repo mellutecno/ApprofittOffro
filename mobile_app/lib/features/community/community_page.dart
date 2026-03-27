@@ -234,9 +234,9 @@ class _CommunityFilterTile extends StatelessWidget {
           height: 54,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            color: const Color(0xFFF0E4DA),
+            color: const Color(0xFFE7DBD0),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFD9C4AE)),
+            border: Border.all(color: const Color(0xFFD1BCAA)),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x12000000),
@@ -249,6 +249,7 @@ class _CommunityFilterTile extends StatelessWidget {
             child: DropdownButton<String>(
               value: value,
               isExpanded: true,
+              alignment: Alignment.center,
               borderRadius: BorderRadius.circular(18),
               dropdownColor: AppTheme.paper,
               icon: const Icon(

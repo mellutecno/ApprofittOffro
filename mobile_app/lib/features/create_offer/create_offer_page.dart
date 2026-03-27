@@ -45,7 +45,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   final _picker = ImagePicker();
   final Completer<GoogleMapController> _mapControllerCompleter = Completer();
 
-  String _mealType = 'colazione';
+  String? _mealType;
   int _totalSeats = 2;
   DateTime? _selectedDateTime;
   XFile? _pickedImage;
@@ -134,34 +134,39 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                   'Decidi il tipo di pasto, data e ora complete e quanti posti vuoi aprire.',
               child: Column(
                 children: [
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 10,
-                    runSpacing: 10,
+                  Row(
                     children: [
-                      _MealChoiceChip(
-                        label: 'Colazione',
-                        value: 'colazione',
-                        currentValue: _mealType,
-                        onSelected: _submitting
-                            ? null
-                            : (value) => setState(() => _mealType = value),
+                      Expanded(
+                        child: _MealChoiceChip(
+                          label: 'Colazione',
+                          value: 'colazione',
+                          currentValue: _mealType,
+                          onSelected: _submitting
+                              ? null
+                              : (value) => setState(() => _mealType = value),
+                        ),
                       ),
-                      _MealChoiceChip(
-                        label: 'Pranzo',
-                        value: 'pranzo',
-                        currentValue: _mealType,
-                        onSelected: _submitting
-                            ? null
-                            : (value) => setState(() => _mealType = value),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _MealChoiceChip(
+                          label: 'Pranzo',
+                          value: 'pranzo',
+                          currentValue: _mealType,
+                          onSelected: _submitting
+                              ? null
+                              : (value) => setState(() => _mealType = value),
+                        ),
                       ),
-                      _MealChoiceChip(
-                        label: 'Cena',
-                        value: 'cena',
-                        currentValue: _mealType,
-                        onSelected: _submitting
-                            ? null
-                            : (value) => setState(() => _mealType = value),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _MealChoiceChip(
+                          label: 'Cena',
+                          value: 'cena',
+                          currentValue: _mealType,
+                          onSelected: _submitting
+                              ? null
+                              : (value) => setState(() => _mealType = value),
+                        ),
                       ),
                     ],
                   ),
@@ -923,6 +928,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       _showMessage('Scegli data e ora dell\'invito.');
       return;
     }
+    if (_mealType == null || _mealType!.trim().isEmpty) {
+      _showMessage('Scegli il momento del pasto.');
+      return;
+    }
     if (_selectedLatitude == null || _selectedLongitude == null) {
       _showMessage('Scegli un locale dalla mappa.');
       return;
@@ -932,7 +941,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     try {
       final message = widget.initialOffer == null
           ? await widget.authController.apiClient.createOffer(
-              mealType: _mealType,
+              mealType: _mealType!,
               localeName: _localeController.text.trim(),
               address: _addressController.text.trim(),
               localePhone: _phoneController.text.trim(),
@@ -945,7 +954,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             )
           : await widget.authController.apiClient.updateOffer(
               offerId: widget.initialOffer!.id,
-              mealType: _mealType,
+              mealType: _mealType!,
               localeName: _localeController.text.trim(),
               address: _addressController.text.trim(),
               localePhone: _phoneController.text.trim(),
@@ -974,7 +983,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       _phoneController.clear();
       _descriptionController.clear();
       setState(() {
-        _mealType = 'colazione';
+        _mealType = null;
         _totalSeats = 2;
         _selectedDateTime = null;
         _pickedImage = null;
@@ -1057,7 +1066,7 @@ class _SectionCard extends StatelessWidget {
             Text(
               subtitle,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppTheme.brown.withValues(alpha: 0.72),
+                color: AppTheme.brown.withValues(alpha: 0.86),
                 height: 1.4,
               ),
             ),
@@ -1119,7 +1128,7 @@ class _CollapsedMapLauncher extends StatelessWidget {
               'Apri la mappa, usa il GPS e poi carica i locali vicini solo quando vuoi scegliere davvero il posto.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.brown.withValues(alpha: 0.72),
+                color: AppTheme.brown.withValues(alpha: 0.84),
                 height: 1.4,
               ),
             ),
@@ -1342,7 +1351,7 @@ class _MealChoiceChip extends StatelessWidget {
 
   final String label;
   final String value;
-  final String currentValue;
+  final String? currentValue;
   final ValueChanged<String>? onSelected;
 
   @override
@@ -1355,17 +1364,26 @@ class _MealChoiceChip extends StatelessWidget {
       _ => AppTheme.orange,
     };
 
-    return ChoiceChip(
-      selected: selected,
-      label: Text(label),
-      onSelected: onSelected == null ? null : (_) => onSelected!(value),
-      backgroundColor: Colors.white,
-      selectedColor: color.withValues(alpha: 0.16),
-      side: BorderSide(color: color.withValues(alpha: 0.36)),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      labelStyle: TextStyle(
-        color: selected ? color : AppTheme.brown,
-        fontWeight: FontWeight.w800,
+    return SizedBox(
+      width: double.infinity,
+      child: ChoiceChip(
+        selected: selected,
+        label: SizedBox(
+          width: double.infinity,
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+          ),
+        ),
+        onSelected: onSelected == null ? null : (_) => onSelected!(value),
+        backgroundColor: Colors.white,
+        selectedColor: color.withValues(alpha: 0.16),
+        side: BorderSide(color: color.withValues(alpha: 0.36)),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        labelStyle: TextStyle(
+          color: selected ? color : AppTheme.brown,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
