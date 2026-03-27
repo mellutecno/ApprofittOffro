@@ -654,7 +654,7 @@ class _PublicOfferCard extends StatelessWidget {
             const SizedBox(height: 14),
             FilledButton(
               onPressed: onTap,
-              child: const Text('Iscriviti o accedi per partecipare'),
+              child: const Text('Cosa aspetti, approfitta'),
             ),
           ],
         ),
