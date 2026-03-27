@@ -1092,29 +1092,68 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
 
-    final confirm = await showDialog<bool>(
+    final reasonController = TextEditingController();
+    String? validationMessage;
+
+    final reason = await showDialog<String>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Elimina offerta'),
-          content: Text(
-            'Vuoi davvero eliminare l\'offerta per ${offer.nomeLocale}? Chi ha gia approfittato verra avvisato.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Annulla'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Elimina'),
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Elimina offerta'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Vuoi davvero eliminare l\'offerta per ${offer.nomeLocale}? Chi ha gia approfittato ricevera una mail con il motivo dell\'annullamento.',
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: reasonController,
+                    minLines: 3,
+                    maxLines: 5,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      labelText: 'Motivo dell\'eliminazione',
+                      hintText:
+                          'Scrivi il motivo da inviare a chi partecipava.',
+                      errorText: validationMessage,
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Annulla'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final trimmedReason = reasonController.text.trim();
+                    if (trimmedReason.length < 8) {
+                      setDialogState(() {
+                        validationMessage =
+                            'Inserisci un motivo chiaro di almeno 8 caratteri.';
+                      });
+                      return;
+                    }
+                    Navigator.of(context).pop(trimmedReason);
+                  },
+                  child: const Text('Elimina'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
 
-    if (confirm != true || !mounted) {
+    reasonController.dispose();
+
+    if (reason == null || !mounted) {
       return;
     }
 
@@ -1122,6 +1161,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     try {
       final message = await widget.authController.apiClient.deleteOffer(
         offer.id,
+        motivazione: reason,
       );
       if (widget.onOfferCreated != null) {
         await widget.onOfferCreated!.call();

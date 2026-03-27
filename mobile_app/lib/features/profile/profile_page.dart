@@ -271,6 +271,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                       offer: offer,
                                       apiClient: apiClient,
                                       onEditOwn: () => _openEditOffer(offer),
+                                      allowProfileOpen: false,
                                     ),
                                   ),
                                 )

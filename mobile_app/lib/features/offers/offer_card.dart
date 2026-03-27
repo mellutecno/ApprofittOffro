@@ -15,12 +15,14 @@ class OfferCard extends StatelessWidget {
     required this.apiClient,
     this.onClaim,
     this.onEditOwn,
+    this.allowProfileOpen = true,
   });
 
   final Offer offer;
   final ApiClient apiClient;
   final Future<void> Function()? onClaim;
   final VoidCallback? onEditOwn;
+  final bool allowProfileOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +59,9 @@ class OfferCard extends StatelessWidget {
               ),
               child: InkWell(
                 borderRadius: BorderRadius.circular(18),
-                onTap: () => _openProfile(context, offer.autoreId),
+                onTap: allowProfileOpen
+                    ? () => _openProfile(context, offer.autoreId)
+                    : null,
                 child: Row(
                   children: [
                     CircleAvatar(
@@ -94,13 +98,14 @@ class OfferCard extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 6),
-                          Text(
-                            'Visualizza profilo',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.w700,
+                          if (allowProfileOpen)
+                            Text(
+                              'Visualizza profilo',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
                           if (offer.hostWhatsAppLink.isNotEmpty) ...[
                             const SizedBox(height: 10),
                             Align(
@@ -115,7 +120,8 @@ class OfferCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const Icon(Icons.chevron_right_rounded),
+                    if (allowProfileOpen)
+                      const Icon(Icons.chevron_right_rounded),
                   ],
                 ),
               ),
@@ -319,7 +325,7 @@ class OfferCard extends StatelessWidget {
                     child: OutlinedButton.icon(
                       onPressed: _callLocalPhone,
                       icon: const Icon(Icons.call_outlined),
-                      label: const Text('Chiama il locale'),
+                      label: const Text('Vuoi prenotare?'),
                     ),
                   ),
                 ],
