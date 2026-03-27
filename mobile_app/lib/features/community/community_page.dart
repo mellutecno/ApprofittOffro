@@ -77,7 +77,7 @@ class _CommunityPageState extends State<CommunityPage> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         const Text(
-                          'Scegli la fascia di eta',
+                          'Filtra la community',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
@@ -86,45 +86,39 @@ class _CommunityPageState extends State<CommunityPage> {
                         ),
                         const SizedBox(height: 12),
                         ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 320),
+                          constraints: const BoxConstraints(maxWidth: 360),
                           child: Column(
                             children: [
-                              DropdownButtonFormField<String>(
-                                initialValue:
-                                    widget.communityController.selectedAgeRange,
-                                decoration:
-                                    const InputDecoration(labelText: 'Eta'),
-                                items: _ageRanges
-                                    .map(
-                                      (item) => DropdownMenuItem<String>(
-                                        value: item.key,
-                                        child: Text(item.value),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (value) {
-                                  widget.communityController
-                                      .selectAgeRange(value ?? '');
-                                },
-                              ),
-                              const SizedBox(height: 12),
-                              DropdownButtonFormField<String>(
-                                initialValue:
-                                    widget.communityController.selectedGender,
-                                decoration:
-                                    const InputDecoration(labelText: 'Sesso'),
-                                items: _genderFilters
-                                    .map(
-                                      (item) => DropdownMenuItem<String>(
-                                        value: item.key,
-                                        child: Text(item.value),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (value) {
-                                  widget.communityController
-                                      .selectGender(value ?? '');
-                                },
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _CommunityFilterTile(
+                                      label: 'Eta',
+                                      icon: Icons.cake_outlined,
+                                      value: widget.communityController
+                                          .selectedAgeRange,
+                                      options: _ageRanges,
+                                      onChanged: (value) {
+                                        widget.communityController
+                                            .selectAgeRange(value);
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _CommunityFilterTile(
+                                      label: 'Sesso',
+                                      icon: Icons.people_alt_outlined,
+                                      value: widget
+                                          .communityController.selectedGender,
+                                      options: _genderFilters,
+                                      onChanged: (value) {
+                                        widget.communityController
+                                            .selectGender(value);
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 12),
                               Text(
@@ -206,6 +200,99 @@ class _CommunityPageState extends State<CommunityPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _CommunityFilterTile extends StatelessWidget {
+  const _CommunityFilterTile({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final String label;
+  final IconData icon;
+  final String value;
+  final List<MapEntry<String, String>> options;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.cardBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 14,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: AppTheme.brown.withValues(alpha: 0.72),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.brown.withValues(alpha: 0.72),
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              borderRadius: BorderRadius.circular(18),
+              dropdownColor: AppTheme.paper,
+              icon: const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: AppTheme.brown,
+              ),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.brown,
+                    fontWeight: FontWeight.w700,
+                  ),
+              items: options
+                  .map(
+                    (item) => DropdownMenuItem<String>(
+                      value: item.key,
+                      child: Text(
+                        item.value,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (selected) {
+                if (selected == null) {
+                  return;
+                }
+                onChanged(selected);
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
