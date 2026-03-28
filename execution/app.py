@@ -390,10 +390,21 @@ def send_claim_request_notification_to_host(claim):
     """Avvisa l'host che e' arrivata una nuova richiesta da approvare."""
     offer = claim.offerta
     guest = claim.utente
-    if not offer or not guest or not offer.autore.email:
+    if not offer or not guest:
+        print(
+            f"[CLAIM_MAIL_SKIP] richiesta host non inviata: claim={getattr(claim, 'id', None)} offer/guest mancanti"
+        )
+        return
+    if not offer.autore.email:
+        print(
+            f"[CLAIM_MAIL_SKIP] richiesta host non inviata: host senza email offer={offer.id} host={offer.user_id}"
+        )
         return
 
     data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    print(
+        f"[CLAIM_MAIL_FLOW] richiesta host claim={claim.id} offer={offer.id} host_email={offer.autore.email} guest_email={guest.email or '-'} provider={get_active_email_provider()}"
+    )
     send_email(
         f"Nuova richiesta da approvare per '{offer.nome_locale}'",
         [offer.autore.email],
@@ -408,10 +419,21 @@ def send_claim_accepted_email(claim):
     """Conferma al partecipante che l'host ha accettato la richiesta."""
     offer = claim.offerta
     guest = claim.utente
-    if not offer or not guest or not guest.email:
+    if not offer or not guest:
+        print(
+            f"[CLAIM_MAIL_SKIP] accettazione non inviata: claim={getattr(claim, 'id', None)} offer/guest mancanti"
+        )
+        return
+    if not guest.email:
+        print(
+            f"[CLAIM_MAIL_SKIP] accettazione non inviata: guest senza email claim={claim.id} guest={guest.id}"
+        )
         return
 
     data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    print(
+        f"[CLAIM_MAIL_FLOW] accettazione claim={claim.id} offer={offer.id} guest_email={guest.email} host_email={offer.autore.email or '-'} provider={get_active_email_provider()}"
+    )
     send_email(
         f"Richiesta accettata per '{offer.nome_locale}'",
         [guest.email],
@@ -426,10 +448,21 @@ def send_claim_rejected_email(claim):
     """Avvisa il partecipante che la richiesta e' stata rifiutata dall'host."""
     offer = claim.offerta
     guest = claim.utente
-    if not offer or not guest or not guest.email:
+    if not offer or not guest:
+        print(
+            f"[CLAIM_MAIL_SKIP] rifiuto non inviato: claim={getattr(claim, 'id', None)} offer/guest mancanti"
+        )
+        return
+    if not guest.email:
+        print(
+            f"[CLAIM_MAIL_SKIP] rifiuto non inviato: guest senza email claim={claim.id} guest={guest.id}"
+        )
         return
 
     data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    print(
+        f"[CLAIM_MAIL_FLOW] rifiuto claim={claim.id} offer={offer.id} guest_email={guest.email} host_email={offer.autore.email or '-'} provider={get_active_email_provider()}"
+    )
     send_email(
         f"Richiesta non accettata per '{offer.nome_locale}'",
         [guest.email],
