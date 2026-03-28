@@ -1,12 +1,16 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'core/navigation/app_launch_target.dart';
 import 'core/network/api_client.dart';
 import 'core/network/session_store.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/brand_wordmark.dart';
-import 'features/auth/auth_controller.dart';
 import 'features/auth/landing_page.dart';
+import 'features/auth/auth_controller.dart';
 import 'features/home/home_shell.dart';
 
 class ApprofittOffroMobileApp extends StatefulWidget {
@@ -20,19 +24,96 @@ class ApprofittOffroMobileApp extends StatefulWidget {
 class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp> {
   late final AuthController _authController;
   late final Future<void> _bootstrapFuture;
+  late final AppLinks _appLinks;
+  StreamSubscription<Uri?>? _linkSubscription;
+  AppLaunchTarget? _pendingLaunchTarget;
+  bool _initialLinkResolved = false;
 
   @override
   void initState() {
     super.initState();
     final apiClient = ApiClient(sessionStore: SessionStore());
     _authController = AuthController(apiClient);
-    _bootstrapFuture = _authController.initialize();
+    _appLinks = AppLinks();
+    _bootstrapFuture = _bootstrap();
+    _listenForIncomingLinks();
   }
 
   @override
   void dispose() {
+    _linkSubscription?.cancel();
     _authController.dispose();
     super.dispose();
+  }
+
+  Future<void> _bootstrap() async {
+    await _authController.initialize();
+    await _resolveInitialLink();
+  }
+
+  Future<void> _resolveInitialLink() async {
+    if (_initialLinkResolved) {
+      return;
+    }
+    _initialLinkResolved = true;
+    try {
+      final initialUri = await _appLinks.getInitialLink();
+      _handleIncomingUri(initialUri);
+    } catch (_) {
+      // Nessun deep link iniziale disponibile.
+    }
+  }
+
+  void _listenForIncomingLinks() {
+    _linkSubscription = _appLinks.uriLinkStream.listen(
+      _handleIncomingUri,
+      onError: (_) {
+        // Deep link non leggibile: ignoro e continuo.
+      },
+    );
+  }
+
+  void _handleIncomingUri(Uri? uri) {
+    final target = _parseLaunchTarget(uri);
+    if (target == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _pendingLaunchTarget = target;
+    });
+  }
+
+  AppLaunchTarget? _parseLaunchTarget(Uri? uri) {
+    if (uri == null || uri.scheme.toLowerCase() != 'approfittoffro') {
+      return null;
+    }
+
+    final host = uri.host.toLowerCase();
+    final segments =
+        uri.pathSegments.map((segment) => segment.toLowerCase()).toList();
+    final target = uri.queryParameters['target']?.toLowerCase();
+
+    if (host == 'profile' && segments.contains('pending-requests')) {
+      return AppLaunchTarget.pendingRequests;
+    }
+    if (host == 'pending-requests' ||
+        (host == 'requests' && segments.contains('pending')) ||
+        target == 'pending-requests') {
+      return AppLaunchTarget.pendingRequests;
+    }
+    if (host == 'login' || host.isEmpty) {
+      return AppLaunchTarget.login;
+    }
+    return AppLaunchTarget.login;
+  }
+
+  void _consumeLaunchTarget() {
+    if (!mounted || _pendingLaunchTarget == null) {
+      return;
+    }
+    setState(() {
+      _pendingLaunchTarget = null;
+    });
   }
 
   @override
@@ -58,16 +139,23 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp> {
             return const _SplashScreen();
           }
 
-          return AnimatedBuilder(
-            animation: _authController,
-            builder: (context, _) {
-              if (_authController.isAuthenticated) {
-                return HomeShell(authController: _authController);
-              }
-              return LandingPage(authController: _authController);
-            },
-          );
-        },
+            return AnimatedBuilder(
+              animation: _authController,
+              builder: (context, _) {
+                if (_authController.isAuthenticated) {
+                  return HomeShell(
+                    authController: _authController,
+                    launchTarget: _pendingLaunchTarget,
+                    onLaunchTargetHandled: _consumeLaunchTarget,
+                  );
+                }
+                return LandingPage(
+                  authController: _authController,
+                  autoOpenLogin: _pendingLaunchTarget != null,
+                );
+              },
+            );
+          },
       ),
     );
   }

@@ -12,9 +12,14 @@ import 'login_page.dart';
 import 'register_page.dart';
 
 class LandingPage extends StatefulWidget {
-  const LandingPage({super.key, required this.authController});
+  const LandingPage({
+    super.key,
+    required this.authController,
+    this.autoOpenLogin = false,
+  });
 
   final AuthController authController;
+  final bool autoOpenLogin;
 
   @override
   State<LandingPage> createState() => _LandingPageState();
@@ -22,11 +27,22 @@ class LandingPage extends StatefulWidget {
 
 class _LandingPageState extends State<LandingPage> {
   late Future<List<Offer>> _offersFuture;
+  bool _didAutoOpenLogin = false;
 
   @override
   void initState() {
     super.initState();
     _offersFuture = widget.authController.apiClient.fetchOffers();
+    _scheduleAutoLoginIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(covariant LandingPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.autoOpenLogin && !oldWidget.autoOpenLogin) {
+      _didAutoOpenLogin = false;
+      _scheduleAutoLoginIfNeeded();
+    }
   }
 
   void _openLogin() {
@@ -37,6 +53,19 @@ class _LandingPageState extends State<LandingPage> {
         ),
       ),
     );
+  }
+
+  void _scheduleAutoLoginIfNeeded() {
+    if (!widget.autoOpenLogin || _didAutoOpenLogin) {
+      return;
+    }
+    _didAutoOpenLogin = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _openLogin();
+    });
   }
 
   void _openRegister() {

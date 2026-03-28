@@ -1,0 +1,4 @@
+enum AppLaunchTarget {
+  login,
+  pendingRequests,
+}

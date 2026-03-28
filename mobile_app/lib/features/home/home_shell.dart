@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/navigation/app_launch_target.dart';
 import '../auth/auth_controller.dart';
 import '../community/community_controller.dart';
 import '../community/community_page.dart';
@@ -12,9 +13,16 @@ import '../profile/profile_page.dart';
 import '../profile/profile_edit_page.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, required this.authController});
+  const HomeShell({
+    super.key,
+    required this.authController,
+    this.launchTarget,
+    this.onLaunchTargetHandled,
+  });
 
   final AuthController authController;
+  final AppLaunchTarget? launchTarget;
+  final VoidCallback? onLaunchTargetHandled;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -25,6 +33,7 @@ class _HomeShellState extends State<HomeShell> {
   late final OffersController _offersController;
   late final CommunityController _communityController;
   bool _mandatoryProfileFlowOpen = false;
+  String? _lastPendingAlertSignature;
 
   @override
   void initState() {
@@ -36,7 +45,20 @@ class _HomeShellState extends State<HomeShell> {
     widget.authController.addListener(_handleAuthStateChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeOpenMandatoryProfileSetup());
+      _applyLaunchTargetIfNeeded();
+      _maybeShowPendingRequestsAlert();
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.launchTarget != widget.launchTarget) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _applyLaunchTargetIfNeeded();
+        _maybeShowPendingRequestsAlert(forceProfileTab: true);
+      });
+    }
   }
 
   @override
@@ -50,7 +72,78 @@ class _HomeShellState extends State<HomeShell> {
   void _handleAuthStateChanged() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeOpenMandatoryProfileSetup());
+      _applyLaunchTargetIfNeeded();
+      _maybeShowPendingRequestsAlert();
     });
+  }
+
+  void _applyLaunchTargetIfNeeded() {
+    if (!mounted) {
+      return;
+    }
+
+    final target = widget.launchTarget;
+    if (target == null) {
+      return;
+    }
+
+    if (target == AppLaunchTarget.pendingRequests && _selectedIndex != 3) {
+      setState(() => _selectedIndex = 3);
+    }
+
+    widget.onLaunchTargetHandled?.call();
+  }
+
+  void _maybeShowPendingRequestsAlert({bool forceProfileTab = false}) {
+    if (!mounted) {
+      return;
+    }
+
+    final user = widget.authController.currentUser;
+    if (user == null) {
+      _lastPendingAlertSignature = null;
+      return;
+    }
+
+    final pendingCount = user.pendingClaimRequests.length;
+    if (pendingCount <= 0) {
+      _lastPendingAlertSignature = null;
+      return;
+    }
+
+    final signature = '${user.id}:$pendingCount';
+    if (_lastPendingAlertSignature == signature && !forceProfileTab) {
+      return;
+    }
+    _lastPendingAlertSignature = signature;
+
+    if (forceProfileTab && _selectedIndex != 3) {
+      setState(() => _selectedIndex = 3);
+    }
+
+    final message = pendingCount == 1
+        ? 'Attenzione, hai una richiesta da evadere in Su di me.'
+        : 'Attenzione, hai $pendingCount richieste da evadere in Su di me.';
+
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) {
+      return;
+    }
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: SnackBarAction(
+          label: 'Apri',
+          onPressed: () {
+            if (!mounted) {
+              return;
+            }
+            setState(() => _selectedIndex = 3);
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _maybeOpenMandatoryProfileSetup() async {
