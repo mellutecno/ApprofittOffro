@@ -369,7 +369,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             ),
             const SizedBox(height: 16),
             _SectionCard(
-              title: null,
+              title: 'Scegli dalla mappa',
               subtitle: null,
               child: _buildMapSection(),
             ),
@@ -1461,18 +1461,7 @@ class _CollapsedMapLauncher extends StatelessWidget {
               size: 26,
             ),
           ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Text(
-              'Scegli mappa',
-              style: TextStyle(
-                color: AppTheme.brown,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
+          const Spacer(),
           FilledButton.icon(
             onPressed: onTap,
             icon: const Icon(Icons.open_in_full_rounded),
