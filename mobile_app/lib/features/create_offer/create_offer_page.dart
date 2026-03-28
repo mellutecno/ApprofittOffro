@@ -369,12 +369,6 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             ),
             const SizedBox(height: 16),
             _SectionCard(
-              title: 'Scegli dalla mappa',
-              subtitle: null,
-              child: _buildMapSection(),
-            ),
-            const SizedBox(height: 16),
-            _SectionCard(
               key: _venueSectionKey,
               title: null,
               subtitle:
@@ -430,6 +424,12 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 16),
+            _SectionCard(
+              title: 'Scegli dalla mappa',
+              subtitle: null,
+              child: _buildMapSection(),
             ),
             const SizedBox(height: 16),
             _SectionCard(
