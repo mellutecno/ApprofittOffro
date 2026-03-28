@@ -33,6 +33,9 @@ TIPI_PASTO = [
     ("cena", "Cena"),
 ]
 
+CLAIM_STATUS_PENDING = "pending"
+CLAIM_STATUS_ACCEPTED = "accepted"
+
 
 class User(UserMixin, db.Model):
     """Utente registrato."""
@@ -193,6 +196,7 @@ class Claim(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     offer_id = db.Column(db.Integer, db.ForeignKey("offers.id"), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default=CLAIM_STATUS_ACCEPTED)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     # Vincolo: un utente può approfittare una sola volta per offerta

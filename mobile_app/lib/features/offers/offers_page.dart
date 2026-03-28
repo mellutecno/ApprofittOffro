@@ -168,9 +168,7 @@ class OffersPage extends StatelessWidget {
                               }
                             }
                           : null,
-                      onClaim: offer.isOwn ||
-                              offer.alreadyClaimed ||
-                              offer.bookingClosed
+                      onClaim: offer.isOwn || !offer.canClaim
                           ? null
                           : () async {
                               final message =

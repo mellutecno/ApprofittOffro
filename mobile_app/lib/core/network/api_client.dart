@@ -236,6 +236,22 @@ class ApiClient {
     return payload['message']?.toString() ?? 'Hai approfittato dell\'offerta.';
   }
 
+  Future<String> acceptClaimRequest(int claimId) async {
+    final response =
+        await _send(method: 'POST', path: '/api/claims/$claimId/accept');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Richiesta accettata.';
+  }
+
+  Future<String> rejectClaimRequest(int claimId) async {
+    final response =
+        await _send(method: 'POST', path: '/api/claims/$claimId/reject');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Richiesta rifiutata.';
+  }
+
   Future<String> createOffer({
     required String mealType,
     required String localeName,

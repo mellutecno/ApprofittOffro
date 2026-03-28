@@ -1,5 +1,52 @@
 import 'user_preview.dart';
 
+class PendingClaimRequest {
+  const PendingClaimRequest({
+    required this.claimId,
+    required this.requestedAt,
+    required this.offerId,
+    required this.offerMealType,
+    required this.offerLocaleName,
+    required this.offerAddress,
+    required this.offerDateTime,
+    required this.requester,
+  });
+
+  final int claimId;
+  final DateTime? requestedAt;
+  final int offerId;
+  final String offerMealType;
+  final String offerLocaleName;
+  final String offerAddress;
+  final DateTime? offerDateTime;
+  final UserPreview requester;
+
+  factory PendingClaimRequest.fromJson(Map<String, dynamic> json) {
+    final offer = json['offer'] as Map<String, dynamic>? ?? const {};
+    final requester =
+        json['requester'] as Map<String, dynamic>? ?? const <String, dynamic>{};
+
+    return PendingClaimRequest(
+      claimId: json['claim_id'] as int? ?? 0,
+      requestedAt: _parseDate(json['requested_at']),
+      offerId: offer['id'] as int? ?? 0,
+      offerMealType: (offer['tipo_pasto'] ?? '').toString(),
+      offerLocaleName: (offer['nome_locale'] ?? '').toString(),
+      offerAddress: (offer['indirizzo'] ?? '').toString(),
+      offerDateTime: _parseDate(offer['data_ora']),
+      requester: UserPreview.fromJson(requester),
+    );
+  }
+
+  static DateTime? _parseDate(Object? value) {
+    final raw = (value ?? '').toString().trim();
+    if (raw.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(raw);
+  }
+}
+
 class AppUser {
   const AppUser({
     required this.id,
@@ -25,6 +72,7 @@ class AppUser {
     required this.followers,
     required this.offersCount,
     required this.claimsCount,
+    required this.pendingClaimRequests,
   });
 
   final int id;
@@ -50,6 +98,7 @@ class AppUser {
   final List<UserPreview> followers;
   final int offersCount;
   final int claimsCount;
+  final List<PendingClaimRequest> pendingClaimRequests;
 
   bool get hasAnyProfilePhoto =>
       photoFilename.trim().isNotEmpty ||
@@ -93,6 +142,11 @@ class AppUser {
           .toList(),
       offersCount: stats['offerte_totali'] as int? ?? 0,
       claimsCount: stats['recuperi_effettuati'] as int? ?? 0,
+      pendingClaimRequests:
+          (json['pending_claim_requests'] as List<dynamic>? ?? [])
+              .cast<Map<String, dynamic>>()
+              .map(PendingClaimRequest.fromJson)
+              .toList(),
     );
   }
 }

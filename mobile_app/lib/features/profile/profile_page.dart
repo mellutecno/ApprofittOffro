@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
+import '../../models/app_user.dart';
 import '../../models/offer.dart';
 import '../auth/auth_controller.dart';
 import '../create_offer/create_offer_page.dart';
@@ -45,6 +48,35 @@ class _ProfilePageState extends State<ProfilePage> {
       });
     }
     await future;
+  }
+
+  Future<void> _handlePendingClaimDecision(
+    PendingClaimRequest request, {
+    required bool accept,
+  }) async {
+    try {
+      final message = accept
+          ? await widget.authController.apiClient.acceptClaimRequest(
+              request.claimId,
+            )
+          : await widget.authController.apiClient.rejectClaimRequest(
+              request.claimId,
+            );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+      await _refreshAll();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
   }
 
   Future<void> _openEditOffer(Offer offer) async {
@@ -224,6 +256,33 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ),
                       ],
+                      if (user.pendingClaimRequests.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        Text(
+                          'Richieste in attesa',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 10),
+                        ...user.pendingClaimRequests.map(
+                          (request) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _PendingClaimCard(
+                              request: request,
+                              apiClient: apiClient,
+                              onAccept: () =>
+                                  _handlePendingClaimDecision(
+                                    request,
+                                    accept: true,
+                                  ),
+                              onReject: () =>
+                                  _handlePendingClaimDecision(
+                                    request,
+                                    accept: false,
+                                  ),
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 20),
                       Text(
                         'Le mie offerte',
@@ -384,6 +443,121 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
         );
       },
+    );
+  }
+}
+
+class _PendingClaimCard extends StatelessWidget {
+  const _PendingClaimCard({
+    required this.request,
+    required this.apiClient,
+    required this.onAccept,
+    required this.onReject,
+  });
+
+  final PendingClaimRequest request;
+  final ApiClient apiClient;
+  final Future<void> Function() onAccept;
+  final Future<void> Function() onReject;
+
+  @override
+  Widget build(BuildContext context) {
+    final requester = request.requester;
+    final requesterPhotoUrl = requester.photoFilename.isNotEmpty
+        ? apiClient.buildUploadUrl(requester.photoFilename)
+        : null;
+    final whenText = request.offerDateTime != null
+        ? DateFormat(
+            "EEEE d MMMM 'alle' HH:mm",
+            'it_IT',
+          ).format(request.offerDateTime!.toLocal())
+        : '';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundImage: requesterPhotoUrl != null
+                      ? NetworkImage(requesterPhotoUrl)
+                      : null,
+                  child: requesterPhotoUrl == null
+                      ? const Icon(Icons.person_outline)
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        requester.nome,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${request.offerMealType} · ${request.offerLocaleName}',
+                        style: const TextStyle(
+                          color: AppTheme.brown,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (request.offerAddress.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                request.offerAddress,
+                style: const TextStyle(
+                  color: AppTheme.espresso,
+                  fontWeight: FontWeight.w700,
+                  height: 1.35,
+                ),
+              ),
+            ],
+            if (whenText.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                whenText,
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.82),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onReject,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF8A4336),
+                      side: const BorderSide(color: Color(0xFFD7B4AC)),
+                    ),
+                    child: const Text('Rifiuta'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: onAccept,
+                    child: const Text('Accetta'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

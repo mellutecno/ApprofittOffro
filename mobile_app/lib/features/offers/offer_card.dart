@@ -28,7 +28,7 @@ class OfferCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final mealColor = _mealColor(offer.tipoPasto);
     final canNavigateToOffer =
-        offer.isOwn || offer.alreadyClaimed || offer.claimStatus == 'claimed';
+        offer.isOwn || offer.claimStatus == 'claimed';
     final localeImageUrl =
         offer.fotoLocale.isNotEmpty && offer.fotoLocale != 'nessuna.jpg'
             ? apiClient.buildUploadUrl(offer.fotoLocale)
@@ -348,6 +348,9 @@ class OfferCard extends StatelessWidget {
   String _ctaLabel() {
     if (offer.isOwn) {
       return 'Modifica la tua offerta';
+    }
+    if (offer.claimStatus == 'pending') {
+      return 'Richiesta inviata';
     }
     if (offer.alreadyClaimed || offer.claimStatus == 'claimed') {
       return 'Hai approfittato';

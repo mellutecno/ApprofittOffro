@@ -50,6 +50,8 @@ from models import (
     User,
     Offer,
     Claim,
+    CLAIM_STATUS_ACCEPTED,
+    CLAIM_STATUS_PENDING,
     Review,
     TIPI_PASTO,
     FASCE_ETA,
@@ -293,6 +295,16 @@ def get_spots_copy(spots_count):
     return f"{spots_count} posti disponibili"
 
 
+def get_offer_accepted_claims(offer):
+    """Restituisce solo i claim gia' accettati dall'host."""
+    return [claim for claim in offer.claims if claim.status == CLAIM_STATUS_ACCEPTED]
+
+
+def get_offer_pending_claims(offer):
+    """Restituisce solo le richieste ancora in attesa di approvazione."""
+    return [claim for claim in offer.claims if claim.status == CLAIM_STATUS_PENDING]
+
+
 def get_followed_offer_notification_subject(offer):
     """Costruisce l'oggetto mail per le nuove offerte dei profili seguiti."""
     if offer.tipo_pasto == "pranzo":
@@ -374,6 +386,61 @@ def notify_followers_for_new_offer(offer):
     return len(followers)
 
 
+def send_claim_request_notification_to_host(claim):
+    """Avvisa l'host che e' arrivata una nuova richiesta da approvare."""
+    offer = claim.offerta
+    guest = claim.utente
+    if not offer or not guest or not offer.autore.email:
+        return
+
+    data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    send_email(
+        f"Nuova richiesta da approvare per '{offer.nome_locale}'",
+        [offer.autore.email],
+        "claim_notification.html",
+        user=guest,
+        offer=offer,
+        data_evento=data_evento,
+    )
+
+
+def send_claim_accepted_email(claim):
+    """Conferma al partecipante che l'host ha accettato la richiesta."""
+    offer = claim.offerta
+    guest = claim.utente
+    if not offer or not guest or not guest.email:
+        return
+
+    data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    send_email(
+        f"Richiesta accettata per '{offer.nome_locale}'",
+        [guest.email],
+        "claim_confirmed.html",
+        user=guest,
+        offer=offer,
+        data_evento=data_evento,
+    )
+
+
+def send_claim_rejected_email(claim):
+    """Avvisa il partecipante che la richiesta e' stata rifiutata dall'host."""
+    offer = claim.offerta
+    guest = claim.utente
+    if not offer or not guest or not guest.email:
+        return
+
+    data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    send_email(
+        f"Richiesta non accettata per '{offer.nome_locale}'",
+        [guest.email],
+        "claim_rejected.html",
+        user=guest,
+        offer=offer,
+        host=offer.autore,
+        data_evento=data_evento,
+    )
+
+
 def snapshot_offer_notification_state(offer):
     """Cattura i campi dell'offerta utili per notificare modifiche ai partecipanti."""
     return {
@@ -416,7 +483,10 @@ def notify_claimants_for_offer_update(offer, previous_state, actor):
     if not changes:
         return 0
 
-    claims = Claim.query.filter_by(offer_id=offer.id).all()
+    claims = Claim.query.filter_by(
+        offer_id=offer.id,
+        status=CLAIM_STATUS_ACCEPTED,
+    ).all()
     if not claims:
         return 0
 
@@ -486,6 +556,9 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("stato", "ALTER TABLE offers ADD COLUMN stato VARCHAR(20) DEFAULT 'attiva'"),
                 ("telefono_locale", "ALTER TABLE offers ADD COLUMN telefono_locale VARCHAR(50)"),
             ],
+            "claims": [
+                ("status", "ALTER TABLE claims ADD COLUMN status VARCHAR(20) DEFAULT 'accepted'"),
+            ],
         }
 
         for table_name, columns in legacy_columns.items():
@@ -522,8 +595,8 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
         conn.close()
 
 
-def ensure_database_auth_compatibility():
-    """Allinea i campi auth aggiunti dopo il primo deploy anche su database non-SQLite."""
+def ensure_database_schema_compatibility():
+    """Allinea i campi schema aggiunti dopo il primo deploy anche su database non-SQLite."""
     database_url = app.config["SQLALCHEMY_DATABASE_URI"]
     if database_url.startswith("sqlite:///"):
         return
@@ -535,6 +608,9 @@ def ensure_database_auth_compatibility():
             )
             conn.exec_driver_sql(
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE claims ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'accepted'"
             )
     except Exception as exc:
         print(f"[SCHEMA_COMPAT_ERROR] {exc}")
@@ -1162,7 +1238,7 @@ def save_profile_update_for_user(user, payload, *, verified=None):
 # ---------------------------------------------------------------------------
 with app.app_context():
     db.create_all()
-    ensure_database_auth_compatibility()
+    ensure_database_schema_compatibility()
 
 
 def profile_completed_required(f):
@@ -1608,7 +1684,10 @@ def profile_page():
     my_offers = Offer.query.filter_by(user_id=current_user.id).order_by(
         Offer.created_at.desc()
     ).all()
-    my_claims = Claim.query.filter_by(user_id=current_user.id).order_by(
+    my_claims = Claim.query.filter_by(
+        user_id=current_user.id,
+        status=CLAIM_STATUS_ACCEPTED,
+    ).order_by(
         Claim.created_at.desc()
     ).all()
 
@@ -1622,7 +1701,7 @@ def profile_page():
 
     # 2. Ospiti che mi hanno fatto visita (da mie offerte)
     for o in my_offers:
-        for c in o.claims:
+        for c in get_offer_accepted_claims(o):
             guest = c.utente
             if guest.id not in met_users_dict:
                 met_users_dict[guest.id] = guest
@@ -1719,6 +1798,31 @@ def serialize_review_preview(review):
     }
 
 
+def serialize_pending_claim_request(claim, *, viewer=None, followed_user_ids=None):
+    """Serializza una richiesta pendente verso l'host proprietario dell'offerta."""
+    offer = claim.offerta
+    guest = claim.utente
+    if not offer or not guest:
+        return None
+
+    return {
+        "claim_id": claim.id,
+        "requested_at": claim.created_at.isoformat() if claim.created_at else "",
+        "offer": {
+            "id": offer.id,
+            "tipo_pasto": offer.tipo_pasto,
+            "nome_locale": offer.nome_locale,
+            "indirizzo": offer.indirizzo,
+            "data_ora": offer.data_ora.isoformat() if offer.data_ora else "",
+        },
+        "requester": serialize_user_preview(
+            guest,
+            viewer=viewer,
+            followed_user_ids=followed_user_ids,
+        ),
+    }
+
+
 def get_pending_review_reminders(user, now=None):
     """Restituisce le interazioni concluse da recensire, sia da ospite che da host."""
     if not user or not getattr(user, "is_authenticated", False):
@@ -1729,7 +1833,10 @@ def get_pending_review_reminders(user, now=None):
     reminders = []
     seen_pairs = set()
 
-    my_claims = Claim.query.filter_by(user_id=user.id).order_by(Claim.created_at.desc()).all()
+    my_claims = Claim.query.filter_by(
+        user_id=user.id,
+        status=CLAIM_STATUS_ACCEPTED,
+    ).order_by(Claim.created_at.desc()).all()
     for claim in my_claims:
         offer = claim.offerta
         if not offer or offer.stato == "annullata" or offer.data_ora > threshold:
@@ -1759,7 +1866,7 @@ def get_pending_review_reminders(user, now=None):
         if offer.stato == "annullata" or offer.data_ora > threshold:
             continue
 
-        for claim in offer.claims:
+        for claim in get_offer_accepted_claims(offer):
             guest = claim.utente
             review_key = (offer.id, guest.id)
             if review_key in seen_pairs:
@@ -1913,7 +2020,10 @@ def public_profile(user_id):
     
     # Statistiche affidabilità
     offerte_totali = Offer.query.filter_by(user_id=user.id).count()
-    recuperi_effettuati = Claim.query.filter_by(user_id=user.id).count()
+    recuperi_effettuati = Claim.query.filter_by(
+        user_id=user.id,
+        status=CLAIM_STATUS_ACCEPTED,
+    ).count()
 
     # Logica per il pulsante "Lascia Recensione" sul profilo pubblico
     # Cerchiamo l'ultimo pasto condiviso concluso (almeno 3 ore fa)
@@ -1940,6 +2050,7 @@ def public_profile(user_id):
         # Caso A: Io ero l'ospite, lui l'host
         meal_as_guest = Offer.query.join(Claim).filter(
             Claim.user_id == current_user.id,
+            Claim.status == CLAIM_STATUS_ACCEPTED,
             Offer.user_id == user_id,
             Offer.data_ora < threshold
         )
@@ -1948,6 +2059,7 @@ def public_profile(user_id):
         meal_as_host = Offer.query.join(Claim).filter(
             Offer.user_id == current_user.id,
             Claim.user_id == user_id,
+            Claim.status == CLAIM_STATUS_ACCEPTED,
             Offer.data_ora < threshold
         )
         
@@ -1959,6 +2071,7 @@ def public_profile(user_id):
         if not shared_offer:
             pending_as_guest = Offer.query.join(Claim).filter(
                 Claim.user_id == current_user.id,
+                Claim.status == CLAIM_STATUS_ACCEPTED,
                 Offer.user_id == user_id,
                 Offer.data_ora < now,
                 Offer.data_ora >= threshold
@@ -1966,6 +2079,7 @@ def public_profile(user_id):
             pending_as_host = Offer.query.join(Claim).filter(
                 Offer.user_id == current_user.id,
                 Claim.user_id == user_id,
+                Claim.status == CLAIM_STATUS_ACCEPTED,
                 Offer.data_ora < now,
                 Offer.data_ora >= threshold
             ).order_by(Offer.data_ora.desc()).first()
@@ -2614,20 +2728,31 @@ def api_get_offers():
                 continue
 
         # Controlla se l'utente corrente ha già approfittato
+        current_claim = None
         already_claimed = False
         is_own = False
         host_whatsapp_link = ""
         if current_user.is_authenticated:
-            already_claimed = Claim.query.filter_by(
-                user_id=current_user.id, offer_id=o.id
-            ).first() is not None
+            current_claim = next(
+                (claim for claim in o.claims if claim.user_id == current_user.id),
+                None,
+            )
+            already_claimed = current_claim is not None
             is_own = o.user_id == current_user.id
-            if already_claimed and not is_own:
+            if (
+                current_claim is not None
+                and current_claim.status == CLAIM_STATUS_ACCEPTED
+                and not is_own
+            ):
                 host_whatsapp_link = build_whatsapp_offer_link(current_user, o.autore, o)
 
         claim_status = "open"
-        if already_claimed:
-            claim_status = "claimed"
+        if current_claim is not None:
+            claim_status = (
+                "pending"
+                if current_claim.status == CLAIM_STATUS_PENDING
+                else "claimed"
+            )
         elif o.stato != "attiva" or o.posti_disponibili <= 0:
             claim_status = "full"
         elif has_started:
@@ -2637,9 +2762,11 @@ def api_get_offers():
 
         can_claim = (
             (not is_own)
-            and (not already_claimed)
+            and current_claim is None
             and claim_status == "open"
         )
+
+        accepted_claims = get_offer_accepted_claims(o)
 
         result.append({
             "id": o.id,
@@ -2678,7 +2805,7 @@ def api_get_offers():
                     if current_user.is_authenticated and is_own
                     else "",
                 }
-                for claim in o.claims
+                for claim in accepted_claims
                 if claim.utente
             ],
             "is_own": is_own,
@@ -2997,9 +3124,11 @@ def api_claim_offer(offer_id):
     if offer.user_id == current_user.id:
         return jsonify({"success": False, "errors": ["Non puoi approfittare della tua stessa offerta."]}), 400
 
-    # Controlla se ha già approfittato
+    # Controlla se ha già una richiesta o una partecipazione.
     existing = Claim.query.filter_by(user_id=current_user.id, offer_id=offer_id).first()
     if existing:
+        if existing.status == CLAIM_STATUS_PENDING:
+            return jsonify({"success": False, "errors": ["Hai già inviato una richiesta per questa offerta."]}), 400
         return jsonify({"success": False, "errors": ["Hai già approfittato di questa offerta."]}), 400
 
     now = local_now()
@@ -3012,44 +3141,79 @@ def api_claim_offer(offer_id):
 
     if is_offer_booking_closed(offer, now):
         return jsonify({"success": False, "errors": [get_offer_booking_closed_message(offer)]}), 400
-    # Crea il claim e decrementa i posti
-    claim = Claim(user_id=current_user.id, offer_id=offer_id)
-    offer.posti_disponibili -= 1
-
-    if offer.posti_disponibili == 0:
-        offer.stato = "completata"
+    # Crea una richiesta pendente senza occupare ancora il posto.
+    claim = Claim(
+        user_id=current_user.id,
+        offer_id=offer_id,
+        status=CLAIM_STATUS_PENDING,
+    )
 
     db.session.add(claim)
     db.session.commit()
 
-    # ---- Invio Email di Notifica ----
-    data_formattata = offer.data_ora.strftime('%d/%m/%Y alle %H:%M')
-    
-    # Email al partecipante (claimer)
-    send_email(
-        f"🎉 Sei dentro! Hai approfittato di '{offer.nome_locale}'",
-        [current_user.email],
-        "claim_confirmed.html",
-        user=current_user,
-        offer=offer,
-        data_evento=data_formattata
-    )
-
-    # Email all'autore dell'offerta
-    send_email(
-        f"🔔 Nuova partecipazione a '{offer.nome_locale}'!",
-        [offer.autore.email],
-        "claim_notification.html",
-        user=current_user,
-        offer=offer,
-        data_evento=data_formattata
-    )
+    send_claim_request_notification_to_host(claim)
 
     return jsonify({
         "success": True,
-        "message": "Hai approfittato dell'offerta!",
+        "message": "Richiesta inviata! Attendi la conferma dell'organizzatore.",
+        "claim_status": "pending",
         "posti_disponibili": offer.posti_disponibili,
     })
+
+
+@app.route("/api/claims/<int:claim_id>/accept", methods=["POST"])
+@login_required
+def api_accept_claim_request(claim_id):
+    """Accetta una richiesta pendente su una propria offerta."""
+    claim = db.session.get(Claim, claim_id)
+    if not claim:
+        return jsonify({"success": False, "error": "Richiesta non trovata."}), 404
+
+    offer = claim.offerta
+    if not offer or offer.user_id != current_user.id:
+        return jsonify({"success": False, "error": "Non autorizzato."}), 403
+    if claim.status != CLAIM_STATUS_PENDING:
+        return jsonify({"success": False, "error": "Questa richiesta non è più pendente."}), 400
+
+    now = local_now()
+    if offer.stato != "attiva" or offer.posti_disponibili <= 0:
+        return jsonify({"success": False, "error": "Offerta non più disponibile."}), 400
+    if offer.data_ora <= now:
+        return jsonify({"success": False, "error": "Il pasto è già iniziato o concluso."}), 400
+    if is_offer_booking_closed(offer, now):
+        return jsonify({"success": False, "error": get_offer_booking_closed_message(offer)}), 400
+
+    claim.status = CLAIM_STATUS_ACCEPTED
+    offer.posti_disponibili -= 1
+    if offer.posti_disponibili <= 0:
+        offer.posti_disponibili = 0
+        offer.stato = "completata"
+
+    db.session.commit()
+    send_claim_accepted_email(claim)
+
+    return jsonify({"success": True, "message": "Richiesta accettata."})
+
+
+@app.route("/api/claims/<int:claim_id>/reject", methods=["POST"])
+@login_required
+def api_reject_claim_request(claim_id):
+    """Rifiuta una richiesta pendente su una propria offerta."""
+    claim = db.session.get(Claim, claim_id)
+    if not claim:
+        return jsonify({"success": False, "error": "Richiesta non trovata."}), 404
+
+    offer = claim.offerta
+    if not offer or offer.user_id != current_user.id:
+        return jsonify({"success": False, "error": "Non autorizzato."}), 403
+    if claim.status != CLAIM_STATUS_PENDING:
+        return jsonify({"success": False, "error": "Questa richiesta non è più pendente."}), 400
+
+    send_claim_rejected_email(claim)
+    db.session.delete(claim)
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Richiesta rifiutata."})
 
 
 @app.route("/api/claims/<int:claim_id>", methods=["DELETE"])
@@ -3063,6 +3227,11 @@ def api_unclaim(claim_id):
         return jsonify({"success": False, "error": "Non autorizzato."}), 403
 
     offer = claim.offerta
+    if claim.status == CLAIM_STATUS_PENDING:
+        db.session.delete(claim)
+        db.session.commit()
+        return jsonify({"success": True, "message": "Richiesta annullata con successo."})
+
     data_formattata = offer.data_ora.strftime('%d/%m/%Y alle %H:%M')
 
     # Ripristina il posto e lo stato dell'offerta
@@ -3125,6 +3294,19 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 def api_user_me():
     """Restituisce i dati dell'utente corrente."""
     followed_user_ids = get_followed_user_ids(current_user.id)
+    pending_claims = (
+        Claim.query.join(Offer, Claim.offer_id == Offer.id)
+        .options(
+            selectinload(Claim.utente).selectinload(User.photos),
+            selectinload(Claim.offerta),
+        )
+        .filter(
+            Offer.user_id == current_user.id,
+            Claim.status == CLAIM_STATUS_PENDING,
+        )
+        .order_by(Claim.created_at.desc())
+        .all()
+    )
     followers = [
         relation.follower
         for relation in sorted(
@@ -3145,9 +3327,24 @@ def api_user_me():
         serialize_user_preview(follower, viewer=current_user, followed_user_ids=followed_user_ids)
         for follower in followers
     ]
+    user_payload["pending_claim_requests"] = [
+        payload
+        for payload in (
+            serialize_pending_claim_request(
+                claim,
+                viewer=current_user,
+                followed_user_ids=followed_user_ids,
+            )
+            for claim in pending_claims
+        )
+        if payload
+    ]
     user_payload["stats"] = {
         "offerte_totali": Offer.query.filter_by(user_id=current_user.id).count(),
-        "recuperi_effettuati": Claim.query.filter_by(user_id=current_user.id).count(),
+        "recuperi_effettuati": Claim.query.filter_by(
+            user_id=current_user.id,
+            status=CLAIM_STATUS_ACCEPTED,
+        ).count(),
     }
 
     return jsonify({
@@ -3244,7 +3441,10 @@ def api_public_user(user_id):
         ),
         "stats": {
             "offerte_totali": Offer.query.filter_by(user_id=user.id).count(),
-            "recuperi_effettuati": Claim.query.filter_by(user_id=user.id).count(),
+            "recuperi_effettuati": Claim.query.filter_by(
+                user_id=user.id,
+                status=CLAIM_STATUS_ACCEPTED,
+            ).count(),
         },
         "reviews": [serialize_review_preview(review) for review in reviews],
     })
@@ -3445,13 +3645,23 @@ def api_create_review():
     # B) Io sono Host (offer.user_id), recensisco un Ospite (reviewed_id ha un Claim)
     
     is_guest_reviewing_host = (
-        Claim.query.filter_by(user_id=current_user.id, offer_id=offer_id).first() is not None
+        Claim.query.filter_by(
+            user_id=current_user.id,
+            offer_id=offer_id,
+            status=CLAIM_STATUS_ACCEPTED,
+        ).first()
+        is not None
         and reviewed_id == offer.user_id
     )
     
     is_host_reviewing_guest = (
         offer.user_id == current_user.id
-        and Claim.query.filter_by(user_id=reviewed_id, offer_id=offer_id).first() is not None
+        and Claim.query.filter_by(
+            user_id=reviewed_id,
+            offer_id=offer_id,
+            status=CLAIM_STATUS_ACCEPTED,
+        ).first()
+        is not None
     )
 
     if not is_guest_reviewing_host and not is_host_reviewing_guest:
