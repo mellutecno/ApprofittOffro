@@ -11,6 +11,7 @@ import sqlite3
 import io
 import tempfile
 import json
+from html import escape
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
@@ -752,6 +753,20 @@ def send_email(subject, recipients, template, background=True, **kwargs):
     """Renderizza e invia un'email, in background o subito secondo il flusso."""
     try:
         html_body = render_template(f"emails/{template}", **kwargs)
+        return send_email_html(
+            subject,
+            recipients,
+            html_body,
+            background=background,
+        )
+    except Exception as e:
+        print(f"[MAIL_ERROR] Errore preparazione email {template}: {e}")
+        return False
+
+
+def send_email_html(subject, recipients, html_body, background=True):
+    """Invia un contenuto HTML gia' pronto tramite il provider configurato."""
+    try:
         provider = get_active_email_provider()
         if provider == "smtp":
             msg = Message(subject, recipients=recipients)
@@ -779,8 +794,50 @@ def send_email(subject, recipients, template, background=True, **kwargs):
         )
         return False
     except Exception as e:
-        print(f"[MAIL_ERROR] Errore preparazione email {template}: {e}")
+        print(f"[MAIL_ERROR] Errore invio email '{subject}': {e}")
         return False
+
+
+def build_verification_email_html(user, link_verifica):
+    """Costruisce un contenuto di verifica robusto e pulito, anche come fallback."""
+    return render_template(
+        "emails/verification.html",
+        user=user,
+        link_verifica=link_verifica,
+    )
+
+
+def send_registration_verification_email(user, link_verifica):
+    """Invia la mail di verifica con un fallback semplificato se il template fallisce."""
+    subject = "Benvenuto su ApprofittOffro! Conferma la tua email"
+
+    try:
+        html_body = build_verification_email_html(user, link_verifica)
+    except Exception as exc:
+        print(f"[MAIL_ERROR] Template verification.html non renderizzabile: {exc}")
+        html_body = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif; background:#F2EEEC; padding:24px; color:#2B2D42;">
+            <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:18px;padding:32px;border:1px solid #E5E0DC;">
+              <h1 style="margin-top:0;">Benvenuto in ApprofittOffro, {escape(user.nome)}!</h1>
+              <p>Per iniziare a usare la community in sicurezza, conferma il tuo indirizzo email.</p>
+              <p>
+                <a href="{escape(link_verifica)}" style="display:inline-block;background:#0EA5E9;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:bold;">
+                  Conferma la mia email
+                </a>
+              </p>
+              <p style="font-size:13px;color:#6B7280;">Se non hai richiesto tu l'iscrizione, ignora semplicemente questa email.</p>
+            </div>
+          </body>
+        </html>
+        """
+
+    return send_email_html(
+        subject,
+        [user.email],
+        html_body,
+        background=False,
+    )
 
 def process_image(file_storage, filename, size=(800, 800), return_payload=False):
     """Ruota (EXIF), ridimensiona e salva un'immagine sul backend attivo."""
@@ -2639,6 +2696,11 @@ def api_register():
             user=user,
             link_verifica=link_verifica
         )
+        if not verification_sent:
+            verification_sent = send_registration_verification_email(
+                user,
+                link_verifica,
+            )
         print(
             f"[REGISTER_VERIFICATION_MAIL] user={user.id} email={user.email} sent={verification_sent} provider={get_active_email_provider()}"
         )

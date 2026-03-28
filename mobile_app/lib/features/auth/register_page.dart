@@ -299,6 +299,18 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  void _removeSelectedPhotoAt(int index) {
+    if (index < 0 || index >= _selectedPhotos.length) {
+      return;
+    }
+    setState(() {
+      _selectedPhotos = [
+        for (int i = 0; i < _selectedPhotos.length; i++)
+          if (i != index) _selectedPhotos[i],
+      ];
+    });
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -531,20 +543,74 @@ class _RegisterPageState extends State<RegisterPage> {
                                 Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
-                                  children: _selectedPhotos
-                                      .map(
-                                        (photo) => ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                          child: Image.file(
-                                            File(photo.path),
-                                            width: 80,
-                                            height: 80,
-                                            fit: BoxFit.cover,
+                                  children: List.generate(
+                                    _selectedPhotos.length,
+                                    (index) {
+                                      final photo = _selectedPhotos[index];
+                                      return Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            child: Image.file(
+                                              File(photo.path),
+                                              width: 80,
+                                              height: 80,
+                                              fit: BoxFit.cover,
+                                            ),
                                           ),
+                                          Positioned(
+                                            top: -6,
+                                            right: -6,
+                                            child: Material(
+                                              color: Colors.transparent,
+                                              child: InkWell(
+                                                onTap: () =>
+                                                    _removeSelectedPhotoAt(
+                                                      index,
+                                                    ),
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                                child: Container(
+                                                  width: 26,
+                                                  height: 26,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black87,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          999,
+                                                        ),
+                                                    border: Border.all(
+                                                      color: Colors.white,
+                                                      width: 1.4,
+                                                    ),
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.close_rounded,
+                                                    size: 16,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Se sbagli uno scatto, tocca la X per eliminarlo e sceglierne un altro.',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: AppTheme.brown.withValues(
+                                          alpha: 0.7,
                                         ),
-                                      )
-                                      .toList(),
+                                      ),
                                 ),
                               ],
                               const SizedBox(height: 20),
