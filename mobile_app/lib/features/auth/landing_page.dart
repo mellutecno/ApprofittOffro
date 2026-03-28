@@ -170,6 +170,13 @@ class _LandingPageState extends State<LandingPage> {
                           ),
                         ),
                         const SizedBox(height: 24),
+                        const _LandingInfoCard(
+                          title: 'ApprofittOffro Card',
+                          body:
+                              'Presto avrai la possibilità di aderire alla Community Card e con la tessera socio avrai diritto a sconti esclusivi nei locali che preferisci.',
+                          highlighted: true,
+                        ),
+                        const SizedBox(height: 24),
                         const _LandingSectionHeading(
                           eyebrow: 'COME FUNZIONA',
                           title: 'Come funziona la community',
@@ -260,12 +267,6 @@ class _LandingPageState extends State<LandingPage> {
                           title: 'Profili, follower e fiducia',
                           body:
                               'Segui le persone che ti piacciono, guarda i loro profili e tieni vivi i contatti migliori.',
-                        ),
-                        const _LandingInfoCard(
-                          title: 'Card ApprofittOffro',
-                          body:
-                              'Presto avrai la possibilità di aderire alla community e avrai una tessera che ti darà diritto a sconti esclusivi sui locali.',
-                          highlighted: true,
                         ),
                       ],
                     ),
