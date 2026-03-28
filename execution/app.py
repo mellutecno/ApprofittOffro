@@ -177,11 +177,6 @@ def google_oauth_enabled():
     return bool(get_google_oauth_client_ids())
 
 
-def get_mobile_pending_claims_deep_link():
-    """Deep link per aprire l'app e portare l'utente verso le richieste pendenti."""
-    return "approfittoffro://profile/pending-requests"
-
-
 def local_now():
     """Restituisce l'ora locale dell'app come datetime naive coerente con i dati salvati."""
     return datetime.now(APP_TIMEZONE).replace(tzinfo=None)
@@ -417,7 +412,6 @@ def send_claim_request_notification_to_host(claim):
         user=guest,
         offer=offer,
         data_evento=data_evento,
-        app_link_url=get_mobile_pending_claims_deep_link(),
     )
 
 
