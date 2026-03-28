@@ -76,6 +76,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   List<PlaceCandidate> _nearbyPlaces = const [];
   Set<Marker> _nearbyMarkers = const <Marker>{};
   final Map<String, BitmapDescriptor> _markerIconCache = {};
+  String? _lastImmediateTimingWarning;
 
   int get _occupiedSeats {
     final initialOffer = widget.initialOffer;
@@ -93,6 +94,57 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return 1;
     }
     return _occupiedSeats == 0 ? 1 : _occupiedSeats;
+  }
+
+  String? get _publicationTimingWarning =>
+      _buildPublicationTimingWarning(_mealType, _selectedDateTime);
+
+  String? _buildPublicationTimingWarning(
+    String? mealType,
+    DateTime? selectedDateTime,
+  ) {
+    if (mealType == null || mealType.trim().isEmpty || selectedDateTime == null) {
+      return null;
+    }
+
+    final leadHours = mealType == 'colazione' ? 1 : 6;
+    final latestAllowedPublication = selectedDateTime.subtract(
+      Duration(hours: leadHours),
+    );
+    if (DateTime.now().isBefore(latestAllowedPublication)) {
+      return null;
+    }
+
+    if (mealType == 'colazione') {
+      return 'Questa colazione verrebbe pubblicata troppo tardi: deve essere inserita almeno 1 ora prima dell\'inizio.';
+    }
+    if (mealType == 'pranzo') {
+      return 'Questo pranzo verrebbe pubblicato troppo tardi: i pranzi devono essere inseriti almeno 6 ore prima dell\'inizio.';
+    }
+    return 'Questa cena verrebbe pubblicata troppo tardi: le cene devono essere inserite almeno 6 ore prima dell\'inizio.';
+  }
+
+  void _setMealType(String value) {
+    setState(() => _mealType = value);
+    _maybeShowPublicationTimingWarning();
+  }
+
+  void _maybeShowPublicationTimingWarning() {
+    final warning = _publicationTimingWarning;
+    if (warning == null) {
+      _lastImmediateTimingWarning = null;
+      return;
+    }
+    if (_lastImmediateTimingWarning == warning) {
+      return;
+    }
+    _lastImmediateTimingWarning = warning;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _showMessage(warning);
+    });
   }
 
   @override
@@ -172,7 +224,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                           currentValue: _mealType,
                           onSelected: _submitting
                               ? null
-                              : (value) => setState(() => _mealType = value),
+                              : _setMealType,
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -183,7 +235,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                           currentValue: _mealType,
                           onSelected: _submitting
                               ? null
-                              : (value) => setState(() => _mealType = value),
+                              : _setMealType,
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -194,7 +246,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                           currentValue: _mealType,
                           onSelected: _submitting
                               ? null
-                              : (value) => setState(() => _mealType = value),
+                              : _setMealType,
                         ),
                       ),
                     ],
@@ -205,6 +257,42 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                     icon: const Icon(Icons.event_outlined),
                     label: Text(selectedDateText),
                   ),
+                  if (_publicationTimingWarning != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1ED),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: const Color(0xFFF1B8AA)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(top: 1),
+                            child: Icon(
+                              Icons.schedule_outlined,
+                              color: Color(0xFFB65C45),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _publicationTimingWarning!,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: const Color(0xFF8A4336),
+                                fontWeight: FontWeight.w700,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   Container(
                     width: double.infinity,
@@ -566,6 +654,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         pickedTime.minute,
       );
     });
+    _maybeShowPublicationTimingWarning();
   }
 
   Future<void> _pickImage() async {
@@ -1020,6 +1109,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     }
     if (_mealType == null || _mealType!.trim().isEmpty) {
       _showMessage('Scegli il momento del pasto.');
+      return;
+    }
+    final publicationTimingWarning = _publicationTimingWarning;
+    if (publicationTimingWarning != null) {
+      _showMessage(publicationTimingWarning);
       return;
     }
     if (_selectedLatitude == null || _selectedLongitude == null) {

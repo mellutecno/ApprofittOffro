@@ -269,6 +269,16 @@ class _ProfilePageState extends State<ProfilePage> {
                             child: _PendingClaimCard(
                               request: request,
                               apiClient: apiClient,
+                              onOpenRequesterProfile: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => PublicProfilePage(
+                                      apiClient: apiClient,
+                                      userId: request.requester.id,
+                                    ),
+                                  ),
+                                );
+                              },
                               onAccept: () =>
                                   _handlePendingClaimDecision(
                                     request,
@@ -451,12 +461,14 @@ class _PendingClaimCard extends StatelessWidget {
   const _PendingClaimCard({
     required this.request,
     required this.apiClient,
+    required this.onOpenRequesterProfile,
     required this.onAccept,
     required this.onReject,
   });
 
   final PendingClaimRequest request;
   final ApiClient apiClient;
+  final VoidCallback onOpenRequesterProfile;
   final Future<void> Function() onAccept;
   final Future<void> Function() onReject;
 
@@ -479,38 +491,50 @@ class _PendingClaimCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundImage: requesterPhotoUrl != null
-                      ? NetworkImage(requesterPhotoUrl)
-                      : null,
-                  child: requesterPhotoUrl == null
-                      ? const Icon(Icons.person_outline)
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        requester.nome,
-                        style: Theme.of(context).textTheme.titleMedium,
+            InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: onOpenRequesterProfile,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundImage: requesterPhotoUrl != null
+                          ? NetworkImage(requesterPhotoUrl)
+                          : null,
+                      child: requesterPhotoUrl == null
+                          ? const Icon(Icons.person_outline)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            requester.nome,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${request.offerMealType} · ${request.offerLocaleName}',
+                            style: const TextStyle(
+                              color: AppTheme.brown,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${request.offerMealType} · ${request.offerLocaleName}',
-                        style: const TextStyle(
-                          color: AppTheme.brown,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppTheme.brown,
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
             if (request.offerAddress.trim().isNotEmpty) ...[
               const SizedBox(height: 12),
