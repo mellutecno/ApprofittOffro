@@ -107,7 +107,9 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     String? mealType,
     DateTime? selectedDateTime,
   ) {
-    if (mealType == null || mealType.trim().isEmpty || selectedDateTime == null) {
+    if (mealType == null ||
+        mealType.trim().isEmpty ||
+        selectedDateTime == null) {
       return null;
     }
 
@@ -186,8 +188,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     final isEditing = widget.initialOffer != null;
     final selectedDateText = _selectedDateTime == null
         ? 'Scegli data e ora'
-        : DateFormat('EEEE d MMMM - HH:mm', 'it_IT')
-            .format(_selectedDateTime!);
+        : DateFormat('EEEE d MMMM - HH:mm', 'it_IT').format(_selectedDateTime!);
 
     return Scaffold(
       appBar: AppBar(
@@ -229,9 +230,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                           label: 'Colazione',
                           value: 'colazione',
                           currentValue: _mealType,
-                          onSelected: _submitting
-                              ? null
-                              : _setMealType,
+                          onSelected: _submitting ? null : _setMealType,
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -240,9 +239,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                           label: 'Pranzo',
                           value: 'pranzo',
                           currentValue: _mealType,
-                          onSelected: _submitting
-                              ? null
-                              : _setMealType,
+                          onSelected: _submitting ? null : _setMealType,
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -251,9 +248,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                           label: 'Cena',
                           value: 'cena',
                           currentValue: _mealType,
-                          onSelected: _submitting
-                              ? null
-                              : _setMealType,
+                          onSelected: _submitting ? null : _setMealType,
                         ),
                       ),
                     ],
@@ -331,7 +326,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                                 Text(
                                   'Minimo $_minimumSeatsAllowed: $_occupiedSeats partecipanti gia dentro.',
                                   style: theme.textTheme.bodySmall?.copyWith(
-                                    color: AppTheme.brown.withValues(alpha: 0.66),
+                                    color:
+                                        AppTheme.brown.withValues(alpha: 0.66),
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -776,9 +772,38 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     _maybeShowPublicationTimingWarning();
   }
 
+  Future<ImageSource?> _pickImageSource() {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Scatta una foto'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Scegli dalla galleria'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickImage() async {
+    final source = await _pickImageSource();
+    if (!mounted || source == null) {
+      return;
+    }
+
     final image = await _picker.pickImage(
-      source: ImageSource.gallery,
+      source: source,
       imageQuality: 88,
       maxWidth: 1800,
     );
@@ -972,11 +997,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       );
     }
 
-    final fallbackPlace = _mapDraftSelection ?? _currentCommittedPlaceCandidate();
+    final fallbackPlace =
+        _mapDraftSelection ?? _currentCommittedPlaceCandidate();
     final hasSelectedMarkerInList = highlightedPlaceId != null &&
         _nearbyPlaces.any((place) => place.id == highlightedPlaceId);
-    if (!hasSelectedMarkerInList &&
-        fallbackPlace != null) {
+    if (!hasSelectedMarkerInList && fallbackPlace != null) {
       markers.add(
         Marker(
           markerId: const MarkerId('selected_offer_location'),
@@ -985,7 +1010,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
           anchor: const Offset(0.5, 1),
           infoWindow: InfoWindow(
             title: fallbackPlace.name,
-            snippet: fallbackPlace.address.isEmpty ? null : fallbackPlace.address,
+            snippet:
+                fallbackPlace.address.isEmpty ? null : fallbackPlace.address,
           ),
           zIndexInt: 30,
           onTap: () => unawaited(_handlePlaceTap(fallbackPlace)),
@@ -1055,8 +1081,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     required bool selected,
   }) async {
     final visual = _markerVisualForType(place.primaryType);
-    final cacheKey =
-        '${selected ? 'selected' : 'normal'}:${visual.cacheKey}';
+    final cacheKey = '${selected ? 'selected' : 'normal'}:${visual.cacheKey}';
 
     final cached = _markerIconCache[cacheKey];
     if (cached != null) {
@@ -1237,8 +1262,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     LatLng target, {
     double zoom = 15.6,
   }) async {
-    final controller =
-        _mapController ??
+    final controller = _mapController ??
         (_mapControllerCompleter.isCompleted
             ? await _mapControllerCompleter.future
             : null);

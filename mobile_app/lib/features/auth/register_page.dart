@@ -212,8 +212,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _animateMapTo(LatLng target, {double zoom = 15.6}) async {
-    final controller =
-        _mapController ??
+    final controller = _mapController ??
         (_mapControllerCompleter.isCompleted
             ? await _mapControllerCompleter.future
             : null);
@@ -235,21 +234,68 @@ class _RegisterPageState extends State<RegisterPage> {
     unawaited(_animateMapTo(_currentMapCenter));
   }
 
+  Future<ImageSource?> _pickPhotoSource() {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Scatta una foto'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Scegli dalla galleria'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickPhotos() async {
+    final source = await _pickPhotoSource();
+    if (!mounted || source == null) {
+      return;
+    }
+
+    if (source == ImageSource.camera) {
+      if (_selectedPhotos.length >= 5) {
+        _showMessage('Puoi caricare al massimo 5 foto profilo.');
+        return;
+      }
+
+      final photo = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 86,
+        maxWidth: 1800,
+      );
+      if (!mounted || photo == null) {
+        return;
+      }
+
+      setState(() {
+        _selectedPhotos = [..._selectedPhotos, photo];
+      });
+      return;
+    }
+
     final photos = await _picker.pickMultiImage(imageQuality: 86);
     if (!mounted || photos.isEmpty) {
       return;
     }
 
-    final limited = photos.take(5).toList(growable: false);
+    final combined = [..._selectedPhotos, ...photos];
+    final limited = combined.take(5).toList(growable: false);
     setState(() => _selectedPhotos = limited);
 
-    if (photos.length > 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tengo solo le prime 5 foto selezionate.'),
-        ),
-      );
+    if (combined.length > 5) {
+      _showMessage('Tengo solo le prime 5 foto selezionate.');
     }
   }
 
@@ -463,8 +509,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                 readOnly: true,
                                 decoration: const InputDecoration(
                                   labelText: 'Indirizzo',
-                                  prefixIcon:
-                                      Icon(Icons.location_on_outlined),
+                                  prefixIcon: Icon(Icons.location_on_outlined),
                                 ),
                                 validator: (value) =>
                                     value == null || value.trim().isEmpty
@@ -474,10 +519,10 @@ class _RegisterPageState extends State<RegisterPage> {
                               const SizedBox(height: 16),
                               OutlinedButton.icon(
                                 onPressed: _isSaving ? null : _pickPhotos,
-                                icon: const Icon(Icons.photo_library_outlined),
+                                icon: const Icon(Icons.add_a_photo_outlined),
                                 label: Text(
                                   _selectedPhotos.isEmpty
-                                      ? 'Seleziona foto profilo'
+                                      ? 'Aggiungi foto profilo'
                                       : 'Foto selezionate (${_selectedPhotos.length})',
                                 ),
                               ),

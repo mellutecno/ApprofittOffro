@@ -252,8 +252,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   }
 
   Future<void> _animateMapTo(LatLng target, {double zoom = 15.6}) async {
-    final controller =
-        _mapController ??
+    final controller = _mapController ??
         (_mapControllerCompleter.isCompleted
             ? await _mapControllerCompleter.future
             : null);
@@ -275,21 +274,68 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     unawaited(_animateMapTo(_currentMapCenter));
   }
 
+  Future<ImageSource?> _pickPhotoSource() {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Scatta una foto'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Scegli dalla galleria'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickPhotos() async {
+    final source = await _pickPhotoSource();
+    if (!mounted || source == null) {
+      return;
+    }
+
+    if (source == ImageSource.camera) {
+      if (_selectedPhotos.length >= 5) {
+        _showMessage('Puoi caricare al massimo 5 foto profilo.');
+        return;
+      }
+
+      final photo = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 86,
+        maxWidth: 1800,
+      );
+      if (!mounted || photo == null) {
+        return;
+      }
+
+      setState(() {
+        _selectedPhotos = [..._selectedPhotos, photo];
+      });
+      return;
+    }
+
     final photos = await _picker.pickMultiImage(imageQuality: 86);
     if (!mounted || photos.isEmpty) {
       return;
     }
 
-    final limited = photos.take(5).toList(growable: false);
+    final combined = [..._selectedPhotos, ...photos];
+    final limited = combined.take(5).toList(growable: false);
     setState(() => _selectedPhotos = limited);
 
-    if (photos.length > 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tengo solo le prime 5 foto selezionate.'),
-        ),
-      );
+    if (combined.length > 5) {
+      _showMessage('Tengo solo le prime 5 foto selezionate.');
     }
   }
 
@@ -309,8 +355,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       _showMessage('Scrivi una bio prima di continuare.');
       return;
     }
-    if (widget.requireCompletion &&
-        _preferitiController.text.trim().isEmpty) {
+    if (widget.requireCompletion && _preferitiController.text.trim().isEmpty) {
       _showMessage('Inserisci i tuoi cibi preferiti prima di continuare.');
       return;
     }
@@ -373,242 +418,242 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           child: Form(
             key: _formKey,
             child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: AppTheme.heroGradient,
-                  borderRadius: BorderRadius.circular(28),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.requireCompletion
-                          ? 'Completa il tuo profilo'
-                          : 'Modifica il tuo profilo',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      widget.requireCompletion
-                          ? 'Aggiungi foto reali, bio e preferenze per accedere alla community. Ti basta farlo una volta sola.'
-                          : 'Puoi aggiornare dati, bio e galleria. Se cambi le foto, la prima deve mostrare bene il volto.',
-                    ),
-                    if (user.galleryFilenames.isNotEmpty) ...[
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: user.galleryFilenames
-                            .take(5)
-                            .map(
-                              (filename) => ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: Image.network(
-                                  widget.authController.apiClient
-                                      .buildUploadUrl(filename),
-                                  width: 72,
-                                  height: 72,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              _SectionCard(
-                title: 'Identita',
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _nomeController,
-                      decoration: const InputDecoration(labelText: 'Nome'),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                              ? 'Inserisci il nome.'
-                              : null,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Inserisci l\'email.';
-                        }
-                        if (!value.contains('@')) {
-                          return 'Email non valida.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _etaController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Eta'),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                              ? 'Inserisci l\'eta.'
-                              : null,
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedGender,
-                      decoration: const InputDecoration(labelText: 'Sesso'),
-                      items: _genderItems,
-                      onChanged: (value) {
-                        if (value == null) {
-                          return;
-                        }
-                        setState(() => _selectedGender = value);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _telefonoController,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'Numero di telefono',
-                      ),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                              ? 'Inserisci il numero di telefono.'
-                              : null,
-                    ),
-                    const SizedBox(height: 18),
-                    Text(
-                      'Scegli il tuo indirizzo dalla mappa',
-                      style: Theme.of(context).textTheme.titleMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Tocca la mappa nel punto giusto oppure usa il GPS in alto a destra.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppTheme.brown.withValues(alpha: 0.74),
-                            height: 1.4,
-                          ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 14),
-                    _buildMapSection(busyMap),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _addressController,
-                      readOnly: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Indirizzo',
-                        prefixIcon: Icon(Icons.location_on_outlined),
-                      ),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                              ? 'Scegli l\'indirizzo dalla mappa.'
-                              : null,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              _SectionCard(
-                title: 'Identikit alimentare',
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _preferitiController,
-                      maxLines: 2,
-                      decoration:
-                          const InputDecoration(labelText: 'Cibi preferiti'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _intolleranzeController,
-                      maxLines: 2,
-                      decoration:
-                          const InputDecoration(labelText: 'Intolleranze'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _bioController,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'Bio',
-                        hintText:
-                            'Racconta qualcosa di te, del tuo stile e di come vivi i pasti.',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              _SectionCard(
-                title: 'Foto profilo',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _isSaving ? null : _pickPhotos,
-                      icon: const Icon(Icons.add_a_photo_outlined),
-                      label: Text(
-                        _selectedPhotos.isEmpty
-                            ? 'Scegli fino a 5 foto'
-                            : 'Cambia galleria (${_selectedPhotos.length})',
-                      ),
-                    ),
-                    if (_selectedPhotos.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _selectedPhotos
-                            .map(
-                              (photo) => ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: Image.file(
-                                  File(photo.path),
-                                  width: 84,
-                                  height: 84,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ],
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Se selezioni nuove foto, sostituiscono la galleria attuale.',
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              FilledButton(
-                onPressed: _isSaving ? null : _submit,
-                child: _isSaving
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
+              padding: const EdgeInsets.all(20),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: AppTheme.heroGradient,
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
                         widget.requireCompletion
-                            ? 'Salva e continua'
-                            : 'Salva modifiche',
+                            ? 'Completa il tuo profilo'
+                            : 'Modifica il tuo profilo',
+                        style: Theme.of(context).textTheme.headlineMedium,
                       ),
-              ),
-              const SizedBox(height: 24),
-            ],
+                      const SizedBox(height: 10),
+                      Text(
+                        widget.requireCompletion
+                            ? 'Aggiungi foto reali, bio e preferenze per accedere alla community. Ti basta farlo una volta sola.'
+                            : 'Puoi aggiornare dati, bio e galleria. Se cambi le foto, la prima deve mostrare bene il volto.',
+                      ),
+                      if (user.galleryFilenames.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: user.galleryFilenames
+                              .take(5)
+                              .map(
+                                (filename) => ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Image.network(
+                                    widget.authController.apiClient
+                                        .buildUploadUrl(filename),
+                                    width: 72,
+                                    height: 72,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _SectionCard(
+                  title: 'Identita',
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _nomeController,
+                        decoration: const InputDecoration(labelText: 'Nome'),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                                ? 'Inserisci il nome.'
+                                : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(labelText: 'Email'),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Inserisci l\'email.';
+                          }
+                          if (!value.contains('@')) {
+                            return 'Email non valida.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _etaController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Eta'),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                                ? 'Inserisci l\'eta.'
+                                : null,
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedGender,
+                        decoration: const InputDecoration(labelText: 'Sesso'),
+                        items: _genderItems,
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() => _selectedGender = value);
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _telefonoController,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Numero di telefono',
+                        ),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                                ? 'Inserisci il numero di telefono.'
+                                : null,
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        'Scegli il tuo indirizzo dalla mappa',
+                        style: Theme.of(context).textTheme.titleMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Tocca la mappa nel punto giusto oppure usa il GPS in alto a destra.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppTheme.brown.withValues(alpha: 0.74),
+                              height: 1.4,
+                            ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 14),
+                      _buildMapSection(busyMap),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _addressController,
+                        readOnly: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Indirizzo',
+                          prefixIcon: Icon(Icons.location_on_outlined),
+                        ),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                                ? 'Scegli l\'indirizzo dalla mappa.'
+                                : null,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _SectionCard(
+                  title: 'Identikit alimentare',
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _preferitiController,
+                        maxLines: 2,
+                        decoration:
+                            const InputDecoration(labelText: 'Cibi preferiti'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _intolleranzeController,
+                        maxLines: 2,
+                        decoration:
+                            const InputDecoration(labelText: 'Intolleranze'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _bioController,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          labelText: 'Bio',
+                          hintText:
+                              'Racconta qualcosa di te, del tuo stile e di come vivi i pasti.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _SectionCard(
+                  title: 'Foto profilo',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _isSaving ? null : _pickPhotos,
+                        icon: const Icon(Icons.add_a_photo_outlined),
+                        label: Text(
+                          _selectedPhotos.isEmpty
+                              ? 'Aggiungi fino a 5 foto'
+                              : 'Foto selezionate (${_selectedPhotos.length})',
+                        ),
+                      ),
+                      if (_selectedPhotos.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _selectedPhotos
+                              .map(
+                                (photo) => ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Image.file(
+                                    File(photo.path),
+                                    width: 84,
+                                    height: 84,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Puoi scegliere foto dalla galleria o scattarle con la fotocamera.',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: _isSaving ? null : _submit,
+                  child: _isSaving
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          widget.requireCompletion
+                              ? 'Salva e continua'
+                              : 'Salva modifiche',
+                        ),
+                ),
+                const SizedBox(height: 24),
+              ],
             ),
           ),
         ),
