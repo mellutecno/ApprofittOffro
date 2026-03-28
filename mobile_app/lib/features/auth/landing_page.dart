@@ -262,9 +262,10 @@ class _LandingPageState extends State<LandingPage> {
                               'Segui le persone che ti piacciono, guarda i loro profili e tieni vivi i contatti migliori.',
                         ),
                         const _LandingInfoCard(
-                          title: 'Versione mobile pensata per crescere',
+                          title: 'Card ApprofittOffro',
                           body:
-                              'Questa app Android è il primo passo verso una community più diretta, più bella e più semplice da usare.',
+                              'Presto avrai la possibilità di aderire alla community e avrai una tessera che ti darà diritto a sconti esclusivi sui locali.',
+                          highlighted: true,
                         ),
                       ],
                     ),
@@ -493,10 +494,12 @@ class _LandingInfoCard extends StatelessWidget {
   const _LandingInfoCard({
     required this.title,
     required this.body,
+    this.highlighted = false,
   });
 
   final String title;
   final String body;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -504,13 +507,27 @@ class _LandingInfoCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFFCF7), Color(0xFFF7EFE3)],
+        gradient: LinearGradient(
+          colors: highlighted
+              ? const [Color(0xFFFFF7E9), Color(0xFFF9E3BF)]
+              : const [Color(0xFFFFFCF7), Color(0xFFF7EFE3)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppTheme.cardBorder),
+        border: Border.all(
+          color: highlighted ? const Color(0xFFE0BB74) : AppTheme.cardBorder,
+          width: highlighted ? 1.4 : 1,
+        ),
+        boxShadow: highlighted
+            ? const [
+                BoxShadow(
+                  color: Color(0x1A7A4A00),
+                  blurRadius: 18,
+                  offset: Offset(0, 10),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -519,13 +536,21 @@ class _LandingInfoCard extends StatelessWidget {
             title,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontSize: 18,
+                  fontSize: highlighted ? 22 : 18,
+                  fontWeight: highlighted ? FontWeight.w900 : FontWeight.w800,
+                  color: highlighted ? AppTheme.espresso : AppTheme.brown,
                 ),
           ),
           const SizedBox(height: 8),
           Text(
             body,
             textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  height: 1.45,
+                  fontSize: highlighted ? 16.5 : null,
+                  fontWeight: highlighted ? FontWeight.w600 : FontWeight.w500,
+                  color: highlighted ? AppTheme.espresso : AppTheme.brown,
+                ),
           ),
         ],
       ),
