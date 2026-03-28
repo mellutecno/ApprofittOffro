@@ -32,7 +32,7 @@ class _LandingPageState extends State<LandingPage> {
   @override
   void initState() {
     super.initState();
-    _offersFuture = widget.authController.apiClient.fetchOffers(limit: 10);
+    _offersFuture = widget.authController.apiClient.fetchOffers(limit: 4);
     _scheduleAutoLoginIfNeeded();
   }
 
@@ -79,7 +79,7 @@ class _LandingPageState extends State<LandingPage> {
   }
 
   Future<void> _reloadOffers() async {
-    final future = widget.authController.apiClient.fetchOffers(limit: 10);
+    final future = widget.authController.apiClient.fetchOffers(limit: 4);
     setState(() {
       _offersFuture = future;
     });
@@ -126,12 +126,13 @@ class _LandingPageState extends State<LandingPage> {
                         Text(
                           'ApprofittOffro mette insieme chi offre un pasto e chi vuole viverlo con leggerezza, dal telefono e con profili reali.',
                           textAlign: TextAlign.center,
-                          style:
-                              Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                    color:
-                                        AppTheme.brown.withValues(alpha: 0.84),
-                                    height: 1.45,
-                                  ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyLarge
+                              ?.copyWith(
+                                color: AppTheme.brown.withValues(alpha: 0.84),
+                                height: 1.45,
+                              ),
                         ),
                         const SizedBox(height: 18),
                         Container(
@@ -239,7 +240,7 @@ class _LandingPageState extends State<LandingPage> {
 
                             return Column(
                               children: offers
-                                  .take(10)
+                                  .take(4)
                                   .map(
                                     (offer) => _PublicOfferCard(
                                       offer: offer,
@@ -659,8 +660,9 @@ class _PublicOfferCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 36,
-                  backgroundImage:
-                      authorPhotoUrl != null ? NetworkImage(authorPhotoUrl) : null,
+                  backgroundImage: authorPhotoUrl != null
+                      ? NetworkImage(authorPhotoUrl)
+                      : null,
                   child: authorPhotoUrl == null
                       ? const Icon(Icons.person, size: 30)
                       : null,

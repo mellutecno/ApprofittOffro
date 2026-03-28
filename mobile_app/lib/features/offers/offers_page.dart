@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_hero_card.dart';
 import '../../core/widgets/brand_wordmark.dart';
+import '../../models/offer.dart';
 import '../auth/auth_controller.dart';
 import 'offer_card.dart';
 import 'offers_controller.dart';
@@ -19,6 +21,85 @@ class OffersPage extends StatelessWidget {
   final AuthController authController;
   final OffersController offersController;
 
+  Future<void> _openOfferDetails(
+    BuildContext context,
+    Offer offer,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.84,
+          minChildSize: 0.58,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) {
+            return DecoratedBox(
+              decoration: const BoxDecoration(
+                color: AppTheme.cream,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
+              ),
+              child: SingleChildScrollView(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardBorder,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Evento aperto',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 14),
+                    OfferCard(
+                      offer: offer,
+                      apiClient: authController.apiClient,
+                      allowProfileOpen: true,
+                      onEditOwn: null,
+                      onClaim: offer.isOwn || !offer.canClaim
+                          ? null
+                          : () async {
+                              final navigator = Navigator.of(sheetContext);
+                              final messenger = ScaffoldMessenger.of(context);
+                              final message =
+                                  await offersController.claimOffer(offer);
+                              if (!context.mounted || message == null) {
+                                return;
+                              }
+                              navigator.pop();
+                              messenger.showSnackBar(
+                                SnackBar(content: Text(message)),
+                              );
+                            },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -31,7 +112,9 @@ class OffersPage extends StatelessWidget {
               SliverAppBar(
                 pinned: true,
                 title: const BrandWordmark(
-                    height: 24, alignment: Alignment.center),
+                  height: 24,
+                  alignment: Alignment.center,
+                ),
                 actions: [
                   IconButton(
                     onPressed:
@@ -195,8 +278,10 @@ class OffersPage extends StatelessWidget {
                   child: Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Text(offersController.errorMessage!,
-                          textAlign: TextAlign.center),
+                      child: Text(
+                        offersController.errorMessage!,
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ),
                 )
@@ -218,23 +303,10 @@ class OffersPage extends StatelessWidget {
                   itemCount: offersController.offers.length,
                   itemBuilder: (context, index) {
                     final offer = offersController.offers[index];
-                    return OfferCard(
+                    return _OfferPreviewCard(
                       offer: offer,
                       apiClient: authController.apiClient,
-                      allowProfileOpen: true,
-                      onEditOwn: null,
-                      onClaim: offer.isOwn || !offer.canClaim
-                          ? null
-                          : () async {
-                              final message =
-                                  await offersController.claimOffer(offer);
-                              if (!context.mounted || message == null) {
-                                return;
-                              }
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(message)),
-                              );
-                            },
+                      onOpen: () => _openOfferDetails(context, offer),
                     );
                   },
                 ),
@@ -243,6 +315,190 @@ class OffersPage extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _OfferPreviewCard extends StatelessWidget {
+  const _OfferPreviewCard({
+    required this.offer,
+    required this.apiClient,
+    required this.onOpen,
+  });
+
+  final Offer offer;
+  final ApiClient apiClient;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final mealColor = _mealColor(offer.tipoPasto);
+    final authorPhotoUrl = offer.autoreFoto.isNotEmpty
+        ? apiClient.buildUploadUrl(offer.autoreFoto)
+        : null;
+    final occupiedSeats = (offer.postiTotali - offer.postiDisponibili)
+        .clamp(0, offer.postiTotali);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: AppTheme.cardBorder),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x12000000),
+              blurRadius: 18,
+              offset: Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundImage: authorPhotoUrl != null
+                      ? NetworkImage(authorPhotoUrl)
+                      : null,
+                  child:
+                      authorPhotoUrl == null ? const Icon(Icons.person) : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        offer.autoreNome,
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  color: AppTheme.espresso,
+                                ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        offer.nomeLocale,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.brown,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _CompactInfoChip(
+                    label: offer.tipoPasto.toUpperCase(),
+                    backgroundColor: mealColor.withValues(alpha: 0.14),
+                    foregroundColor: mealColor,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _CompactInfoChip(
+                    label: _formatWhenLabel(context, offer.dataOra),
+                    backgroundColor: AppTheme.mist,
+                    foregroundColor: AppTheme.brown,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Partecipanti $occupiedSeats di ${offer.postiTotali}',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.brown,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton(
+              onPressed: onOpen,
+              child: const Text('Apri evento'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _mealColor(String type) {
+    switch (type) {
+      case 'colazione':
+        return const Color(0xFFD49B00);
+      case 'pranzo':
+        return const Color(0xFF3D8B5A);
+      case 'cena':
+        return const Color(0xFF7A4EC7);
+      default:
+        return AppTheme.orange;
+    }
+  }
+
+  String _formatWhenLabel(BuildContext context, DateTime value) {
+    final local = value.toLocal();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final eventDay = DateTime(local.year, local.month, local.day);
+    final time = MaterialLocalizations.of(context).formatTimeOfDay(
+      TimeOfDay.fromDateTime(local),
+      alwaysUse24HourFormat: true,
+    );
+
+    if (eventDay == today) {
+      return 'Oggi alle $time';
+    }
+    if (eventDay == today.add(const Duration(days: 1))) {
+      return 'Domani alle $time';
+    }
+    final dateLabel =
+        '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}';
+    return '$dateLabel - $time';
+  }
+}
+
+class _CompactInfoChip extends StatelessWidget {
+  const _CompactInfoChip({
+    required this.label,
+    required this.backgroundColor,
+    required this.foregroundColor,
+  });
+
+  final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: foregroundColor,
+          fontWeight: FontWeight.w800,
+          fontSize: 12.5,
+        ),
+      ),
     );
   }
 }
