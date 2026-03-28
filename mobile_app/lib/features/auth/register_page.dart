@@ -59,6 +59,8 @@ class _RegisterPageState extends State<RegisterPage> {
   double? _longitude;
   Set<Marker> _markers = const <Marker>{};
 
+  int get _totalSelectedPhotoCount => _selectedPhotos.length;
+
   @override
   void initState() {
     super.initState();
@@ -265,7 +267,7 @@ class _RegisterPageState extends State<RegisterPage> {
     }
 
     if (source == ImageSource.camera) {
-      if (_selectedPhotos.length >= 5) {
+      if (_totalSelectedPhotoCount >= 5) {
         _showMessage('Puoi caricare al massimo 5 foto profilo.');
         return;
       }
@@ -309,6 +311,51 @@ class _RegisterPageState extends State<RegisterPage> {
           if (i != index) _selectedPhotos[i],
       ];
     });
+  }
+
+  Widget _buildSelectedPhotoCard(XFile photo, int index) {
+    return Container(
+      width: 108,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.file(
+              File(photo.path),
+              width: 92,
+              height: 92,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            index == 0 ? 'Foto principale' : 'Foto ${index + 1}',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: () => _removeSelectedPhotoAt(index),
+            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+            label: const Text('Rimuovi'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.brown,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: const Size(0, 32),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _submit() async {
@@ -541,68 +588,19 @@ class _RegisterPageState extends State<RegisterPage> {
                               if (_selectedPhotos.isNotEmpty) ...[
                                 const SizedBox(height: 12),
                                 Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
+                                  spacing: 10,
+                                  runSpacing: 10,
                                   children: List.generate(
                                     _selectedPhotos.length,
-                                    (index) {
-                                      final photo = _selectedPhotos[index];
-                                      return Stack(
-                                        clipBehavior: Clip.none,
-                                        children: [
-                                          ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(16),
-                                            child: Image.file(
-                                              File(photo.path),
-                                              width: 80,
-                                              height: 80,
-                                              fit: BoxFit.cover,
-                                            ),
-                                          ),
-                                          Positioned(
-                                            top: -6,
-                                            right: -6,
-                                            child: Material(
-                                              color: Colors.transparent,
-                                              child: InkWell(
-                                                onTap: () =>
-                                                    _removeSelectedPhotoAt(
-                                                      index,
-                                                    ),
-                                                borderRadius:
-                                                    BorderRadius.circular(999),
-                                                child: Container(
-                                                  width: 26,
-                                                  height: 26,
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.black87,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          999,
-                                                        ),
-                                                    border: Border.all(
-                                                      color: Colors.white,
-                                                      width: 1.4,
-                                                    ),
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.close_rounded,
-                                                    size: 16,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    },
+                                    (index) => _buildSelectedPhotoCard(
+                                      _selectedPhotos[index],
+                                      index,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Se sbagli uno scatto, tocca la X per eliminarlo e sceglierne un altro.',
+                                  'Se sbagli uno scatto, tocca Rimuovi per eliminarlo e sceglierne un altro.',
                                   style: Theme.of(context)
                                       .textTheme
                                       .bodySmall

@@ -389,6 +389,7 @@ class ApiClient {
     required String preferredFoods,
     required String intolerances,
     required String bio,
+    List<String> existingGalleryFilenames = const [],
     List<String> photoPaths = const [],
   }) async {
     final request = http.MultipartRequest(
@@ -411,6 +412,7 @@ class ApiClient {
       'cibi_preferiti': preferredFoods,
       'intolleranze': intolerances,
       'bio': bio,
+      'existing_gallery_filenames': jsonEncode(existingGalleryFilenames),
     });
 
     for (final photoPath in photoPaths) {

@@ -1066,7 +1066,7 @@ def replace_user_gallery(user, filenames):
     user.foto_filename = filenames[0]
     db.session.flush()
     db.session.expire(user, ["photos"])
-    return old_filenames
+    return [filename for filename in old_filenames if filename not in filenames]
 
 
 def build_google_display_name(identity_payload):
@@ -1238,6 +1238,24 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
     pref = str(source.get("cibi_preferiti", user.cibi_preferiti or "") or "").strip()
     intoll = str(source.get("intolleranze", user.intolleranze or "") or "").strip()
     bio = str(source.get("bio", user.bio or "") or "").strip()
+    existing_gallery_raw = source.get("existing_gallery_filenames")
+
+    if isinstance(existing_gallery_raw, str) and existing_gallery_raw.strip():
+        try:
+            requested_existing_gallery = json.loads(existing_gallery_raw)
+        except Exception:
+            requested_existing_gallery = []
+    elif isinstance(existing_gallery_raw, (list, tuple)):
+        requested_existing_gallery = list(existing_gallery_raw)
+    else:
+        requested_existing_gallery = list(user.gallery_filenames)
+
+    current_gallery = list(user.gallery_filenames)
+    existing_gallery_filenames = [
+        filename
+        for filename in current_gallery
+        if filename in {str(item) for item in requested_existing_gallery if str(item).strip()}
+    ]
 
     errors = []
     if not nome:
@@ -1281,9 +1299,15 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
         uploaded_gallery_filenames, photo_errors = save_profile_gallery_files(
             user.id,
             foto_files,
-            require_primary_face=require_primary_face,
+            require_primary_face=require_primary_face and not existing_gallery_filenames,
         )
         errors.extend(photo_errors)
+
+    final_gallery_filenames = existing_gallery_filenames + uploaded_gallery_filenames
+    if len(final_gallery_filenames) > MAX_PROFILE_PHOTOS:
+        errors.append(f"Puoi tenere al massimo {MAX_PROFILE_PHOTOS} foto profilo.")
+    if not final_gallery_filenames:
+        errors.append("Devi tenere almeno una foto profilo.")
 
     payload = {
         "nome": nome,
@@ -1297,6 +1321,7 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
         "cibi_preferiti": pref,
         "intolleranze": intoll,
         "bio": bio,
+        "final_gallery_filenames": final_gallery_filenames,
         "uploaded_gallery_filenames": uploaded_gallery_filenames,
     }
 
@@ -1306,6 +1331,7 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
 def save_profile_update_for_user(user, payload, *, verified=None):
     old_gallery_filenames = []
     uploaded_gallery_filenames = payload.get("uploaded_gallery_filenames", [])
+    final_gallery_filenames = payload.get("final_gallery_filenames", list(user.gallery_filenames))
 
     user.nome = payload["nome"]
     user.email = payload["email"]
@@ -1325,8 +1351,8 @@ def save_profile_update_for_user(user, payload, *, verified=None):
     if verified is not None:
         user.verificato = bool(verified)
 
-    if uploaded_gallery_filenames:
-        old_gallery_filenames = replace_user_gallery(user, uploaded_gallery_filenames)
+    if final_gallery_filenames != list(user.gallery_filenames):
+        old_gallery_filenames = replace_user_gallery(user, final_gallery_filenames)
 
     try:
         db.session.commit()

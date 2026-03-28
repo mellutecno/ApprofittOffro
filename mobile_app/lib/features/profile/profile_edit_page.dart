@@ -52,6 +52,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   late final TextEditingController _preferitiController;
   late final TextEditingController _intolleranzeController;
 
+  List<String> _existingGalleryFilenames = const [];
   List<XFile> _selectedPhotos = const [];
   bool _isSaving = false;
   bool _isLocating = false;
@@ -83,6 +84,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     _bioController = TextEditingController(text: user.bio);
     _preferitiController = TextEditingController(text: user.preferredFoods);
     _intolleranzeController = TextEditingController(text: user.intolerances);
+    _existingGalleryFilenames = List<String>.from(user.galleryFilenames);
     _latitude = user.latitude;
     _longitude = user.longitude;
 
@@ -304,8 +306,14 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       return;
     }
 
+    final availableSlots = 5 - _existingGalleryFilenames.length;
+    if (availableSlots <= 0) {
+      _showMessage('Rimuovi prima una foto attuale per aggiungerne un\'altra.');
+      return;
+    }
+
     if (source == ImageSource.camera) {
-      if (_selectedPhotos.length >= 5) {
+      if (_totalPhotoCount >= 5) {
         _showMessage('Puoi caricare al massimo 5 foto profilo.');
         return;
       }
@@ -331,11 +339,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     }
 
     final combined = [..._selectedPhotos, ...photos];
-    final limited = combined.take(5).toList(growable: false);
+    final limited = combined.take(availableSlots).toList(growable: false);
     setState(() => _selectedPhotos = limited);
 
-    if (combined.length > 5) {
-      _showMessage('Tengo solo le prime 5 foto selezionate.');
+    if (combined.length > availableSlots) {
+      _showMessage('Tengo solo le prime $availableSlots foto selezionate.');
     }
   }
 
@@ -351,6 +359,112 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     });
   }
 
+  void _removeExistingPhotoAt(int index) {
+    if (index < 0 || index >= _existingGalleryFilenames.length) {
+      return;
+    }
+    setState(() {
+      _existingGalleryFilenames = [
+        for (int i = 0; i < _existingGalleryFilenames.length; i++)
+          if (i != index) _existingGalleryFilenames[i],
+      ];
+    });
+  }
+
+  int get _totalPhotoCount =>
+      _existingGalleryFilenames.length + _selectedPhotos.length;
+
+  Widget _buildExistingPhotoCard(String filename, int index) {
+    return Container(
+      width: 108,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.network(
+              widget.authController.apiClient.buildUploadUrl(filename),
+              width: 92,
+              height: 92,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            index == 0 ? 'Foto attuale principale' : 'Foto attuale ${index + 1}',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: () => _removeExistingPhotoAt(index),
+            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+            label: const Text('Rimuovi'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.brown,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: const Size(0, 32),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectedPhotoCard(XFile photo, int index) {
+    final effectiveIndex = _existingGalleryFilenames.length + index;
+    return Container(
+      width: 108,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.file(
+              File(photo.path),
+              width: 92,
+              height: 92,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            effectiveIndex == 0 ? 'Nuova foto principale' : 'Nuova foto ${effectiveIndex + 1}',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: () => _removeSelectedPhotoAt(index),
+            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+            label: const Text('Rimuovi'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.brown,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: const Size(0, 32),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -359,7 +473,13 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       _showMessage('Scegli il tuo indirizzo dalla mappa.');
       return;
     }
-    if (widget.requireCompletion && _selectedPhotos.isEmpty) {
+    if (_totalPhotoCount == 0) {
+      _showMessage('Tieni almeno una foto profilo.');
+      return;
+    }
+    if (widget.requireCompletion &&
+        _existingGalleryFilenames.isEmpty &&
+        _selectedPhotos.isEmpty) {
       _showMessage('Carica almeno una foto reale prima di continuare.');
       return;
     }
@@ -386,6 +506,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         preferredFoods: _preferitiController.text.trim(),
         intolerances: _intolleranzeController.text.trim(),
         bio: _bioController.text.trim(),
+        existingGalleryFilenames: _existingGalleryFilenames,
         photoPaths: _selectedPhotos.map((photo) => photo.path).toList(),
       );
 
@@ -416,7 +537,6 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   @override
   Widget build(BuildContext context) {
-    final user = widget.authController.currentUser!;
     final busyMap = _isLocating || _isResolvingAddress;
 
     return WillPopScope(
@@ -453,26 +573,23 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                             ? 'Aggiungi foto reali, bio e preferenze per accedere alla community. Ti basta farlo una volta sola.'
                             : 'Puoi aggiornare dati, bio e galleria. Se cambi le foto, la prima deve mostrare bene il volto.',
                       ),
-                      if (user.galleryFilenames.isNotEmpty) ...[
+                      if (_existingGalleryFilenames.isNotEmpty) ...[
                         const SizedBox(height: 14),
+                        Text(
+                          'Foto attuali',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 8),
                         Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: user.galleryFilenames
-                              .take(5)
-                              .map(
-                                (filename) => ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Image.network(
-                                    widget.authController.apiClient
-                                        .buildUploadUrl(filename),
-                                    width: 72,
-                                    height: 72,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              )
-                              .toList(),
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: List.generate(
+                            _existingGalleryFilenames.length,
+                            (index) => _buildExistingPhotoCard(
+                              _existingGalleryFilenames[index],
+                              index,
+                            ),
+                          ),
                         ),
                       ],
                     ],
@@ -615,69 +732,37 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         icon: const Icon(Icons.add_a_photo_outlined),
                         label: Text(
                           _selectedPhotos.isEmpty
-                              ? 'Aggiungi fino a 5 foto'
-                              : 'Foto selezionate (${_selectedPhotos.length})',
+                              ? 'Aggiungi o sostituisci foto'
+                              : 'Nuove foto selezionate (${_selectedPhotos.length})',
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Totale foto attuali: $_totalPhotoCount di 5.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.brown.withValues(alpha: 0.7),
+                            ),
                       ),
                       if (_selectedPhotos.isNotEmpty) ...[
                         const SizedBox(height: 12),
+                        Text(
+                          'Nuove foto da salvare',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 8),
                         Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+                          spacing: 10,
+                          runSpacing: 10,
                           children: List.generate(_selectedPhotos.length, (
                             index,
-                          ) {
-                            final photo = _selectedPhotos[index];
-                            return Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Image.file(
-                                    File(photo.path),
-                                    width: 84,
-                                    height: 84,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                Positioned(
-                                  top: -6,
-                                  right: -6,
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      onTap: () =>
-                                          _removeSelectedPhotoAt(index),
-                                      borderRadius: BorderRadius.circular(999),
-                                      child: Container(
-                                        width: 26,
-                                        height: 26,
-                                        decoration: BoxDecoration(
-                                          color: Colors.black87,
-                                          borderRadius: BorderRadius.circular(
-                                            999,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.white,
-                                            width: 1.4,
-                                          ),
-                                        ),
-                                        child: const Icon(
-                                          Icons.close_rounded,
-                                          size: 16,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          }),
+                          ) => _buildSelectedPhotoCard(
+                            _selectedPhotos[index],
+                            index,
+                          )),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Se sbagli una foto, tocca la X per toglierla prima di salvare.',
+                          'Se sbagli una foto, tocca Rimuovi per toglierla prima di salvare.',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 color: AppTheme.brown.withValues(alpha: 0.7),
