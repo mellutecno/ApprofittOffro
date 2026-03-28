@@ -181,10 +181,20 @@ class ApiClient {
     return payload;
   }
 
-  Future<List<Offer>> fetchOffers({String mealType = ''}) async {
+  Future<List<Offer>> fetchOffers({
+    String mealType = '',
+    int? radiusKm,
+    int? limit,
+  }) async {
     final query = <String, String>{};
     if (mealType.isNotEmpty) {
       query['tipo'] = mealType;
+    }
+    if (radiusKm != null) {
+      query['radius'] = radiusKm.toString();
+    }
+    if (limit != null && limit > 0) {
+      query['limit'] = limit.toString();
     }
     final path = query.isEmpty
         ? '/api/offers'

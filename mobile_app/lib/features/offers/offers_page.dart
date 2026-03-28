@@ -49,7 +49,7 @@ class OffersPage extends StatelessWidget {
                     eyebrow: 'APPROFITTA',
                     title: 'Eventi aperti della community',
                     subtitle:
-                        'Scopri chi sta condividendo una colazione, un pranzo o una cena e scegli dove entrare.',
+                        'Scopri prima cosa succede vicino a te, poi allarga il raggio quando vuoi.',
                     centered: true,
                     footer: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -83,6 +83,40 @@ class OffersPage extends StatelessWidget {
                                 selected:
                                     offersController.selectedMealType == 'cena',
                                 onTap: offersController.toggleMealType,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _RadiusChip(
+                                label: 'Vicino a te',
+                                radiusKm: defaultNearbyRadiusKm,
+                                selected: offersController.selectedRadiusKm ==
+                                    defaultNearbyRadiusKm,
+                                onTap: offersController.setRadiusKm,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _RadiusChip(
+                                label: 'Più ampio',
+                                radiusKm: expandedNearbyRadiusKm,
+                                selected: offersController.selectedRadiusKm ==
+                                    expandedNearbyRadiusKm,
+                                onTap: offersController.setRadiusKm,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _RadiusChip(
+                                label: 'Tutti',
+                                radiusKm: null,
+                                selected:
+                                    offersController.selectedRadiusKm == null,
+                                onTap: offersController.setRadiusKm,
                               ),
                             ),
                           ],
@@ -239,5 +273,46 @@ class _MealChip extends StatelessWidget {
       default:
         return Colors.grey;
     }
+  }
+}
+
+class _RadiusChip extends StatelessWidget {
+  const _RadiusChip({
+    required this.label,
+    required this.radiusKm,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int? radiusKm;
+  final bool selected;
+  final Future<void> Function(int?) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 46,
+      child: FilterChip(
+        selected: selected,
+        label: SizedBox(
+          width: double.infinity,
+          child: Text(label, textAlign: TextAlign.center),
+        ),
+        onSelected: (_) => onTap(radiusKm),
+        backgroundColor: Colors.white.withValues(alpha: 0.76),
+        selectedColor: AppTheme.peach.withValues(alpha: 0.44),
+        side: BorderSide(
+          color: selected
+              ? AppTheme.orange.withValues(alpha: 0.44)
+              : AppTheme.cardBorder,
+        ),
+        labelStyle: TextStyle(
+          color: selected ? AppTheme.espresso : AppTheme.brown,
+          fontWeight: FontWeight.w700,
+        ),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+      ),
+    );
   }
 }

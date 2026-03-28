@@ -2710,6 +2710,7 @@ def api_get_offers():
     """Recupera le offerte attualmente valide e visibili."""
     tipo = request.args.get("tipo", "")
     radius_str = request.args.get("radius", "")
+    limit_str = request.args.get("limit", "").strip()
     now = local_now()
     threshold = now - timedelta(hours=3)
     query = Offer.query.options(
@@ -2727,8 +2728,20 @@ def api_get_offers():
 
     # Applica filtro per Raggio se specificato
     radius_km = None
-    if radius_str and radius_str.isdigit():
-        radius_km = float(radius_str)
+    if radius_str:
+        try:
+            radius_km = float(radius_str.replace(",", "."))
+        except ValueError:
+            radius_km = None
+
+    limit = None
+    if limit_str:
+        try:
+            parsed_limit = int(limit_str)
+            if parsed_limit > 0:
+                limit = parsed_limit
+        except ValueError:
+            limit = None
 
     # Centro di ricerca (predefinito: utente loggato, altrimenti Roma)
     if current_user.is_authenticated:
@@ -2846,6 +2859,9 @@ def api_get_offers():
             "can_claim": can_claim,
             "claim_status": claim_status,
         })
+
+        if limit is not None and len(result) >= limit:
+            break
 
     return jsonify({"success": True, "offers": result})
 

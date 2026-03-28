@@ -32,7 +32,7 @@ class _LandingPageState extends State<LandingPage> {
   @override
   void initState() {
     super.initState();
-    _offersFuture = widget.authController.apiClient.fetchOffers();
+    _offersFuture = widget.authController.apiClient.fetchOffers(limit: 10);
     _scheduleAutoLoginIfNeeded();
   }
 
@@ -79,7 +79,7 @@ class _LandingPageState extends State<LandingPage> {
   }
 
   Future<void> _reloadOffers() async {
-    final future = widget.authController.apiClient.fetchOffers();
+    final future = widget.authController.apiClient.fetchOffers(limit: 10);
     setState(() {
       _offersFuture = future;
     });
@@ -239,7 +239,7 @@ class _LandingPageState extends State<LandingPage> {
 
                             return Column(
                               children: offers
-                                  .take(4)
+                                  .take(10)
                                   .map(
                                     (offer) => _PublicOfferCard(
                                       offer: offer,
