@@ -29,6 +29,8 @@ class OfferCard extends StatelessWidget {
     final mealColor = _mealColor(offer.tipoPasto);
     final canNavigateToOffer =
         offer.isOwn || offer.claimStatus == 'claimed';
+    final occupiedSeats =
+        (offer.postiTotali - offer.postiDisponibili).clamp(0, offer.postiTotali);
     final localeImageUrl =
         offer.fotoLocale.isNotEmpty && offer.fotoLocale != 'nessuna.jpg'
             ? apiClient.buildUploadUrl(offer.fotoLocale)
@@ -139,10 +141,10 @@ class OfferCard extends StatelessWidget {
               foregroundColor: mealColor,
             ),
             const SizedBox(height: 18),
-            const Center(
+            Center(
               child: Text(
-                'Partecipanti',
-                style: TextStyle(fontWeight: FontWeight.w700),
+                'Partecipanti  $occupiedSeats di ${offer.postiTotali}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
             const SizedBox(height: 10),
