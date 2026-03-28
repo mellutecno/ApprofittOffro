@@ -376,7 +376,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   Widget _buildExistingPhotoCard(String filename, int index) {
     return Container(
-      width: 108,
+      width: 100,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.72),
@@ -397,22 +397,19 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            index == 0 ? 'Foto attuale principale' : 'Foto attuale ${index + 1}',
+            index == 0 ? 'Foto principale' : 'Foto ${index + 1}',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
           ),
-          const SizedBox(height: 6),
-          TextButton.icon(
+          const SizedBox(height: 2),
+          IconButton(
             onPressed: () => _removeExistingPhotoAt(index),
-            icon: const Icon(Icons.delete_outline_rounded, size: 18),
-            label: const Text('Rimuovi'),
-            style: TextButton.styleFrom(
-              foregroundColor: AppTheme.brown,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              minimumSize: const Size(0, 32),
-            ),
+            tooltip: 'Rimuovi foto',
+            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+            color: AppTheme.brown,
+            visualDensity: VisualDensity.compact,
           ),
         ],
       ),
@@ -422,7 +419,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   Widget _buildSelectedPhotoCard(XFile photo, int index) {
     final effectiveIndex = _existingGalleryFilenames.length + index;
     return Container(
-      width: 108,
+      width: 100,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.72),
@@ -443,22 +440,19 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            effectiveIndex == 0 ? 'Nuova foto principale' : 'Nuova foto ${effectiveIndex + 1}',
+            effectiveIndex == 0 ? 'Foto principale' : 'Foto ${effectiveIndex + 1}',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
           ),
-          const SizedBox(height: 6),
-          TextButton.icon(
+          const SizedBox(height: 2),
+          IconButton(
             onPressed: () => _removeSelectedPhotoAt(index),
-            icon: const Icon(Icons.delete_outline_rounded, size: 18),
-            label: const Text('Rimuovi'),
-            style: TextButton.styleFrom(
-              foregroundColor: AppTheme.brown,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              minimumSize: const Size(0, 32),
-            ),
+            tooltip: 'Rimuovi foto',
+            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+            color: AppTheme.brown,
+            visualDensity: VisualDensity.compact,
           ),
         ],
       ),

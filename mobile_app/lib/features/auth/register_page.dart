@@ -315,7 +315,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Widget _buildSelectedPhotoCard(XFile photo, int index) {
     return Container(
-      width: 108,
+      width: 100,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.72),
@@ -342,16 +342,13 @@ class _RegisterPageState extends State<RegisterPage> {
                   fontWeight: FontWeight.w700,
                 ),
           ),
-          const SizedBox(height: 6),
-          TextButton.icon(
+          const SizedBox(height: 2),
+          IconButton(
             onPressed: () => _removeSelectedPhotoAt(index),
-            icon: const Icon(Icons.delete_outline_rounded, size: 18),
-            label: const Text('Rimuovi'),
-            style: TextButton.styleFrom(
-              foregroundColor: AppTheme.brown,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              minimumSize: const Size(0, 32),
-            ),
+            tooltip: 'Rimuovi foto',
+            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+            color: AppTheme.brown,
+            visualDensity: VisualDensity.compact,
           ),
         ],
       ),
