@@ -76,6 +76,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   double? _selectedLongitude;
   String? _selectedPlaceId;
   String _selectedPrimaryType = '';
+  PlaceCandidate? _mapDraftSelection;
   List<PlaceCandidate> _nearbyPlaces = const [];
   Set<Marker> _nearbyMarkers = const <Marker>{};
   final Map<String, BitmapDescriptor> _markerIconCache = {};
@@ -426,10 +427,21 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               ),
             ),
             const SizedBox(height: 16),
-            _SectionCard(
-              title: 'Scegli dalla mappa',
-              subtitle: null,
-              child: _buildMapSection(),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Scegli dalla mappa',
+                  style: theme.textTheme.titleLarge,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                _SectionCard(
+                  title: null,
+                  subtitle: null,
+                  child: _buildMapSection(),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             _SectionCard(
@@ -571,6 +583,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
 
+    _mapDraftSelection ??= _currentCommittedPlaceCandidate();
     _refreshMapPicker();
 
     await showModalBottomSheet<void>(
@@ -587,6 +600,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       },
     ).whenComplete(() {
       _mapPickerSheetContext = null;
+      if (mounted && _mapDraftSelection != null) {
+        setState(() => _mapDraftSelection = null);
+        _refreshMapPicker();
+      }
     });
   }
 
@@ -632,7 +649,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Apri la mappa in grande, spostati dove vuoi e tocca il locale per riempire il posto in automatico.',
+                'Apri la mappa in grande, spostati dove vuoi, tocca il locale giusto e conferma solo quando sei sicuro.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: AppTheme.brown.withValues(alpha: 0.72),
                   height: 1.35,
@@ -655,6 +672,15 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                         height: null,
                       ),
               ),
+              if (_mapDraftSelection != null) ...[
+                const SizedBox(height: 14),
+                _SelectedPlacePreviewCard(
+                  place: _mapDraftSelection!,
+                  onConfirm: _submitting || _loadingNearbyPlaces
+                      ? null
+                      : _confirmMapSelection,
+                ),
+              ],
               const SizedBox(height: 14),
               Row(
                 children: [
@@ -686,7 +712,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               if (_nearbyPlacesLoaded && _nearbyPlaces.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Text(
-                  'Tocca un marker per scegliere il locale e continuare.',
+                  'Tocca un marker per scegliere il locale, poi conferma con Offri qui.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: AppTheme.brown.withValues(alpha: 0.68),
                     fontWeight: FontWeight.w700,
@@ -869,27 +895,12 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     if (_submitting) {
       return;
     }
-    await _selectPlace(place);
-    if (!mounted) {
-      return;
-    }
-    final pickerContext = _mapPickerSheetContext;
-    if (pickerContext != null) {
-      Navigator.of(pickerContext).pop();
-      await _scrollToVenueSection();
-    }
+    await _previewPlaceSelection(place);
   }
 
-  Future<void> _selectPlace(PlaceCandidate place) async {
-    _localeController.text = place.name;
-    _addressController.text = place.address;
-    _phoneController.text = place.phoneNumber;
-
+  Future<void> _previewPlaceSelection(PlaceCandidate place) async {
     setState(() {
-      _selectedPlaceId = place.id;
-      _selectedLatitude = place.latitude;
-      _selectedLongitude = place.longitude;
-      _selectedPrimaryType = place.primaryType;
+      _mapDraftSelection = place;
       _currentMapCenter = LatLng(place.latitude, place.longitude);
     });
     _refreshMapPicker();
@@ -902,31 +913,33 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
     if (place.id.isNotEmpty &&
         (place.address.trim().isEmpty || place.phoneNumber.trim().isEmpty)) {
-      await _hydrateSelectedPlaceDetails(place);
+      await _hydrateDraftPlaceDetails(place);
     }
   }
 
-  Future<void> _hydrateSelectedPlaceDetails(PlaceCandidate place) async {
+  Future<void> _hydrateDraftPlaceDetails(PlaceCandidate place) async {
     try {
       final details =
           await widget.authController.apiClient.fetchPlaceDetails(place.id);
-      if (!mounted || _selectedPlaceId != place.id) {
+      if (!mounted || _mapDraftSelection?.id != place.id) {
         return;
       }
 
-      _localeController.text = details.name.isEmpty
-          ? _localeController.text
-          : details.name;
-      _addressController.text = details.address.isEmpty
-          ? _addressController.text
-          : details.address;
-      _phoneController.text = details.phoneNumber;
-
       setState(() {
-        _selectedPrimaryType = details.primaryType;
+        _mapDraftSelection = PlaceCandidate(
+          id: place.id,
+          name: details.name.isEmpty ? place.name : details.name,
+          address: details.address.isEmpty ? place.address : details.address,
+          latitude: details.latitude != 0 ? details.latitude : place.latitude,
+          longitude:
+              details.longitude != 0 ? details.longitude : place.longitude,
+          primaryType: details.primaryType.isEmpty
+              ? place.primaryType
+              : details.primaryType,
+          phoneNumber: details.phoneNumber,
+        );
         if (details.latitude != 0 && details.longitude != 0) {
-          _selectedLatitude = details.latitude;
-          _selectedLongitude = details.longitude;
+          _currentMapCenter = LatLng(details.latitude, details.longitude);
         }
       });
       _refreshMapPicker();
@@ -938,9 +951,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
   Future<void> _rebuildNearbyMarkers() async {
     final markers = <Marker>{};
+    final highlightedPlaceId = _mapDraftSelection?.id ?? _selectedPlaceId;
 
     for (final place in _nearbyPlaces) {
-      final selected = place.id == _selectedPlaceId;
+      final selected = place.id == highlightedPlaceId;
       final icon = await _markerIconFor(place, selected: selected);
       markers.add(
         Marker(
@@ -958,26 +972,15 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       );
     }
 
-    final hasSelectedMarkerInList = _selectedPlaceId != null &&
-        _nearbyPlaces.any((place) => place.id == _selectedPlaceId);
+    final fallbackPlace = _mapDraftSelection ?? _currentCommittedPlaceCandidate();
+    final hasSelectedMarkerInList = highlightedPlaceId != null &&
+        _nearbyPlaces.any((place) => place.id == highlightedPlaceId);
     if (!hasSelectedMarkerInList &&
-        _selectedLatitude != null &&
-        _selectedLongitude != null) {
-      final fallbackPlace = PlaceCandidate(
-        id: _selectedPlaceId ?? 'selected_offer_location',
-        name: _localeController.text.trim().isEmpty
-            ? 'Locale selezionato'
-            : _localeController.text.trim(),
-        address: _addressController.text.trim(),
-        latitude: _selectedLatitude!,
-        longitude: _selectedLongitude!,
-        primaryType: _selectedPrimaryType,
-        phoneNumber: _phoneController.text.trim(),
-      );
+        fallbackPlace != null) {
       markers.add(
         Marker(
           markerId: const MarkerId('selected_offer_location'),
-          position: LatLng(_selectedLatitude!, _selectedLongitude!),
+          position: LatLng(fallbackPlace.latitude, fallbackPlace.longitude),
           icon: await _markerIconFor(fallbackPlace, selected: true),
           anchor: const Offset(0.5, 1),
           infoWindow: InfoWindow(
@@ -995,6 +998,56 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     }
     setState(() => _nearbyMarkers = markers);
     _refreshMapPicker();
+  }
+
+  PlaceCandidate? _currentCommittedPlaceCandidate() {
+    if (_selectedLatitude == null || _selectedLongitude == null) {
+      return null;
+    }
+    return PlaceCandidate(
+      id: _selectedPlaceId ?? 'selected_offer_location',
+      name: _localeController.text.trim().isEmpty
+          ? 'Locale selezionato'
+          : _localeController.text.trim(),
+      address: _addressController.text.trim(),
+      latitude: _selectedLatitude!,
+      longitude: _selectedLongitude!,
+      primaryType: _selectedPrimaryType,
+      phoneNumber: _phoneController.text.trim(),
+    );
+  }
+
+  Future<void> _confirmMapSelection() async {
+    final place = _mapDraftSelection;
+    if (place == null) {
+      _showMessage('Scegli un locale dalla mappa prima di continuare.');
+      return;
+    }
+
+    _localeController.text = place.name;
+    _addressController.text = place.address;
+    _phoneController.text = place.phoneNumber;
+
+    setState(() {
+      _selectedPlaceId = place.id;
+      _selectedLatitude = place.latitude;
+      _selectedLongitude = place.longitude;
+      _selectedPrimaryType = place.primaryType;
+      _currentMapCenter = LatLng(place.latitude, place.longitude);
+      _mapDraftSelection = null;
+    });
+    _refreshMapPicker();
+
+    await _rebuildNearbyMarkers();
+    if (!mounted) {
+      return;
+    }
+
+    final pickerContext = _mapPickerSheetContext;
+    if (pickerContext != null) {
+      Navigator.of(pickerContext).pop();
+    }
+    await _scrollToVenueSection();
   }
 
   Future<BitmapDescriptor> _markerIconFor(
@@ -1447,25 +1500,74 @@ class _CollapsedMapLauncher extends StatelessWidget {
         border: Border.all(color: AppTheme.cardBorder),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const Icon(
-              Icons.map_outlined,
-              color: AppTheme.orange,
-              size: 26,
+          FilledButton(
+            onPressed: onTap,
+            child: const Text('Apri mappa'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SelectedPlacePreviewCard extends StatelessWidget {
+  const _SelectedPlacePreviewCard({
+    required this.place,
+    required this.onConfirm,
+  });
+
+  final PlaceCandidate place;
+  final VoidCallback? onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            place.name,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const Spacer(),
-          FilledButton.icon(
-            onPressed: onTap,
-            icon: const Icon(Icons.open_in_full_rounded),
-            label: const Text('Apri mappa'),
+          if (place.address.trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              place.address,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppTheme.brown.withValues(alpha: 0.74),
+                height: 1.35,
+              ),
+            ),
+          ],
+          if (place.phoneNumber.trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              place.phoneNumber,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppTheme.brown.withValues(alpha: 0.74),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              onPressed: onConfirm,
+              child: const Text('Offri qui'),
+            ),
           ),
         ],
       ),
