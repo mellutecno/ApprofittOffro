@@ -16,12 +16,14 @@ class OffersController extends ChangeNotifier {
   String _selectedMealType = '';
   int? _selectedRadiusKm = defaultNearbyRadiusKm;
   List<Offer> _offers = const [];
+  int _hiddenOwnOffersCount = 0;
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String get selectedMealType => _selectedMealType;
   int? get selectedRadiusKm => _selectedRadiusKm;
   List<Offer> get offers => _offers;
+  int get hiddenOwnOffersCount => _hiddenOwnOffersCount;
 
   Future<void> loadOffers() async {
     _isLoading = true;
@@ -29,14 +31,19 @@ class OffersController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _offers = await apiClient.fetchOffers(
+      final fetchedOffers = await apiClient.fetchOffers(
         mealType: _selectedMealType,
         radiusKm: _selectedRadiusKm,
       );
+      _hiddenOwnOffersCount =
+          fetchedOffers.where((offer) => offer.isOwn).length;
+      _offers = fetchedOffers.where((offer) => !offer.isOwn).toList();
     } on ApiException catch (e) {
       _errorMessage = e.message;
+      _hiddenOwnOffersCount = 0;
     } catch (_) {
       _errorMessage = 'Non riesco a caricare le offerte adesso.';
+      _hiddenOwnOffersCount = 0;
     } finally {
       _isLoading = false;
       notifyListeners();

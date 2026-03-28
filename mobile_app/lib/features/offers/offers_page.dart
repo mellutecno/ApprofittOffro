@@ -6,7 +6,6 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_hero_card.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../auth/auth_controller.dart';
-import '../create_offer/create_offer_page.dart';
 import 'offer_card.dart';
 import 'offers_controller.dart';
 
@@ -70,8 +69,8 @@ class OffersPage extends StatelessWidget {
                               child: _MealChip(
                                 label: 'Pranzi',
                                 value: 'pranzo',
-                                selected:
-                                    offersController.selectedMealType == 'pranzo',
+                                selected: offersController.selectedMealType ==
+                                    'pranzo',
                                 onTap: offersController.toggleMealType,
                               ),
                             ),
@@ -126,6 +125,51 @@ class OffersPage extends StatelessWidget {
                   ),
                 ),
               ),
+              if (offersController.hiddenOwnOffersCount > 0)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.peach.withValues(alpha: 0.28),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: AppTheme.orange.withValues(alpha: 0.14),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(top: 1),
+                            child: Icon(
+                              Icons.manage_accounts_rounded,
+                              color: AppTheme.espresso,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              offersController.hiddenOwnOffersCount == 1
+                                  ? 'Il tuo evento lo gestisci da Su di me. Qui ti mostro solo gli eventi degli altri.'
+                                  : 'I tuoi ${offersController.hiddenOwnOffersCount} eventi li gestisci da Su di me. Qui ti mostro solo gli eventi degli altri.',
+                              style: const TextStyle(
+                                color: AppTheme.espresso,
+                                fontWeight: FontWeight.w600,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
@@ -177,31 +221,8 @@ class OffersPage extends StatelessWidget {
                     return OfferCard(
                       offer: offer,
                       apiClient: authController.apiClient,
-                      allowProfileOpen: !offer.isOwn,
-                      onEditOwn: offer.isOwn
-                          ? () async {
-                              final result = await Navigator.of(context)
-                                  .push<CreateOfferPageResult>(
-                                MaterialPageRoute<CreateOfferPageResult>(
-                                  builder: (_) => CreateOfferPage(
-                                    authController: authController,
-                                    initialOffer: offer,
-                                    onOfferCreated: () async {
-                                      await offersController.loadOffers();
-                                      await authController.refreshCurrentUser();
-                                    },
-                                  ),
-                                ),
-                              );
-                              if (result?.changed == true) {
-                                await Future<void>.delayed(
-                                  const Duration(milliseconds: 30),
-                                );
-                                await offersController.loadOffers();
-                                await authController.refreshCurrentUser();
-                              }
-                            }
-                          : null,
+                      allowProfileOpen: true,
+                      onEditOwn: null,
                       onClaim: offer.isOwn || !offer.canClaim
                           ? null
                           : () async {
