@@ -156,8 +156,8 @@ class OffersPage extends StatelessWidget {
                           Expanded(
                             child: Text(
                               offersController.hiddenOwnOffersCount == 1
-                                  ? 'Il tuo evento lo gestisci da Su di me. Qui ti mostro solo gli eventi degli altri.'
-                                  : 'I tuoi ${offersController.hiddenOwnOffersCount} eventi li gestisci da Su di me. Qui ti mostro solo gli eventi degli altri.',
+                                  ? 'Stai offrendo 1 evento: per gestirlo vai sul tuo profilo.'
+                                  : 'Stai offrendo ${offersController.hiddenOwnOffersCount} eventi: per gestirli vai sul tuo profilo.',
                               style: const TextStyle(
                                 color: AppTheme.espresso,
                                 fontWeight: FontWeight.w600,
