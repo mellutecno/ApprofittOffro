@@ -26,8 +26,6 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   late Future<List<Offer>> _myOffersFuture;
-  double? _distancePreferenceDraft;
-  bool _isSavingDistance = false;
 
   @override
   void initState() {
@@ -48,8 +46,6 @@ class _ProfilePageState extends State<ProfilePage> {
     if (mounted) {
       setState(() {
         _myOffersFuture = future;
-        _distancePreferenceDraft =
-            widget.authController.currentUser?.actionRadiusKm.toDouble();
       });
     }
     await future;
@@ -81,70 +77,6 @@ class _ProfilePageState extends State<ProfilePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error.toString())),
       );
-    }
-  }
-
-  Future<void> _saveDistancePreference() async {
-    final user = widget.authController.currentUser;
-    if (user == null) {
-      return;
-    }
-
-    final selectedKm = (_distancePreferenceDraft ?? user.actionRadiusKm.toDouble())
-        .round()
-        .clamp(1, 200);
-    if (selectedKm == user.actionRadiusKm) {
-      return;
-    }
-
-    setState(() => _isSavingDistance = true);
-    try {
-      await widget.authController.apiClient.updateProfile(
-        nome: user.nome,
-        email: user.email,
-        eta: user.etaDisplay,
-        gender: user.gender,
-        actionRadiusKm: selectedKm,
-        numeroTelefono: user.phoneNumber,
-        citta: user.city,
-        latitude: user.latitude?.toString() ?? '',
-        longitude: user.longitude?.toString() ?? '',
-        preferredFoods: user.preferredFoods,
-        intolerances: user.intolerances,
-        bio: user.bio,
-        existingGalleryFilenames: user.galleryFilenames,
-      );
-      await _refreshAll();
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Da ora vedrai eventi entro $selectedKm km.'),
-        ),
-      );
-    } on ApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Non riesco ad aggiornare la preferenza distanza adesso.',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isSavingDistance = false);
-      }
     }
   }
 
@@ -378,9 +310,6 @@ class _ProfilePageState extends State<ProfilePage> {
           );
         }
 
-        final distanceDraft =
-            _distancePreferenceDraft ?? user.actionRadiusKm.toDouble();
-
         return Scaffold(
           appBar: AppBar(
             title: const BrandWordmark(height: 24, alignment: Alignment.center),
@@ -487,21 +416,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 20),
-                Text(
-                  'Preferenze distanza',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 10),
-                _DistancePreferenceCard(
-                  valueKm: distanceDraft.round(),
-                  isSaving: _isSavingDistance,
-                  onChanged: (value) {
-                    setState(() => _distancePreferenceDraft = value);
-                  },
-                  onSave: _saveDistancePreference,
-                  isDirty: distanceDraft.round() != user.actionRadiusKm,
-                ),
                 if (user.pendingClaimRequests.isNotEmpty) ...[
                   const SizedBox(height: 20),
                   Text(
@@ -721,115 +635,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         );
       },
-    );
-  }
-}
-
-class _DistancePreferenceCard extends StatelessWidget {
-  const _DistancePreferenceCard({
-    required this.valueKm,
-    required this.isSaving,
-    required this.onChanged,
-    required this.onSave,
-    required this.isDirty,
-  });
-
-  final int valueKm;
-  final bool isSaving;
-  final ValueChanged<double> onChanged;
-  final Future<void> Function() onSave;
-  final bool isDirty;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.radar_rounded, color: AppTheme.orange),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Stai vedendo eventi entro $valueKm km da te.',
-                    style: const TextStyle(
-                      color: AppTheme.espresso,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Sposta il cursore per scegliere quanto vuoi allargare o restringere il tuo raggio d\'azione.',
-              style: TextStyle(
-                color: AppTheme.brown.withValues(alpha: 0.84),
-                height: 1.35,
-              ),
-            ),
-            const SizedBox(height: 14),
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                activeTrackColor: AppTheme.orange,
-                inactiveTrackColor: AppTheme.cardBorder,
-                thumbColor: AppTheme.orange,
-                overlayColor: AppTheme.orange.withValues(alpha: 0.14),
-                valueIndicatorColor: AppTheme.orange,
-                valueIndicatorTextStyle: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              child: Slider(
-                min: 5,
-                max: 100,
-                divisions: 19,
-                value: valueKm.clamp(5, 100).toDouble(),
-                label: '$valueKm km',
-                onChanged: isSaving ? null : onChanged,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Text(
-                  '5 km',
-                  style: TextStyle(
-                    color: AppTheme.brown.withValues(alpha: 0.72),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '100 km',
-                  style: TextStyle(
-                    color: AppTheme.brown.withValues(alpha: 0.72),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: isSaving || !isDirty ? null : onSave,
-                child: Text(
-                  isSaving
-                      ? 'Salvataggio...'
-                      : (isDirty
-                          ? 'Salva preferenza distanza'
-                          : 'Preferenza aggiornata'),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

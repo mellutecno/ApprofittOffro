@@ -12,7 +12,7 @@ import '../auth/auth_controller.dart';
 import 'offer_card.dart';
 import 'offers_controller.dart';
 
-class OffersPage extends StatelessWidget {
+class OffersPage extends StatefulWidget {
   const OffersPage({
     super.key,
     required this.authController,
@@ -21,6 +21,14 @@ class OffersPage extends StatelessWidget {
 
   final AuthController authController;
   final OffersController offersController;
+
+  @override
+  State<OffersPage> createState() => _OffersPageState();
+}
+
+class _OffersPageState extends State<OffersPage> {
+  double? _distancePreferenceDraft;
+  bool _isSavingDistance = false;
 
   Future<void> _openOfferDetails(
     BuildContext context,
@@ -72,7 +80,7 @@ class OffersPage extends StatelessWidget {
                     const SizedBox(height: 14),
                     OfferCard(
                       offer: offer,
-                      apiClient: authController.apiClient,
+                      apiClient: widget.authController.apiClient,
                       allowProfileOpen: true,
                       onEditOwn: null,
                       onClaim: offer.isOwn || !offer.canClaim
@@ -81,7 +89,9 @@ class OffersPage extends StatelessWidget {
                               final navigator = Navigator.of(sheetContext);
                               final messenger = ScaffoldMessenger.of(context);
                               final message =
-                                  await offersController.claimOffer(offer);
+                                  await widget.offersController.claimOffer(
+                                offer,
+                              );
                               if (!context.mounted || message == null) {
                                 return;
                               }
@@ -101,16 +111,88 @@ class OffersPage extends StatelessWidget {
     );
   }
 
+  Future<void> _saveDistancePreference() async {
+    final user = widget.authController.currentUser;
+    if (user == null) {
+      return;
+    }
+
+    final selectedKm =
+        (_distancePreferenceDraft ?? user.actionRadiusKm.toDouble())
+            .round()
+            .clamp(5, 100);
+    if (selectedKm == user.actionRadiusKm) {
+      return;
+    }
+
+    setState(() => _isSavingDistance = true);
+    try {
+      await widget.authController.apiClient.updateProfile(
+        nome: user.nome,
+        email: user.email,
+        eta: user.etaDisplay,
+        gender: user.gender,
+        actionRadiusKm: selectedKm,
+        numeroTelefono: user.phoneNumber,
+        citta: user.city,
+        latitude: user.latitude?.toString() ?? '',
+        longitude: user.longitude?.toString() ?? '',
+        preferredFoods: user.preferredFoods,
+        intolerances: user.intolerances,
+        bio: user.bio,
+        existingGalleryFilenames: user.galleryFilenames,
+      );
+      await widget.authController.refreshCurrentUser();
+      await widget.offersController.loadOffers();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _distancePreferenceDraft = selectedKm.toDouble());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Da ora vedrai eventi entro $selectedKm km.'),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Non riesco ad aggiornare la distanza adesso.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSavingDistance = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([authController, offersController]),
+      animation: Listenable.merge([
+        widget.authController,
+        widget.offersController,
+      ]),
       builder: (context, _) {
         final currentActionRadius =
-            authController.currentUser?.actionRadiusKm ?? 15;
+            widget.authController.currentUser?.actionRadiusKm ?? 15;
+        final distanceDraft =
+            _distancePreferenceDraft ?? currentActionRadius.toDouble();
 
         return RefreshIndicator(
-          onRefresh: offersController.loadOffers,
+          onRefresh: widget.offersController.loadOffers,
           child: CustomScrollView(
             slivers: [
               SliverAppBar(
@@ -122,7 +204,9 @@ class OffersPage extends StatelessWidget {
                 actions: [
                   IconButton(
                     onPressed:
-                        authController.isBusy ? null : authController.logout,
+                        widget.authController.isBusy
+                            ? null
+                            : widget.authController.logout,
                     icon: const Icon(Icons.logout),
                     tooltip: 'Esci',
                   ),
@@ -135,7 +219,7 @@ class OffersPage extends StatelessWidget {
                     eyebrow: 'APPROFITTA',
                     title: 'Eventi aperti della community',
                     subtitle:
-                        'Scopri gli eventi nel raggio che hai impostato nel tuo profilo.',
+                        'Stai vedendo gli eventi vicini a te: regola qui la distanza che preferisci.',
                     centered: true,
                     footer: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -146,9 +230,10 @@ class OffersPage extends StatelessWidget {
                               child: _MealChip(
                                 label: 'Colazioni',
                                 value: 'colazione',
-                                selected: offersController.selectedMealType ==
+                                selected:
+                                    widget.offersController.selectedMealType ==
                                     'colazione',
-                                onTap: offersController.toggleMealType,
+                                onTap: widget.offersController.toggleMealType,
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -156,9 +241,10 @@ class OffersPage extends StatelessWidget {
                               child: _MealChip(
                                 label: 'Pranzi',
                                 value: 'pranzo',
-                                selected: offersController.selectedMealType ==
+                                selected:
+                                    widget.offersController.selectedMealType ==
                                     'pranzo',
-                                onTap: offersController.toggleMealType,
+                                onTap: widget.offersController.toggleMealType,
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -166,21 +252,31 @@ class OffersPage extends StatelessWidget {
                               child: _MealChip(
                                 label: 'Cene',
                                 value: 'cena',
-                                selected:
-                                    offersController.selectedMealType == 'cena',
-                                onTap: offersController.toggleMealType,
+                                selected: widget
+                                        .offersController.selectedMealType ==
+                                    'cena',
+                                onTap: widget.offersController.toggleMealType,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 10),
-                        _DistancePreferenceNotice(radiusKm: currentActionRadius),
+                        _DistancePreferenceControl(
+                          valueKm: distanceDraft.round(),
+                          isSaving: _isSavingDistance,
+                          onChanged: (value) {
+                            setState(() => _distancePreferenceDraft = value);
+                          },
+                          onSave: _saveDistancePreference,
+                          isDirty:
+                              distanceDraft.round() != currentActionRadius,
+                        ),
                       ],
                     ),
                   ),
                 ),
               ),
-              if (offersController.hiddenOwnOffersCount > 0)
+              if (widget.offersController.hiddenOwnOffersCount > 0)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
@@ -210,9 +306,9 @@ class OffersPage extends StatelessWidget {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              offersController.hiddenOwnOffersCount == 1
+                              widget.offersController.hiddenOwnOffersCount == 1
                                   ? 'Stai offrendo 1 evento: per gestirlo vai sul tuo profilo.'
-                                  : 'Stai offrendo ${offersController.hiddenOwnOffersCount} eventi: per gestirli vai sul tuo profilo.',
+                                  : 'Stai offrendo ${widget.offersController.hiddenOwnOffersCount} eventi: per gestirli vai sul tuo profilo.',
                               style: const TextStyle(
                                 color: AppTheme.espresso,
                                 fontWeight: FontWeight.w600,
@@ -239,25 +335,25 @@ class OffersPage extends StatelessWidget {
                   ),
                 ),
               ),
-              if (offersController.isLoading)
+              if (widget.offersController.isLoading)
                 const SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(child: CircularProgressIndicator()),
                 )
-              else if (offersController.errorMessage != null)
+              else if (widget.offersController.errorMessage != null)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
                       child: Text(
-                        offersController.errorMessage!,
+                        widget.offersController.errorMessage!,
                         textAlign: TextAlign.center,
                       ),
                     ),
                   ),
                 )
-              else if (offersController.offers.isEmpty)
+              else if (widget.offersController.offers.isEmpty)
                 const SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(
@@ -272,12 +368,12 @@ class OffersPage extends StatelessWidget {
                 )
               else
                 SliverList.builder(
-                  itemCount: offersController.offers.length,
+                  itemCount: widget.offersController.offers.length,
                   itemBuilder: (context, index) {
-                    final offer = offersController.offers[index];
+                    final offer = widget.offersController.offers[index];
                     return _OfferPreviewCard(
                       offer: offer,
-                      apiClient: authController.apiClient,
+                      apiClient: widget.authController.apiClient,
                       onOpen: () => _openOfferDetails(context, offer),
                     );
                   },
@@ -616,27 +712,33 @@ class _MealChip extends StatelessWidget {
   }
 }
 
-class _DistancePreferenceNotice extends StatelessWidget {
-  const _DistancePreferenceNotice({
-    required this.radiusKm,
+class _DistancePreferenceControl extends StatelessWidget {
+  const _DistancePreferenceControl({
+    required this.valueKm,
+    required this.isSaving,
+    required this.onChanged,
+    required this.onSave,
+    required this.isDirty,
   });
 
-  final int radiusKm;
+  final int valueKm;
+  final bool isSaving;
+  final ValueChanged<double> onChanged;
+  final Future<void> Function() onSave;
+  final bool isDirty;
 
   @override
   Widget build(BuildContext context) {
-    final progress = ((radiusKm - 1) / 199).clamp(0.0, 1.0);
-
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.74),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: AppTheme.cardBorder),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
@@ -647,7 +749,7 @@ class _DistancePreferenceNotice extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                'Raggio attivo: $radiusKm km',
+                'Stai vedendo eventi entro $valueKm km',
                 style: const TextStyle(
                   color: AppTheme.espresso,
                   fontWeight: FontWeight.w800,
@@ -655,23 +757,63 @@ class _DistancePreferenceNotice extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: AppTheme.mist,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.orange),
-            ),
-          ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
-            'Vuoi cambiarlo? Vai su Su di me e aggiorna le tue preferenze di distanza.',
+            'Sposta la barra per allargare o restringere il tuo raggio d’azione.',
             style: TextStyle(
               color: AppTheme.brown.withValues(alpha: 0.82),
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: AppTheme.orange,
+              inactiveTrackColor: AppTheme.cardBorder,
+              thumbColor: AppTheme.orange,
+              overlayColor: AppTheme.orange.withValues(alpha: 0.14),
+              valueIndicatorColor: AppTheme.orange,
+              valueIndicatorTextStyle: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            child: Slider(
+              min: 5,
+              max: 100,
+              divisions: 19,
+              value: valueKm.clamp(5, 100).toDouble(),
+              label: '$valueKm km',
+              onChanged: isSaving ? null : onChanged,
+            ),
+          ),
+          Row(
+            children: [
+              Text(
+                '5 km',
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.72),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '100 km',
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.72),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          FilledButton(
+            onPressed: isSaving || !isDirty ? null : onSave,
+            child: Text(
+              isSaving
+                  ? 'Salvataggio...'
+                  : (isDirty ? 'Salva distanza' : 'Distanza aggiornata'),
             ),
           ),
         ],
