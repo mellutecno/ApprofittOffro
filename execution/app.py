@@ -840,20 +840,47 @@ def send_registration_verification_email(user, link_verifica):
     )
 
 
-def notify_admin_for_verified_user(user):
+def notify_admin_for_verified_user(user, source="email"):
     """Avvisa l'amministratore quando un utente risulta verificato."""
     admin_email = os.getenv("ADMIN_EMAIL")
     if not admin_email:
         print("[MAIL_SKIP] ADMIN_EMAIL non configurata, notifica admin saltata.")
         return False
 
-    return send_email(
+    source_label = "Google" if source == "google" else "Email"
+    created_at = getattr(user, "created_at", None)
+    created_at_text = (
+        created_at.strftime("%d/%m/%Y %H:%M")
+        if created_at is not None
+        else datetime.now().strftime("%d/%m/%Y %H:%M")
+    )
+    html_body = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background:#F2EEEC; padding:24px; color:#2B2D42;">
+        <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:18px;padding:32px;border:1px solid #E5E0DC;">
+          <h1 style="margin-top:0;">Nuovo utente verificato</h1>
+          <p>Un nuovo utente si è registrato ed è già verificato su <b>ApprofittOffro</b>.</p>
+          <div style="background:#F8F5F2;border:1px solid #E5E0DC;border-radius:14px;padding:16px;">
+            <p><b>Nome:</b> {escape(user.nome or '')}</p>
+            <p><b>Email:</b> {escape(user.email or '')}</p>
+            <p><b>Metodo:</b> {escape(source_label)}</p>
+            <p><b>Registrato il:</b> {escape(created_at_text)}</p>
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+    sent = send_email_html(
         subject=f"Nuovo Utente Verificato: {user.nome}",
         recipients=[admin_email],
-        template="new_user_notification.html",
+        html_body=html_body,
         background=False,
-        user=user,
     )
+    print(
+        f"[ADMIN_VERIFY_MAIL] user={getattr(user, 'id', None)} email={getattr(user, 'email', '')} "
+        f"source={source_label} sent={sent}"
+    )
+    return sent
 
 def process_image(file_storage, filename, size=(800, 800), return_payload=False):
     """Ruota (EXIF), ridimensiona e salva un'immagine sul backend attivo."""
@@ -1158,9 +1185,7 @@ def resolve_google_user(identity_payload):
         user.verificato = True
         user.verification_token = None
         db.session.commit()
-        if should_notify_admin:
-            notify_admin_for_verified_user(user)
-        return user, False
+        return user, False, should_notify_admin
 
     user = User.query.filter_by(email=email).first()
     if user:
@@ -1175,9 +1200,7 @@ def resolve_google_user(identity_payload):
         user.verificato = True
         user.verification_token = None
         db.session.commit()
-        if should_notify_admin:
-            notify_admin_for_verified_user(user)
-        return user, False
+        return user, False, should_notify_admin
 
     photo_filename = (
         download_google_profile_photo(picture_url, google_sub[:10])
@@ -1209,8 +1232,7 @@ def resolve_google_user(identity_payload):
     db.session.flush()
     replace_user_gallery(user, [photo_filename])
     db.session.commit()
-    notify_admin_for_verified_user(user)
-    return user, True
+    return user, True, True
 
 
 def get_followed_user_ids(user_id):
@@ -2905,7 +2927,7 @@ def api_google_login():
 
     try:
         identity_payload = verify_google_identity_token(raw_token)
-        user, created = resolve_google_user(identity_payload)
+        user, created, admin_notification_required = resolve_google_user(identity_payload)
     except ValueError as exc:
         return jsonify({"success": False, "errors": [str(exc)]}), 400
     except Exception as exc:
@@ -2920,6 +2942,8 @@ def api_google_login():
     now_ts = int(datetime.now(timezone.utc).timestamp())
     session["last_activity_at"] = now_ts
     session["login_at"] = now_ts
+    if admin_notification_required:
+        notify_admin_for_verified_user(user, source="google")
 
     return jsonify({
         "success": True,
