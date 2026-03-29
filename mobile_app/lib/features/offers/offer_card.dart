@@ -323,7 +323,13 @@ class OfferCard extends StatelessWidget {
               const SizedBox(height: 14),
               Text(
                 offer.descrizione,
-                style: const TextStyle(height: 1.4),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  height: 1.45,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.espresso,
+                ),
               ),
             ],
             const SizedBox(height: 18),
