@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
@@ -338,6 +339,8 @@ class _OfferPreviewCard extends StatelessWidget {
         : null;
     final occupiedSeats = (offer.postiTotali - offer.postiDisponibili)
         .clamp(0, offer.postiTotali);
+    final canAddToCalendar =
+        offer.alreadyClaimed || offer.claimStatus == 'claimed';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
@@ -406,10 +409,22 @@ class _OfferPreviewCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: _CompactInfoChip(
-                    label: _formatWhenLabel(context, offer.dataOra),
-                    backgroundColor: AppTheme.mist,
-                    foregroundColor: AppTheme.brown,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _CompactInfoChip(
+                          label: _formatWhenLabel(context, offer.dataOra),
+                          backgroundColor: AppTheme.mist,
+                          foregroundColor: AppTheme.brown,
+                        ),
+                      ),
+                      if (canAddToCalendar) ...[
+                        const SizedBox(width: 6),
+                        _CompactCalendarButton(
+                          onTap: _openCalendar,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],
@@ -467,6 +482,50 @@ class _OfferPreviewCard extends StatelessWidget {
         '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}';
     return '$dateLabel - $time';
   }
+
+  Future<void> _openCalendar() async {
+    final uri = Uri.tryParse(_googleCalendarUrl());
+    if (uri == null) {
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  String _googleCalendarUrl() {
+    final startDate = offer.dataOra.toUtc();
+    final endDate = startDate.add(const Duration(hours: 2));
+    final summary =
+        '${offer.tipoPasto.toUpperCase()} presso ${offer.nomeLocale}';
+    final description =
+        'Condividi un pasto con ${offer.autoreNome}. Per favore arriva puntuale.';
+    final location =
+        offer.indirizzo.isNotEmpty ? offer.indirizzo : offer.nomeLocale;
+    final dates =
+        '${_formatCalendarTimestamp(startDate)}/${_formatCalendarTimestamp(endDate)}';
+
+    final uri = Uri.https(
+      'calendar.google.com',
+      '/calendar/render',
+      {
+        'action': 'TEMPLATE',
+        'text': summary,
+        'dates': dates,
+        'details': description,
+        'location': location,
+      },
+    );
+    return uri.toString();
+  }
+
+  String _formatCalendarTimestamp(DateTime value) {
+    return value
+            .toIso8601String()
+            .replaceAll('-', '')
+            .replaceAll(':', '')
+            .split('.')
+            .first +
+        'Z';
+  }
 }
 
 class _CompactInfoChip extends StatelessWidget {
@@ -497,6 +556,39 @@ class _CompactInfoChip extends StatelessWidget {
           color: foregroundColor,
           fontWeight: FontWeight.w800,
           fontSize: 12.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactCalendarButton extends StatelessWidget {
+  const _CompactCalendarButton({
+    required this.onTap,
+  });
+
+  final Future<void> Function() onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Ink(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppTheme.peach.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppTheme.cardBorder),
+          ),
+          child: const Icon(
+            Icons.event_available_rounded,
+            color: AppTheme.orange,
+            size: 18,
+          ),
         ),
       ),
     );
