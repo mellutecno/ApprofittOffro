@@ -62,6 +62,7 @@ class User(UserMixin, db.Model):
     verificato = db.Column(db.Boolean, default=False)
     verification_token = db.Column(db.String(100), unique=True, nullable=True)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    admin_verified_notified_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     # Relazioni

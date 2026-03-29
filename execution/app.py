@@ -584,6 +584,7 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("verificato", "ALTER TABLE users ADD COLUMN verificato INTEGER DEFAULT 0"),
                 ("verification_token", "ALTER TABLE users ADD COLUMN verification_token VARCHAR(100)"),
                 ("is_admin", "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"),
+                ("admin_verified_notified_at", "ALTER TABLE users ADD COLUMN admin_verified_notified_at DATETIME"),
             ],
             "offers": [
                 ("foto_locale", "ALTER TABLE offers ADD COLUMN foto_locale VARCHAR(256)"),
@@ -639,6 +640,9 @@ def ensure_database_schema_compatibility():
         with db.engine.begin() as conn:
             conn.exec_driver_sql(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub VARCHAR(255)"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_verified_notified_at DATETIME"
             )
             conn.exec_driver_sql(
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)"
@@ -846,6 +850,12 @@ def notify_admin_for_verified_user(user, source="email"):
     if not admin_email:
         print("[MAIL_SKIP] ADMIN_EMAIL non configurata, notifica admin saltata.")
         return False
+    if getattr(user, "admin_verified_notified_at", None):
+        print(
+            f"[ADMIN_VERIFY_MAIL] user={getattr(user, 'id', None)} "
+            f"email={getattr(user, 'email', '')} source={source} sent=False already_notified=True"
+        )
+        return False
 
     source_label = "Google" if source == "google" else "Email"
     created_at = getattr(user, "created_at", None)
@@ -876,6 +886,9 @@ def notify_admin_for_verified_user(user, source="email"):
         html_body=html_body,
         background=False,
     )
+    if sent:
+        user.admin_verified_notified_at = datetime.now()
+        db.session.commit()
     print(
         f"[ADMIN_VERIFY_MAIL] user={getattr(user, 'id', None)} email={getattr(user, 'email', '')} "
         f"source={source_label} sent={sent}"
@@ -1181,7 +1194,7 @@ def resolve_google_user(identity_payload):
             user.email = email
         if not user.nome:
             user.nome = display_name
-        should_notify_admin = not bool(user.verificato)
+        should_notify_admin = user.admin_verified_notified_at is None
         user.verificato = True
         user.verification_token = None
         db.session.commit()
@@ -1196,7 +1209,7 @@ def resolve_google_user(identity_payload):
         user.google_sub = google_sub
         if not user.nome:
             user.nome = display_name
-        should_notify_admin = not bool(user.verificato)
+        should_notify_admin = user.admin_verified_notified_at is None
         user.verificato = True
         user.verification_token = None
         db.session.commit()
