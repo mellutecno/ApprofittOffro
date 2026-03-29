@@ -343,7 +343,7 @@ class _OffersPageState extends State<OffersPage> {
                           const SizedBox(width: 10),
                           Expanded(
                               child: Text(
-                              'Se vedi questo banner hai delle offerte!!! Gestiscile del tuo profilo.',
+                                  'Vai nel tuo profilo per gestire le tue offerte!!!',
                               style: const TextStyle(
                                 color: AppTheme.espresso,
                                 fontWeight: FontWeight.w600,
