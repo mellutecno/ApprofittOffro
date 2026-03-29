@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -27,19 +27,22 @@ class OffersPage extends StatefulWidget {
 }
 
 class _OffersPageState extends State<OffersPage> {
+  static const int _minDistanceKm = 5;
+  static const int _maxDistanceKm = 500;
+
   double? _distancePreferenceDraft;
   bool _isSavingDistance = false;
   bool _isDistanceCardExpanded = false;
 
   int _normalizeDistanceForUi(int rawValue) {
     if (rawValue >= 999) {
-      return 100;
+      return _maxDistanceKm;
     }
-    return rawValue.clamp(5, 100);
+    return rawValue.clamp(_minDistanceKm, _maxDistanceKm);
   }
 
-  String _distanceLabel(int valueKm) {
-    return valueKm >= 100 ? '∞' : '$valueKm km';
+  String _distanceLabelText(int valueKm) {
+    return '$valueKm km';
   }
 
   Future<void> _openOfferDetails(
@@ -130,9 +133,10 @@ class _OffersPageState extends State<OffersPage> {
     }
 
     final selectedKm =
-        (_distancePreferenceDraft ?? user.actionRadiusKm.toDouble())
+        (_distancePreferenceDraft ??
+                _normalizeDistanceForUi(user.actionRadiusKm).toDouble())
             .round()
-            .clamp(5, 100);
+            .clamp(_minDistanceKm, _maxDistanceKm);
     final currentKm = _normalizeDistanceForUi(user.actionRadiusKm);
     if (selectedKm == currentKm) {
       return;
@@ -145,7 +149,7 @@ class _OffersPageState extends State<OffersPage> {
         email: user.email,
         eta: user.etaDisplay,
         gender: user.gender,
-        actionRadiusKm: selectedKm >= 100 ? 999 : selectedKm,
+        actionRadiusKm: selectedKm,
         numeroTelefono: user.phoneNumber,
         citta: user.city,
         latitude: user.latitude?.toString() ?? '',
@@ -160,14 +164,12 @@ class _OffersPageState extends State<OffersPage> {
       if (!mounted) {
         return;
       }
-      setState(() => _distancePreferenceDraft = selectedKm.toDouble());
+      setState(() {
+        _distancePreferenceDraft = selectedKm.toDouble();
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            selectedKm >= 100
-                ? 'Da ora vedrai tutti gli eventi.'
-                : 'Da ora vedrai eventi entro $selectedKm km.',
-          ),
+          content: Text('Da ora vedrai eventi entro $selectedKm km.'),
         ),
       );
     } on ApiException catch (error) {
@@ -203,9 +205,9 @@ class _OffersPageState extends State<OffersPage> {
         widget.offersController,
       ]),
       builder: (context, _) {
-        final currentActionRadius = _normalizeDistanceForUi(
-          widget.authController.currentUser?.actionRadiusKm ?? 15,
-        );
+        final rawActionRadius =
+            widget.authController.currentUser?.actionRadiusKm ?? 15;
+        final currentActionRadius = _normalizeDistanceForUi(rawActionRadius);
         final distanceDraft =
             _distancePreferenceDraft ?? currentActionRadius.toDouble();
 
@@ -285,8 +287,10 @@ class _OffersPageState extends State<OffersPage> {
                           ),
                           isSaving: _isSavingDistance,
                           isExpanded: _isDistanceCardExpanded,
-                          distanceLabel: _distanceLabel(
-                            _normalizeDistanceForUi(distanceDraft.round()),
+                          distanceLabel: _distanceLabelText(
+                            _normalizeDistanceForUi(
+                              distanceDraft.round(),
+                            ),
                           ),
                           onChanged: (value) {
                             setState(() => _distancePreferenceDraft = value);
@@ -299,7 +303,9 @@ class _OffersPageState extends State<OffersPage> {
                           },
                           onSave: _saveDistancePreference,
                           isDirty:
-                              _normalizeDistanceForUi(distanceDraft.round()) !=
+                              _normalizeDistanceForUi(
+                                distanceDraft.round(),
+                              ) !=
                               currentActionRadius,
                         ),
                       ],
@@ -822,18 +828,26 @@ class _DistancePreferenceControl extends StatelessWidget {
                 ),
               ),
               child: Slider(
-                min: 5,
-                max: 100,
-                divisions: 19,
-                value: valueKm.clamp(5, 100).toDouble(),
-                label: distanceLabel,
+                min: _OffersPageState._minDistanceKm.toDouble(),
+                max: _OffersPageState._maxDistanceKm.toDouble(),
+                divisions:
+                    ((_OffersPageState._maxDistanceKm -
+                                _OffersPageState._minDistanceKm) ~/
+                            5),
+                value: valueKm
+                    .clamp(
+                      _OffersPageState._minDistanceKm,
+                      _OffersPageState._maxDistanceKm,
+                    )
+                    .toDouble(),
+                label: '$valueKm km',
                 onChanged: isSaving ? null : onChanged,
               ),
             ),
             Row(
               children: [
                 Text(
-                  '5 km',
+                  '${_OffersPageState._minDistanceKm} km',
                   style: TextStyle(
                     color: AppTheme.brown.withValues(alpha: 0.72),
                     fontWeight: FontWeight.w700,
@@ -841,11 +855,10 @@ class _DistancePreferenceControl extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  '∞',
+                  '${_OffersPageState._maxDistanceKm} km',
                   style: TextStyle(
                     color: AppTheme.brown.withValues(alpha: 0.72),
                     fontWeight: FontWeight.w700,
-                    fontSize: 18,
                   ),
                 ),
               ],
@@ -865,3 +878,4 @@ class _DistancePreferenceControl extends StatelessWidget {
     );
   }
 }
+

@@ -160,140 +160,153 @@ class _ProfilePageState extends State<ProfilePage> {
                 top: 18,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 18,
               ),
-              child: Material(
-                color: AppTheme.cream,
-                borderRadius: BorderRadius.circular(28),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 44,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: AppTheme.cardBorder,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        existingReview == null
-                            ? 'Lascia una recensione'
-                            : 'Modifica la tua recensione',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Come ti sei trovato con ${reminder.targetUser.nome}?',
-                        style: TextStyle(
-                          color: AppTheme.brown.withValues(alpha: 0.85),
-                          height: 1.35,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppTheme.paper,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppTheme.cardBorder),
-                        ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final maxHeight = constraints.maxHeight.isFinite
+                      ? constraints.maxHeight
+                      : MediaQuery.of(context).size.height * 0.82;
+                  return Material(
+                    color: AppTheme.cream,
+                    borderRadius: BorderRadius.circular(28),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: maxHeight),
+                      child: SingleChildScrollView(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: const EdgeInsets.all(20),
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              offerLabel,
-                              style: const TextStyle(
-                                color: AppTheme.espresso,
-                                fontWeight: FontWeight.w800,
+                            Center(
+                              child: Container(
+                                width: 44,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.cardBorder,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
                               ),
                             ),
-                            if (reminder.offerAddress.trim().isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                reminder.offerAddress,
-                                style: TextStyle(
-                                  color: AppTheme.brown.withValues(alpha: 0.82),
-                                  height: 1.35,
+                            const SizedBox(height: 16),
+                            Text(
+                              existingReview == null
+                                  ? 'Lascia una recensione'
+                                  : 'Modifica la tua recensione',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Come ti sei trovato con ${reminder.targetUser.nome}?',
+                              style: TextStyle(
+                                color: AppTheme.brown.withValues(alpha: 0.85),
+                                height: 1.35,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppTheme.paper,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: AppTheme.cardBorder),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    offerLabel,
+                                    style: const TextStyle(
+                                      color: AppTheme.espresso,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  if (reminder.offerAddress.trim().isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      reminder.offerAddress,
+                                      style: TextStyle(
+                                        color: AppTheme.brown.withValues(alpha: 0.82),
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ],
+                                  if (whenText.isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      whenText,
+                                      style: TextStyle(
+                                        color: AppTheme.brown.withValues(alpha: 0.74),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              existingReview == null
+                                  ? 'Dopo la pubblicazione potrai modificare questa recensione per 24 ore.'
+                                  : 'Puoi modificare questa recensione fino al $editableUntilText.',
+                              style: TextStyle(
+                                color: AppTheme.brown.withValues(alpha: 0.82),
+                                fontWeight: FontWeight.w700,
+                                height: 1.35,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            Center(
+                              child: Wrap(
+                                spacing: 8,
+                                children: List.generate(5, (index) {
+                                  final rating = index + 1;
+                                  return IconButton(
+                                    onPressed: () => setSheetState(
+                                      () => selectedRating = rating,
+                                    ),
+                                    icon: Icon(
+                                      rating <= selectedRating
+                                          ? Icons.star_rounded
+                                          : Icons.star_outline_rounded,
+                                      color: const Color(0xFFD49B00),
+                                      size: 30,
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: commentController,
+                              minLines: 3,
+                              maxLines: 5,
+                              decoration: const InputDecoration(
+                                labelText: 'Commento facoltativo',
+                                alignLabelWithHint: true,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                onPressed: isSubmitting ? null : submit,
+                                child: Text(
+                                  isSubmitting
+                                      ? 'Invio in corso...'
+                                      : existingReview == null
+                                          ? 'Pubblica recensione'
+                                          : 'Salva modifiche',
                                 ),
                               ),
-                            ],
-                            if (whenText.isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                whenText,
-                                style: TextStyle(
-                                  color: AppTheme.brown.withValues(alpha: 0.74),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        existingReview == null
-                            ? 'Dopo la pubblicazione potrai modificare questa recensione per 24 ore.'
-                            : 'Puoi modificare questa recensione fino al $editableUntilText.',
-                        style: TextStyle(
-                          color: AppTheme.brown.withValues(alpha: 0.82),
-                          fontWeight: FontWeight.w700,
-                          height: 1.35,
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      Center(
-                        child: Wrap(
-                          spacing: 8,
-                          children: List.generate(5, (index) {
-                            final rating = index + 1;
-                            return IconButton(
-                              onPressed: () =>
-                                  setSheetState(() => selectedRating = rating),
-                              icon: Icon(
-                                rating <= selectedRating
-                                    ? Icons.star_rounded
-                                    : Icons.star_outline_rounded,
-                                color: const Color(0xFFD49B00),
-                                size: 30,
-                              ),
-                            );
-                          }),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: commentController,
-                        minLines: 3,
-                        maxLines: 5,
-                        decoration: const InputDecoration(
-                          labelText: 'Commento facoltativo',
-                          alignLabelWithHint: true,
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: isSubmitting ? null : submit,
-                          child: Text(
-                            isSubmitting
-                                ? 'Invio in corso...'
-                                : existingReview == null
-                                    ? 'Pubblica recensione'
-                                    : 'Salva modifiche',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               ),
             );
           },
@@ -638,7 +651,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   )
                 else
                   SizedBox(
-                    height: 160,
+                    height: 206,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: user.metUsers.length,
@@ -1195,29 +1208,29 @@ class _MetUserSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 144,
+      width: 152,
       child: Card(
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 CircleAvatar(
-                  radius: 28,
+                  radius: 26,
                   backgroundImage:
                       imageUrl != null ? NetworkImage(imageUrl!) : null,
                   child: imageUrl == null
                       ? const Icon(Icons.person_outline)
                       : null,
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Text(
                   user.nome,
                   textAlign: TextAlign.center,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppTheme.espresso,
@@ -1228,19 +1241,22 @@ class _MetUserSummaryCard extends StatelessWidget {
                 Text(
                   '${user.etaDisplay} anni',
                   textAlign: TextAlign.center,
+                  maxLines: 1,
                   style: TextStyle(
                     color: AppTheme.brown.withValues(alpha: 0.78),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  user.cityLabel.isNotEmpty ? user.cityLabel : user.city,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppTheme.brown.withValues(alpha: 0.72),
+                Flexible(
+                  child: Text(
+                    user.cityLabel.isNotEmpty ? user.cityLabel : user.city,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppTheme.brown.withValues(alpha: 0.72),
+                    ),
                   ),
                 ),
               ],

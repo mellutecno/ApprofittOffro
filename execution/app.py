@@ -839,6 +839,20 @@ def send_registration_verification_email(user, link_verifica):
         background=False,
     )
 
+
+def notify_admin_for_verified_user(user):
+    """Avvisa l'amministratore quando un utente risulta verificato."""
+    admin_email = os.getenv("ADMIN_EMAIL")
+    if not admin_email:
+        return False
+
+    return send_email(
+        subject=f"Nuovo Utente Verificato: {user.nome}",
+        recipients=[admin_email],
+        template="new_user_notification.html",
+        user=user,
+    )
+
 def process_image(file_storage, filename, size=(800, 800), return_payload=False):
     """Ruota (EXIF), ridimensiona e salva un'immagine sul backend attivo."""
     payload = None
@@ -1138,9 +1152,12 @@ def resolve_google_user(identity_payload):
             user.email = email
         if not user.nome:
             user.nome = display_name
+        should_notify_admin = not bool(user.verificato)
         user.verificato = True
         user.verification_token = None
         db.session.commit()
+        if should_notify_admin:
+            notify_admin_for_verified_user(user)
         return user, False
 
     user = User.query.filter_by(email=email).first()
@@ -1152,9 +1169,12 @@ def resolve_google_user(identity_payload):
         user.google_sub = google_sub
         if not user.nome:
             user.nome = display_name
+        should_notify_admin = not bool(user.verificato)
         user.verificato = True
         user.verification_token = None
         db.session.commit()
+        if should_notify_admin:
+            notify_admin_for_verified_user(user)
         return user, False
 
     photo_filename = (
@@ -1187,6 +1207,7 @@ def resolve_google_user(identity_payload):
     db.session.flush()
     replace_user_gallery(user, [photo_filename])
     db.session.commit()
+    notify_admin_for_verified_user(user)
     return user, True
 
 
@@ -1276,10 +1297,14 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
         errors.append(sesso_error)
     try:
         raggio_azione = int(float(str(raggio_raw).replace(",", ".").strip()))
-        if raggio_azione < 1 or raggio_azione > 200:
+        if raggio_azione == 999:
+            pass
+        elif raggio_azione < 1 or raggio_azione > 500:
             raise ValueError()
     except Exception:
-        errors.append("Il raggio d'azione deve essere un numero tra 1 e 200 km.")
+        errors.append(
+            "Il raggio d'azione deve essere un numero tra 1 e 500 km."
+        )
         raggio_azione = None
 
     existing_user = User.query.filter_by(email=email).first()
@@ -1797,15 +1822,7 @@ def verify_email(token):
     user.verification_token = None
     db.session.commit()
 
-    # Notifica Amministratore
-    admin_email = os.getenv("ADMIN_EMAIL")
-    if admin_email:
-        send_email(
-            subject=f"Nuovo Utente Verificato: {user.nome}",
-            recipients=[admin_email],
-            template="new_user_notification.html",
-            user=user
-        )
+    notify_admin_for_verified_user(user)
     
     flash("Email verificata con successo! Ora puoi accedere.", "success")
     return redirect(url_for("login_page"))
