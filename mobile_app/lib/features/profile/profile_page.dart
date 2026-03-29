@@ -81,15 +81,33 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _openReviewComposer(PendingReviewReminder reminder) async {
+    final existingReview = reminder.existingReview;
     final result = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        final commentController = TextEditingController();
-        var selectedRating = 5;
+        final commentController = TextEditingController(
+          text: existingReview?.comment ?? '',
+        );
+        var selectedRating = existingReview?.rating ?? 5;
         var isSubmitting = false;
+        final offerLabel =
+            '${reminder.offerMealType} - ${reminder.offerLocaleName}';
+        final whenText = reminder.offerDateTime != null
+            ? DateFormat(
+                "EEEE d MMMM 'alle' HH:mm",
+                'it_IT',
+              ).format(reminder.offerDateTime!.toLocal())
+            : '';
+        final editableUntilText =
+            existingReview?.editableUntil != null
+                ? DateFormat(
+                    "dd/MM 'alle' HH:mm",
+                    'it_IT',
+                  ).format(existingReview!.editableUntil!.toLocal())
+                : '';
 
         return StatefulBuilder(
           builder: (context, setSheetState) {
@@ -160,7 +178,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Lascia una recensione',
+                        existingReview == null
+                            ? 'Lascia una recensione'
+                            : 'Modifica la tua recensione',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 8),
@@ -168,6 +188,59 @@ class _ProfilePageState extends State<ProfilePage> {
                         'Come ti sei trovato con ${reminder.targetUser.nome}?',
                         style: TextStyle(
                           color: AppTheme.brown.withValues(alpha: 0.85),
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppTheme.paper,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppTheme.cardBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              offerLabel,
+                              style: const TextStyle(
+                                color: AppTheme.espresso,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            if (reminder.offerAddress.trim().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                reminder.offerAddress,
+                                style: TextStyle(
+                                  color: AppTheme.brown.withValues(alpha: 0.82),
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                            if (whenText.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                whenText,
+                                style: TextStyle(
+                                  color: AppTheme.brown.withValues(alpha: 0.74),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        existingReview == null
+                            ? 'Dopo la pubblicazione potrai modificare questa recensione per 24 ore.'
+                            : 'Puoi modificare questa recensione fino al $editableUntilText.',
+                        style: TextStyle(
+                          color: AppTheme.brown.withValues(alpha: 0.82),
+                          fontWeight: FontWeight.w700,
                           height: 1.35,
                         ),
                       ),
@@ -209,7 +282,9 @@ class _ProfilePageState extends State<ProfilePage> {
                           child: Text(
                             isSubmitting
                                 ? 'Invio in corso...'
-                                : 'Pubblica recensione',
+                                : existingReview == null
+                                    ? 'Pubblica recensione'
+                                    : 'Salva modifiche',
                           ),
                         ),
                       ),
@@ -798,6 +873,14 @@ class _PendingReviewCard extends StatelessWidget {
             'it_IT',
           ).format(reminder.offerDateTime!.toLocal())
         : '';
+    final existingReview = reminder.existingReview;
+    final editableUntilText =
+        existingReview?.editableUntil != null
+            ? DateFormat(
+                "dd/MM 'alle' HH:mm",
+                'it_IT',
+              ).format(existingReview!.editableUntil!.toLocal())
+            : '';
 
     return Card(
       child: Padding(
@@ -822,7 +905,9 @@ class _PendingReviewCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Recensisci ${targetUser.nome}',
+                    existingReview == null
+                        ? 'Recensisci ${targetUser.nome}'
+                        : 'Recensione pronta per ${targetUser.nome}',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -905,13 +990,78 @@ class _PendingReviewCard extends StatelessWidget {
                 ),
               ),
             ],
+            if (existingReview != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppTheme.mist,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppTheme.cardBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        ...List.generate(
+                          5,
+                          (index) => Icon(
+                            index < existingReview.rating
+                                ? Icons.star_rounded
+                                : Icons.star_outline_rounded,
+                            color: const Color(0xFFD49B00),
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${existingReview.rating}/5',
+                          style: const TextStyle(
+                            color: AppTheme.espresso,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (existingReview.comment.trim().isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        existingReview.comment,
+                        style: const TextStyle(
+                          color: AppTheme.espresso,
+                          fontWeight: FontWeight.w700,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
+            Text(
+              existingReview == null
+                  ? 'Dopo la pubblicazione potrai modificare questa recensione per 24 ore.'
+                  : 'Modificabile fino al $editableUntilText.',
+              style: TextStyle(
+                color: AppTheme.brown.withValues(alpha: 0.82),
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: onReview,
                 icon: const Icon(Icons.rate_review_rounded),
-                label: const Text('Lascia recensione'),
+                label: Text(
+                  existingReview == null
+                      ? 'Lascia recensione'
+                      : 'Modifica recensione',
+                ),
               ),
             ),
           ],

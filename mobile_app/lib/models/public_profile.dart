@@ -1,11 +1,41 @@
 import 'user_preview.dart';
 
+class ReviewedOfferSummary {
+  const ReviewedOfferSummary({
+    required this.id,
+    required this.mealType,
+    required this.localeName,
+    required this.address,
+    required this.dateTime,
+  });
+
+  final int id;
+  final String mealType;
+  final String localeName;
+  final String address;
+  final DateTime? dateTime;
+
+  factory ReviewedOfferSummary.fromJson(Map<String, dynamic> json) {
+    final rawDate = (json['data_ora'] ?? '').toString().trim();
+    return ReviewedOfferSummary(
+      id: json['id'] as int? ?? 0,
+      mealType: (json['tipo_pasto'] ?? '').toString(),
+      localeName: (json['nome_locale'] ?? '').toString(),
+      address: (json['indirizzo'] ?? '').toString(),
+      dateTime: rawDate.isEmpty ? null : DateTime.tryParse(rawDate)?.toLocal(),
+    );
+  }
+}
+
 class UserReview {
   const UserReview({
     required this.id,
     required this.rating,
     required this.comment,
     required this.createdAt,
+    required this.editableUntil,
+    required this.viewerCanEdit,
+    required this.offer,
     required this.reviewer,
   });
 
@@ -13,9 +43,13 @@ class UserReview {
   final int rating;
   final String comment;
   final DateTime? createdAt;
+  final DateTime? editableUntil;
+  final bool viewerCanEdit;
+  final ReviewedOfferSummary? offer;
   final UserPreview? reviewer;
 
   factory UserReview.fromJson(Map<String, dynamic> json) {
+    final editableUntilRaw = (json['editable_until'] ?? '').toString().trim();
     return UserReview(
       id: json['id'] as int? ?? 0,
       rating: json['rating'] as int? ?? 0,
@@ -23,6 +57,13 @@ class UserReview {
       createdAt: json['created_at'] != null &&
               (json['created_at'] as String).isNotEmpty
           ? DateTime.tryParse(json['created_at'] as String)?.toLocal()
+          : null,
+      editableUntil: editableUntilRaw.isEmpty
+          ? null
+          : DateTime.tryParse(editableUntilRaw)?.toLocal(),
+      viewerCanEdit: json['viewer_can_edit'] == true,
+      offer: json['offer'] is Map<String, dynamic>
+          ? ReviewedOfferSummary.fromJson(json['offer'] as Map<String, dynamic>)
           : null,
       reviewer: json['reviewer'] is Map<String, dynamic>
           ? UserPreview.fromJson(json['reviewer'] as Map<String, dynamic>)

@@ -1,5 +1,57 @@
 import 'user_preview.dart';
 
+class ReviewOfferSummary {
+  const ReviewOfferSummary({
+    required this.id,
+    required this.mealType,
+    required this.localeName,
+    required this.address,
+    required this.dateTime,
+  });
+
+  final int id;
+  final String mealType;
+  final String localeName;
+  final String address;
+  final DateTime? dateTime;
+
+  factory ReviewOfferSummary.fromJson(Map<String, dynamic> json) {
+    return ReviewOfferSummary(
+      id: json['id'] as int? ?? 0,
+      mealType: (json['tipo_pasto'] ?? '').toString(),
+      localeName: (json['nome_locale'] ?? '').toString(),
+      address: (json['indirizzo'] ?? '').toString(),
+      dateTime: PendingClaimRequest._parseDate(json['data_ora']),
+    );
+  }
+}
+
+class ExistingReviewDraft {
+  const ExistingReviewDraft({
+    required this.id,
+    required this.rating,
+    required this.comment,
+    required this.createdAt,
+    required this.editableUntil,
+  });
+
+  final int id;
+  final int rating;
+  final String comment;
+  final DateTime? createdAt;
+  final DateTime? editableUntil;
+
+  factory ExistingReviewDraft.fromJson(Map<String, dynamic> json) {
+    return ExistingReviewDraft(
+      id: json['id'] as int? ?? 0,
+      rating: json['rating'] as int? ?? 0,
+      comment: (json['commento'] ?? '').toString(),
+      createdAt: PendingClaimRequest._parseDate(json['created_at']),
+      editableUntil: PendingClaimRequest._parseDate(json['editable_until']),
+    );
+  }
+}
+
 class PendingClaimRequest {
   const PendingClaimRequest({
     required this.claimId,
@@ -54,8 +106,10 @@ class PendingReviewReminder {
     required this.offerLocaleName,
     required this.offerAddress,
     required this.offerDateTime,
+    required this.offerSummary,
     required this.targetUser,
     required this.roleLabel,
+    required this.existingReview,
   });
 
   final int offerId;
@@ -63,14 +117,24 @@ class PendingReviewReminder {
   final String offerLocaleName;
   final String offerAddress;
   final DateTime? offerDateTime;
+  final ReviewOfferSummary offerSummary;
   final UserPreview targetUser;
   final String roleLabel;
+  final ExistingReviewDraft? existingReview;
+
+  bool get hasSubmittedReview => existingReview != null;
+
+  bool get canStillEdit =>
+      existingReview?.editableUntil != null &&
+      existingReview!.editableUntil!.isAfter(DateTime.now());
 
   factory PendingReviewReminder.fromJson(Map<String, dynamic> json) {
     final offer = json['offer'] as Map<String, dynamic>? ?? const {};
     final targetUser =
         json['target_user'] as Map<String, dynamic>? ??
             const <String, dynamic>{};
+    final existingReview =
+        json['existing_review'] as Map<String, dynamic>?;
 
     return PendingReviewReminder(
       offerId: offer['id'] as int? ?? 0,
@@ -78,8 +142,12 @@ class PendingReviewReminder {
       offerLocaleName: (offer['nome_locale'] ?? '').toString(),
       offerAddress: (offer['indirizzo'] ?? '').toString(),
       offerDateTime: PendingClaimRequest._parseDate(offer['data_ora']),
+      offerSummary: ReviewOfferSummary.fromJson(offer),
       targetUser: UserPreview.fromJson(targetUser),
       roleLabel: (json['role_label'] ?? '').toString(),
+      existingReview: existingReview == null
+          ? null
+          : ExistingReviewDraft.fromJson(existingReview),
     );
   }
 }

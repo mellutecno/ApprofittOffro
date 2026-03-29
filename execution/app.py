@@ -1932,14 +1932,34 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
     return payload
 
 
-def serialize_review_preview(review):
-    """Serializza una recensione con reviewer essenziale."""
+def serialize_review_preview(review, *, viewer=None):
+    """Serializza una recensione con reviewer essenziale e dati evento."""
+    offer = review.offerta
+    editable_until = (
+        review.created_at + timedelta(hours=REVIEW_EDIT_WINDOW_HOURS)
+        if review.created_at
+        else None
+    )
     return {
         "id": review.id,
         "rating": review.rating,
         "commento": review.commento or "",
         "created_at": review.created_at.isoformat() if review.created_at else "",
+        "editable_until": editable_until.isoformat() if editable_until else "",
+        "viewer_can_edit": bool(
+            viewer
+            and getattr(viewer, "is_authenticated", False)
+            and review.reviewer_id == viewer.id
+            and can_edit_review(review)
+        ),
         "reviewer": serialize_user_preview(review.reviewer) if review.reviewer else None,
+        "offer": {
+            "id": offer.id,
+            "tipo_pasto": offer.tipo_pasto,
+            "nome_locale": offer.nome_locale,
+            "indirizzo": offer.indirizzo,
+            "data_ora": offer.data_ora.isoformat() if offer.data_ora else "",
+        } if offer else None,
     }
 
 
@@ -1972,8 +1992,15 @@ def serialize_pending_review_reminder(item, *, viewer=None, followed_user_ids=No
     """Serializza un promemoria recensione per l'app mobile."""
     offer = item.get("offer")
     target_user = item.get("target_user")
+    existing_review = item.get("existing_review")
     if not offer or not target_user:
         return None
+
+    editable_until = (
+        existing_review.created_at + timedelta(hours=REVIEW_EDIT_WINDOW_HOURS)
+        if existing_review and existing_review.created_at
+        else None
+    )
 
     return {
         "offer": {
@@ -1989,6 +2016,13 @@ def serialize_pending_review_reminder(item, *, viewer=None, followed_user_ids=No
             followed_user_ids=followed_user_ids,
         ),
         "role_label": item.get("role_label", ""),
+        "existing_review": {
+            "id": existing_review.id,
+            "rating": existing_review.rating,
+            "commento": existing_review.commento or "",
+            "created_at": existing_review.created_at.isoformat() if existing_review.created_at else "",
+            "editable_until": editable_until.isoformat() if editable_until else "",
+        } if existing_review else None,
     }
 
 
@@ -2020,7 +2054,7 @@ def get_pending_review_reminders(user, now=None):
             reviewed_id=offer.user_id,
             offer_id=offer.id,
         ).first()
-        if existing_review:
+        if existing_review and not can_edit_review(existing_review, now):
             continue
 
         seen_pairs.add(review_key)
@@ -2028,6 +2062,7 @@ def get_pending_review_reminders(user, now=None):
             "offer": offer,
             "target_user": offer.autore,
             "role_label": "host",
+            "existing_review": existing_review,
         })
 
     my_offers = Offer.query.filter_by(user_id=user.id).order_by(Offer.data_ora.desc()).all()
@@ -2046,7 +2081,7 @@ def get_pending_review_reminders(user, now=None):
                 reviewed_id=guest.id,
                 offer_id=offer.id,
             ).first()
-            if existing_review:
+            if existing_review and not can_edit_review(existing_review, now):
                 continue
 
             seen_pairs.add(review_key)
@@ -2054,6 +2089,7 @@ def get_pending_review_reminders(user, now=None):
                 "offer": offer,
                 "target_user": guest,
                 "role_label": "guest",
+                "existing_review": existing_review,
             })
 
     reminders.sort(key=lambda item: item["offer"].data_ora, reverse=True)
@@ -3639,7 +3675,8 @@ def api_public_user(user_id):
 
     followed_user_ids = get_followed_user_ids(current_user.id)
     reviews = Review.query.options(
-        selectinload(Review.reviewer).selectinload(User.photos)
+        selectinload(Review.reviewer).selectinload(User.photos),
+        selectinload(Review.offerta),
     ).filter_by(reviewed_id=user_id).order_by(Review.created_at.desc()).all()
 
     return jsonify({
@@ -3657,7 +3694,10 @@ def api_public_user(user_id):
                 status=CLAIM_STATUS_ACCEPTED,
             ).count(),
         },
-        "reviews": [serialize_review_preview(review) for review in reviews],
+        "reviews": [
+            serialize_review_preview(review, viewer=current_user)
+            for review in reviews
+        ],
     })
 
 
@@ -3894,7 +3934,10 @@ def api_create_review():
         existing.rating = rating
         existing.commento = commento
         db.session.commit()
-        return jsonify({"success": True, "message": "Recensione aggiornata con successo."})
+        return jsonify({
+            "success": True,
+            "message": f"Recensione aggiornata con successo. Resta modificabile fino a {REVIEW_EDIT_WINDOW_HOURS} ore dalla prima pubblicazione.",
+        })
 
     # 6. Creazione recensione
     new_review = Review(

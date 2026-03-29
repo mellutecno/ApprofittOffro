@@ -69,6 +69,221 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
     }
   }
 
+  Future<void> _openReviewEditor(
+    PublicProfile profile,
+    UserReview review,
+  ) async {
+    final offer = review.offer;
+    if (offer == null) {
+      return;
+    }
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final commentController = TextEditingController(text: review.comment);
+        var selectedRating = review.rating;
+        var isSubmitting = false;
+        final whenText = offer.dateTime != null
+            ? DateFormat(
+                "EEEE d MMMM 'alle' HH:mm",
+                'it_IT',
+              ).format(offer.dateTime!.toLocal())
+            : '';
+        final editableUntilText = review.editableUntil != null
+            ? DateFormat(
+                "dd/MM 'alle' HH:mm",
+                'it_IT',
+              ).format(review.editableUntil!.toLocal())
+            : '';
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            Future<void> submit() async {
+              if (isSubmitting) {
+                return;
+              }
+              setSheetState(() => isSubmitting = true);
+              try {
+                final message = await widget.apiClient.submitReview(
+                  offerId: offer.id,
+                  reviewedId: profile.user.id,
+                  rating: selectedRating,
+                  comment: commentController.text.trim(),
+                );
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                Navigator.of(sheetContext).pop(message);
+              } on ApiException catch (error) {
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                  SnackBar(content: Text(error.message)),
+                );
+                setSheetState(() => isSubmitting = false);
+              } catch (_) {
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Non riesco a salvare la recensione adesso.',
+                    ),
+                  ),
+                );
+                setSheetState(() => isSubmitting = false);
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 18,
+                right: 18,
+                top: 18,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+              ),
+              child: Material(
+                color: AppTheme.cream,
+                borderRadius: BorderRadius.circular(28),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 44,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: AppTheme.cardBorder,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Modifica la tua recensione',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Puoi correggerla fino al $editableUntilText.',
+                        style: TextStyle(
+                          color: AppTheme.brown.withValues(alpha: 0.85),
+                          height: 1.35,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppTheme.paper,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppTheme.cardBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${offer.mealType} - ${offer.localeName}',
+                              style: const TextStyle(
+                                color: AppTheme.espresso,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            if (offer.address.trim().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                offer.address,
+                                style: TextStyle(
+                                  color: AppTheme.brown.withValues(alpha: 0.82),
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                            if (whenText.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                whenText,
+                                style: TextStyle(
+                                  color: AppTheme.brown.withValues(alpha: 0.74),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Center(
+                        child: Wrap(
+                          spacing: 8,
+                          children: List.generate(5, (index) {
+                            final rating = index + 1;
+                            return IconButton(
+                              onPressed: () =>
+                                  setSheetState(() => selectedRating = rating),
+                              icon: Icon(
+                                rating <= selectedRating
+                                    ? Icons.star_rounded
+                                    : Icons.star_outline_rounded,
+                                color: const Color(0xFFD49B00),
+                                size: 30,
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: commentController,
+                        minLines: 3,
+                        maxLines: 5,
+                        decoration: const InputDecoration(
+                          labelText: 'Commento facoltativo',
+                          alignLabelWithHint: true,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: isSubmitting ? null : submit,
+                          child: Text(
+                            isSubmitting
+                                ? 'Invio in corso...'
+                                : 'Salva modifiche',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || result == null) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(result)),
+    );
+    await _reload();
+  }
+
   List<String> _galleryUrls(UserPreview user) {
     final filenames = <String>[];
     if (user.photoFilename.isNotEmpty) {
@@ -243,14 +458,89 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                             ),
                             if (review.comment.isNotEmpty) ...[
                               const SizedBox(height: 10),
-                              Text(review.comment),
+                              Text(
+                                review.comment,
+                                style: const TextStyle(
+                                  color: AppTheme.espresso,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                            if (review.offer != null) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.mist,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: AppTheme.cardBorder),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${review.offer!.mealType} - ${review.offer!.localeName}',
+                                      style: const TextStyle(
+                                        color: AppTheme.espresso,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    if (review.offer!.address.trim().isNotEmpty) ...[
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        review.offer!.address,
+                                        style: TextStyle(
+                                          color: AppTheme.brown.withValues(alpha: 0.82),
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                    ],
+                                    if (review.offer!.dateTime != null) ...[
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        DateFormat(
+                                          "EEEE d MMMM 'alle' HH:mm",
+                                          'it_IT',
+                                        ).format(review.offer!.dateTime!.toLocal()),
+                                        style: TextStyle(
+                                          color: AppTheme.brown.withValues(alpha: 0.74),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
                             ],
                             if (review.createdAt != null) ...[
                               const SizedBox(height: 10),
                               Text(
                                 DateFormat('dd/MM/yyyy')
-                                    .format(review.createdAt!),
+                                  .format(review.createdAt!),
                                 style: const TextStyle(color: Colors.black54),
+                              ),
+                            ],
+                            if (review.viewerCanEdit &&
+                                review.editableUntil != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                'Puoi modificarla fino al ${DateFormat("dd/MM 'alle' HH:mm", 'it_IT').format(review.editableUntil!.toLocal())}.',
+                                style: TextStyle(
+                                  color: AppTheme.brown.withValues(alpha: 0.78),
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.35,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                onPressed: () => _openReviewEditor(
+                                  profile,
+                                  review,
+                                ),
+                                icon: const Icon(Icons.edit_outlined),
+                                label: const Text('Modifica recensione'),
                               ),
                             ],
                           ],
