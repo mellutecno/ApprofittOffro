@@ -2937,13 +2937,18 @@ def api_google_login():
             "errors": ["Non riesco a completare l'accesso Google adesso."],
         }), 500
 
+    print(
+        f"[GOOGLE_SIGNUP_FLOW] user={getattr(user, 'id', None)} email={getattr(user, 'email', '')} "
+        f"created={created} admin_notification_required={admin_notification_required}"
+    )
+    if admin_notification_required:
+        notify_admin_for_verified_user(user, source="google")
+
     session.clear()
     login_user(user, remember=False)
     now_ts = int(datetime.now(timezone.utc).timestamp())
     session["last_activity_at"] = now_ts
     session["login_at"] = now_ts
-    if admin_notification_required:
-        notify_admin_for_verified_user(user, source="google")
 
     return jsonify({
         "success": True,
