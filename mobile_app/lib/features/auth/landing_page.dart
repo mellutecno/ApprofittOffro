@@ -32,7 +32,7 @@ class _LandingPageState extends State<LandingPage> {
   @override
   void initState() {
     super.initState();
-    _offersFuture = widget.authController.apiClient.fetchOffers(limit: 4);
+    _offersFuture = widget.authController.apiClient.fetchOffers(limit: 20);
     _scheduleAutoLoginIfNeeded();
   }
 
@@ -79,7 +79,7 @@ class _LandingPageState extends State<LandingPage> {
   }
 
   Future<void> _reloadOffers() async {
-    final future = widget.authController.apiClient.fetchOffers(limit: 4);
+    final future = widget.authController.apiClient.fetchOffers(limit: 20);
     setState(() {
       _offersFuture = future;
     });
@@ -230,7 +230,14 @@ class _LandingPageState extends State<LandingPage> {
                               );
                             }
 
-                            final offers = snapshot.data ?? const <Offer>[];
+                            final offers = (snapshot.data ?? const <Offer>[])
+                                .where(
+                                  (offer) =>
+                                      offer.claimStatus == 'open' &&
+                                      offer.canClaim,
+                                )
+                                .take(4)
+                                .toList();
                             if (offers.isEmpty) {
                               return const _LandingNoticeCard(
                                 message:
@@ -240,7 +247,6 @@ class _LandingPageState extends State<LandingPage> {
 
                             return Column(
                               children: offers
-                                  .take(4)
                                   .map(
                                     (offer) => _PublicOfferCard(
                                       offer: offer,

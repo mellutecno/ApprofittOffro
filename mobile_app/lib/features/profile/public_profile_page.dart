@@ -419,6 +419,55 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                 ),
                 const SizedBox(height: 20),
                 Text(
+                  'Follower',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 10),
+                if (profile.followers.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Text('Per ora questo profilo non ha ancora follower.'),
+                    ),
+                  )
+                else
+                  ...profile.followers.map(
+                    (follower) {
+                      final imageUrl = follower.photoFilename.isNotEmpty
+                          ? widget.apiClient.buildUploadUrl(
+                              follower.photoFilename,
+                            )
+                          : null;
+                      return Card(
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundImage:
+                                imageUrl != null ? NetworkImage(imageUrl) : null,
+                            child: imageUrl == null
+                                ? const Icon(Icons.person_outline)
+                                : null,
+                          ),
+                          title: Text(follower.nome),
+                          subtitle: Text(
+                            '${follower.etaDisplay} anni - ${follower.cityLabel}',
+                          ),
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => PublicProfilePage(
+                                  apiClient: widget.apiClient,
+                                  userId: follower.id,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                const SizedBox(height: 20),
+                Text(
                   'Recensioni',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),

@@ -2096,6 +2096,46 @@ def get_pending_review_reminders(user, now=None):
     return reminders
 
 
+def get_met_users_for_user(user):
+    """Restituisce gli utenti incontrati nei pasti offerti o partecipati."""
+    if not user:
+        return []
+
+    met_users_dict = {}
+
+    my_claims = Claim.query.filter_by(
+        user_id=user.id,
+        status=CLAIM_STATUS_ACCEPTED,
+    ).all()
+    for claim in my_claims:
+        offer = claim.offerta
+        host = offer.autore if offer else None
+        if (
+            host
+            and host.id != user.id
+            and not is_admin_user(host)
+            and host.id not in met_users_dict
+        ):
+            met_users_dict[host.id] = host
+
+    my_offers = Offer.query.filter_by(user_id=user.id).all()
+    for offer in my_offers:
+        for claim in get_offer_accepted_claims(offer):
+            guest = claim.utente
+            if (
+                guest
+                and guest.id != user.id
+                and not is_admin_user(guest)
+                and guest.id not in met_users_dict
+            ):
+                met_users_dict[guest.id] = guest
+
+    return sorted(
+        met_users_dict.values(),
+        key=lambda item: (item.nome or "").lower(),
+    )
+
+
 def can_edit_review(review, now=None):
     """Permette di correggere una recensione solo entro una finestra limitata."""
     if not review:
@@ -2920,6 +2960,9 @@ def api_get_offers():
         except (TypeError, ValueError):
             radius_km = 15
 
+    if radius_km is not None and radius_km >= 999:
+        radius_km = None
+
     limit = None
     if limit_str:
         try:
@@ -3551,6 +3594,7 @@ def api_user_me():
         )
         if relation.follower and not is_admin_user(relation.follower)
     ]
+    met_users = get_met_users_for_user(current_user)
     user_payload = serialize_user_preview(
         current_user,
         viewer=current_user,
@@ -3561,6 +3605,14 @@ def api_user_me():
     user_payload["followers"] = [
         serialize_user_preview(follower, viewer=current_user, followed_user_ids=followed_user_ids)
         for follower in followers
+    ]
+    user_payload["met_users"] = [
+        serialize_user_preview(
+            met_user,
+            viewer=current_user,
+            followed_user_ids=followed_user_ids,
+        )
+        for met_user in met_users
     ]
     user_payload["pending_claim_requests"] = [
         payload
@@ -3674,6 +3726,15 @@ def api_public_user(user_id):
     ).first_or_404()
 
     followed_user_ids = get_followed_user_ids(current_user.id)
+    followers = [
+        relation.follower
+        for relation in sorted(
+            user.followers_rel,
+            key=lambda item: item.created_at or datetime.min,
+            reverse=True,
+        )
+        if relation.follower and not is_admin_user(relation.follower)
+    ]
     reviews = Review.query.options(
         selectinload(Review.reviewer).selectinload(User.photos),
         selectinload(Review.offerta),
@@ -3697,6 +3758,14 @@ def api_public_user(user_id):
         "reviews": [
             serialize_review_preview(review, viewer=current_user)
             for review in reviews
+        ],
+        "followers": [
+            serialize_user_preview(
+                follower,
+                viewer=current_user,
+                followed_user_ids=followed_user_ids,
+            )
+            for follower in followers
         ],
     })
 

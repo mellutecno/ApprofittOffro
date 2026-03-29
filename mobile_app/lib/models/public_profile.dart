@@ -78,12 +78,14 @@ class PublicProfile {
     required this.offersCount,
     required this.claimsCount,
     required this.reviews,
+    required this.followers,
   });
 
   final UserPreview user;
   final int offersCount;
   final int claimsCount;
   final List<UserReview> reviews;
+  final List<UserPreview> followers;
 
   factory PublicProfile.fromJson(Map<String, dynamic> json) {
     final stats = json['stats'] as Map<String, dynamic>? ?? const {};
@@ -94,6 +96,10 @@ class PublicProfile {
       reviews: (json['reviews'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>()
           .map(UserReview.fromJson)
+          .toList(),
+      followers: (json['followers'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(UserPreview.fromJson)
           .toList(),
     );
   }

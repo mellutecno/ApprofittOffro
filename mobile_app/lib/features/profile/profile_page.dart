@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../../models/app_user.dart';
 import '../../models/offer.dart';
+import '../../models/user_preview.dart';
 import '../auth/auth_controller.dart';
 import '../create_offer/create_offer_page.dart';
 import '../offers/offer_card.dart';
@@ -34,7 +35,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<List<Offer>> _loadMyOffers() async {
-    final offers = await widget.authController.apiClient.fetchOffers();
+    final offers = await widget.authController.apiClient.fetchOffers(
+      radiusKm: 999,
+    );
     final myOffers = offers.where((offer) => offer.isOwn).toList()
       ..sort((a, b) => b.dataOra.compareTo(a.dataOra));
     return myOffers;
@@ -324,6 +327,70 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _openOwnOfferDetails(Offer offer) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.84,
+          minChildSize: 0.58,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) {
+            return DecoratedBox(
+              decoration: const BoxDecoration(
+                color: AppTheme.cream,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
+              ),
+              child: SingleChildScrollView(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardBorder,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'La tua offerta',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 14),
+                    OfferCard(
+                      offer: offer,
+                      apiClient: widget.authController.apiClient,
+                      allowProfileOpen: false,
+                      onEditOwn: () {
+                        Navigator.of(sheetContext).pop();
+                        unawaited(_openEditOffer(offer));
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   List<String> _galleryUrls() {
     final user = widget.authController.currentUser;
     if (user == null) {
@@ -556,6 +623,50 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
                 const SizedBox(height: 20),
                 Text(
+                  'Persone incrociate',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 10),
+                if (user.metUsers.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Text(
+                        'Qui troverai le persone che hai incontrato nei pasti offerti o partecipati.',
+                      ),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    height: 160,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: user.metUsers.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (context, index) {
+                        final metUser = user.metUsers[index];
+                        final imageUrl = metUser.photoFilename.isNotEmpty
+                            ? apiClient.buildUploadUrl(metUser.photoFilename)
+                            : null;
+                        return _MetUserSummaryCard(
+                          user: metUser,
+                          imageUrl: imageUrl,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => PublicProfilePage(
+                                  apiClient: apiClient,
+                                  userId: metUser.id,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 20),
+                Text(
                   'Le mie offerte',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
@@ -602,11 +713,10 @@ class _ProfilePageState extends State<ProfilePage> {
                           .map(
                             (offer) => Padding(
                               padding: const EdgeInsets.only(bottom: 12),
-                              child: OfferCard(
+                              child: _OwnOfferPreviewCard(
                                 offer: offer,
                                 apiClient: apiClient,
-                                onEditOwn: () => _openEditOffer(offer),
-                                allowProfileOpen: false,
+                                onOpen: () => _openOwnOfferDetails(offer),
                               ),
                             ),
                           )
@@ -1065,6 +1175,255 @@ class _PendingReviewCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetUserSummaryCard extends StatelessWidget {
+  const _MetUserSummaryCard({
+    required this.user,
+    required this.imageUrl,
+    required this.onTap,
+  });
+
+  final UserPreview user;
+  final String? imageUrl;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 144,
+      child: Card(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundImage:
+                      imageUrl != null ? NetworkImage(imageUrl!) : null,
+                  child: imageUrl == null
+                      ? const Icon(Icons.person_outline)
+                      : null,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  user.nome,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppTheme.espresso,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${user.etaDisplay} anni',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.78),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  user.cityLabel.isNotEmpty ? user.cityLabel : user.city,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.72),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OwnOfferPreviewCard extends StatelessWidget {
+  const _OwnOfferPreviewCard({
+    required this.offer,
+    required this.apiClient,
+    required this.onOpen,
+  });
+
+  final Offer offer;
+  final ApiClient apiClient;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final mealColor = _mealColor(offer.tipoPasto);
+    final occupiedSeats =
+        (offer.postiTotali - offer.postiDisponibili).clamp(0, offer.postiTotali);
+    final authorPhotoUrl = offer.autoreFoto.isNotEmpty
+        ? apiClient.buildUploadUrl(offer.autoreFoto)
+        : null;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: AppTheme.cardBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 18,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundImage:
+                    authorPhotoUrl != null ? NetworkImage(authorPhotoUrl) : null,
+                child: authorPhotoUrl == null ? const Icon(Icons.person) : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      offer.autoreNome,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: AppTheme.espresso,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      offer.nomeLocale,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.brown,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _CompactInfoChip(
+                  label: offer.tipoPasto.toUpperCase(),
+                  backgroundColor: mealColor.withValues(alpha: 0.14),
+                  foregroundColor: mealColor,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _CompactInfoChip(
+                  label: _formatWhenLabel(context, offer.dataOra),
+                  backgroundColor: AppTheme.mist,
+                  foregroundColor: AppTheme.brown,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Partecipanti $occupiedSeats di ${offer.postiTotali}',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.brown,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 14),
+          OutlinedButton(
+            onPressed: onOpen,
+            child: const Text('Apri offerta'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _mealColor(String type) {
+    switch (type) {
+      case 'colazione':
+        return const Color(0xFFD49B00);
+      case 'pranzo':
+        return const Color(0xFF3D8B5A);
+      case 'cena':
+        return const Color(0xFF7A4EC7);
+      default:
+        return AppTheme.orange;
+    }
+  }
+
+  String _formatWhenLabel(BuildContext context, DateTime value) {
+    final local = value.toLocal();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final eventDay = DateTime(local.year, local.month, local.day);
+    final time = MaterialLocalizations.of(context).formatTimeOfDay(
+      TimeOfDay.fromDateTime(local),
+      alwaysUse24HourFormat: true,
+    );
+
+    if (eventDay == today) {
+      return 'Oggi alle $time';
+    }
+    if (eventDay == today.add(const Duration(days: 1))) {
+      return 'Domani alle $time';
+    }
+    final dateLabel =
+        '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}';
+    return '$dateLabel - $time';
+  }
+}
+
+class _CompactInfoChip extends StatelessWidget {
+  const _CompactInfoChip({
+    required this.label,
+    required this.backgroundColor,
+    required this.foregroundColor,
+  });
+
+  final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: foregroundColor,
+          fontWeight: FontWeight.w800,
+          fontSize: 12.5,
         ),
       ),
     );

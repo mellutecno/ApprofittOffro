@@ -29,6 +29,18 @@ class OffersPage extends StatefulWidget {
 class _OffersPageState extends State<OffersPage> {
   double? _distancePreferenceDraft;
   bool _isSavingDistance = false;
+  bool _isDistanceCardExpanded = false;
+
+  int _normalizeDistanceForUi(int rawValue) {
+    if (rawValue >= 999) {
+      return 100;
+    }
+    return rawValue.clamp(5, 100);
+  }
+
+  String _distanceLabel(int valueKm) {
+    return valueKm >= 100 ? '∞' : '$valueKm km';
+  }
 
   Future<void> _openOfferDetails(
     BuildContext context,
@@ -121,7 +133,8 @@ class _OffersPageState extends State<OffersPage> {
         (_distancePreferenceDraft ?? user.actionRadiusKm.toDouble())
             .round()
             .clamp(5, 100);
-    if (selectedKm == user.actionRadiusKm) {
+    final currentKm = _normalizeDistanceForUi(user.actionRadiusKm);
+    if (selectedKm == currentKm) {
       return;
     }
 
@@ -132,7 +145,7 @@ class _OffersPageState extends State<OffersPage> {
         email: user.email,
         eta: user.etaDisplay,
         gender: user.gender,
-        actionRadiusKm: selectedKm,
+        actionRadiusKm: selectedKm >= 100 ? 999 : selectedKm,
         numeroTelefono: user.phoneNumber,
         citta: user.city,
         latitude: user.latitude?.toString() ?? '',
@@ -150,7 +163,11 @@ class _OffersPageState extends State<OffersPage> {
       setState(() => _distancePreferenceDraft = selectedKm.toDouble());
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Da ora vedrai eventi entro $selectedKm km.'),
+          content: Text(
+            selectedKm >= 100
+                ? 'Da ora vedrai tutti gli eventi.'
+                : 'Da ora vedrai eventi entro $selectedKm km.',
+          ),
         ),
       );
     } on ApiException catch (error) {
@@ -186,8 +203,9 @@ class _OffersPageState extends State<OffersPage> {
         widget.offersController,
       ]),
       builder: (context, _) {
-        final currentActionRadius =
-            widget.authController.currentUser?.actionRadiusKm ?? 15;
+        final currentActionRadius = _normalizeDistanceForUi(
+          widget.authController.currentUser?.actionRadiusKm ?? 15,
+        );
         final distanceDraft =
             _distancePreferenceDraft ?? currentActionRadius.toDouble();
 
@@ -219,7 +237,7 @@ class _OffersPageState extends State<OffersPage> {
                     eyebrow: 'APPROFITTA',
                     title: 'Eventi aperti della community',
                     subtitle:
-                        'Stai vedendo gli eventi vicini a te: regola qui la distanza che preferisci.',
+                        'Scegli colazione, pranzo o cena e apri gli eventi che ti interessano.',
                     centered: true,
                     footer: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -262,14 +280,27 @@ class _OffersPageState extends State<OffersPage> {
                         ),
                         const SizedBox(height: 10),
                         _DistancePreferenceControl(
-                          valueKm: distanceDraft.round(),
+                          valueKm: _normalizeDistanceForUi(
+                            distanceDraft.round(),
+                          ),
                           isSaving: _isSavingDistance,
+                          isExpanded: _isDistanceCardExpanded,
+                          distanceLabel: _distanceLabel(
+                            _normalizeDistanceForUi(distanceDraft.round()),
+                          ),
                           onChanged: (value) {
                             setState(() => _distancePreferenceDraft = value);
                           },
+                          onToggle: () {
+                            setState(
+                              () => _isDistanceCardExpanded =
+                                  !_isDistanceCardExpanded,
+                            );
+                          },
                           onSave: _saveDistancePreference,
                           isDirty:
-                              distanceDraft.round() != currentActionRadius,
+                              _normalizeDistanceForUi(distanceDraft.round()) !=
+                              currentActionRadius,
                         ),
                       ],
                     ),
@@ -305,10 +336,8 @@ class _OffersPageState extends State<OffersPage> {
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: Text(
-                              widget.offersController.hiddenOwnOffersCount == 1
-                                  ? 'Stai offrendo 1 evento: per gestirlo vai sul tuo profilo.'
-                                  : 'Stai offrendo ${widget.offersController.hiddenOwnOffersCount} eventi: per gestirli vai sul tuo profilo.',
+                              child: Text(
+                              'Se vedi questo banner hai delle offerte!!! Gestiscile del tuo profilo.',
                               style: const TextStyle(
                                 color: AppTheme.espresso,
                                 fontWeight: FontWeight.w600,
@@ -716,14 +745,20 @@ class _DistancePreferenceControl extends StatelessWidget {
   const _DistancePreferenceControl({
     required this.valueKm,
     required this.isSaving,
+    required this.isExpanded,
+    required this.distanceLabel,
     required this.onChanged,
+    required this.onToggle,
     required this.onSave,
     required this.isDirty,
   });
 
   final int valueKm;
   final bool isSaving;
+  final bool isExpanded;
+  final String distanceLabel;
   final ValueChanged<double> onChanged;
+  final VoidCallback onToggle;
   final Future<void> Function() onSave;
   final bool isDirty;
 
@@ -740,73 +775,91 @@ class _DistancePreferenceControl extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.radar_rounded,
-                color: AppTheme.orange,
-                size: 18,
+          InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.radar_rounded,
+                    color: AppTheme.orange,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Stai vedendo eventi entro $distanceLabel',
+                      style: const TextStyle(
+                        color: AppTheme.espresso,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    isExpanded
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                    color: AppTheme.brown,
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                'Stai vedendo eventi entro $valueKm km',
-                style: const TextStyle(
-                  color: AppTheme.espresso,
+            ),
+          ),
+          if (isExpanded) ...[
+            const SizedBox(height: 12),
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: AppTheme.orange,
+                inactiveTrackColor: AppTheme.cardBorder,
+                thumbColor: AppTheme.orange,
+                overlayColor: AppTheme.orange.withValues(alpha: 0.14),
+                valueIndicatorColor: AppTheme.orange,
+                valueIndicatorTextStyle: const TextStyle(
+                  color: Colors.white,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: AppTheme.orange,
-              inactiveTrackColor: AppTheme.cardBorder,
-              thumbColor: AppTheme.orange,
-              overlayColor: AppTheme.orange.withValues(alpha: 0.14),
-              valueIndicatorColor: AppTheme.orange,
-              valueIndicatorTextStyle: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
+              child: Slider(
+                min: 5,
+                max: 100,
+                divisions: 19,
+                value: valueKm.clamp(5, 100).toDouble(),
+                label: distanceLabel,
+                onChanged: isSaving ? null : onChanged,
               ),
             ),
-            child: Slider(
-              min: 5,
-              max: 100,
-              divisions: 19,
-              value: valueKm.clamp(5, 100).toDouble(),
-              label: '$valueKm km',
-              onChanged: isSaving ? null : onChanged,
-            ),
-          ),
-          Row(
-            children: [
-              Text(
-                '5 km',
-                style: TextStyle(
-                  color: AppTheme.brown.withValues(alpha: 0.72),
-                  fontWeight: FontWeight.w700,
+            Row(
+              children: [
+                Text(
+                  '5 km',
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.72),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const Spacer(),
-              Text(
-                '100 km',
-                style: TextStyle(
-                  color: AppTheme.brown.withValues(alpha: 0.72),
-                  fontWeight: FontWeight.w700,
+                const Spacer(),
+                Text(
+                  '∞',
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.72),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          FilledButton(
-            onPressed: isSaving || !isDirty ? null : onSave,
-            child: Text(
-              isSaving
-                  ? 'Salvataggio...'
-                  : (isDirty ? 'Salva distanza' : 'Distanza aggiornata'),
+              ],
             ),
-          ),
+            const SizedBox(height: 14),
+            FilledButton(
+              onPressed: isSaving || !isDirty ? null : onSave,
+              child: Text(
+                isSaving
+                    ? 'Salvataggio...'
+                    : (isDirty ? 'Salva distanza' : 'Distanza aggiornata'),
+              ),
+            ),
+          ],
         ],
       ),
     );
