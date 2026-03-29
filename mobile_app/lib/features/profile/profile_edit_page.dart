@@ -708,6 +708,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       TextFormField(
                         controller: _bioController,
                         maxLines: 4,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          height: 1.45,
+                        ),
                         decoration: const InputDecoration(
                           labelText: 'Bio',
                           hintText:

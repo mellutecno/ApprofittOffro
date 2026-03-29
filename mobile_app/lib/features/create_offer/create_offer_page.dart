@@ -452,6 +452,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                     minLines: 5,
                     maxLines: 7,
                     textCapitalization: TextCapitalization.sentences,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      height: 1.45,
+                    ),
                     decoration: const InputDecoration(
                       labelText: 'Descrizione',
                       alignLabelWithHint: true,
@@ -1485,7 +1490,14 @@ class _SectionCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (title != null && title!.trim().isNotEmpty) ...[
-              Text(title!, style: theme.textTheme.titleLarge),
+              Align(
+                alignment: Alignment.center,
+                child: Text(
+                  title!,
+                  style: theme.textTheme.titleLarge,
+                  textAlign: TextAlign.center,
+                ),
+              ),
               const SizedBox(height: 8),
             ],
             if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
@@ -1495,6 +1507,7 @@ class _SectionCard extends StatelessWidget {
                   color: AppTheme.brown.withValues(alpha: 0.86),
                   height: 1.4,
                 ),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
             ],

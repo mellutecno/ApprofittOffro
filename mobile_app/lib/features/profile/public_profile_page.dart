@@ -184,7 +184,11 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                 ],
                 if (profile.user.bio.isNotEmpty) ...[
                   const SizedBox(height: 20),
-                  _InfoCard(title: 'Bio', value: profile.user.bio),
+                  _InfoCard(
+                    title: 'Bio',
+                    value: profile.user.bio,
+                    emphasizedValue: true,
+                  ),
                 ],
                 _InfoCard(
                   title: 'Cibi preferiti',
@@ -343,10 +347,12 @@ class _InfoCard extends StatelessWidget {
   const _InfoCard({
     required this.title,
     required this.value,
+    this.emphasizedValue = false,
   });
 
   final String title;
   final String value;
+  final bool emphasizedValue;
 
   @override
   Widget build(BuildContext context) {
@@ -361,7 +367,15 @@ class _InfoCard extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            Text(value),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: emphasizedValue ? 17 : null,
+                fontWeight:
+                    emphasizedValue ? FontWeight.w700 : FontWeight.w500,
+                height: 1.4,
+              ),
+            ),
           ],
         ),
       ),

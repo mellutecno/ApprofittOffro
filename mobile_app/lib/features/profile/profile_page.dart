@@ -552,7 +552,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       ? user.phoneNumber
                       : 'Non indicato',
                 ),
-                if (user.bio.isNotEmpty) _InfoCard(title: 'Bio', value: user.bio),
+                if (user.bio.isNotEmpty)
+                  _InfoCard(
+                    title: 'Bio',
+                    value: user.bio,
+                    emphasizedValue: true,
+                  ),
                 _InfoCard(
                   title: 'Cibi preferiti',
                   value: user.preferredFoods.isNotEmpty
@@ -920,10 +925,12 @@ class _InfoCard extends StatelessWidget {
   const _InfoCard({
     required this.title,
     required this.value,
+    this.emphasizedValue = false,
   });
 
   final String title;
   final String value;
+  final bool emphasizedValue;
 
   @override
   Widget build(BuildContext context) {
@@ -945,6 +952,9 @@ class _InfoCard extends StatelessWidget {
               value,
               style: TextStyle(
                 color: AppTheme.brown.withValues(alpha: 0.92),
+                fontSize: emphasizedValue ? 17 : null,
+                fontWeight:
+                    emphasizedValue ? FontWeight.w700 : FontWeight.w500,
                 height: 1.4,
               ),
             ),
