@@ -844,12 +844,14 @@ def notify_admin_for_verified_user(user):
     """Avvisa l'amministratore quando un utente risulta verificato."""
     admin_email = os.getenv("ADMIN_EMAIL")
     if not admin_email:
+        print("[MAIL_SKIP] ADMIN_EMAIL non configurata, notifica admin saltata.")
         return False
 
     return send_email(
         subject=f"Nuovo Utente Verificato: {user.nome}",
         recipients=[admin_email],
         template="new_user_notification.html",
+        background=False,
         user=user,
     )
 
