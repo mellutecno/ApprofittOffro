@@ -758,15 +758,6 @@ class _DistancePreferenceControl extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            'Sposta la barra per allargare o restringere il tuo raggio d’azione.',
-            style: TextStyle(
-              color: AppTheme.brown.withValues(alpha: 0.82),
-              fontWeight: FontWeight.w700,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 12),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
               activeTrackColor: AppTheme.orange,

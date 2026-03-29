@@ -59,7 +59,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   final Completer<GoogleMapController> _mapControllerCompleter = Completer();
 
   String? _mealType;
-  int _totalSeats = 2;
+  int _totalSeats = 1;
   DateTime? _selectedDateTime;
   XFile? _pickedImage;
   bool _submitting = false;
@@ -1360,7 +1360,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       _descriptionController.clear();
       setState(() {
         _mealType = null;
-        _totalSeats = 2;
+        _totalSeats = 1;
         _selectedDateTime = null;
         _pickedImage = null;
         _nearbyPlacesLoaded = false;
