@@ -368,6 +368,9 @@ class OfferCard extends StatelessWidget {
     if (offer.claimStatus == 'pending') {
       return 'Richiesta inviata';
     }
+    if (offer.claimStatus == 'started') {
+      return 'In corso';
+    }
     if (offer.alreadyClaimed || offer.claimStatus == 'claimed') {
       return 'Hai approfittato';
     }

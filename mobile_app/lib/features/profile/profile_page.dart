@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
@@ -25,6 +26,8 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   late Future<List<Offer>> _myOffersFuture;
+  double? _distancePreferenceDraft;
+  bool _isSavingDistance = false;
 
   @override
   void initState() {
@@ -45,6 +48,8 @@ class _ProfilePageState extends State<ProfilePage> {
     if (mounted) {
       setState(() {
         _myOffersFuture = future;
+        _distancePreferenceDraft =
+            widget.authController.currentUser?.actionRadiusKm.toDouble();
       });
     }
     await future;
@@ -79,9 +84,224 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _saveDistancePreference() async {
+    final user = widget.authController.currentUser;
+    if (user == null) {
+      return;
+    }
+
+    final selectedKm = (_distancePreferenceDraft ?? user.actionRadiusKm.toDouble())
+        .round()
+        .clamp(1, 200);
+    if (selectedKm == user.actionRadiusKm) {
+      return;
+    }
+
+    setState(() => _isSavingDistance = true);
+    try {
+      await widget.authController.apiClient.updateProfile(
+        nome: user.nome,
+        email: user.email,
+        eta: user.etaDisplay,
+        gender: user.gender,
+        actionRadiusKm: selectedKm,
+        numeroTelefono: user.phoneNumber,
+        citta: user.city,
+        latitude: user.latitude?.toString() ?? '',
+        longitude: user.longitude?.toString() ?? '',
+        preferredFoods: user.preferredFoods,
+        intolerances: user.intolerances,
+        bio: user.bio,
+        existingGalleryFilenames: user.galleryFilenames,
+      );
+      await _refreshAll();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Da ora vedrai eventi entro $selectedKm km.'),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Non riesco ad aggiornare la preferenza distanza adesso.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSavingDistance = false);
+      }
+    }
+  }
+
+  Future<void> _openReviewComposer(PendingReviewReminder reminder) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final commentController = TextEditingController();
+        var selectedRating = 5;
+        var isSubmitting = false;
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            Future<void> submit() async {
+              if (isSubmitting) {
+                return;
+              }
+              setSheetState(() => isSubmitting = true);
+              try {
+                final message = await widget.authController.apiClient.submitReview(
+                  offerId: reminder.offerId,
+                  reviewedId: reminder.targetUser.id,
+                  rating: selectedRating,
+                  comment: commentController.text.trim(),
+                );
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                Navigator.of(sheetContext).pop(message);
+              } on ApiException catch (error) {
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                  SnackBar(content: Text(error.message)),
+                );
+                setSheetState(() => isSubmitting = false);
+              } catch (_) {
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Non riesco a salvare la recensione adesso.',
+                    ),
+                  ),
+                );
+                setSheetState(() => isSubmitting = false);
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 18,
+                right: 18,
+                top: 18,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+              ),
+              child: Material(
+                color: AppTheme.cream,
+                borderRadius: BorderRadius.circular(28),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 44,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: AppTheme.cardBorder,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Lascia una recensione',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Come ti sei trovato con ${reminder.targetUser.nome}?',
+                        style: TextStyle(
+                          color: AppTheme.brown.withValues(alpha: 0.85),
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Center(
+                        child: Wrap(
+                          spacing: 8,
+                          children: List.generate(5, (index) {
+                            final rating = index + 1;
+                            return IconButton(
+                              onPressed: () =>
+                                  setSheetState(() => selectedRating = rating),
+                              icon: Icon(
+                                rating <= selectedRating
+                                    ? Icons.star_rounded
+                                    : Icons.star_outline_rounded,
+                                color: const Color(0xFFD49B00),
+                                size: 30,
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: commentController,
+                        minLines: 3,
+                        maxLines: 5,
+                        decoration: const InputDecoration(
+                          labelText: 'Commento facoltativo',
+                          alignLabelWithHint: true,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: isSubmitting ? null : submit,
+                          child: Text(
+                            isSubmitting
+                                ? 'Invio in corso...'
+                                : 'Pubblica recensione',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || result == null) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(result)),
+    );
+    await _refreshAll();
+  }
+
   Future<void> _openEditOffer(Offer offer) async {
-    final result =
-        await Navigator.of(context).push<CreateOfferPageResult>(
+    final result = await Navigator.of(context).push<CreateOfferPageResult>(
       MaterialPageRoute<CreateOfferPageResult>(
         builder: (_) => CreateOfferPage(
           authController: widget.authController,
@@ -146,313 +366,470 @@ class _ProfilePageState extends State<ProfilePage> {
             ? apiClient.buildUploadUrl(user.photoFilename)
             : null;
 
+        if (user == null) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const BrandWordmark(
+                height: 24,
+                alignment: Alignment.center,
+              ),
+            ),
+            body: const Center(child: Text('Utente non disponibile.')),
+          );
+        }
+
+        final distanceDraft =
+            _distancePreferenceDraft ?? user.actionRadiusKm.toDouble();
+
         return Scaffold(
           appBar: AppBar(
             title: const BrandWordmark(height: 24, alignment: Alignment.center),
           ),
-          body: user == null
-              ? const Center(child: Text('Utente non disponibile.'))
-              : RefreshIndicator(
-                  onRefresh: _refreshAll,
-                  child: ListView(
-                    padding: const EdgeInsets.all(20),
+          body: RefreshIndicator(
+            onRefresh: _refreshAll,
+            child: ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: AppTheme.heroGradient,
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x18000000),
+                        blurRadius: 24,
+                        offset: Offset(0, 14),
+                      ),
+                    ],
+                  ),
+                  child: Column(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          gradient: AppTheme.heroGradient,
-                          borderRadius: BorderRadius.circular(32),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x18000000),
-                              blurRadius: 24,
-                              offset: Offset(0, 14),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            GestureDetector(
-                              onTap: _openGallery,
-                              child: Container(
-                                padding: const EdgeInsets.all(5),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.88),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: CircleAvatar(
-                                  radius: 56,
-                                  backgroundImage: photoUrl != null
-                                      ? NetworkImage(photoUrl)
-                                      : null,
-                                  child: photoUrl == null
-                                      ? const Icon(Icons.person, size: 48)
-                                      : null,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            Text(
-                              user.nome,
-                              style: Theme.of(context).textTheme.headlineMedium,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '${user.etaDisplay} anni - ${user.city}',
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.star_rounded,
-                                  color: AppTheme.gold,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  '${user.ratingAverage.toStringAsFixed(1)} su ${user.ratingCount} recensioni',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (user.galleryFilenames.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        Text(
-                          'Le tue foto',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          height: 148,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _galleryUrls().length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(width: 10),
-                            itemBuilder: (context, index) {
-                              final imageUrl = _galleryUrls()[index];
-                              return GestureDetector(
-                                onTap: () => _openGallery(initialIndex: index),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(20),
-                                  child: AspectRatio(
-                                    aspectRatio: 0.92,
-                                    child: Image.network(
-                                      imageUrl,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
+                      GestureDetector(
+                        onTap: _openGallery,
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.88),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: CircleAvatar(
+                            radius: 56,
+                            backgroundImage:
+                                photoUrl != null ? NetworkImage(photoUrl) : null,
+                            child: photoUrl == null
+                                ? const Icon(Icons.person, size: 48)
+                                : null,
                           ),
                         ),
-                      ],
-                      if (user.pendingClaimRequests.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        Text(
-                          'Richieste in attesa',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 10),
-                        ...user.pendingClaimRequests.map(
-                          (request) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _PendingClaimCard(
-                              request: request,
-                              apiClient: apiClient,
-                              onOpenRequesterProfile: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => PublicProfilePage(
-                                      apiClient: apiClient,
-                                      userId: request.requester.id,
-                                    ),
-                                  ),
-                                );
-                              },
-                              onAccept: () =>
-                                  _handlePendingClaimDecision(
-                                    request,
-                                    accept: true,
-                                  ),
-                              onReject: () =>
-                                  _handlePendingClaimDecision(
-                                    request,
-                                    accept: false,
-                                  ),
-                            ),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 20),
-                      Text(
-                        'Le mie offerte',
-                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      const SizedBox(height: 10),
-                      FutureBuilder<List<Offer>>(
-                        future: _myOffersFuture,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState !=
-                              ConnectionState.done) {
-                            return const Card(
-                              child: Padding(
-                                padding: EdgeInsets.all(20),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              ),
-                            );
-                          }
-
-                          if (snapshot.hasError) {
-                            return const Card(
-                              child: Padding(
-                                padding: EdgeInsets.all(18),
-                                child: Text(
-                                  'Non riesco a caricare le tue offerte adesso.',
-                                ),
-                              ),
-                            );
-                          }
-
-                          final offers = snapshot.data ?? const <Offer>[];
-                          if (offers.isEmpty) {
-                            return const Card(
-                              child: Padding(
-                                padding: EdgeInsets.all(18),
-                                child: Text(
-                                  'Non hai ancora offerte attive. Quando pubblichi il prossimo invito, lo trovi qui.',
-                                ),
-                              ),
-                            );
-                          }
-
-                          return Column(
-                            children: offers
-                                .map(
-                                  (offer) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: OfferCard(
-                                      offer: offer,
-                                      apiClient: apiClient,
-                                      onEditOwn: () => _openEditOffer(offer),
-                                      allowProfileOpen: false,
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
                       Text(
-                        'Dati personali',
-                        style: Theme.of(context).textTheme.titleLarge,
+                        user.nome,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                        textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
-                      _InfoCard(title: 'Email', value: user.email),
-                      _InfoCard(
-                        title: 'Numero di telefono',
-                        value: user.phoneNumber.isNotEmpty
-                            ? user.phoneNumber
-                            : 'Non indicato',
-                      ),
-                      if (user.bio.isNotEmpty)
-                        _InfoCard(title: 'Bio', value: user.bio),
-                      _InfoCard(
-                        title: 'Cibi preferiti',
-                        value: user.preferredFoods.isNotEmpty
-                            ? user.preferredFoods
-                            : 'Non ancora indicati',
-                      ),
-                      _InfoCard(
-                        title: 'Intolleranze',
-                        value: user.intolerances.isNotEmpty
-                            ? user.intolerances
-                            : 'Nessuna indicata',
-                      ),
-                      const SizedBox(height: 20),
                       Text(
-                        'Chi ti segue',
-                        style: Theme.of(context).textTheme.titleLarge,
+                        '${user.etaDisplay} anni - ${user.city}',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge,
                       ),
-                      const SizedBox(height: 10),
-                      if (user.followers.isEmpty)
-                        const Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(18),
-                            child: Text('Per ora non hai ancora follower.'),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            color: AppTheme.gold,
                           ),
-                        )
-                      else
-                        ...user.followers.map(
-                          (follower) => Card(
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundImage:
-                                    follower.photoFilename.isNotEmpty
-                                        ? NetworkImage(
-                                            apiClient.buildUploadUrl(
-                                              follower.photoFilename,
-                                            ),
-                                          )
-                                        : null,
-                                child: follower.photoFilename.isEmpty
-                                    ? const Icon(Icons.person_outline)
-                                    : null,
-                              ),
-                              title: Text(follower.nome),
-                              subtitle: Text(
-                                '${follower.etaDisplay} anni - ${follower.cityLabel}',
-                              ),
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => PublicProfilePage(
-                                      apiClient: apiClient,
-                                      userId: follower.id,
-                                    ),
-                                  ),
-                                );
-                              },
+                          const SizedBox(width: 6),
+                          Text(
+                            '${user.ratingAverage.toStringAsFixed(1)} su ${user.ratingCount} recensioni',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                        ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          final updated =
-                              await Navigator.of(context).push<bool>(
-                            MaterialPageRoute<bool>(
-                              builder: (_) => ProfileEditPage(
-                                authController: widget.authController,
-                              ),
-                            ),
-                          );
-                          if (updated == true) {
-                            await _refreshAll();
-                          }
-                        },
-                        icon: const Icon(Icons.edit_outlined),
-                        label: const Text('Modifica profilo'),
+                        ],
                       ),
-                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
+                if (user.galleryFilenames.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text(
+                    'Le tue foto',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 148,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _galleryUrls().length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (context, index) {
+                        final imageUrl = _galleryUrls()[index];
+                        return GestureDetector(
+                          onTap: () => _openGallery(initialIndex: index),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: AspectRatio(
+                              aspectRatio: 0.92,
+                              child: Image.network(
+                                imageUrl,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                Text(
+                  'Preferenze distanza',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 10),
+                _DistancePreferenceCard(
+                  valueKm: distanceDraft.round(),
+                  isSaving: _isSavingDistance,
+                  onChanged: (value) {
+                    setState(() => _distancePreferenceDraft = value);
+                  },
+                  onSave: _saveDistancePreference,
+                  isDirty: distanceDraft.round() != user.actionRadiusKm,
+                ),
+                if (user.pendingClaimRequests.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text(
+                    'Richieste in attesa',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 10),
+                  ...user.pendingClaimRequests.map(
+                    (request) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _PendingClaimCard(
+                        request: request,
+                        apiClient: apiClient,
+                        onOpenRequesterProfile: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => PublicProfilePage(
+                                apiClient: apiClient,
+                                userId: request.requester.id,
+                              ),
+                            ),
+                          );
+                        },
+                        onAccept: () => _handlePendingClaimDecision(
+                          request,
+                          accept: true,
+                        ),
+                        onReject: () => _handlePendingClaimDecision(
+                          request,
+                          accept: false,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                if (user.pendingReviewReminders.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text(
+                    'Recensioni da lasciare',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 10),
+                  ...user.pendingReviewReminders.map(
+                    (reminder) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _PendingReviewCard(
+                        reminder: reminder,
+                        apiClient: apiClient,
+                        onOpenProfile: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => PublicProfilePage(
+                                apiClient: apiClient,
+                                userId: reminder.targetUser.id,
+                              ),
+                            ),
+                          );
+                        },
+                        onReview: () => _openReviewComposer(reminder),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                Text(
+                  'Le mie offerte',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 10),
+                FutureBuilder<List<Offer>>(
+                  future: _myOffersFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (snapshot.hasError) {
+                      return const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(18),
+                          child: Text(
+                            'Non riesco a caricare le tue offerte adesso.',
+                          ),
+                        ),
+                      );
+                    }
+
+                    final offers = snapshot.data ?? const <Offer>[];
+                    if (offers.isEmpty) {
+                      return const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(18),
+                          child: Text(
+                            'Non hai ancora offerte attive. Quando pubblichi il prossimo invito, lo trovi qui.',
+                          ),
+                        ),
+                      );
+                    }
+
+                    return Column(
+                      children: offers
+                          .map(
+                            (offer) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: OfferCard(
+                                offer: offer,
+                                apiClient: apiClient,
+                                onEditOwn: () => _openEditOffer(offer),
+                                allowProfileOpen: false,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Dati personali',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                _InfoCard(title: 'Email', value: user.email),
+                _InfoCard(
+                  title: 'Numero di telefono',
+                  value: user.phoneNumber.isNotEmpty
+                      ? user.phoneNumber
+                      : 'Non indicato',
+                ),
+                if (user.bio.isNotEmpty) _InfoCard(title: 'Bio', value: user.bio),
+                _InfoCard(
+                  title: 'Cibi preferiti',
+                  value: user.preferredFoods.isNotEmpty
+                      ? user.preferredFoods
+                      : 'Non ancora indicati',
+                ),
+                _InfoCard(
+                  title: 'Intolleranze',
+                  value: user.intolerances.isNotEmpty
+                      ? user.intolerances
+                      : 'Nessuna indicata',
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Chi ti segue',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 10),
+                if (user.followers.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Text('Per ora non hai ancora follower.'),
+                    ),
+                  )
+                else
+                  ...user.followers.map(
+                    (follower) => Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundImage: follower.photoFilename.isNotEmpty
+                              ? NetworkImage(
+                                  apiClient.buildUploadUrl(
+                                    follower.photoFilename,
+                                  ),
+                                )
+                              : null,
+                          child: follower.photoFilename.isEmpty
+                              ? const Icon(Icons.person_outline)
+                              : null,
+                        ),
+                        title: Text(follower.nome),
+                        subtitle: Text(
+                          '${follower.etaDisplay} anni - ${follower.cityLabel}',
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => PublicProfilePage(
+                                apiClient: apiClient,
+                                userId: follower.id,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final updated = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute<bool>(
+                        builder: (_) => ProfileEditPage(
+                          authController: widget.authController,
+                        ),
+                      ),
+                    );
+                    if (updated == true) {
+                      await _refreshAll();
+                    }
+                  },
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Modifica profilo'),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
         );
       },
+    );
+  }
+}
+
+class _DistancePreferenceCard extends StatelessWidget {
+  const _DistancePreferenceCard({
+    required this.valueKm,
+    required this.isSaving,
+    required this.onChanged,
+    required this.onSave,
+    required this.isDirty,
+  });
+
+  final int valueKm;
+  final bool isSaving;
+  final ValueChanged<double> onChanged;
+  final Future<void> Function() onSave;
+  final bool isDirty;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.radar_rounded, color: AppTheme.orange),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Stai vedendo eventi entro $valueKm km da te.',
+                    style: const TextStyle(
+                      color: AppTheme.espresso,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Sposta il cursore per scegliere quanto vuoi allargare o restringere il tuo raggio d\'azione.',
+              style: TextStyle(
+                color: AppTheme.brown.withValues(alpha: 0.84),
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 14),
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: AppTheme.orange,
+                inactiveTrackColor: AppTheme.cardBorder,
+                thumbColor: AppTheme.orange,
+                overlayColor: AppTheme.orange.withValues(alpha: 0.14),
+                valueIndicatorColor: AppTheme.orange,
+                valueIndicatorTextStyle: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              child: Slider(
+                min: 5,
+                max: 100,
+                divisions: 19,
+                value: valueKm.clamp(5, 100).toDouble(),
+                label: '$valueKm km',
+                onChanged: isSaving ? null : onChanged,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  '5 km',
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.72),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '100 km',
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.72),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: isSaving || !isDirty ? null : onSave,
+                child: Text(
+                  isSaving
+                      ? 'Salvataggio...'
+                      : (isDirty
+                          ? 'Salva preferenza distanza'
+                          : 'Preferenza aggiornata'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -518,7 +895,7 @@ class _PendingClaimCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${request.offerMealType} · ${request.offerLocaleName}',
+                            '${request.offerMealType} - ${request.offerLocaleName}',
                             style: const TextStyle(
                               color: AppTheme.brown,
                               fontWeight: FontWeight.w700,
@@ -586,6 +963,154 @@ class _PendingClaimCard extends StatelessWidget {
   }
 }
 
+class _PendingReviewCard extends StatelessWidget {
+  const _PendingReviewCard({
+    required this.reminder,
+    required this.apiClient,
+    required this.onOpenProfile,
+    required this.onReview,
+  });
+
+  final PendingReviewReminder reminder;
+  final ApiClient apiClient;
+  final VoidCallback onOpenProfile;
+  final Future<void> Function() onReview;
+
+  @override
+  Widget build(BuildContext context) {
+    final targetUser = reminder.targetUser;
+    final targetPhotoUrl = targetUser.photoFilename.isNotEmpty
+        ? apiClient.buildUploadUrl(targetUser.photoFilename)
+        : null;
+    final whenText = reminder.offerDateTime != null
+        ? DateFormat(
+            "EEEE d MMMM 'alle' HH:mm",
+            'it_IT',
+          ).format(reminder.offerDateTime!.toLocal())
+        : '';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppTheme.gold.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.reviews_rounded,
+                    color: AppTheme.gold,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Recensisci ${targetUser.nome}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: onOpenProfile,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundImage: targetPhotoUrl != null
+                          ? NetworkImage(targetPhotoUrl)
+                          : null,
+                      child: targetPhotoUrl == null
+                          ? const Icon(Icons.person_outline)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            targetUser.nome,
+                            style: const TextStyle(
+                              color: AppTheme.espresso,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            reminder.roleLabel,
+                            style: TextStyle(
+                              color: AppTheme.brown.withValues(alpha: 0.78),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppTheme.brown,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '${reminder.offerMealType} - ${reminder.offerLocaleName}',
+              style: const TextStyle(
+                color: AppTheme.espresso,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            if (reminder.offerAddress.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                reminder.offerAddress,
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.86),
+                  height: 1.35,
+                ),
+              ),
+            ],
+            if (whenText.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                whenText,
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.78),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onReview,
+                icon: const Icon(Icons.rate_review_rounded),
+                label: const Text('Lascia recensione'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _InfoCard extends StatelessWidget {
   const _InfoCard({
     required this.title,
@@ -605,12 +1130,18 @@ class _InfoCard extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(fontWeight: FontWeight.w800),
+              style: const TextStyle(
+                color: AppTheme.espresso,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               value,
-              style: const TextStyle(height: 1.4),
+              style: TextStyle(
+                color: AppTheme.brown.withValues(alpha: 0.92),
+                height: 1.4,
+              ),
             ),
           ],
         ),

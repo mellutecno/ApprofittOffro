@@ -1232,6 +1232,7 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
         user.eta if user.eta is not None else user.fascia_eta,
     )
     sesso_raw = source.get("sesso", user.sesso or "non_dico")
+    raggio_raw = source.get("raggio_azione", user.raggio_azione or 15)
     lat_raw = str(source.get("latitudine", "") or "").strip()
     lon_raw = str(source.get("longitudine", "") or "").strip()
     citta = str(source.get("citta", user.citta or "") or "").strip()
@@ -1273,6 +1274,13 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
     sesso, sesso_error = parse_gender_value(sesso_raw)
     if sesso_error:
         errors.append(sesso_error)
+    try:
+        raggio_azione = int(float(str(raggio_raw).replace(",", ".").strip()))
+        if raggio_azione < 1 or raggio_azione > 200:
+            raise ValueError()
+    except Exception:
+        errors.append("Il raggio d'azione deve essere un numero tra 1 e 200 km.")
+        raggio_azione = None
 
     existing_user = User.query.filter_by(email=email).first()
     if email != user.email and existing_user and existing_user.id != user.id:
@@ -1314,6 +1322,7 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
         "email": email,
         "eta": eta if not eta_error else None,
         "sesso": sesso,
+        "raggio_azione": raggio_azione,
         "numero_telefono": numero_telefono,
         "citta": citta,
         "latitudine": latitudine,
@@ -1338,6 +1347,7 @@ def save_profile_update_for_user(user, payload, *, verified=None):
     user.fascia_eta = str(payload["eta"])
     user.eta = payload["eta"]
     user.sesso = payload["sesso"]
+    user.raggio_azione = payload["raggio_azione"]
     user.numero_telefono = payload["numero_telefono"]
     user.citta = payload["citta"]
     if payload["latitudine"] is not None and payload["longitudine"] is not None:
@@ -1907,6 +1917,7 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
         "bio": user.bio or "",
         "cibi_preferiti": user.cibi_preferiti or "",
         "intolleranze": user.intolleranze or "",
+        "raggio_azione": int(user.raggio_azione or 15),
         "numero_telefono": user.numero_telefono if include_private else "",
         "lat": user.latitudine if include_private else None,
         "lon": user.longitudine if include_private else None,
@@ -1954,6 +1965,30 @@ def serialize_pending_claim_request(claim, *, viewer=None, followed_user_ids=Non
             viewer=viewer,
             followed_user_ids=followed_user_ids,
         ),
+    }
+
+
+def serialize_pending_review_reminder(item, *, viewer=None, followed_user_ids=None):
+    """Serializza un promemoria recensione per l'app mobile."""
+    offer = item.get("offer")
+    target_user = item.get("target_user")
+    if not offer or not target_user:
+        return None
+
+    return {
+        "offer": {
+            "id": offer.id,
+            "tipo_pasto": offer.tipo_pasto,
+            "nome_locale": offer.nome_locale,
+            "indirizzo": offer.indirizzo,
+            "data_ora": offer.data_ora.isoformat() if offer.data_ora else "",
+        },
+        "target_user": serialize_user_preview(
+            target_user,
+            viewer=viewer,
+            followed_user_ids=followed_user_ids,
+        ),
+        "role_label": item.get("role_label", ""),
     }
 
 
@@ -2843,6 +2878,11 @@ def api_get_offers():
             radius_km = float(radius_str.replace(",", "."))
         except ValueError:
             radius_km = None
+    elif current_user.is_authenticated:
+        try:
+            radius_km = float(current_user.raggio_azione or 15)
+        except (TypeError, ValueError):
+            radius_km = 15
 
     limit = None
     if limit_str:
@@ -3495,6 +3535,18 @@ def api_user_me():
                 followed_user_ids=followed_user_ids,
             )
             for claim in pending_claims
+        )
+        if payload
+    ]
+    user_payload["pending_review_reminders"] = [
+        payload
+        for payload in (
+            serialize_pending_review_reminder(
+                reminder,
+                viewer=current_user,
+                followed_user_ids=followed_user_ids,
+            )
+            for reminder in get_pending_review_reminders(current_user)
         )
         if payload
     ]

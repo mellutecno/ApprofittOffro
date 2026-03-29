@@ -493,6 +493,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         email: _emailController.text.trim(),
         eta: _etaController.text.trim(),
         gender: _selectedGender,
+        actionRadiusKm:
+            widget.authController.currentUser?.actionRadiusKm ?? 15,
         numeroTelefono: _telefonoController.text.trim(),
         citta: _addressController.text.trim(),
         latitude: _latitude!.toString(),

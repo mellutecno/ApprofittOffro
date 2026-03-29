@@ -47,6 +47,43 @@ class PendingClaimRequest {
   }
 }
 
+class PendingReviewReminder {
+  const PendingReviewReminder({
+    required this.offerId,
+    required this.offerMealType,
+    required this.offerLocaleName,
+    required this.offerAddress,
+    required this.offerDateTime,
+    required this.targetUser,
+    required this.roleLabel,
+  });
+
+  final int offerId;
+  final String offerMealType;
+  final String offerLocaleName;
+  final String offerAddress;
+  final DateTime? offerDateTime;
+  final UserPreview targetUser;
+  final String roleLabel;
+
+  factory PendingReviewReminder.fromJson(Map<String, dynamic> json) {
+    final offer = json['offer'] as Map<String, dynamic>? ?? const {};
+    final targetUser =
+        json['target_user'] as Map<String, dynamic>? ??
+            const <String, dynamic>{};
+
+    return PendingReviewReminder(
+      offerId: offer['id'] as int? ?? 0,
+      offerMealType: (offer['tipo_pasto'] ?? '').toString(),
+      offerLocaleName: (offer['nome_locale'] ?? '').toString(),
+      offerAddress: (offer['indirizzo'] ?? '').toString(),
+      offerDateTime: PendingClaimRequest._parseDate(offer['data_ora']),
+      targetUser: UserPreview.fromJson(targetUser),
+      roleLabel: (json['role_label'] ?? '').toString(),
+    );
+  }
+}
+
 class AppUser {
   const AppUser({
     required this.id,
@@ -61,6 +98,7 @@ class AppUser {
     required this.latitude,
     required this.longitude,
     required this.bio,
+    required this.actionRadiusKm,
     required this.phoneNumber,
     required this.isVerified,
     required this.preferredFoods,
@@ -73,6 +111,7 @@ class AppUser {
     required this.offersCount,
     required this.claimsCount,
     required this.pendingClaimRequests,
+    required this.pendingReviewReminders,
   });
 
   final int id;
@@ -87,6 +126,7 @@ class AppUser {
   final double? latitude;
   final double? longitude;
   final String bio;
+  final int actionRadiusKm;
   final String phoneNumber;
   final bool isVerified;
   final String preferredFoods;
@@ -99,6 +139,7 @@ class AppUser {
   final int offersCount;
   final int claimsCount;
   final List<PendingClaimRequest> pendingClaimRequests;
+  final List<PendingReviewReminder> pendingReviewReminders;
 
   bool get hasAnyProfilePhoto =>
       photoFilename.trim().isNotEmpty ||
@@ -128,6 +169,7 @@ class AppUser {
       latitude: (json['lat'] as num?)?.toDouble(),
       longitude: (json['lon'] as num?)?.toDouble(),
       bio: (json['bio'] ?? '').toString(),
+      actionRadiusKm: json['raggio_azione'] as int? ?? 15,
       phoneNumber: (json['numero_telefono'] ?? '').toString(),
       isVerified: json['verificato'] == true,
       preferredFoods: (json['cibi_preferiti'] ?? '').toString(),
@@ -146,6 +188,11 @@ class AppUser {
           (json['pending_claim_requests'] as List<dynamic>? ?? [])
               .cast<Map<String, dynamic>>()
               .map(PendingClaimRequest.fromJson)
+              .toList(),
+      pendingReviewReminders:
+          (json['pending_review_reminders'] as List<dynamic>? ?? [])
+              .cast<Map<String, dynamic>>()
+              .map(PendingReviewReminder.fromJson)
               .toList(),
     );
   }

@@ -106,6 +106,9 @@ class OffersPage extends StatelessWidget {
     return AnimatedBuilder(
       animation: Listenable.merge([authController, offersController]),
       builder: (context, _) {
+        final currentActionRadius =
+            authController.currentUser?.actionRadiusKm ?? 15;
+
         return RefreshIndicator(
           onRefresh: offersController.loadOffers,
           child: CustomScrollView(
@@ -132,7 +135,7 @@ class OffersPage extends StatelessWidget {
                     eyebrow: 'APPROFITTA',
                     title: 'Eventi aperti della community',
                     subtitle:
-                        'Scopri prima cosa succede vicino a te, poi allarga il raggio quando vuoi.',
+                        'Scopri gli eventi nel raggio che hai impostato nel tuo profilo.',
                     centered: true,
                     footer: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -171,39 +174,7 @@ class OffersPage extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _RadiusChip(
-                                label: 'Vicino a te',
-                                radiusKm: defaultNearbyRadiusKm,
-                                selected: offersController.selectedRadiusKm ==
-                                    defaultNearbyRadiusKm,
-                                onTap: offersController.setRadiusKm,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _RadiusChip(
-                                label: 'Più ampio',
-                                radiusKm: expandedNearbyRadiusKm,
-                                selected: offersController.selectedRadiusKm ==
-                                    expandedNearbyRadiusKm,
-                                onTap: offersController.setRadiusKm,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _RadiusChip(
-                                label: 'Tutti',
-                                radiusKm: null,
-                                selected:
-                                    offersController.selectedRadiusKm == null,
-                                onTap: offersController.setRadiusKm,
-                              ),
-                            ),
-                          ],
-                        ),
+                        _DistancePreferenceNotice(radiusKm: currentActionRadius),
                       ],
                     ),
                   ),
@@ -645,42 +616,65 @@ class _MealChip extends StatelessWidget {
   }
 }
 
-class _RadiusChip extends StatelessWidget {
-  const _RadiusChip({
-    required this.label,
+class _DistancePreferenceNotice extends StatelessWidget {
+  const _DistancePreferenceNotice({
     required this.radiusKm,
-    required this.selected,
-    required this.onTap,
   });
 
-  final String label;
-  final int? radiusKm;
-  final bool selected;
-  final Future<void> Function(int?) onTap;
+  final int radiusKm;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 46,
-      child: FilterChip(
-        selected: selected,
-        label: SizedBox(
-          width: double.infinity,
-          child: Text(label, textAlign: TextAlign.center),
-        ),
-        onSelected: (_) => onTap(radiusKm),
-        backgroundColor: Colors.white.withValues(alpha: 0.76),
-        selectedColor: AppTheme.peach.withValues(alpha: 0.44),
-        side: BorderSide(
-          color: selected
-              ? AppTheme.orange.withValues(alpha: 0.44)
-              : AppTheme.cardBorder,
-        ),
-        labelStyle: TextStyle(
-          color: selected ? AppTheme.espresso : AppTheme.brown,
-          fontWeight: FontWeight.w700,
-        ),
-        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+    final progress = ((radiusKm - 1) / 199).clamp(0.0, 1.0);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.74),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.radar_rounded,
+                color: AppTheme.orange,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Raggio attivo: $radiusKm km',
+                style: const TextStyle(
+                  color: AppTheme.espresso,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: AppTheme.mist,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.orange),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Vuoi cambiarlo? Vai su Su di me e aggiorna le tue preferenze di distanza.',
+            style: TextStyle(
+              color: AppTheme.brown.withValues(alpha: 0.82),
+              fontWeight: FontWeight.w600,
+              height: 1.35,
+            ),
+          ),
+        ],
       ),
     );
   }

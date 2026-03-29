@@ -72,6 +72,8 @@ class _HomeShellState extends State<HomeShell> {
   void _handleAuthStateChanged() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeOpenMandatoryProfileSetup());
+      unawaited(_offersController.loadOffers());
+      unawaited(_communityController.loadPeople());
       _applyLaunchTargetIfNeeded();
       _maybeShowPendingRequestsAlert();
     });

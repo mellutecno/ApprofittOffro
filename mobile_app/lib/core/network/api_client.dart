@@ -382,6 +382,7 @@ class ApiClient {
     required String email,
     required String eta,
     required String gender,
+    required int actionRadiusKm,
     required String numeroTelefono,
     required String citta,
     required String latitude,
@@ -405,6 +406,7 @@ class ApiClient {
       'email': email,
       'eta': eta,
       'sesso': gender,
+      'raggio_azione': actionRadiusKm.toString(),
       'numero_telefono': numeroTelefono,
       'citta': citta,
       'latitudine': latitude,
@@ -430,6 +432,28 @@ class ApiClient {
     _ensureSuccess(payload, response.statusCode);
     _storeCookies(response);
     return payload['message']?.toString() ?? 'Profilo aggiornato con successo.';
+  }
+
+  Future<String> submitReview({
+    required int offerId,
+    required int reviewedId,
+    required int rating,
+    String comment = '',
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/reviews',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'offer_id': offerId,
+        'reviewed_id': reviewedId,
+        'rating': rating,
+        'commento': comment,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Recensione salvata.';
   }
 
   Future<http.Response> _send({
