@@ -343,7 +343,7 @@ class _OffersPageState extends State<OffersPage> {
                           const SizedBox(width: 10),
                           Expanded(
                               child: Text(
-                                  'Vaio nel tuo profilo per gestire le tue offerte!!!',
+                                  'Gestisci le tue offerte!!!',
                               style: const TextStyle(
                                 color: AppTheme.espresso,
                                 fontWeight: FontWeight.w600,
