@@ -29,18 +29,15 @@ class OffersPage extends StatefulWidget {
 }
 
 class _OffersPageState extends State<OffersPage> {
-  static const int _minDistanceKm = 5;
-  static const int _maxDistanceKm = 500;
-
   double? _distancePreferenceDraft;
   bool _isSavingDistance = false;
   bool _isDistanceCardExpanded = false;
 
   int _normalizeDistanceForUi(int rawValue) {
-    if (rawValue >= 999) {
-      return _maxDistanceKm;
-    }
-    return rawValue.clamp(_minDistanceKm, _maxDistanceKm);
+    return rawValue.clamp(
+      OffersController.minRadiusKm,
+      OffersController.maxRadiusKm,
+    );
   }
 
   String _distanceLabelText(int valueKm) {
@@ -135,16 +132,20 @@ class _OffersPageState extends State<OffersPage> {
     }
 
     final selectedKm = (_distancePreferenceDraft ??
-            _normalizeDistanceForUi(user.actionRadiusKm).toDouble())
+            widget.offersController.selectedRadiusKm.toDouble())
         .round()
-        .clamp(_minDistanceKm, _maxDistanceKm);
-    final currentKm = _normalizeDistanceForUi(user.actionRadiusKm);
+        .clamp(
+          OffersController.minRadiusKm,
+          OffersController.maxRadiusKm,
+        );
+    final currentKm = widget.offersController.selectedRadiusKm;
     if (selectedKm == currentKm) {
       return;
     }
 
     setState(() => _isSavingDistance = true);
     try {
+      await widget.offersController.selectRadiusKm(selectedKm);
       await widget.authController.apiClient.updateProfile(
         nome: user.nome,
         email: user.email,
@@ -161,7 +162,6 @@ class _OffersPageState extends State<OffersPage> {
         existingGalleryFilenames: user.galleryFilenames,
       );
       await widget.authController.refreshCurrentUser();
-      await widget.offersController.loadOffers();
       if (!mounted) {
         return;
       }
@@ -207,8 +207,9 @@ class _OffersPageState extends State<OffersPage> {
       ]),
       builder: (context, _) {
         final currentUser = widget.authController.currentUser;
-        final rawActionRadius = currentUser?.actionRadiusKm ?? 15;
-        final currentActionRadius = _normalizeDistanceForUi(rawActionRadius);
+        final currentActionRadius = _normalizeDistanceForUi(
+          widget.offersController.selectedRadiusKm,
+        );
         final distanceDraft =
             _distancePreferenceDraft ?? currentActionRadius.toDouble();
         final pendingReviewsCount =
@@ -811,15 +812,15 @@ class _DistancePreferenceControl extends StatelessWidget {
                 ),
               ),
               child: Slider(
-                min: _OffersPageState._minDistanceKm.toDouble(),
-                max: _OffersPageState._maxDistanceKm.toDouble(),
-                divisions: ((_OffersPageState._maxDistanceKm -
-                        _OffersPageState._minDistanceKm) ~/
+                min: OffersController.minRadiusKm.toDouble(),
+                max: OffersController.maxRadiusKm.toDouble(),
+                divisions: ((OffersController.maxRadiusKm -
+                        OffersController.minRadiusKm) ~/
                     5),
                 value: valueKm
                     .clamp(
-                      _OffersPageState._minDistanceKm,
-                      _OffersPageState._maxDistanceKm,
+                      OffersController.minRadiusKm,
+                      OffersController.maxRadiusKm,
                     )
                     .toDouble(),
                 label: '$valueKm km',
@@ -829,7 +830,7 @@ class _DistancePreferenceControl extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  '${_OffersPageState._minDistanceKm} km',
+                  '${OffersController.minRadiusKm} km',
                   style: TextStyle(
                     color: AppTheme.brown.withValues(alpha: 0.72),
                     fontWeight: FontWeight.w700,
@@ -837,7 +838,7 @@ class _DistancePreferenceControl extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  '${_OffersPageState._maxDistanceKm} km',
+                  '${OffersController.maxRadiusKm} km',
                   style: TextStyle(
                     color: AppTheme.brown.withValues(alpha: 0.72),
                     fontWeight: FontWeight.w700,

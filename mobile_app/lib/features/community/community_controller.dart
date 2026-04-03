@@ -8,6 +8,7 @@ class CommunityController extends ChangeNotifier {
 
   static const int minRadiusKm = 5;
   static const int maxRadiusKm = 1500;
+  static const int defaultRadiusKm = 50;
 
   final ApiClient apiClient;
 
@@ -15,7 +16,7 @@ class CommunityController extends ChangeNotifier {
   String? _errorMessage;
   String _selectedAgeRange = '';
   String _selectedGender = '';
-  int _selectedRadiusKm = 15;
+  int _selectedRadiusKm = defaultRadiusKm;
   List<UserPreview> _people = const [];
 
   bool get isLoading => _isLoading;

@@ -6,19 +6,29 @@ import '../../models/offer.dart';
 class OffersController extends ChangeNotifier {
   OffersController(this.apiClient);
 
+  static const int minRadiusKm = 5;
+  static const int maxRadiusKm = 500;
+  static const int defaultRadiusKm = 50;
+
   final ApiClient apiClient;
 
   bool _isLoading = false;
   String? _errorMessage;
   String _selectedMealType = '';
+  int _selectedRadiusKm = defaultRadiusKm;
   List<Offer> _offers = const [];
   int _hiddenOwnOffersCount = 0;
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String get selectedMealType => _selectedMealType;
+  int get selectedRadiusKm => _selectedRadiusKm;
   List<Offer> get offers => _offers;
   int get hiddenOwnOffersCount => _hiddenOwnOffersCount;
+
+  void initializeRadiusKm(int value) {
+    _selectedRadiusKm = value.clamp(minRadiusKm, maxRadiusKm);
+  }
 
   Future<void> loadOffers() async {
     _isLoading = true;
@@ -28,6 +38,7 @@ class OffersController extends ChangeNotifier {
     try {
       final fetchedOffers = await apiClient.fetchOffers(
         mealType: _selectedMealType,
+        radiusKm: _selectedRadiusKm,
       );
       _hiddenOwnOffersCount =
           fetchedOffers.where((offer) => offer.isOwn).length;
@@ -58,6 +69,11 @@ class OffersController extends ChangeNotifier {
 
   Future<void> toggleMealType(String value) async {
     _selectedMealType = _selectedMealType == value ? '' : value;
+    await loadOffers();
+  }
+
+  Future<void> selectRadiusKm(int value) async {
+    _selectedRadiusKm = value.clamp(minRadiusKm, maxRadiusKm);
     await loadOffers();
   }
 }

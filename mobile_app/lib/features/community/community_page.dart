@@ -51,8 +51,7 @@ class _CommunityPageState extends State<CommunityPage> {
   void initState() {
     super.initState();
     final currentRadius = _normalizeDistanceKm(
-      widget.authController.currentUser?.actionRadiusKm ??
-          widget.communityController.selectedRadiusKm,
+      widget.communityController.selectedRadiusKm,
     );
     widget.communityController.initializeRadiusKm(currentRadius);
     _distanceDraftKm = currentRadius.toDouble();
