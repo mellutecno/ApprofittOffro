@@ -206,11 +206,16 @@ class _OffersPageState extends State<OffersPage> {
         widget.offersController,
       ]),
       builder: (context, _) {
-        final rawActionRadius =
-            widget.authController.currentUser?.actionRadiusKm ?? 15;
+        final currentUser = widget.authController.currentUser;
+        final rawActionRadius = currentUser?.actionRadiusKm ?? 15;
         final currentActionRadius = _normalizeDistanceForUi(rawActionRadius);
         final distanceDraft =
             _distancePreferenceDraft ?? currentActionRadius.toDouble();
+        final pendingReviewsCount =
+            currentUser?.pendingReviewReminders.length ?? 0;
+        final shouldShowManageBanner =
+            widget.offersController.hiddenOwnOffersCount > 0 ||
+                pendingReviewsCount > 0;
 
         return RefreshIndicator(
           onRefresh: widget.offersController.loadOffers,
@@ -312,52 +317,131 @@ class _OffersPageState extends State<OffersPage> {
                   ),
                 ),
               ),
-              if (widget.offersController.hiddenOwnOffersCount > 0)
+              if (shouldShowManageBanner)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                     child: Material(
-                      color: AppTheme.peach.withValues(alpha: 0.28),
-                      borderRadius: BorderRadius.circular(22),
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(26),
+                      elevation: 0,
                       child: InkWell(
                         onTap: widget.onManageOwnOffersTap,
-                        borderRadius: BorderRadius.circular(22),
+                        borderRadius: BorderRadius.circular(26),
                         child: Ink(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
+                            horizontal: 18,
+                            vertical: 16,
                           ),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(
-                              color: AppTheme.orange.withValues(alpha: 0.14),
+                            gradient: const LinearGradient(
+                              colors: [
+                                Color(0xFFFFE3D1),
+                                Color(0xFFFFF1E8),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
+                            borderRadius: BorderRadius.circular(26),
+                            border: Border.all(
+                              color: AppTheme.orange.withValues(alpha: 0.32),
+                              width: 1.2,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x14000000),
+                                blurRadius: 18,
+                                offset: Offset(0, 10),
+                              ),
+                            ],
                           ),
                           child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(
-                                Icons.manage_accounts_rounded,
-                                color: AppTheme.espresso,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 10),
-                              const Expanded(
-                                child: Text(
-                                  'Gestisci offerte / recensioni',
-                                  style: TextStyle(
-                                    color: AppTheme.espresso,
-                                    fontWeight: FontWeight.w700,
-                                    decoration: TextDecoration.underline,
-                                    height: 1.35,
+                              Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.88),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: AppTheme.cardBorder,
                                   ),
                                 ),
+                                child: const Icon(
+                                  Icons.notifications_active_rounded,
+                                  color: AppTheme.orange,
+                                  size: 22,
+                                ),
                               ),
-                              const SizedBox(width: 8),
-                              const Icon(
-                                Icons.arrow_forward_ios_rounded,
-                                color: AppTheme.espresso,
-                                size: 16,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Gestisci offerte / recensioni',
+                                      style: TextStyle(
+                                        color: AppTheme.espresso,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 16,
+                                        decoration: TextDecoration.underline,
+                                        decorationThickness: 1.8,
+                                        height: 1.2,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      pendingReviewsCount > 0
+                                          ? 'Hai aggiornamenti da controllare nel tuo profilo.'
+                                          : 'Apri il tuo profilo e gestisci subito le tue offerte.',
+                                      style: TextStyle(
+                                        color: AppTheme.brown
+                                            .withValues(alpha: 0.88),
+                                        fontWeight: FontWeight.w600,
+                                        height: 1.25,
+                                      ),
+                                    ),
+                                    if (pendingReviewsCount > 0) ...[
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 7,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.orange,
+                                          borderRadius:
+                                              BorderRadius.circular(999),
+                                        ),
+                                        child: Text(
+                                          pendingReviewsCount == 1
+                                              ? '1 recensione da lasciare'
+                                              : '$pendingReviewsCount recensioni da lasciare',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 11.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.espresso,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
                               ),
                             ],
                           ),
