@@ -213,9 +213,9 @@ class _OffersPageState extends State<OffersPage> {
             _distancePreferenceDraft ?? currentActionRadius.toDouble();
         final pendingReviewsCount =
             currentUser?.pendingReviewReminders.length ?? 0;
-        final shouldShowManageBanner =
-            widget.offersController.hiddenOwnOffersCount > 0 ||
-                pendingReviewsCount > 0;
+        final showOwnOffersBanner =
+            widget.offersController.hiddenOwnOffersCount > 0;
+        final showPendingReviewsBanner = pendingReviewsCount > 0;
 
         return RefreshIndicator(
           onRefresh: widget.offersController.loadOffers,
@@ -317,136 +317,25 @@ class _OffersPageState extends State<OffersPage> {
                   ),
                 ),
               ),
-              if (shouldShowManageBanner)
+              if (showOwnOffersBanner || showPendingReviewsBanner)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                    child: Material(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(26),
-                      elevation: 0,
-                      child: InkWell(
-                        onTap: widget.onManageOwnOffersTap,
-                        borderRadius: BorderRadius.circular(26),
-                        child: Ink(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 16,
+                    child: Column(
+                      children: [
+                        if (showOwnOffersBanner)
+                          _ManageProfileBanner(
+                            label: 'Gestisci offerte',
+                            onTap: widget.onManageOwnOffersTap,
                           ),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [
-                                Color(0xFFFFE3D1),
-                                Color(0xFFFFF1E8),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(26),
-                            border: Border.all(
-                              color: AppTheme.orange.withValues(alpha: 0.32),
-                              width: 1.2,
-                            ),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x14000000),
-                                blurRadius: 18,
-                                offset: Offset(0, 10),
-                              ),
-                            ],
+                        if (showOwnOffersBanner && showPendingReviewsBanner)
+                          const SizedBox(height: 10),
+                        if (showPendingReviewsBanner)
+                          _ManageProfileBanner(
+                            label: 'Gestisci recensioni',
+                            onTap: widget.onManageOwnOffersTap,
                           ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 42,
-                                height: 42,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.88),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: AppTheme.cardBorder,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.notifications_active_rounded,
-                                  color: AppTheme.orange,
-                                  size: 22,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Gestisci offerte / recensioni',
-                                      style: TextStyle(
-                                        color: AppTheme.espresso,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 16,
-                                        decoration: TextDecoration.underline,
-                                        decorationThickness: 1.8,
-                                        height: 1.2,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      pendingReviewsCount > 0
-                                          ? 'Hai aggiornamenti da controllare nel tuo profilo.'
-                                          : 'Apri il tuo profilo e gestisci subito le tue offerte.',
-                                      style: TextStyle(
-                                        color: AppTheme.brown
-                                            .withValues(alpha: 0.88),
-                                        fontWeight: FontWeight.w600,
-                                        height: 1.25,
-                                      ),
-                                    ),
-                                    if (pendingReviewsCount > 0) ...[
-                                      const SizedBox(height: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 7,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppTheme.orange,
-                                          borderRadius:
-                                              BorderRadius.circular(999),
-                                        ),
-                                        child: Text(
-                                          pendingReviewsCount == 1
-                                              ? '1 recensione da lasciare'
-                                              : '$pendingReviewsCount recensioni da lasciare',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 11.5,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: AppTheme.espresso,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: const Icon(
-                                  Icons.arrow_forward_rounded,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      ],
                     ),
                   ),
                 ),
@@ -967,6 +856,100 @@ class _DistancePreferenceControl extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _ManageProfileBanner extends StatelessWidget {
+  const _ManageProfileBanner({
+    required this.label,
+    required this.onTap,
+  });
+
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(26),
+      elevation: 0,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(26),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFFFFE3D1),
+                Color(0xFFFFF1E8),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(
+              color: AppTheme.orange.withValues(alpha: 0.32),
+              width: 1.2,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x14000000),
+                blurRadius: 18,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.88),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.cardBorder),
+                ),
+                child: const Icon(
+                  Icons.notifications_active_rounded,
+                  color: AppTheme.orange,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppTheme.espresso,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    decoration: TextDecoration.underline,
+                    decorationThickness: 1.8,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppTheme.espresso,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
