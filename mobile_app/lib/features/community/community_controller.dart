@@ -7,7 +7,7 @@ class CommunityController extends ChangeNotifier {
   CommunityController(this.apiClient);
 
   static const int minRadiusKm = 5;
-  static const int maxRadiusKm = 500;
+  static const int maxRadiusKm = 1500;
 
   final ApiClient apiClient;
 

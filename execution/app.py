@@ -3797,12 +3797,12 @@ def api_people():
     if radius_str:
         try:
             radius_km = float(radius_str.replace(",", "."))
-            if radius_km < 5 or radius_km > 500:
+            if radius_km < 5 or radius_km > 1500:
                 raise ValueError()
         except Exception:
             return jsonify({
                 "success": False,
-                "error": "La distanza community deve essere un numero tra 5 e 500 km.",
+                "error": "La distanza community deve essere un numero tra 5 e 1500 km.",
             }), 400
 
     people_query = User.query.options(selectinload(User.photos)).filter(
