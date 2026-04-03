@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -382,7 +383,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                     ),
                     validator: (value) {
                       if ((value ?? '').trim().isEmpty) {
-                        return 'Seleziona un locale dalla mappa.';
+                        return 'Inserisci il nome del locale.';
                       }
                       return null;
                     },
@@ -1314,9 +1315,15 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       _showMessage(publicationTimingWarning);
       return;
     }
+
     if (_selectedLatitude == null || _selectedLongitude == null) {
-      _showMessage('Scegli un locale dalla mappa.');
-      return;
+      final resolvedCoordinates = await _resolveManualAddressCoordinates();
+      if (resolvedCoordinates == null) {
+        return;
+      }
+      _selectedLatitude = resolvedCoordinates.latitude;
+      _selectedLongitude = resolvedCoordinates.longitude;
+      _currentMapCenter = resolvedCoordinates;
     }
 
     var shouldCloseEditor = false;
@@ -1438,6 +1445,27 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
     await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<LatLng?> _resolveManualAddressCoordinates() async {
+    final address = _addressController.text.trim();
+    if (address.isEmpty) {
+      _showMessage('Inserisci un indirizzo valido oppure scegli il locale dalla mappa.');
+      return null;
+    }
+
+    try {
+      final locations = await locationFromAddress(address);
+      if (locations.isEmpty) {
+        _showMessage('Non riesco a trovare questo indirizzo. Controllalo oppure scegli il locale dalla mappa.');
+        return null;
+      }
+      final first = locations.first;
+      return LatLng(first.latitude, first.longitude);
+    } catch (_) {
+      _showMessage('Non riesco a trovare questo indirizzo. Controllalo oppure scegli il locale dalla mappa.');
+      return null;
+    }
   }
 
   void _showMessage(String message) {
