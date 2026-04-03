@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -17,10 +17,12 @@ class OffersPage extends StatefulWidget {
     super.key,
     required this.authController,
     required this.offersController,
+    this.onManageOwnOffersTap,
   });
 
   final AuthController authController;
   final OffersController offersController;
+  final VoidCallback? onManageOwnOffersTap;
 
   @override
   State<OffersPage> createState() => _OffersPageState();
@@ -132,11 +134,10 @@ class _OffersPageState extends State<OffersPage> {
       return;
     }
 
-    final selectedKm =
-        (_distancePreferenceDraft ??
-                _normalizeDistanceForUi(user.actionRadiusKm).toDouble())
-            .round()
-            .clamp(_minDistanceKm, _maxDistanceKm);
+    final selectedKm = (_distancePreferenceDraft ??
+            _normalizeDistanceForUi(user.actionRadiusKm).toDouble())
+        .round()
+        .clamp(_minDistanceKm, _maxDistanceKm);
     final currentKm = _normalizeDistanceForUi(user.actionRadiusKm);
     if (selectedKm == currentKm) {
       return;
@@ -223,10 +224,9 @@ class _OffersPageState extends State<OffersPage> {
                 ),
                 actions: [
                   IconButton(
-                    onPressed:
-                        widget.authController.isBusy
-                            ? null
-                            : widget.authController.logout,
+                    onPressed: widget.authController.isBusy
+                        ? null
+                        : widget.authController.logout,
                     icon: const Icon(Icons.logout),
                     tooltip: 'Esci',
                   ),
@@ -252,7 +252,7 @@ class _OffersPageState extends State<OffersPage> {
                                 value: 'colazione',
                                 selected:
                                     widget.offersController.selectedMealType ==
-                                    'colazione',
+                                        'colazione',
                                 onTap: widget.offersController.toggleMealType,
                               ),
                             ),
@@ -263,7 +263,7 @@ class _OffersPageState extends State<OffersPage> {
                                 value: 'pranzo',
                                 selected:
                                     widget.offersController.selectedMealType ==
-                                    'pranzo',
+                                        'pranzo',
                                 onTap: widget.offersController.toggleMealType,
                               ),
                             ),
@@ -272,9 +272,9 @@ class _OffersPageState extends State<OffersPage> {
                               child: _MealChip(
                                 label: 'Cene',
                                 value: 'cena',
-                                selected: widget
-                                        .offersController.selectedMealType ==
-                                    'cena',
+                                selected:
+                                    widget.offersController.selectedMealType ==
+                                        'cena',
                                 onTap: widget.offersController.toggleMealType,
                               ),
                             ),
@@ -302,8 +302,7 @@ class _OffersPageState extends State<OffersPage> {
                             );
                           },
                           onSave: _saveDistancePreference,
-                          isDirty:
-                              _normalizeDistanceForUi(
+                          isDirty: _normalizeDistanceForUi(
                                 distanceDraft.round(),
                               ) !=
                               currentActionRadius,
@@ -317,41 +316,52 @@ class _OffersPageState extends State<OffersPage> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.peach.withValues(alpha: 0.28),
+                    child: Material(
+                      color: AppTheme.peach.withValues(alpha: 0.28),
+                      borderRadius: BorderRadius.circular(22),
+                      child: InkWell(
+                        onTap: widget.onManageOwnOffersTap,
                         borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: AppTheme.orange.withValues(alpha: 0.14),
-                        ),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Padding(
-                            padding: EdgeInsets.only(top: 1),
-                            child: Icon(
-                              Icons.manage_accounts_rounded,
-                              color: AppTheme.espresso,
-                              size: 20,
+                        child: Ink(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: AppTheme.orange.withValues(alpha: 0.14),
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                              child: Text(
-                                  'Gestisci le tue offerte!!!',
-                              style: const TextStyle(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.manage_accounts_rounded,
                                 color: AppTheme.espresso,
-                                fontWeight: FontWeight.w600,
-                                height: 1.35,
+                                size: 20,
                               ),
-                            ),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text(
+                                  'Gestisci le tue offerte',
+                                  style: TextStyle(
+                                    color: AppTheme.espresso,
+                                    fontWeight: FontWeight.w700,
+                                    decoration: TextDecoration.underline,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                color: AppTheme.espresso,
+                                size: 16,
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -830,10 +840,9 @@ class _DistancePreferenceControl extends StatelessWidget {
               child: Slider(
                 min: _OffersPageState._minDistanceKm.toDouble(),
                 max: _OffersPageState._maxDistanceKm.toDouble(),
-                divisions:
-                    ((_OffersPageState._maxDistanceKm -
-                                _OffersPageState._minDistanceKm) ~/
-                            5),
+                divisions: ((_OffersPageState._maxDistanceKm -
+                        _OffersPageState._minDistanceKm) ~/
+                    5),
                 value: valueKm
                     .clamp(
                       _OffersPageState._minDistanceKm,
@@ -878,4 +887,3 @@ class _DistancePreferenceControl extends StatelessWidget {
     );
   }
 }
-

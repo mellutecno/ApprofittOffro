@@ -10,6 +10,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/config/app_config.dart';
+import '../../core/media/profile_photo_cropper.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_hero_card.dart';
 import 'auth_controller.dart';
@@ -281,8 +282,16 @@ class _RegisterPageState extends State<RegisterPage> {
         return;
       }
 
+      final croppedPhoto = await ProfilePhotoCropper.cropPickedPhoto(
+        photo,
+        title: 'Ritaglia foto profilo',
+      );
+      if (!mounted || croppedPhoto == null) {
+        return;
+      }
+
       setState(() {
-        _selectedPhotos = [..._selectedPhotos, photo];
+        _selectedPhotos = [..._selectedPhotos, croppedPhoto];
       });
       return;
     }
@@ -292,7 +301,15 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
-    final combined = [..._selectedPhotos, ...photos];
+    final croppedPhotos = await ProfilePhotoCropper.cropPickedPhotos(
+      photos,
+      titlePrefix: 'Ritaglia foto profilo',
+    );
+    if (!mounted || croppedPhotos.isEmpty) {
+      return;
+    }
+
+    final combined = [..._selectedPhotos, ...croppedPhotos];
     final limited = combined.take(5).toList(growable: false);
     setState(() => _selectedPhotos = limited);
 
@@ -309,6 +326,29 @@ class _RegisterPageState extends State<RegisterPage> {
       _selectedPhotos = [
         for (int i = 0; i < _selectedPhotos.length; i++)
           if (i != index) _selectedPhotos[i],
+      ];
+    });
+  }
+
+  Future<void> _cropSelectedPhotoAt(int index) async {
+    if (index < 0 || index >= _selectedPhotos.length) {
+      return;
+    }
+
+    final croppedPhoto = await ProfilePhotoCropper.cropPickedPhoto(
+      _selectedPhotos[index],
+      title: index == 0
+          ? 'Ritaglia foto principale'
+          : 'Ritaglia foto ${index + 1}',
+    );
+    if (!mounted || croppedPhoto == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedPhotos = [
+        for (int i = 0; i < _selectedPhotos.length; i++)
+          if (i == index) croppedPhoto else _selectedPhotos[i],
       ];
     });
   }
@@ -343,12 +383,24 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
           ),
           const SizedBox(height: 2),
-          IconButton(
-            onPressed: () => _removeSelectedPhotoAt(index),
-            tooltip: 'Rimuovi foto',
-            icon: const Icon(Icons.delete_outline_rounded, size: 20),
-            color: AppTheme.brown,
-            visualDensity: VisualDensity.compact,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: () => _cropSelectedPhotoAt(index),
+                tooltip: 'Ritaglia foto',
+                icon: const Icon(Icons.crop_rounded, size: 20),
+                color: AppTheme.brown,
+                visualDensity: VisualDensity.compact,
+              ),
+              IconButton(
+                onPressed: () => _removeSelectedPhotoAt(index),
+                tooltip: 'Rimuovi foto',
+                icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                color: AppTheme.brown,
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
           ),
         ],
       ),
@@ -597,7 +649,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Se sbagli uno scatto, tocca Rimuovi per eliminarlo e sceglierne un altro.',
+                                  'Puoi ritagliare ogni foto oppure eliminarla col cestino e sostituirla.',
                                   style: Theme.of(context)
                                       .textTheme
                                       .bodySmall

@@ -192,6 +192,12 @@ class _HomeShellState extends State<HomeShell> {
       OffersPage(
         authController: widget.authController,
         offersController: _offersController,
+        onManageOwnOffersTap: () {
+          if (!mounted) {
+            return;
+          }
+          setState(() => _selectedIndex = 3);
+        },
       ),
       CommunityPage(
         authController: widget.authController,

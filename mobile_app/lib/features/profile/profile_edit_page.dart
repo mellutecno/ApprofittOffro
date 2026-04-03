@@ -10,6 +10,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/config/app_config.dart';
+import '../../core/media/profile_photo_cropper.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../auth/auth_controller.dart';
@@ -327,8 +328,16 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         return;
       }
 
+      final croppedPhoto = await ProfilePhotoCropper.cropPickedPhoto(
+        photo,
+        title: 'Ritaglia foto profilo',
+      );
+      if (!mounted || croppedPhoto == null) {
+        return;
+      }
+
       setState(() {
-        _selectedPhotos = [..._selectedPhotos, photo];
+        _selectedPhotos = [..._selectedPhotos, croppedPhoto];
       });
       return;
     }
@@ -338,7 +347,15 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       return;
     }
 
-    final combined = [..._selectedPhotos, ...photos];
+    final croppedPhotos = await ProfilePhotoCropper.cropPickedPhotos(
+      photos,
+      titlePrefix: 'Ritaglia foto profilo',
+    );
+    if (!mounted || croppedPhotos.isEmpty) {
+      return;
+    }
+
+    final combined = [..._selectedPhotos, ...croppedPhotos];
     final limited = combined.take(availableSlots).toList(growable: false);
     setState(() => _selectedPhotos = limited);
 
@@ -367,6 +384,62 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       _existingGalleryFilenames = [
         for (int i = 0; i < _existingGalleryFilenames.length; i++)
           if (i != index) _existingGalleryFilenames[i],
+      ];
+    });
+  }
+
+  Future<void> _cropExistingPhotoAt(int index) async {
+    if (index < 0 || index >= _existingGalleryFilenames.length) {
+      return;
+    }
+
+    try {
+      final filename = _existingGalleryFilenames[index];
+      final croppedPhoto = await ProfilePhotoCropper.cropExistingPhotoFromUrl(
+        widget.authController.apiClient.buildUploadUrl(filename),
+        title: index == 0
+            ? 'Ritaglia foto principale'
+            : 'Ritaglia foto ${index + 1}',
+      );
+      if (!mounted || croppedPhoto == null) {
+        return;
+      }
+
+      setState(() {
+        _existingGalleryFilenames = [
+          for (int i = 0; i < _existingGalleryFilenames.length; i++)
+            if (i != index) _existingGalleryFilenames[i],
+        ];
+        _selectedPhotos = [..._selectedPhotos, croppedPhoto];
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _cropSelectedPhotoAt(int index) async {
+    if (index < 0 || index >= _selectedPhotos.length) {
+      return;
+    }
+
+    final effectiveIndex = _existingGalleryFilenames.length + index;
+    final croppedPhoto = await ProfilePhotoCropper.cropPickedPhoto(
+      _selectedPhotos[index],
+      title: effectiveIndex == 0
+          ? 'Ritaglia foto principale'
+          : 'Ritaglia foto ${effectiveIndex + 1}',
+    );
+    if (!mounted || croppedPhoto == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedPhotos = [
+        for (int i = 0; i < _selectedPhotos.length; i++)
+          if (i == index) croppedPhoto else _selectedPhotos[i],
       ];
     });
   }
@@ -404,12 +477,24 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 ),
           ),
           const SizedBox(height: 2),
-          IconButton(
-            onPressed: () => _removeExistingPhotoAt(index),
-            tooltip: 'Rimuovi foto',
-            icon: const Icon(Icons.delete_outline_rounded, size: 20),
-            color: AppTheme.brown,
-            visualDensity: VisualDensity.compact,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: () => _cropExistingPhotoAt(index),
+                tooltip: 'Ritaglia foto',
+                icon: const Icon(Icons.crop_rounded, size: 20),
+                color: AppTheme.brown,
+                visualDensity: VisualDensity.compact,
+              ),
+              IconButton(
+                onPressed: () => _removeExistingPhotoAt(index),
+                tooltip: 'Rimuovi foto',
+                icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                color: AppTheme.brown,
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
           ),
         ],
       ),
@@ -440,19 +525,33 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            effectiveIndex == 0 ? 'Foto principale' : 'Foto ${effectiveIndex + 1}',
+            effectiveIndex == 0
+                ? 'Foto principale'
+                : 'Foto ${effectiveIndex + 1}',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
           ),
           const SizedBox(height: 2),
-          IconButton(
-            onPressed: () => _removeSelectedPhotoAt(index),
-            tooltip: 'Rimuovi foto',
-            icon: const Icon(Icons.delete_outline_rounded, size: 20),
-            color: AppTheme.brown,
-            visualDensity: VisualDensity.compact,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: () => _cropSelectedPhotoAt(index),
+                tooltip: 'Ritaglia foto',
+                icon: const Icon(Icons.crop_rounded, size: 20),
+                color: AppTheme.brown,
+                visualDensity: VisualDensity.compact,
+              ),
+              IconButton(
+                onPressed: () => _removeSelectedPhotoAt(index),
+                tooltip: 'Rimuovi foto',
+                icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                color: AppTheme.brown,
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
           ),
         ],
       ),
@@ -493,8 +592,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         email: _emailController.text.trim(),
         eta: _etaController.text.trim(),
         gender: _selectedGender,
-        actionRadiusKm:
-            widget.authController.currentUser?.actionRadiusKm ?? 15,
+        actionRadiusKm: widget.authController.currentUser?.actionRadiusKm ?? 15,
         numeroTelefono: _telefonoController.text.trim(),
         citta: _addressController.text.trim(),
         latitude: _latitude!.toString(),
@@ -709,10 +807,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         controller: _bioController,
                         maxLines: 4,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          height: 1.45,
-                        ),
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              height: 1.45,
+                            ),
                         decoration: const InputDecoration(
                           labelText: 'Bio',
                           hintText:
@@ -754,17 +852,22 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         Wrap(
                           spacing: 10,
                           runSpacing: 10,
-                          children: List.generate(_selectedPhotos.length, (
-                            index,
-                          ) => _buildSelectedPhotoCard(
-                            _selectedPhotos[index],
-                            index,
-                          )),
+                          children: List.generate(
+                              _selectedPhotos.length,
+                              (
+                                index,
+                              ) =>
+                                  _buildSelectedPhotoCard(
+                                    _selectedPhotos[index],
+                                    index,
+                                  )),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Se sbagli una foto, tocca Rimuovi per toglierla prima di salvare.',
-                          style: Theme.of(context).textTheme.bodySmall
+                          'Puoi ritagliare ogni foto oppure eliminarla col cestino prima di salvare.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
                               ?.copyWith(
                                 color: AppTheme.brown.withValues(alpha: 0.7),
                               ),
