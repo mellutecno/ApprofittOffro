@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../core/config/app_config.dart';
@@ -7,6 +7,8 @@ import '../../models/app_user.dart';
 
 class AuthController extends ChangeNotifier {
   AuthController(this.apiClient);
+
+  static const Duration _sessionTimeout = Duration(minutes: 5);
 
   final ApiClient apiClient;
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
@@ -36,10 +38,18 @@ class AuthController extends ChangeNotifier {
     if (!apiClient.hasSession) {
       return;
     }
+    if (await apiClient.sessionStore.isSessionExpired(_sessionTimeout)) {
+      await apiClient.logout();
+      _currentUser = null;
+      _pendingProfileCompletion = false;
+      notifyListeners();
+      return;
+    }
     try {
       _currentUser = await apiClient.fetchCurrentUser();
       _pendingProfileCompletion =
           _currentUser?.needsMandatoryProfileSetup ?? false;
+      await apiClient.sessionStore.touch();
     } catch (_) {
       await apiClient.logout();
       _currentUser = null;
@@ -60,6 +70,7 @@ class AuthController extends ChangeNotifier {
       _pendingProfileCompletion =
           _currentUser?.needsMandatoryProfileSetup ?? false;
       _errorMessage = null;
+      await apiClient.sessionStore.touch();
     } on ApiException catch (e) {
       _errorMessage = e.message;
     } catch (_) {
@@ -79,6 +90,7 @@ class AuthController extends ChangeNotifier {
       await apiClient.login(email: email, password: password);
       _currentUser = await apiClient.fetchCurrentUser();
       _pendingProfileCompletion = false;
+      await apiClient.sessionStore.touch();
       notifyListeners();
       return true;
     } on ApiException catch (e) {
@@ -107,10 +119,9 @@ class AuthController extends ChangeNotifier {
 
       if (!_googleInitialized) {
         await _googleSignIn.initialize(
-          clientId:
-              AppConfig.googleAndroidClientId.isEmpty
-                  ? null
-                  : AppConfig.googleAndroidClientId,
+          clientId: AppConfig.googleAndroidClientId.isEmpty
+              ? null
+              : AppConfig.googleAndroidClientId,
           serverClientId: AppConfig.googleServerClientId,
         );
         _googleInitialized = true;
@@ -126,9 +137,9 @@ class AuthController extends ChangeNotifier {
 
       final payload = await apiClient.loginWithGoogle(idToken: idToken);
       _currentUser = await apiClient.fetchCurrentUser();
-      _pendingProfileCompletion =
-          payload['created'] == true ||
+      _pendingProfileCompletion = payload['created'] == true ||
           (_currentUser?.needsMandatoryProfileSetup ?? false);
+      await apiClient.sessionStore.touch();
       notifyListeners();
       return true;
     } on GoogleSignInException catch (e) {
@@ -169,6 +180,42 @@ class AuthController extends ChangeNotifier {
     } finally {
       _setBusy(false);
     }
+  }
+
+  Future<void> handleAppLifecycleState(AppLifecycleState state) async {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        await _handleAppResumed();
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        await _markAppInactive();
+        break;
+    }
+  }
+
+  Future<void> _handleAppResumed() async {
+    if (!apiClient.hasSession) {
+      return;
+    }
+    if (await apiClient.sessionStore.isSessionExpired(_sessionTimeout)) {
+      await apiClient.logout();
+      _currentUser = null;
+      _pendingProfileCompletion = false;
+      _errorMessage = null;
+      notifyListeners();
+      return;
+    }
+    await apiClient.sessionStore.touch();
+  }
+
+  Future<void> _markAppInactive() async {
+    if (!apiClient.hasSession) {
+      return;
+    }
+    await apiClient.sessionStore.touch();
   }
 
   void _setBusy(bool value) {

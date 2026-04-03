@@ -21,7 +21,8 @@ class ApprofittOffroMobileApp extends StatefulWidget {
       _ApprofittOffroMobileAppState();
 }
 
-class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp> {
+class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
+    with WidgetsBindingObserver {
   late final AuthController _authController;
   late final Future<void> _bootstrapFuture;
   late final AppLinks _appLinks;
@@ -32,6 +33,7 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final apiClient = ApiClient(sessionStore: SessionStore());
     _authController = AuthController(apiClient);
     _appLinks = AppLinks();
@@ -41,9 +43,15 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _linkSubscription?.cancel();
     _authController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    unawaited(_authController.handleAppLifecycleState(state));
   }
 
   Future<void> _bootstrap() async {
@@ -139,23 +147,23 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp> {
             return const _SplashScreen();
           }
 
-            return AnimatedBuilder(
-              animation: _authController,
-              builder: (context, _) {
-                if (_authController.isAuthenticated) {
-                  return HomeShell(
-                    authController: _authController,
-                    launchTarget: _pendingLaunchTarget,
-                    onLaunchTargetHandled: _consumeLaunchTarget,
-                  );
-                }
-                return LandingPage(
+          return AnimatedBuilder(
+            animation: _authController,
+            builder: (context, _) {
+              if (_authController.isAuthenticated) {
+                return HomeShell(
                   authController: _authController,
-                  autoOpenLogin: _pendingLaunchTarget != null,
+                  launchTarget: _pendingLaunchTarget,
+                  onLaunchTargetHandled: _consumeLaunchTarget,
                 );
-              },
-            );
-          },
+              }
+              return LandingPage(
+                authController: _authController,
+                autoOpenLogin: _pendingLaunchTarget != null,
+              );
+            },
+          );
+        },
       ),
     );
   }
