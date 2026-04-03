@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import random
 from dataclasses import dataclass
 from datetime import timedelta
@@ -29,10 +30,18 @@ from urllib.request import Request, urlopen
 
 from werkzeug.security import generate_password_hash
 
+HOME_DIR = os.path.expanduser("~")
+os.environ.setdefault("APP_ENV_FILE", os.path.join(HOME_DIR, ".env"))
+if os.name != "nt" and "APP_DATA_DIR" not in os.environ:
+    # Su PythonAnywhere il database live e gli upload stanno nella home utente.
+    os.environ["APP_DATA_DIR"] = HOME_DIR
+
 from app import (
     APP_TIMEZONE,
     DEFAULT_USER_LATITUDE,
     DEFAULT_USER_LONGITUDE,
+    SQLITE_PATH,
+    UPLOAD_FOLDER,
     User,
     UserFollow,
     app,
@@ -381,6 +390,9 @@ def main() -> int:
             f"[seed-demo-users] anchor={escape(anchor.address_label)} "
             f"lat={anchor.latitude:.5f} lon={anchor.longitude:.5f} "
             f"target={target_total} dry_run={args.dry_run}"
+        )
+        print(
+            f"[seed-demo-users] db={SQLITE_PATH} uploads={UPLOAD_FOLDER}"
         )
 
         preview_names = build_name_pool("femmina", args.female, rng)[:2] + build_name_pool("maschio", args.male, rng)[:2]
