@@ -325,14 +325,14 @@ class _OffersPageState extends State<OffersPage> {
                       children: [
                         if (showOwnOffersBanner)
                           _ManageProfileBanner(
-                            label: 'Gestisci offerte',
+                            label: 'Gestisci le tue offerte',
                             onTap: widget.onManageOwnOffersTap,
                           ),
                         if (showOwnOffersBanner && showPendingReviewsBanner)
                           const SizedBox(height: 10),
                         if (showPendingReviewsBanner)
                           _ManageProfileBanner(
-                            label: 'Gestisci recensioni',
+                            label: 'Gestisci le tue recensioni',
                             onTap: widget.onManageOwnOffersTap,
                           ),
                       ],

@@ -658,30 +658,39 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               ),
               const SizedBox(height: 16),
               Expanded(
-                child: !_initialMapReady
-                    ? const _MapBootstrappingCard(height: null)
-                    : _GoogleMapsPreviewCard(
-                        target: _currentMapCenter,
-                        markers: _nearbyMarkers,
-                        isBusy: _isLocating || _loadingNearbyPlaces,
-                        onMapCreated: _handleMapCreated,
-                        onCameraMove: _handleCameraMove,
-                        onCameraIdle: () {},
-                        onRecenterTap: _submitting || _isLocating
-                            ? null
-                            : _useCurrentLocation,
-                        height: null,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: !_initialMapReady
+                          ? const _MapBootstrappingCard(height: null)
+                          : _GoogleMapsPreviewCard(
+                              target: _currentMapCenter,
+                              markers: _nearbyMarkers,
+                              isBusy: _isLocating || _loadingNearbyPlaces,
+                              onMapCreated: _handleMapCreated,
+                              onCameraMove: _handleCameraMove,
+                              onCameraIdle: () {},
+                              onRecenterTap: _submitting || _isLocating
+                                  ? null
+                                  : _useCurrentLocation,
+                              height: null,
+                            ),
+                    ),
+                    if (_mapDraftSelection != null)
+                      Positioned(
+                        top: 12,
+                        left: 12,
+                        right: 72,
+                        child: _SelectedPlacePreviewCard(
+                          place: _mapDraftSelection!,
+                          onConfirm: _submitting || _loadingNearbyPlaces
+                              ? null
+                              : _confirmMapSelection,
+                        ),
                       ),
-              ),
-              if (_mapDraftSelection != null) ...[
-                const SizedBox(height: 14),
-                _SelectedPlacePreviewCard(
-                  place: _mapDraftSelection!,
-                  onConfirm: _submitting || _loadingNearbyPlaces
-                      ? null
-                      : _confirmMapSelection,
+                  ],
                 ),
-              ],
+              ),
               const SizedBox(height: 14),
               Row(
                 children: [
@@ -1563,48 +1572,61 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        color: Colors.white.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppTheme.cardBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 14,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            place.name,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  place.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: AppTheme.espresso,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Locale selezionato',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppTheme.brown.withValues(alpha: 0.68),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
-          if (place.address.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              place.address,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppTheme.brown.withValues(alpha: 0.74),
-                height: 1.35,
+          const SizedBox(width: 10),
+          FilledButton(
+            onPressed: onConfirm,
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+              textStyle: const TextStyle(
+                fontWeight: FontWeight.w800,
               ),
             ),
-          ],
-          if (place.phoneNumber.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              place.phoneNumber,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppTheme.brown.withValues(alpha: 0.74),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton(
-              onPressed: onConfirm,
-              child: const Text('Offri qui'),
-            ),
+            child: const Text('Offri qui'),
           ),
         ],
       ),
