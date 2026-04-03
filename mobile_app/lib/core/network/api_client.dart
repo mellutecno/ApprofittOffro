@@ -211,13 +211,14 @@ class ApiClient {
   Future<List<PlaceCandidate>> fetchNearbyPlaces({
     required double latitude,
     required double longitude,
-    int radiusMeters = 1000,
+    int radiusMeters = 7000,
+    int maxResults = 36,
   }) async {
-    final path =
-        '/api/places/nearby?${Uri(queryParameters: {
+    final path = '/api/places/nearby?${Uri(queryParameters: {
           'lat': latitude.toString(),
           'lon': longitude.toString(),
           'radius': radiusMeters.toString(),
+          'max_results': maxResults.toString(),
         }).query}';
     final response = await _send(method: 'GET', path: path);
     final payload = _decodeJson(response.body);
@@ -373,8 +374,7 @@ class ApiClient {
     );
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
-    return payload['message']?.toString() ??
-        'Offerta eliminata con successo.';
+    return payload['message']?.toString() ?? 'Offerta eliminata con successo.';
   }
 
   Future<String> updateProfile({

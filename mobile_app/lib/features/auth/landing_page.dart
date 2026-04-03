@@ -142,7 +142,7 @@ class _LandingPageState extends State<LandingPage> {
                                   backgroundColor:
                                       Colors.white.withValues(alpha: 0.82),
                                 ),
-                                child: const Text('Accedi / Crea account'),
+                                child: const Text('Accedi / Iscriviti'),
                               ),
                             ),
                           ),

@@ -2470,6 +2470,25 @@ GOOGLE_PLACES_ALLOWED_PRIMARY_TYPES = {
     "sandwich_shop",
 }
 
+GOOGLE_PLACES_INCLUDED_TYPE_GROUPS = (
+    (
+        "restaurant",
+        "pizza_restaurant",
+        "brunch_restaurant",
+        "fast_food_restaurant",
+    ),
+    (
+        "cafe",
+        "coffee_shop",
+        "bakery",
+        "sandwich_shop",
+    ),
+    (
+        "bar",
+        "meal_takeaway",
+    ),
+)
+
 GOOGLE_PLACES_EXCLUDED_PRIMARY_TYPES = {
     "shopping_mall",
     "supermarket",
@@ -2526,21 +2545,14 @@ def is_google_place_relevant(place_name, place_address, primary_type):
     return any(keyword in haystack for keyword in useful_keywords)
 
 
-def search_google_nearby_places(latitude, longitude, radius=900, max_results=18):
-    """Cerca locali vicini tramite Google Places API (New)."""
+def _google_places_nearby_request(latitude, longitude, radius, included_types, max_results):
     api_key = app.config.get("GOOGLE_PLACES_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("Google Places non configurato.")
 
     request_url = "https://places.googleapis.com/v1/places:searchNearby"
     request_payload = {
-        "includedTypes": [
-            "restaurant",
-            "cafe",
-            "bar",
-            "bakery",
-            "meal_takeaway",
-        ],
+        "includedTypes": list(included_types),
         "excludedTypes": [
             "shopping_mall",
             "supermarket",
@@ -2556,10 +2568,10 @@ def search_google_nearby_places(latitude, longitude, radius=900, max_results=18)
                     "latitude": float(latitude),
                     "longitude": float(longitude),
                 },
-                "radius": float(max(100, min(radius, 3000))),
+                "radius": float(max(100, min(radius, 8000))),
             }
         },
-        "rankPreference": "POPULARITY",
+        "rankPreference": "DISTANCE",
         "languageCode": "it",
         "regionCode": "IT",
     }
@@ -2589,27 +2601,71 @@ def search_google_nearby_places(latitude, longitude, radius=900, max_results=18)
     except URLError as exc:
         raise RuntimeError(f"Google Places non raggiungibile: {exc}") from exc
 
+    return payload.get("places", [])
+
+
+def search_google_nearby_places(latitude, longitude, radius=7000, max_results=36):
+    """Cerca locali vicini tramite Google Places API (New)."""
+    places_by_id = {}
+    last_error = None
+
+    for included_types in GOOGLE_PLACES_INCLUDED_TYPE_GROUPS:
+        try:
+            raw_places = _google_places_nearby_request(
+                latitude,
+                longitude,
+                radius=radius,
+                included_types=included_types,
+                max_results=max_results,
+            )
+        except Exception as exc:
+            print(f"[GOOGLE_PLACES_GROUP_ERROR] types={included_types} error={exc}")
+            last_error = exc
+            continue
+        for place in raw_places:
+            location = place.get("location") or {}
+            display_name = place.get("displayName") or {}
+            lat = location.get("latitude")
+            lon = location.get("longitude")
+            if lat is None or lon is None:
+                continue
+            place_name = display_name.get("text", "").strip()
+            place_address = (place.get("formattedAddress") or "").strip()
+            primary_type = (place.get("primaryType") or "").strip()
+            if not is_google_place_relevant(place_name, place_address, primary_type):
+                continue
+            place_id = (place.get("id") or "").strip()
+            if not place_id or place_id in places_by_id:
+                continue
+            places_by_id[place_id] = {
+                "id": place_id,
+                "name": place_name,
+                "address": place_address,
+                "latitude": float(lat),
+                "longitude": float(lon),
+                "primary_type": primary_type,
+                "_distance_km": calculate_distance(
+                    float(latitude),
+                    float(longitude),
+                    float(lat),
+                    float(lon),
+                ),
+            }
+
     places = []
-    for place in payload.get("places", []):
-        location = place.get("location") or {}
-        display_name = place.get("displayName") or {}
-        lat = location.get("latitude")
-        lon = location.get("longitude")
-        if lat is None or lon is None:
-            continue
-        place_name = display_name.get("text", "").strip()
-        place_address = (place.get("formattedAddress") or "").strip()
-        primary_type = (place.get("primaryType") or "").strip()
-        if not is_google_place_relevant(place_name, place_address, primary_type):
-            continue
-        places.append({
-            "id": place.get("id", ""),
-            "name": place_name,
-            "address": place_address,
-            "latitude": float(lat),
-            "longitude": float(lon),
-            "primary_type": primary_type,
-        })
+    for place in sorted(
+        places_by_id.values(),
+        key=lambda item: (item["_distance_km"], item["name"].lower()),
+    ):
+        normalized_place = dict(place)
+        normalized_place.pop("_distance_km", None)
+        places.append(normalized_place)
+        if len(places) >= max(1, min(int(max_results), 60)):
+            break
+
+    if not places and last_error is not None:
+        raise last_error
+
     return places
 
 
@@ -2719,7 +2775,8 @@ def api_places_nearby():
     """Restituisce locali Google Places vicini al punto richiesto."""
     lat = request.args.get("lat", "").strip()
     lon = request.args.get("lon", "").strip()
-    radius = request.args.get("radius", "1000").strip()
+    radius = request.args.get("radius", "7000").strip()
+    max_results = request.args.get("max_results", "36").strip()
 
     if not google_places_enabled():
         return jsonify({
@@ -2731,10 +2788,11 @@ def api_places_nearby():
         latitude = float(lat.replace(",", "."))
         longitude = float(lon.replace(",", "."))
         radius_m = int(float(radius.replace(",", ".")))
+        max_results_value = int(float(max_results.replace(",", ".")))
     except ValueError:
         return jsonify({
             "success": False,
-            "error": "Coordinate o raggio non validi.",
+            "error": "Coordinate, raggio o numero risultati non validi.",
         }), 400
 
     try:
@@ -2742,6 +2800,7 @@ def api_places_nearby():
             latitude,
             longitude,
             radius=radius_m,
+            max_results=max_results_value,
         )
     except Exception as exc:
         print(f"[GOOGLE_PLACES_ERROR] {exc}")
