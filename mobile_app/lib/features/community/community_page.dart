@@ -173,6 +173,11 @@ class _CommunityPageState extends State<CommunityPage> {
                                 ],
                               ),
                               const SizedBox(height: 12),
+                              _CommunityResultCount(
+                                count: widget.communityController.people.length,
+                                isLoading: widget.communityController.isLoading,
+                              ),
+                              const SizedBox(height: 12),
                               Text(
                                 'Nei risultati trovi sempre gli altri profili della community, mai il tuo.',
                                 textAlign: TextAlign.center,
@@ -252,6 +257,55 @@ class _CommunityPageState extends State<CommunityPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _CommunityResultCount extends StatelessWidget {
+  const _CommunityResultCount({
+    required this.count,
+    required this.isLoading,
+  });
+
+  final int count;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = isLoading
+        ? 'Sto cercando utenti nella community...'
+        : (count == 1
+            ? '1 utente nella community'
+            : '$count utenti nella community');
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.74),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.groups_2_rounded,
+            color: isLoading ? AppTheme.brown : AppTheme.orange,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.espresso,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
