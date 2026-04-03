@@ -149,9 +149,27 @@ def choose_anchor(anchor_email: str) -> AnchorLocation:
         User.verificato.is_(True),
     )
     if anchor_email.strip():
-        user = query.filter(User.email == anchor_email.strip().lower()).first()
+        normalized_email = anchor_email.strip().lower()
+        user = query.filter(User.email == normalized_email).first()
         if user is None:
-            raise RuntimeError(f"Nessun utente trovato con email {anchor_email!r}.")
+            user = User.query.filter(
+                User.email == normalized_email,
+                User.verificato.is_(True),
+            ).first()
+        if user is None:
+            fallback_user = query.order_by(User.id.asc()).first()
+            if fallback_user is not None:
+                print(
+                    f"[seed-demo-users] anchor email {anchor_email!r} non trovata, "
+                    f"uso fallback {fallback_user.email!r}."
+                )
+                user = fallback_user
+            else:
+                print(
+                    f"[seed-demo-users] anchor email {anchor_email!r} non trovata e nessun utente verificato disponibile, "
+                    "uso coordinate di default."
+                )
+                user = None
     else:
         user = query.order_by(User.id.asc()).first()
 
