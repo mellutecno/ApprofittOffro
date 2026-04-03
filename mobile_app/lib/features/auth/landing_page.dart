@@ -9,7 +9,6 @@ import '../../core/widgets/brand_wordmark.dart';
 import '../../models/offer.dart';
 import 'auth_controller.dart';
 import 'login_page.dart';
-import 'register_page.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({
@@ -66,16 +65,6 @@ class _LandingPageState extends State<LandingPage> {
       }
       _openLogin();
     });
-  }
-
-  void _openRegister() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => RegisterPage(
-          authController: widget.authController,
-        ),
-      ),
-    );
   }
 
   Future<void> _reloadOffers() async {
@@ -144,30 +133,18 @@ class _LandingPageState extends State<LandingPage> {
                               color: Colors.white.withValues(alpha: 0.55),
                             ),
                           ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _openLogin,
-                                  style: OutlinedButton.styleFrom(
-                                    backgroundColor:
-                                        Colors.white.withValues(alpha: 0.82),
-                                  ),
-                                  child: const Text('Accedi'),
+                          child: Center(
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                onPressed: _openLogin,
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor:
+                                      Colors.white.withValues(alpha: 0.82),
                                 ),
+                                child: const Text('Accedi / Crea account'),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _openRegister,
-                                  style: OutlinedButton.styleFrom(
-                                    backgroundColor:
-                                        Colors.white.withValues(alpha: 0.82),
-                                  ),
-                                  child: const Text('Crea account'),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 24),

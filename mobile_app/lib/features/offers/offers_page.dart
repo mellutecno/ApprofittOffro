@@ -344,7 +344,7 @@ class _OffersPageState extends State<OffersPage> {
                               const SizedBox(width: 10),
                               const Expanded(
                                 child: Text(
-                                  'Gestisci le tue offerte',
+                                  'Gestisci offerte / recensioni',
                                   style: TextStyle(
                                     color: AppTheme.espresso,
                                     fontWeight: FontWeight.w700,
