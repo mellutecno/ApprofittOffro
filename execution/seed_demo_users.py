@@ -140,6 +140,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Non salva nulla: mostra solo cosa verrebbe creato.",
     )
+    parser.add_argument(
+        "--refresh-existing",
+        action="store_true",
+        help="Aggiorna e riposiziona anche i profili demo già esistenti invece di saltarli.",
+    )
     return parser.parse_args()
 
 
@@ -251,42 +256,69 @@ def create_demo_user(
     surname: str,
     anchor: AnchorLocation,
     radius_km: float,
+    refresh_existing: bool,
     rng: random.Random,
-) -> User | None:
+) -> tuple[User | None, str]:
     email = email_for_demo_user(gender, index)
     existing = User.query.filter_by(email=email).first()
-    if existing is not None:
-        return None
 
     age = rng.randint(22, 62)
     latitude, longitude = random_point_within(anchor, radius_km=radius_km, rng=rng)
     address = build_address(anchor, index, rng)
     phone_number = f"347{index:07d}"
-    user = User(
-        nome=f"{name} {surname}",
-        email=email,
-        password_hash=generate_password_hash(PASSWORD_FOR_ALL),
-        google_sub=None,
-        foto_filename="",
-        fascia_eta=age_to_range(age),
-        eta=age,
-        sesso=gender,
-        numero_telefono=phone_number,
-        latitudine=latitude,
-        longitudine=longitude,
-        citta=address,
-        cibi_preferiti=rng.choice(FAVORITE_FOODS),
-        intolleranze=rng.choice(INTOLERANCES),
-        bio=build_bio(rng),
-        raggio_azione=50,
-        verificato=True,
-        verification_token=None,
-        is_admin=False,
-        admin_verified_notified_at=local_now(),
-        created_at=local_now() - timedelta(days=rng.randint(0, 45), hours=rng.randint(0, 20)),
-    )
-    db.session.add(user)
-    db.session.flush()
+    if existing is not None and not refresh_existing:
+        return None, "skipped"
+
+    if existing is None:
+        user = User(
+            nome=f"{name} {surname}",
+            email=email,
+            password_hash=generate_password_hash(PASSWORD_FOR_ALL),
+            google_sub=None,
+            foto_filename="",
+            fascia_eta=age_to_range(age),
+            eta=age,
+            sesso=gender,
+            numero_telefono=phone_number,
+            latitudine=latitude,
+            longitudine=longitude,
+            citta=address,
+            cibi_preferiti=rng.choice(FAVORITE_FOODS),
+            intolleranze=rng.choice(INTOLERANCES),
+            bio=build_bio(rng),
+            raggio_azione=50,
+            verificato=True,
+            verification_token=None,
+            is_admin=False,
+            admin_verified_notified_at=local_now(),
+            created_at=local_now() - timedelta(days=rng.randint(0, 45), hours=rng.randint(0, 20)),
+        )
+        db.session.add(user)
+        db.session.flush()
+        action = "created"
+    else:
+        user = existing
+        user.nome = f"{name} {surname}"
+        user.password_hash = generate_password_hash(PASSWORD_FOR_ALL)
+        user.google_sub = None
+        user.fascia_eta = age_to_range(age)
+        user.eta = age
+        user.sesso = gender
+        user.numero_telefono = phone_number
+        user.latitudine = latitude
+        user.longitudine = longitude
+        user.citta = address
+        user.cibi_preferiti = rng.choice(FAVORITE_FOODS)
+        user.intolleranze = rng.choice(INTOLERANCES)
+        user.bio = build_bio(rng)
+        user.raggio_azione = 50
+        user.verificato = True
+        user.verification_token = None
+        user.is_admin = False
+        user.admin_verified_notified_at = local_now()
+        user.created_at = local_now() - timedelta(days=rng.randint(0, 15), hours=rng.randint(0, 20))
+        db.session.flush()
+        action = "updated"
 
     saved_photo = download_profile_photo(
         portrait_url(gender, index),
@@ -294,7 +326,7 @@ def create_demo_user(
     )
     replace_user_gallery(user, [saved_photo])
     db.session.flush()
-    return user
+    return user, action
 
 
 def attach_follow_graph(users: list[User], rng: random.Random) -> int:
@@ -360,45 +392,57 @@ def main() -> int:
 
         female_pool = build_name_pool("femmina", args.female, rng)
         male_pool = build_name_pool("maschio", args.male, rng)
-        created_users: list[User] = []
+        touched_users: list[User] = []
         skipped = 0
+        created_count = 0
+        updated_count = 0
 
         for index, (first_name, surname) in enumerate(female_pool, start=1):
-            created = create_demo_user(
+            user, action = create_demo_user(
                 gender="femmina",
                 index=index,
                 name=first_name,
                 surname=surname,
                 anchor=anchor,
                 radius_km=args.radius_km,
+                refresh_existing=args.refresh_existing,
                 rng=rng,
             )
-            if created is None:
+            if user is None:
                 skipped += 1
             else:
-                created_users.append(created)
+                touched_users.append(user)
+                if action == "created":
+                    created_count += 1
+                elif action == "updated":
+                    updated_count += 1
 
         for offset, (first_name, surname) in enumerate(male_pool, start=1):
             absolute_index = args.female + offset
-            created = create_demo_user(
+            user, action = create_demo_user(
                 gender="maschio",
                 index=absolute_index,
                 name=first_name,
                 surname=surname,
                 anchor=anchor,
                 radius_km=args.radius_km,
+                refresh_existing=args.refresh_existing,
                 rng=rng,
             )
-            if created is None:
+            if user is None:
                 skipped += 1
             else:
-                created_users.append(created)
+                touched_users.append(user)
+                if action == "created":
+                    created_count += 1
+                elif action == "updated":
+                    updated_count += 1
 
-        follower_links = attach_follow_graph(created_users, rng)
+        follower_links = attach_follow_graph(touched_users, rng)
         db.session.commit()
 
         print(
-            f"[seed-demo-users] creati={len(created_users)} skipped={skipped} "
+            f"[seed-demo-users] creati={created_count} aggiornati={updated_count} skipped={skipped} "
             f"followers={follower_links}"
         )
         print(f"[seed-demo-users] password demo condivisa: {PASSWORD_FOR_ALL}")
