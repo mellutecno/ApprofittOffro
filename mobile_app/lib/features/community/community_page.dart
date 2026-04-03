@@ -37,14 +37,49 @@ class _CommunityPageState extends State<CommunityPage> {
     MapEntry('maschio', 'Maschi'),
     MapEntry('femmina', 'Femmine'),
   ];
+  bool _isDistanceCardExpanded = false;
+  double? _distanceDraftKm;
+
+  int _normalizeDistanceKm(int rawValue) {
+    return rawValue.clamp(
+      CommunityController.minRadiusKm,
+      CommunityController.maxRadiusKm,
+    );
+  }
 
   @override
   void initState() {
     super.initState();
+    final currentRadius = _normalizeDistanceKm(
+      widget.authController.currentUser?.actionRadiusKm ??
+          widget.communityController.selectedRadiusKm,
+    );
+    widget.communityController.initializeRadiusKm(currentRadius);
+    _distanceDraftKm = currentRadius.toDouble();
     if (widget.communityController.people.isEmpty &&
         !widget.communityController.isLoading) {
       widget.communityController.loadPeople();
     }
+  }
+
+  Future<void> _saveDistancePreference() async {
+    final selectedKm = _normalizeDistanceKm(
+      (_distanceDraftKm ?? widget.communityController.selectedRadiusKm.toDouble())
+          .round(),
+    );
+    if (selectedKm == widget.communityController.selectedRadiusKm) {
+      return;
+    }
+
+    await widget.communityController.selectRadiusKm(selectedKm);
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Ora vedi utenti entro $selectedKm km.'),
+      ),
+    );
   }
 
   @override
@@ -52,6 +87,9 @@ class _CommunityPageState extends State<CommunityPage> {
     return AnimatedBuilder(
       animation: widget.communityController,
       builder: (context, _) {
+        final distanceDraft = _distanceDraftKm ??
+            widget.communityController.selectedRadiusKm.toDouble();
+        final distanceValue = _normalizeDistanceKm(distanceDraft.round());
         return RefreshIndicator(
           onRefresh: () async {
             await widget.communityController.loadPeople();
@@ -82,6 +120,24 @@ class _CommunityPageState extends State<CommunityPage> {
                             fontWeight: FontWeight.w800,
                             color: AppTheme.brown,
                           ),
+                        ),
+                        const SizedBox(height: 12),
+                        _CommunityDistanceControl(
+                          valueKm: distanceValue,
+                          isExpanded: _isDistanceCardExpanded,
+                          isSaving: widget.communityController.isLoading,
+                          onChanged: (value) {
+                            setState(() => _distanceDraftKm = value);
+                          },
+                          onToggle: () {
+                            setState(
+                              () => _isDistanceCardExpanded =
+                                  !_isDistanceCardExpanded,
+                            );
+                          },
+                          onSave: _saveDistancePreference,
+                          isDirty: distanceValue !=
+                              widget.communityController.selectedRadiusKm,
                         ),
                         const SizedBox(height: 12),
                         ConstrainedBox(
@@ -281,6 +337,135 @@ class _CommunityFilterTile extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CommunityDistanceControl extends StatelessWidget {
+  const _CommunityDistanceControl({
+    required this.valueKm,
+    required this.isExpanded,
+    required this.isSaving,
+    required this.onChanged,
+    required this.onToggle,
+    required this.onSave,
+    required this.isDirty,
+  });
+
+  final int valueKm;
+  final bool isExpanded;
+  final bool isSaving;
+  final ValueChanged<double> onChanged;
+  final VoidCallback onToggle;
+  final Future<void> Function() onSave;
+  final bool isDirty;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.74),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.people_alt_rounded,
+                    color: AppTheme.orange,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Utenti nel raggio di $valueKm km',
+                      style: const TextStyle(
+                        color: AppTheme.espresso,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    isExpanded
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                    color: AppTheme.brown,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isExpanded) ...[
+            const SizedBox(height: 12),
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: AppTheme.orange,
+                inactiveTrackColor: AppTheme.cardBorder,
+                thumbColor: AppTheme.orange,
+                overlayColor: AppTheme.orange.withValues(alpha: 0.14),
+                valueIndicatorColor: AppTheme.orange,
+                valueIndicatorTextStyle: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              child: Slider(
+                min: CommunityController.minRadiusKm.toDouble(),
+                max: CommunityController.maxRadiusKm.toDouble(),
+                divisions: ((CommunityController.maxRadiusKm -
+                        CommunityController.minRadiusKm) ~/
+                    5),
+                value: valueKm
+                    .clamp(
+                      CommunityController.minRadiusKm,
+                      CommunityController.maxRadiusKm,
+                    )
+                    .toDouble(),
+                label: '$valueKm km',
+                onChanged: isSaving ? null : onChanged,
+              ),
+            ),
+            Row(
+              children: [
+                Text(
+                  '${CommunityController.minRadiusKm} km',
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.72),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${CommunityController.maxRadiusKm} km',
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.72),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            FilledButton(
+              onPressed: isSaving || !isDirty ? null : onSave,
+              child: Text(
+                isSaving
+                    ? 'Aggiornamento...'
+                    : (isDirty ? 'Applica distanza' : 'Distanza aggiornata'),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

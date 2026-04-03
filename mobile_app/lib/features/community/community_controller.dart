@@ -6,19 +6,28 @@ import '../../models/user_preview.dart';
 class CommunityController extends ChangeNotifier {
   CommunityController(this.apiClient);
 
+  static const int minRadiusKm = 5;
+  static const int maxRadiusKm = 500;
+
   final ApiClient apiClient;
 
   bool _isLoading = false;
   String? _errorMessage;
   String _selectedAgeRange = '';
   String _selectedGender = '';
+  int _selectedRadiusKm = 15;
   List<UserPreview> _people = const [];
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String get selectedAgeRange => _selectedAgeRange;
   String get selectedGender => _selectedGender;
+  int get selectedRadiusKm => _selectedRadiusKm;
   List<UserPreview> get people => _people;
+
+  void initializeRadiusKm(int value) {
+    _selectedRadiusKm = value.clamp(minRadiusKm, maxRadiusKm);
+  }
 
   Future<void> loadPeople() async {
     _isLoading = true;
@@ -29,6 +38,7 @@ class CommunityController extends ChangeNotifier {
       _people = await apiClient.fetchPeople(
         ageRange: _selectedAgeRange,
         gender: _selectedGender,
+        radiusKm: _selectedRadiusKm,
       );
     } on ApiException catch (e) {
       _errorMessage = e.message;
@@ -47,6 +57,11 @@ class CommunityController extends ChangeNotifier {
 
   Future<void> selectGender(String value) async {
     _selectedGender = value;
+    await loadPeople();
+  }
+
+  Future<void> selectRadiusKm(int value) async {
+    _selectedRadiusKm = value.clamp(minRadiusKm, maxRadiusKm);
     await loadPeople();
   }
 

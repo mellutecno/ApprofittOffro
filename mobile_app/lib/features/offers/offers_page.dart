@@ -779,7 +779,7 @@ class _DistancePreferenceControl extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Stai vedendo eventi entro $distanceLabel',
+                      'Visualizza eventi entro $distanceLabel',
                       style: const TextStyle(
                         color: AppTheme.espresso,
                         fontWeight: FontWeight.w800,

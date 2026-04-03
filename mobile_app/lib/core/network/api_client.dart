@@ -138,6 +138,7 @@ class ApiClient {
   Future<List<UserPreview>> fetchPeople({
     String ageRange = '',
     String gender = '',
+    int? radiusKm,
   }) async {
     final query = <String, String>{};
     if (ageRange.isNotEmpty) {
@@ -145,6 +146,9 @@ class ApiClient {
     }
     if (gender.isNotEmpty) {
       query['gender'] = gender;
+    }
+    if (radiusKm != null) {
+      query['radius'] = radiusKm.toString();
     }
     final path = query.isEmpty
         ? '/api/people'

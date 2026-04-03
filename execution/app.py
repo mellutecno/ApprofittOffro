@@ -3792,6 +3792,18 @@ def api_people():
     )
     if gender_error:
         return jsonify({"success": False, "error": gender_error}), 400
+    radius_str = (request.args.get("radius") or "").strip()
+    radius_km = None
+    if radius_str:
+        try:
+            radius_km = float(radius_str.replace(",", "."))
+            if radius_km < 5 or radius_km > 500:
+                raise ValueError()
+        except Exception:
+            return jsonify({
+                "success": False,
+                "error": "La distanza community deve essere un numero tra 5 e 500 km.",
+            }), 400
 
     people_query = User.query.options(selectinload(User.photos)).filter(
         User.id != current_user.id,
@@ -3817,12 +3829,28 @@ def api_people():
         people_query = people_query.filter(User.sesso == selected_gender)
 
     people = people_query.order_by(User.eta.asc(), User.nome.asc()).all()
+    if radius_km is not None:
+        search_lat = current_user.latitudine or DEFAULT_USER_LATITUDE
+        search_lon = current_user.longitudine or DEFAULT_USER_LONGITUDE
+        people = [
+            person
+            for person in people
+            if person.latitudine is not None
+            and person.longitudine is not None
+            and calculate_distance(
+                search_lat,
+                search_lon,
+                person.latitudine,
+                person.longitudine,
+            ) <= radius_km
+        ]
     followed_user_ids = get_followed_user_ids(current_user.id)
 
     return jsonify({
         "success": True,
         "selected_age_range": selected_age_range,
         "selected_gender": selected_gender,
+        "selected_radius": radius_km,
         "age_ranges": [{"value": value, "label": label} for value, label in FASCE_ETA],
         "gender_filters": [{"value": value, "label": label} for value, label in COMMUNITY_GENDER_FILTERS],
         "people": [
