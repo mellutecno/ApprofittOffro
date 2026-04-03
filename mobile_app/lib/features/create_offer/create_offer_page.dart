@@ -406,7 +406,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: _phoneController,
-                    readOnly: true,
+                    enabled: !_submitting,
+                    keyboardType: TextInputType.phone,
                     decoration: InputDecoration(
                       labelText: 'Telefono del locale',
                       prefixIcon: const Icon(Icons.call_outlined),
