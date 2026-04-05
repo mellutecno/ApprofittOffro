@@ -158,7 +158,7 @@ BREAKFAST_BOOKING_LEAD_HOURS = 1
 MEAL_BOOKING_LEAD_HOURS = 6
 USER_SESSION_IDLE_TIMEOUT_MINUTES = 60
 ADMIN_SESSION_IDLE_TIMEOUT_MINUTES = 30
-REVIEW_EDIT_WINDOW_HOURS = 24
+REVIEW_EDIT_WINDOW_HOURS = 3
 DEFAULT_USER_LATITUDE = 41.9028
 DEFAULT_USER_LONGITUDE = 12.4964
 COMMUNITY_GENDER_FILTERS = [
@@ -488,6 +488,51 @@ def send_claim_rejected_email(claim):
         offer=offer,
         host=offer.autore,
         data_evento=data_evento,
+    )
+
+
+def send_review_received_email(review, *, is_update=False):
+    """Avvisa il destinatario quando riceve o vede aggiornata una recensione."""
+    if not review:
+        return False
+
+    offer = review.offerta
+    reviewer = review.reviewer
+    reviewed = review.reviewed
+    if not offer or not reviewer or not reviewed:
+        print(
+            f"[REVIEW_MAIL_SKIP] review={getattr(review, 'id', None)} offer/reviewer/reviewed mancanti"
+        )
+        return False
+    if not reviewed.email:
+        print(
+            f"[REVIEW_MAIL_SKIP] review={review.id} destinatario senza email reviewed={reviewed.id}"
+        )
+        return False
+
+    data_evento = (
+        offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+        if offer.data_ora
+        else ""
+    )
+    action_label = "ha aggiornato" if is_update else "ti ha lasciato"
+    print(
+        f"[REVIEW_MAIL_FLOW] review={review.id} offer={offer.id} "
+        f"reviewer_email={reviewer.email or '-'} reviewed_email={reviewed.email} "
+        f"update={is_update} provider={get_active_email_provider()}"
+    )
+    return send_email(
+        subject=f"{reviewer.nome} {action_label} una recensione",
+        recipients=[reviewed.email],
+        template="review_received.html",
+        background=False,
+        reviewed_user=reviewed,
+        reviewer_user=reviewer,
+        offer=offer,
+        data_evento=data_evento,
+        rating=review.rating,
+        commento=review.commento or "",
+        is_update=is_update,
     )
 
 
@@ -2262,6 +2307,11 @@ def remove_user_with_cleanup(user, motivazione, acting_admin):
     user_nome = user.nome
     gallery_files = list(user.gallery_filenames)
     owned_offers = Offer.query.filter_by(user_id=user.id).all()
+    owned_offer_photo_files = [
+        offer.foto_locale
+        for offer in owned_offers
+        if getattr(offer, "foto_locale", None)
+    ]
     owned_offer_ids = [offer.id for offer in owned_offers]
     now = local_now()
 
@@ -2306,7 +2356,7 @@ def remove_user_with_cleanup(user, motivazione, acting_admin):
 
     db.session.delete(user)
     db.session.commit()
-    delete_upload_files(gallery_files)
+    delete_upload_files(gallery_files + owned_offer_photo_files)
 
     if user_email:
         send_email(
@@ -2322,6 +2372,67 @@ def remove_user_with_cleanup(user, motivazione, acting_admin):
 # ===================================================================
 # API — Autenticazione & Utilità
 # ===================================================================
+
+def remove_user_self_service(user):
+    """Elimina il proprio account e pulisce le entita' collegate senza un amministratore."""
+    if not user:
+        return
+
+    gallery_files = list(user.gallery_filenames)
+    owned_offers = Offer.query.filter_by(user_id=user.id).all()
+    owned_offer_ids = [offer.id for offer in owned_offers]
+    owned_offer_photo_files = [
+        offer.foto_locale
+        for offer in owned_offers
+        if getattr(offer, "foto_locale", None)
+    ]
+    now = local_now()
+
+    if owned_offer_ids:
+        claims_on_other_offers = Claim.query.filter(
+            Claim.user_id == user.id,
+            Claim.offer_id.notin_(owned_offer_ids),
+        ).all()
+    else:
+        claims_on_other_offers = Claim.query.filter_by(user_id=user.id).all()
+
+    for claim in claims_on_other_offers:
+        offer = claim.offerta
+        if offer:
+            offer.posti_disponibili = min(
+                offer.posti_totali,
+                offer.posti_disponibili + 1,
+            )
+            if offer.data_ora > now and offer.stato == "completata":
+                offer.stato = "attiva"
+            if offer.autore and offer.autore.email:
+                send_email(
+                    f"Partecipazione annullata: {offer.nome_locale}",
+                    [offer.autore.email],
+                    "unclaim_notification.html",
+                    background=False,
+                    user=user,
+                    offer=offer,
+                    data_evento=offer.data_ora.strftime('%d/%m/%Y alle %H:%M'),
+                )
+        db.session.delete(claim)
+
+    for offer in owned_offers:
+        remove_offer_with_notifications(
+            offer,
+            "L'host ha cancellato il proprio account.",
+            acting_admin=None,
+            notify_owner=False,
+        )
+
+    Review.query.filter(
+        or_(Review.reviewer_id == user.id, Review.reviewed_id == user.id)
+    ).delete(synchronize_session=False)
+
+    db.session.delete(user)
+    db.session.commit()
+    delete_upload_files(gallery_files + owned_offer_photo_files)
+
 
 @app.route("/profile/<int:user_id>")
 @login_required
@@ -3776,6 +3887,11 @@ def api_user_me():
     ]
     user_payload["stats"] = {
         "offerte_totali": Offer.query.filter_by(user_id=current_user.id).count(),
+        "offerte_attive_da_gestire": Offer.query.filter(
+            Offer.user_id == current_user.id,
+            Offer.stato.in_(["attiva", "completata"]),
+            Offer.data_ora > local_now() - timedelta(hours=3),
+        ).count(),
         "recuperi_effettuati": Claim.query.filter_by(
             user_id=current_user.id,
             status=CLAIM_STATUS_ACCEPTED,
@@ -4042,6 +4158,31 @@ def api_admin_message_user(user_id):
     )
     return jsonify({"success": True, "message": "Comunicazione inviata con successo."})
 
+
+@app.route("/api/user/account", methods=["DELETE"])
+@login_required
+def api_delete_own_account():
+    """Permette all'utente autenticato di cancellare definitivamente il proprio account."""
+    user = db.session.get(User, current_user.id)
+    if not user:
+        logout_user()
+        session.clear()
+        return jsonify({"success": False, "error": "Account non trovato."}), 404
+
+    if is_admin_user(user) and User.query.filter_by(is_admin=True).count() <= 1:
+        return jsonify({
+            "success": False,
+            "error": "Non puoi eliminare l'ultimo amministratore rimasto.",
+        }), 400
+
+    remove_user_self_service(user)
+    logout_user()
+    session.clear()
+    return jsonify({
+        "success": True,
+        "message": "Il tuo account Ã¨ stato eliminato definitivamente dalla community.",
+    })
+
 @app.route("/api/user/update", methods=["POST"])
 @login_required
 def api_user_update():
@@ -4167,6 +4308,7 @@ def api_create_review():
         existing.rating = rating
         existing.commento = commento
         db.session.commit()
+        send_review_received_email(existing, is_update=True)
         return jsonify({
             "success": True,
             "message": f"Recensione aggiornata con successo. Resta modificabile fino a {REVIEW_EDIT_WINDOW_HOURS} ore dalla prima pubblicazione.",
@@ -4183,6 +4325,7 @@ def api_create_review():
 
     db.session.add(new_review)
     db.session.commit()
+    send_review_received_email(new_review, is_update=False)
 
     return jsonify({"success": True, "message": "Grazie! La tua recensione è stata pubblicata."})
 

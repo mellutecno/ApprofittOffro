@@ -239,6 +239,34 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  Future<String> deleteAccount() async {
+    _setBusy(true);
+    _errorMessage = null;
+
+    try {
+      final message = await apiClient.deleteMyAccount();
+      try {
+        await _googleSignIn.signOut();
+      } catch (_) {
+        // Se l'utente non usa Google, ignoro.
+      }
+      _currentUser = null;
+      _pendingProfileCompletion = false;
+      notifyListeners();
+      return message;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      rethrow;
+    } catch (_) {
+      _errorMessage = 'Non riesco a eliminare il tuo account adesso.';
+      notifyListeners();
+      throw ApiException(_errorMessage!);
+    } finally {
+      _setBusy(false);
+    }
+  }
+
   void _setBusy(bool value) {
     _isBusy = value;
     notifyListeners();

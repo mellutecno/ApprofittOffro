@@ -248,7 +248,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             const SizedBox(height: 12),
                             Text(
                               existingReview == null
-                                  ? 'Dopo la pubblicazione potrai modificare questa recensione per 24 ore.'
+                                  ? 'Dopo la pubblicazione potrai modificare questa recensione per 3 ore.'
                                   : 'Puoi modificare questa recensione fino al $editableUntilText.',
                               style: TextStyle(
                                 color: AppTheme.brown.withValues(alpha: 0.82),
@@ -402,6 +402,63 @@ class _ProfilePageState extends State<ProfilePage> {
         );
       },
     );
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Eliminare il profilo?'),
+          content: const Text(
+            'Se confermi, il tuo account verra eliminato definitivamente dalla community insieme a offerte, partecipazioni e dati collegati.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annulla'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF8A4336),
+              ),
+              child: const Text('Elimina account'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      final message = await widget.authController.deleteAccount();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Non riesco a eliminare il tuo account adesso.'),
+        ),
+      );
+    }
   }
 
   List<String> _galleryUrls() {
@@ -832,6 +889,18 @@ class _ProfilePageState extends State<ProfilePage> {
                   icon: const Icon(Icons.edit_outlined),
                   label: const Text('Modifica profilo'),
                 ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: widget.authController.isBusy
+                      ? null
+                      : _confirmDeleteAccount,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF8A4336),
+                    side: const BorderSide(color: Color(0xFFD7B4AC)),
+                  ),
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: const Text('Cancella il tuo account'),
+                ),
                 const SizedBox(height: 24),
               ],
             ),
@@ -1166,7 +1235,7 @@ class _PendingReviewCard extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               existingReview == null
-                  ? 'Dopo la pubblicazione potrai modificare questa recensione per 24 ore.'
+                  ? 'Dopo la pubblicazione potrai modificare questa recensione per 3 ore.'
                   : 'Modificabile fino al $editableUntilText.',
               style: TextStyle(
                 color: AppTheme.brown.withValues(alpha: 0.82),

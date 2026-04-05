@@ -178,6 +178,7 @@ class AppUser {
     required this.followers,
     required this.metUsers,
     required this.offersCount,
+    required this.manageableOffersCount,
     required this.claimsCount,
     required this.pendingClaimRequests,
     required this.pendingReviewReminders,
@@ -207,6 +208,7 @@ class AppUser {
   final List<UserPreview> followers;
   final List<UserPreview> metUsers;
   final int offersCount;
+  final int manageableOffersCount;
   final int claimsCount;
   final List<PendingClaimRequest> pendingClaimRequests;
   final List<PendingReviewReminder> pendingReviewReminders;
@@ -257,6 +259,7 @@ class AppUser {
           .map(UserPreview.fromJson)
           .toList(),
       offersCount: stats['offerte_totali'] as int? ?? 0,
+      manageableOffersCount: stats['offerte_attive_da_gestire'] as int? ?? 0,
       claimsCount: stats['recuperi_effettuati'] as int? ?? 0,
       pendingClaimRequests:
           (json['pending_claim_requests'] as List<dynamic>? ?? [])

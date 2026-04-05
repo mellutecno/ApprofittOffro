@@ -130,9 +130,13 @@ class ApiClient {
     try {
       await _send(method: 'POST', path: '/api/logout');
     } finally {
-      _cookieHeader = null;
-      await sessionStore.clear();
+      await clearLocalSession();
     }
+  }
+
+  Future<void> clearLocalSession() async {
+    _cookieHeader = null;
+    await sessionStore.clear();
   }
 
   Future<AppUser> fetchCurrentUser() async {
@@ -443,6 +447,15 @@ class ApiClient {
     _ensureSuccess(payload, response.statusCode);
     _storeCookies(response);
     return payload['message']?.toString() ?? 'Profilo aggiornato con successo.';
+  }
+
+  Future<String> deleteMyAccount() async {
+    final response = await _send(method: 'DELETE', path: '/api/user/account');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    await clearLocalSession();
+    return payload['message']?.toString() ??
+        'Il tuo account è stato eliminato definitivamente.';
   }
 
   Future<String> submitReview({

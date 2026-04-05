@@ -33,7 +33,7 @@ class _HomeShellState extends State<HomeShell> {
   late final OffersController _offersController;
   late final CommunityController _communityController;
   bool _mandatoryProfileFlowOpen = false;
-  String? _lastPendingAlertSignature;
+  String? _lastProfileAlertSignature;
 
   @override
   void initState() {
@@ -43,10 +43,11 @@ class _HomeShellState extends State<HomeShell> {
     _communityController = CommunityController(widget.authController.apiClient)
       ..loadPeople();
     widget.authController.addListener(_handleAuthStateChanged);
+    _offersController.addListener(_handleOffersStateChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeOpenMandatoryProfileSetup());
       _applyLaunchTargetIfNeeded();
-      _maybeShowPendingRequestsAlert();
+      _maybeShowProfileManagementAlert();
     });
   }
 
@@ -56,7 +57,7 @@ class _HomeShellState extends State<HomeShell> {
     if (oldWidget.launchTarget != widget.launchTarget) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _applyLaunchTargetIfNeeded();
-        _maybeShowPendingRequestsAlert(forceProfileTab: true);
+        _maybeShowProfileManagementAlert(forceProfileTab: true);
       });
     }
   }
@@ -64,9 +65,16 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void dispose() {
     widget.authController.removeListener(_handleAuthStateChanged);
+    _offersController.removeListener(_handleOffersStateChanged);
     _offersController.dispose();
     _communityController.dispose();
     super.dispose();
+  }
+
+  void _handleOffersStateChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowProfileManagementAlert();
+    });
   }
 
   void _handleAuthStateChanged() {
@@ -75,7 +83,7 @@ class _HomeShellState extends State<HomeShell> {
       unawaited(_offersController.loadOffers());
       unawaited(_communityController.loadPeople());
       _applyLaunchTargetIfNeeded();
-      _maybeShowPendingRequestsAlert();
+      _maybeShowProfileManagementAlert();
     });
   }
 
@@ -96,36 +104,61 @@ class _HomeShellState extends State<HomeShell> {
     widget.onLaunchTargetHandled?.call();
   }
 
-  void _maybeShowPendingRequestsAlert({bool forceProfileTab = false}) {
+  bool _hasOffersToManage() {
+    final user = widget.authController.currentUser;
+    if (user == null) {
+      return false;
+    }
+    return user.pendingClaimRequests.isNotEmpty ||
+        user.manageableOffersCount > 0 ||
+        _offersController.hiddenOwnOffersCount > 0;
+  }
+
+  bool _hasReviewsToManage() {
+    final user = widget.authController.currentUser;
+    if (user == null) {
+      return false;
+    }
+    return user.pendingReviewReminders.isNotEmpty;
+  }
+
+  void _maybeShowProfileManagementAlert({bool forceProfileTab = false}) {
     if (!mounted) {
       return;
     }
 
     final user = widget.authController.currentUser;
     if (user == null) {
-      _lastPendingAlertSignature = null;
+      _lastProfileAlertSignature = null;
       return;
     }
 
-    final pendingCount = user.pendingClaimRequests.length;
-    if (pendingCount <= 0) {
-      _lastPendingAlertSignature = null;
+    final hasOffersToManage = _hasOffersToManage();
+    final hasReviewsToManage = _hasReviewsToManage();
+    if (!hasOffersToManage && !hasReviewsToManage) {
+      _lastProfileAlertSignature = null;
       return;
     }
 
-    final signature = '${user.id}:$pendingCount';
-    if (_lastPendingAlertSignature == signature && !forceProfileTab) {
+    final signature =
+        '${user.id}:${hasOffersToManage ? 1 : 0}:${hasReviewsToManage ? 1 : 0}';
+    if (_lastProfileAlertSignature == signature && !forceProfileTab) {
       return;
     }
-    _lastPendingAlertSignature = signature;
+    _lastProfileAlertSignature = signature;
 
     if (forceProfileTab && _selectedIndex != 3) {
       setState(() => _selectedIndex = 3);
     }
 
-    final message = pendingCount == 1
-        ? 'Attenzione, hai una richiesta da evadere in Su di me.'
-        : 'Attenzione, hai $pendingCount richieste da evadere in Su di me.';
+    final String message;
+    if (hasOffersToManage && hasReviewsToManage) {
+      message = 'Hai delle offerte e delle recensioni da gestire nel profilo.';
+    } else if (hasOffersToManage) {
+      message = 'Hai delle offerte da gestire nel profilo.';
+    } else {
+      message = 'Hai delle recensioni da gestire nel profilo.';
+    }
 
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) {
@@ -192,12 +225,6 @@ class _HomeShellState extends State<HomeShell> {
       OffersPage(
         authController: widget.authController,
         offersController: _offersController,
-        onManageOwnOffersTap: () {
-          if (!mounted) {
-            return;
-          }
-          setState(() => _selectedIndex = 3);
-        },
       ),
       CommunityPage(
         authController: widget.authController,
@@ -228,7 +255,7 @@ class _HomeShellState extends State<HomeShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        destinations: const [
+        destinations: [
           NavigationDestination(
             icon: Icon(Icons.restaurant_menu_outlined),
             selectedIcon: Icon(Icons.restaurant_menu_rounded),
@@ -245,14 +272,67 @@ class _HomeShellState extends State<HomeShell> {
             label: 'Offri',
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Su di me',
+            icon: _ProfileTabIcon(
+              selected: false,
+              hasAlert: _hasOffersToManage() || _hasReviewsToManage(),
+            ),
+            selectedIcon: _ProfileTabIcon(
+              selected: true,
+              hasAlert: _hasOffersToManage() || _hasReviewsToManage(),
+            ),
+            label: 'Profilo',
           ),
         ],
         onDestinationSelected: (index) {
           setState(() => _selectedIndex = index);
         },
+      ),
+    );
+  }
+}
+
+class _ProfileTabIcon extends StatelessWidget {
+  const _ProfileTabIcon({
+    required this.selected,
+    required this.hasAlert,
+  });
+
+  final bool selected;
+  final bool hasAlert;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = selected ? Icons.person : Icons.person_outline;
+    return SizedBox(
+      width: 32,
+      height: 28,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Align(
+            alignment: Alignment.center,
+            child: Icon(icon),
+          ),
+          if (hasAlert)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: Colors.redAccent,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.white, width: 1.2),
+                ),
+                child: const Icon(
+                  Icons.notifications_rounded,
+                  size: 10,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
