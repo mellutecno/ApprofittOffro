@@ -18,6 +18,7 @@ class AuthController extends ChangeNotifier {
   String? _errorMessage;
   bool _googleInitialized = false;
   String? _resolvedGoogleServerClientId;
+  Future<void>? _googlePrepareFuture;
   bool _pendingProfileCompletion = false;
 
   AppUser? get currentUser => _currentUser;
@@ -36,6 +37,7 @@ class AuthController extends ChangeNotifier {
 
   Future<void> initialize() async {
     await apiClient.initialize();
+    prewarmGoogleSignIn();
     if (!apiClient.hasSession) {
       return;
     }
@@ -112,41 +114,20 @@ class AuthController extends ChangeNotifier {
     _errorMessage = null;
 
     try {
-      final googleServerClientId = await _resolveGoogleServerClientId();
-      if (googleServerClientId.isEmpty) {
-        throw ApiException(
-          'Accesso Google non ancora configurato su questa build.',
-        );
-      }
-
-      if (!_googleInitialized) {
-        await _googleSignIn.initialize(
-          clientId: AppConfig.googleAndroidClientId.isEmpty
-              ? null
-              : AppConfig.googleAndroidClientId,
-          serverClientId: googleServerClientId,
-        );
-        _googleInitialized = true;
-      }
-
+      await _prepareGoogleSignIn();
       final account = await _googleSignIn.authenticate();
-      final idToken = account.authentication.idToken;
-      if (idToken == null || idToken.isEmpty) {
-        throw ApiException(
-          'Google non ha restituito un token valido per completare l\'accesso.',
-        );
-      }
-
-      final payload = await apiClient.loginWithGoogle(idToken: idToken);
-      _currentUser = await apiClient.fetchCurrentUser();
-      _pendingProfileCompletion = payload['created'] == true ||
-          (_currentUser?.needsMandatoryProfileSetup ?? false);
-      await apiClient.sessionStore.touch();
-      notifyListeners();
-      return true;
+      return await _completeGoogleLogin(account);
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) {
-        _errorMessage = 'Accesso Google annullato.';
+        final recoveredAccount =
+            await _tryRecoverCanceledGoogleAuthentication();
+        if (recoveredAccount != null) {
+          return await _completeGoogleLogin(recoveredAccount);
+        }
+        final description = e.description?.trim() ?? '';
+        _errorMessage = description.isNotEmpty
+            ? 'Accesso Google non riuscito: $description'
+            : 'Accesso Google annullato.';
       } else {
         _errorMessage =
             e.description ?? 'Non riesco a completare l\'accesso Google.';
@@ -236,6 +217,85 @@ class AuthController extends ChangeNotifier {
       return serverClientId;
     } catch (_) {
       return '';
+    }
+  }
+
+  Future<void> prewarmGoogleSignIn() async {
+    try {
+      await _prepareGoogleSignIn();
+    } catch (_) {
+      // Riprovo al primo tap sul login Google.
+    }
+  }
+
+  Future<void> _prepareGoogleSignIn() {
+    if (_googleInitialized) {
+      return Future<void>.value();
+    }
+
+    final inFlight = _googlePrepareFuture;
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final future = _configureGoogleSignIn();
+    _googlePrepareFuture = future;
+    return future;
+  }
+
+  Future<void> _configureGoogleSignIn() async {
+    try {
+      final googleServerClientId = await _resolveGoogleServerClientId();
+      if (googleServerClientId.isEmpty) {
+        throw ApiException(
+          'Accesso Google non ancora configurato su questa build.',
+        );
+      }
+
+      await _googleSignIn.initialize(
+        clientId: AppConfig.googleAndroidClientId.isEmpty
+            ? null
+            : AppConfig.googleAndroidClientId,
+        serverClientId: googleServerClientId,
+      );
+      _googleInitialized = true;
+    } catch (_) {
+      _googlePrepareFuture = null;
+      rethrow;
+    }
+  }
+
+  Future<bool> _completeGoogleLogin(GoogleSignInAccount account) async {
+    final idToken = account.authentication.idToken;
+    if (idToken == null || idToken.isEmpty) {
+      throw ApiException(
+        'Google non ha restituito un token valido per completare l\'accesso.',
+      );
+    }
+
+    final payload = await apiClient.loginWithGoogle(idToken: idToken);
+    _currentUser = await apiClient.fetchCurrentUser();
+    _pendingProfileCompletion =
+        payload['created'] == true ||
+        (_currentUser?.needsMandatoryProfileSetup ?? false);
+    await apiClient.sessionStore.touch();
+    notifyListeners();
+    return true;
+  }
+
+  Future<GoogleSignInAccount?> _tryRecoverCanceledGoogleAuthentication() async {
+    try {
+      final attempt = _googleSignIn.attemptLightweightAuthentication(
+        reportAllExceptions: true,
+      );
+      if (attempt == null) {
+        return null;
+      }
+      return await attempt;
+    } on GoogleSignInException {
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 

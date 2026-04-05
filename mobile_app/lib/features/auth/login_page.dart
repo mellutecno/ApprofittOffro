@@ -21,6 +21,12 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
 
   @override
+  void initState() {
+    super.initState();
+    widget.authController.prewarmGoogleSignIn();
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
