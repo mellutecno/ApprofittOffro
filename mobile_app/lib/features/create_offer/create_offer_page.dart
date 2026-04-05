@@ -36,10 +36,7 @@ class CreateOfferPage extends StatefulWidget {
 }
 
 class CreateOfferPageResult {
-  const CreateOfferPageResult({
-    required this.changed,
-    this.message,
-  });
+  const CreateOfferPageResult({required this.changed, this.message});
 
   final bool changed;
   final String? message;
@@ -69,6 +66,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   bool _initialLocationRequested = false;
   bool _initialMapReady = !AppConfig.googleMapsEnabled;
   bool _loadingNearbyPlaces = false;
+  bool _resolvingMapTapAddress = false;
   bool _nearbyPlacesLoaded = false;
   GoogleMapController? _mapController;
   BuildContext? _mapPickerSheetContext;
@@ -327,8 +325,9 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                                 Text(
                                   'Minimo $_minimumSeatsAllowed: $_occupiedSeats partecipanti gia dentro.',
                                   style: theme.textTheme.bodySmall?.copyWith(
-                                    color:
-                                        AppTheme.brown.withValues(alpha: 0.66),
+                                    color: AppTheme.brown.withValues(
+                                      alpha: 0.66,
+                                    ),
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -370,7 +369,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               key: _venueSectionKey,
               title: null,
               subtitle:
-                  'Nome, indirizzo e telefono si compilano in automatico quando selezioni un locale sulla mappa.',
+                  'Nome, indirizzo e telefono si compilano in automatico quando selezioni un locale sulla mappa. Se preferisci, puoi anche scrivere nome e telefono a mano e usare la mappa solo per prendere l\'indirizzo.',
               child: Column(
                 children: [
                   TextFormField(
@@ -569,9 +568,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return const _GoogleMapsPlaceholderCard();
     }
 
-    return _CollapsedMapLauncher(
-      onTap: _submitting ? null : _openMapPicker,
-    );
+    return _CollapsedMapLauncher(onTap: _submitting ? null : _openMapPicker);
   }
 
   Future<void> _openMapPicker() async {
@@ -652,7 +649,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Apri la mappa in grande, spostati dove vuoi, tocca il locale giusto e conferma solo quando sei sicuro.',
+                'Spostati dove vuoi, tocca un locale per caricarlo da Google oppure tocca un punto libero della mappa per usare direttamente quell\'indirizzo.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: AppTheme.brown.withValues(alpha: 0.72),
                   height: 1.35,
@@ -668,10 +665,13 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                           : _GoogleMapsPreviewCard(
                               target: _currentMapCenter,
                               markers: _nearbyMarkers,
-                              isBusy: _isLocating || _loadingNearbyPlaces,
+                              isBusy: _isLocating ||
+                                  _loadingNearbyPlaces ||
+                                  _resolvingMapTapAddress,
                               onMapCreated: _handleMapCreated,
                               onCameraMove: _handleCameraMove,
                               onCameraIdle: () {},
+                              onMapTap: _handleMapTap,
                               onRecenterTap: _submitting || _isLocating
                                   ? null
                                   : _useCurrentLocation,
@@ -685,7 +685,9 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                         right: 72,
                         child: _SelectedPlacePreviewCard(
                           place: _mapDraftSelection!,
-                          onConfirm: _submitting || _loadingNearbyPlaces
+                          onConfirm: _submitting ||
+                                  _loadingNearbyPlaces ||
+                                  _resolvingMapTapAddress
                               ? null
                               : _confirmMapSelection,
                         ),
@@ -724,7 +726,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               if (_nearbyPlacesLoaded && _nearbyPlaces.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Text(
-                  'Tocca un marker per scegliere il locale, poi conferma con Offri qui.',
+                  'Tocca un marker per scegliere un locale, oppure tocca un punto libero per usare quell\'indirizzo.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: AppTheme.brown.withValues(alpha: 0.68),
                     fontWeight: FontWeight.w700,
@@ -939,6 +941,59 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     await _previewPlaceSelection(place);
   }
 
+  Future<void> _handleMapTap(LatLng target) async {
+    if (_submitting || _loadingNearbyPlaces || _resolvingMapTapAddress) {
+      return;
+    }
+
+    setState(() {
+      _resolvingMapTapAddress = true;
+      _currentMapCenter = target;
+    });
+    _refreshMapPicker();
+
+    await _animateMapTo(target, zoom: 16.6);
+
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        target.latitude,
+        target.longitude,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      final address = _formatPlacemarkAddress(placemarks);
+      final candidate = PlaceCandidate(
+        id: _manualAddressPlaceId(target),
+        name: 'Indirizzo selezionato',
+        address: address,
+        latitude: target.latitude,
+        longitude: target.longitude,
+        primaryType: 'manual_address',
+      );
+
+      setState(() {
+        _mapDraftSelection = candidate;
+        _currentMapCenter = target;
+      });
+      _refreshMapPicker();
+      await _rebuildNearbyMarkers();
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      _showMessage(
+        'Non riesco a leggere l\'indirizzo preciso da quel punto. Prova a toccare di nuovo la mappa.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _resolvingMapTapAddress = false);
+        _refreshMapPicker();
+      }
+    }
+  }
+
   Future<void> _previewPlaceSelection(PlaceCandidate place) async {
     setState(() {
       _mapDraftSelection = place;
@@ -947,12 +1002,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     _refreshMapPicker();
 
     await _rebuildNearbyMarkers();
-    await _animateMapTo(
-      LatLng(place.latitude, place.longitude),
-      zoom: 16.6,
-    );
+    await _animateMapTo(LatLng(place.latitude, place.longitude), zoom: 16.6);
 
-    if (place.id.isNotEmpty &&
+    if (!_isManualAddressPlaceId(place.id) &&
+        place.id.isNotEmpty &&
         (place.address.trim().isEmpty || place.phoneNumber.trim().isEmpty)) {
       await _hydrateDraftPlaceDetails(place);
     }
@@ -960,8 +1013,9 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
   Future<void> _hydrateDraftPlaceDetails(PlaceCandidate place) async {
     try {
-      final details =
-          await widget.authController.apiClient.fetchPlaceDetails(place.id);
+      final details = await widget.authController.apiClient.fetchPlaceDetails(
+        place.id,
+      );
       if (!mounted || _mapDraftSelection?.id != place.id) {
         return;
       }
@@ -1049,7 +1103,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     return PlaceCandidate(
       id: _selectedPlaceId ?? 'selected_offer_location',
       name: _localeController.text.trim().isEmpty
-          ? 'Locale selezionato'
+          ? (_selectedPlaceId != null &&
+                  _isManualAddressPlaceId(_selectedPlaceId!)
+              ? 'Indirizzo selezionato'
+              : 'Locale selezionato')
           : _localeController.text.trim(),
       address: _addressController.text.trim(),
       latitude: _selectedLatitude!,
@@ -1062,19 +1119,26 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   Future<void> _confirmMapSelection() async {
     final place = _mapDraftSelection;
     if (place == null) {
-      _showMessage('Scegli un locale dalla mappa prima di continuare.');
+      _showMessage(
+        'Seleziona un locale o un indirizzo sulla mappa prima di continuare.',
+      );
       return;
     }
 
-    _localeController.text = place.name;
-    _addressController.text = place.address;
-    _phoneController.text = place.phoneNumber;
+    if (_isManualAddressPlaceId(place.id)) {
+      _addressController.text = place.address;
+    } else {
+      _localeController.text = place.name;
+      _addressController.text = place.address;
+      _phoneController.text = place.phoneNumber;
+    }
 
     setState(() {
       _selectedPlaceId = place.id;
       _selectedLatitude = place.latitude;
       _selectedLongitude = place.longitude;
-      _selectedPrimaryType = place.primaryType;
+      _selectedPrimaryType =
+          _isManualAddressPlaceId(place.id) ? '' : place.primaryType;
       _currentMapCenter = LatLng(place.latitude, place.longitude);
       _mapDraftSelection = null;
     });
@@ -1086,7 +1150,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     }
 
     final pickerContext = _mapPickerSheetContext;
-    if (pickerContext != null) {
+    if (pickerContext != null && pickerContext.mounted) {
       Navigator.of(pickerContext).pop();
     }
     await _scrollToVenueSection();
@@ -1172,6 +1236,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
   String _placeTypeLabel(String primaryType) {
     switch (primaryType.trim().toLowerCase()) {
+      case 'manual_address':
+        return 'Indirizzo scelto sulla mappa';
       case 'cafe':
       case 'coffee_shop':
         return 'Bar o caffe';
@@ -1203,7 +1269,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       const Rect.fromLTWH(0, 0, canvasWidth, canvasHeight),
     );
 
-    final bubbleCenter = const Offset(canvasWidth / 2, 48);
+    const bubbleCenter = Offset(canvasWidth / 2, 48);
     final bubbleRadius = selected ? 38.0 : 34.0;
     final innerRadius = selected ? 26.0 : 23.0;
 
@@ -1274,10 +1340,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     );
   }
 
-  Future<void> _animateMapTo(
-    LatLng target, {
-    double zoom = 15.6,
-  }) async {
+  Future<void> _animateMapTo(LatLng target, {double zoom = 15.6}) async {
     final controller = _mapController ??
         (_mapControllerCompleter.isCompleted
             ? await _mapControllerCompleter.future
@@ -1450,28 +1513,94 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   Future<LatLng?> _resolveManualAddressCoordinates() async {
     final address = _addressController.text.trim();
     if (address.isEmpty) {
-      _showMessage('Inserisci un indirizzo valido oppure scegli il locale dalla mappa.');
+      _showMessage(
+        'Inserisci un indirizzo valido oppure seleziona un punto sulla mappa.',
+      );
       return null;
     }
 
     try {
       final locations = await locationFromAddress(address);
       if (locations.isEmpty) {
-        _showMessage('Non riesco a trovare questo indirizzo. Controllalo oppure scegli il locale dalla mappa.');
+        _showMessage(
+          'Non riesco a trovare questo indirizzo. Controllalo oppure seleziona un punto sulla mappa.',
+        );
         return null;
       }
       final first = locations.first;
       return LatLng(first.latitude, first.longitude);
     } catch (_) {
-      _showMessage('Non riesco a trovare questo indirizzo. Controllalo oppure scegli il locale dalla mappa.');
+      _showMessage(
+        'Non riesco a trovare questo indirizzo. Controllalo oppure seleziona un punto sulla mappa.',
+      );
       return null;
     }
   }
 
+  bool _isManualAddressPlaceId(String id) => id.startsWith('manual_address:');
+
+  String _manualAddressPlaceId(LatLng target) {
+    return 'manual_address:${target.latitude.toStringAsFixed(6)},${target.longitude.toStringAsFixed(6)}';
+  }
+
+  String _formatPlacemarkAddress(List<Placemark> placemarks) {
+    if (placemarks.isEmpty) {
+      return 'Indirizzo selezionato';
+    }
+
+    final placemark = placemarks.first;
+    final parts = <String>[];
+
+    final streetParts = [
+      placemark.street,
+      placemark.thoroughfare,
+      placemark.subThoroughfare,
+      placemark.name,
+    ]
+        .whereType<String>()
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+    if (streetParts.isNotEmpty) {
+      parts.add(streetParts.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim());
+    }
+
+    final localityLine = [
+      placemark.postalCode,
+      placemark.locality,
+      placemark.subAdministrativeArea,
+      placemark.administrativeArea,
+    ]
+        .whereType<String>()
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .join(' ')
+        .trim();
+    if (localityLine.isNotEmpty) {
+      parts.add(localityLine);
+    }
+
+    final country = placemark.country?.trim();
+    if (country != null && country.isNotEmpty) {
+      parts.add(country);
+    }
+
+    final uniqueParts = <String>[];
+    for (final part in parts) {
+      if (!uniqueParts.contains(part)) {
+        uniqueParts.add(part);
+      }
+    }
+    if (uniqueParts.isEmpty) {
+      return 'Indirizzo selezionato';
+    }
+    return uniqueParts.join(', ');
+  }
+
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _prefillFromOffer(Offer offer) {
@@ -1558,9 +1687,7 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _CollapsedMapLauncher extends StatelessWidget {
-  const _CollapsedMapLauncher({
-    required this.onTap,
-  });
+  const _CollapsedMapLauncher({required this.onTap});
 
   final VoidCallback? onTap;
 
@@ -1577,10 +1704,7 @@ class _CollapsedMapLauncher extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          FilledButton(
-            onPressed: onTap,
-            child: const Text('Apri mappa'),
-          ),
+          FilledButton(onPressed: onTap, child: const Text('Apri mappa')),
         ],
       ),
     );
@@ -1599,6 +1723,7 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isManualAddress = place.id.startsWith('manual_address:');
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -1622,7 +1747,7 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  place.name,
+                  isManualAddress ? place.address : place.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleMedium?.copyWith(
@@ -1632,7 +1757,9 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Locale selezionato',
+                  isManualAddress
+                      ? 'Indirizzo selezionato sulla mappa'
+                      : 'Locale selezionato',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -1647,15 +1774,12 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
           FilledButton(
             onPressed: onConfirm,
             style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
-              textStyle: const TextStyle(
-                fontWeight: FontWeight.w800,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              textStyle: const TextStyle(fontWeight: FontWeight.w800),
             ),
-            child: const Text('Offri qui'),
+            child: Text(
+              isManualAddress ? 'Seleziona questo indirizzo' : 'Offri qui',
+            ),
           ),
         ],
       ),
@@ -1671,6 +1795,7 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
     required this.onMapCreated,
     required this.onCameraMove,
     required this.onCameraIdle,
+    required this.onMapTap,
     required this.onRecenterTap,
     this.height = 304,
   });
@@ -1681,6 +1806,7 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
   final ValueChanged<GoogleMapController> onMapCreated;
   final ValueChanged<CameraPosition> onCameraMove;
   final VoidCallback onCameraIdle;
+  final ValueChanged<LatLng> onMapTap;
   final Future<void> Function()? onRecenterTap;
   final double? height;
 
@@ -1694,10 +1820,7 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
           children: [
             GoogleMap(
               onMapCreated: onMapCreated,
-              initialCameraPosition: CameraPosition(
-                target: target,
-                zoom: 15.6,
-              ),
+              initialCameraPosition: CameraPosition(target: target, zoom: 15.6),
               markers: markers,
               mapToolbarEnabled: false,
               myLocationButtonEnabled: false,
@@ -1710,7 +1833,8 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
               tiltGesturesEnabled: true,
               onCameraMove: onCameraMove,
               onCameraIdle: onCameraIdle,
-              gestureRecognizers: {
+              onTap: onMapTap,
+              gestureRecognizers: const {
                 Factory<OneSequenceGestureRecognizer>(
                   EagerGestureRecognizer.new,
                 ),
@@ -1749,11 +1873,7 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
               ),
             ),
             if (isBusy)
-              const Positioned(
-                bottom: 14,
-                left: 14,
-                child: _BusyMapBadge(),
-              ),
+              const Positioned(bottom: 14, left: 14, child: _BusyMapBadge()),
           ],
         ),
       ),
@@ -1790,9 +1910,7 @@ class _BusyMapBadge extends StatelessWidget {
 }
 
 class _MapBootstrappingCard extends StatelessWidget {
-  const _MapBootstrappingCard({
-    this.height = 304,
-  });
+  const _MapBootstrappingCard({this.height = 304});
 
   final double? height;
 
@@ -1839,10 +1957,7 @@ class _GoogleMapsPlaceholderCard extends StatelessWidget {
 }
 
 class _CounterButton extends StatelessWidget {
-  const _CounterButton({
-    required this.icon,
-    required this.onTap,
-  });
+  const _CounterButton({required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback? onTap;
@@ -1894,10 +2009,7 @@ class _MealChoiceChip extends StatelessWidget {
         selected: selected,
         label: SizedBox(
           width: double.infinity,
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-          ),
+          child: Text(label, textAlign: TextAlign.center),
         ),
         onSelected: onSelected == null ? null : (_) => onSelected!(value),
         backgroundColor: Colors.white,
