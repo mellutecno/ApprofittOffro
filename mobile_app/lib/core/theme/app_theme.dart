@@ -37,6 +37,7 @@ class AppTheme {
         backgroundColor: paper,
         foregroundColor: brown,
         elevation: 0,
+        toolbarHeight: 72,
         centerTitle: true,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,

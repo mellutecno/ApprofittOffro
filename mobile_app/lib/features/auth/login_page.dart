@@ -85,7 +85,7 @@ class _LoginPageState extends State<LoginPage> {
         final busy = widget.authController.isBusy;
         return Scaffold(
           appBar: AppBar(
-            title: const BrandWordmark(height: 24, alignment: Alignment.center),
+            title: const BrandWordmark(height: 42, alignment: Alignment.center),
           ),
           body: DecoratedBox(
             decoration: const BoxDecoration(gradient: AppTheme.heroGradient),

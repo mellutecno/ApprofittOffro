@@ -317,7 +317,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const BrandWordmark(height: 24, alignment: Alignment.center),
+        title: const BrandWordmark(height: 42, alignment: Alignment.center),
       ),
       body: FutureBuilder<PublicProfile>(
         future: _future,

@@ -225,7 +225,7 @@ class _OffersPageState extends State<OffersPage> {
               SliverAppBar(
                 pinned: true,
                 title: const BrandWordmark(
-                  height: 24,
+                  height: 42,
                   alignment: Alignment.center,
                 ),
                 actions: [

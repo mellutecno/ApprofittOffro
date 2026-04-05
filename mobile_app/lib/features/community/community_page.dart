@@ -98,7 +98,7 @@ class _CommunityPageState extends State<CommunityPage> {
             slivers: [
               const SliverAppBar(
                 pinned: true,
-                title: BrandWordmark(height: 24, alignment: Alignment.center),
+                title: BrandWordmark(height: 42, alignment: Alignment.center),
               ),
               SliverToBoxAdapter(
                 child: Padding(

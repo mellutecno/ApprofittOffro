@@ -193,7 +193,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const BrandWordmark(height: 24, alignment: Alignment.center),
+        title: const BrandWordmark(height: 42, alignment: Alignment.center),
       ),
       body: Form(
         key: _formKey,
