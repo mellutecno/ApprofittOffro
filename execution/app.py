@@ -178,6 +178,19 @@ def google_oauth_enabled():
     return bool(get_google_oauth_client_ids())
 
 
+@app.route("/api/auth/google/config", methods=["GET"])
+def api_google_login_config():
+    """Espone la configurazione pubblica minima necessaria al login Google mobile."""
+    allowed_client_ids = get_google_oauth_client_ids()
+    return jsonify(
+        {
+            "success": True,
+            "enabled": bool(allowed_client_ids),
+            "server_client_id": allowed_client_ids[0] if allowed_client_ids else "",
+        }
+    )
+
+
 def local_now():
     """Restituisce l'ora locale dell'app come datetime naive coerente con i dati salvati."""
     return datetime.now(APP_TIMEZONE).replace(tzinfo=None)

@@ -17,6 +17,7 @@ class AuthController extends ChangeNotifier {
   bool _isBusy = false;
   String? _errorMessage;
   bool _googleInitialized = false;
+  String? _resolvedGoogleServerClientId;
   bool _pendingProfileCompletion = false;
 
   AppUser? get currentUser => _currentUser;
@@ -111,7 +112,8 @@ class AuthController extends ChangeNotifier {
     _errorMessage = null;
 
     try {
-      if (AppConfig.googleServerClientId.isEmpty) {
+      final googleServerClientId = await _resolveGoogleServerClientId();
+      if (googleServerClientId.isEmpty) {
         throw ApiException(
           'Accesso Google non ancora configurato su questa build.',
         );
@@ -122,7 +124,7 @@ class AuthController extends ChangeNotifier {
           clientId: AppConfig.googleAndroidClientId.isEmpty
               ? null
               : AppConfig.googleAndroidClientId,
-          serverClientId: AppConfig.googleServerClientId,
+          serverClientId: googleServerClientId,
         );
         _googleInitialized = true;
       }
@@ -216,6 +218,25 @@ class AuthController extends ChangeNotifier {
       return;
     }
     await apiClient.sessionStore.touch();
+  }
+
+  Future<String> _resolveGoogleServerClientId() async {
+    if (AppConfig.googleServerClientId.isNotEmpty) {
+      return AppConfig.googleServerClientId;
+    }
+    if ((_resolvedGoogleServerClientId ?? '').isNotEmpty) {
+      return _resolvedGoogleServerClientId!;
+    }
+
+    try {
+      final payload = await apiClient.fetchGoogleAuthConfig();
+      final serverClientId =
+          (payload['server_client_id'] ?? '').toString().trim();
+      _resolvedGoogleServerClientId = serverClientId;
+      return serverClientId;
+    } catch (_) {
+      return '';
+    }
   }
 
   void _setBusy(bool value) {

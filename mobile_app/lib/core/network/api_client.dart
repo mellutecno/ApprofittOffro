@@ -71,6 +71,13 @@ class ApiClient {
     return payload;
   }
 
+  Future<Map<String, dynamic>> fetchGoogleAuthConfig() async {
+    final response = await _send(method: 'GET', path: '/api/auth/google/config');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
+  }
+
   Future<String> registerUser({
     required String nome,
     required String email,
