@@ -217,10 +217,16 @@ class _OffersPageState extends State<OffersPage> {
             slivers: [
               SliverAppBar(
                 pinned: true,
+                toolbarHeight: kToolbarHeight,
+                leading: const SizedBox.shrink(),
+                leadingWidth: kToolbarHeight,
                 centerTitle: true,
-                title: const BrandWordmark(
-                  height: 42,
-                  alignment: Alignment.center,
+                title: const Padding(
+                  padding: EdgeInsets.only(left: 8),
+                  child: BrandWordmark(
+                    height: 42,
+                    alignment: Alignment.center,
+                  ),
                 ),
                 actions: [
                   IconButton(
@@ -833,4 +839,3 @@ class _DistancePreferenceControl extends StatelessWidget {
     );
   }
 }
-

@@ -71,7 +71,8 @@ class _CommunityPageState extends State<CommunityPage> {
 
   Future<void> _saveDistancePreference() async {
     final selectedKm = _normalizeDistanceKm(
-      (_distanceDraftKm ?? widget.communityController.selectedRadiusKm.toDouble())
+      (_distanceDraftKm ??
+              widget.communityController.selectedRadiusKm.toDouble())
           .round(),
     );
     if (selectedKm == widget.communityController.selectedRadiusKm) {
@@ -114,10 +115,16 @@ class _CommunityPageState extends State<CommunityPage> {
             slivers: [
               SliverAppBar(
                 pinned: true,
+                toolbarHeight: kToolbarHeight,
+                leading: const SizedBox.shrink(),
+                leadingWidth: kToolbarHeight,
                 centerTitle: true,
-                title: const BrandWordmark(
-                  height: 42,
-                  alignment: Alignment.center,
+                title: const Padding(
+                  padding: EdgeInsets.only(left: 8),
+                  child: BrandWordmark(
+                    height: 42,
+                    alignment: Alignment.center,
+                  ),
                 ),
                 actions: [
                   IconButton(
@@ -183,8 +190,8 @@ class _CommunityPageState extends State<CommunityPage> {
                                   Expanded(
                                     child: _CommunityFilterTile(
                                       label: 'Eta',
-                                      value: widget.communityController
-                                          .selectedAgeRange,
+                                      value: widget
+                                          .communityController.selectedAgeRange,
                                       options: _ageRanges,
                                       onChanged: (value) {
                                         widget.communityController
@@ -215,8 +222,8 @@ class _CommunityPageState extends State<CommunityPage> {
                                     .textTheme
                                     .bodySmall
                                     ?.copyWith(
-                                      color:
-                                          AppTheme.brown.withValues(alpha: 0.72),
+                                      color: AppTheme.brown
+                                          .withValues(alpha: 0.72),
                                       fontWeight: FontWeight.w600,
                                       height: 1.35,
                                     ),

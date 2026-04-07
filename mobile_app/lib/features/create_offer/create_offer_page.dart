@@ -191,8 +191,14 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: kToolbarHeight,
+        leading: const SizedBox.shrink(),
+        leadingWidth: kToolbarHeight,
         centerTitle: true,
-        title: const BrandWordmark(height: 42, alignment: Alignment.center),
+        title: const Padding(
+          padding: EdgeInsets.only(left: 8),
+          child: BrandWordmark(height: 42, alignment: Alignment.center),
+        ),
         actions: [
           IconButton(
             onPressed: widget.authController.isBusy
