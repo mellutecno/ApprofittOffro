@@ -74,6 +74,10 @@ class _CommunityPageState extends State<CommunityPage> {
     if (!mounted) {
       return;
     }
+    setState(() {
+      _distanceDraftKm = selectedKm.toDouble();
+      _isDistanceCardExpanded = false;
+    });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Ora vedi utenti entro $selectedKm km.'),
@@ -96,9 +100,22 @@ class _CommunityPageState extends State<CommunityPage> {
           },
           child: CustomScrollView(
             slivers: [
-              const SliverAppBar(
+              SliverAppBar(
                 pinned: true,
-                title: BrandWordmark(height: 42, alignment: Alignment.center),
+                centerTitle: true,
+                title: const BrandWordmark(
+                  height: 42,
+                  alignment: Alignment.center,
+                ),
+                actions: [
+                  IconButton(
+                    onPressed: widget.authController.isBusy
+                        ? null
+                        : widget.authController.logout,
+                    icon: const Icon(Icons.logout),
+                    tooltip: 'Esci',
+                  ),
+                ],
               ),
               SliverToBoxAdapter(
                 child: Padding(

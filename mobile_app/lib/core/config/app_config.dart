@@ -6,7 +6,7 @@ class AppConfig {
 
   static const bool googleMapsEnabled = bool.fromEnvironment(
     'GOOGLE_MAPS_ENABLED',
-    defaultValue: false,
+    defaultValue: true,
   );
 
   static const String googleServerClientId = String.fromEnvironment(

@@ -165,6 +165,7 @@ class _OffersPageState extends State<OffersPage> {
       }
       setState(() {
         _distancePreferenceDraft = selectedKm.toDouble();
+        _isDistanceCardExpanded = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -216,6 +217,7 @@ class _OffersPageState extends State<OffersPage> {
             slivers: [
               SliverAppBar(
                 pinned: true,
+                centerTitle: true,
                 title: const BrandWordmark(
                   height: 42,
                   alignment: Alignment.center,

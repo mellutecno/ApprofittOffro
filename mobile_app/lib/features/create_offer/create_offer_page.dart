@@ -192,7 +192,17 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
         title: const BrandWordmark(height: 42, alignment: Alignment.center),
+        actions: [
+          IconButton(
+            onPressed: widget.authController.isBusy
+                ? null
+                : widget.authController.logout,
+            icon: const Icon(Icons.logout),
+            tooltip: 'Esci',
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,
@@ -1740,6 +1750,12 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isManualAddress = place.id.startsWith('manual_address:');
+    final titleText = isManualAddress ? 'Indirizzo selezionato' : place.name;
+    final subtitleText = isManualAddress
+        ? place.address
+        : (place.address.trim().isEmpty
+              ? 'Locale selezionato'
+              : place.address);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -1755,46 +1771,47 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isManualAddress ? place.address : place.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: AppTheme.espresso,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  isManualAddress
-                      ? 'Indirizzo selezionato sulla mappa'
-                      : 'Locale selezionato',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppTheme.brown.withValues(alpha: 0.68),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+          Text(
+            titleText,
+            maxLines: isManualAddress ? 2 : 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: AppTheme.espresso,
             ),
           ),
-          const SizedBox(width: 10),
-          FilledButton(
-            onPressed: onConfirm,
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              textStyle: const TextStyle(fontWeight: FontWeight.w800),
+          const SizedBox(height: 4),
+          Text(
+            subtitleText,
+            maxLines: isManualAddress ? 3 : 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppTheme.brown.withValues(alpha: 0.74),
+              fontWeight: FontWeight.w700,
+              height: 1.3,
             ),
-            child: Text(
-              isManualAddress ? 'Seleziona questo indirizzo' : 'Offri qui',
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              onPressed: onConfirm,
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                textStyle: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              child: Text(
+                isManualAddress
+                    ? 'Seleziona questo indirizzo'
+                    : 'Offri qui',
+              ),
             ),
           ),
         ],

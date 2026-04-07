@@ -513,10 +513,20 @@ class _ProfilePageState extends State<ProfilePage> {
         if (user == null) {
           return Scaffold(
             appBar: AppBar(
+              centerTitle: true,
               title: const BrandWordmark(
                 height: 42,
                 alignment: Alignment.center,
               ),
+              actions: [
+                IconButton(
+                  onPressed: widget.authController.isBusy
+                      ? null
+                      : widget.authController.logout,
+                  icon: const Icon(Icons.logout),
+                  tooltip: 'Esci',
+                ),
+              ],
             ),
             body: const Center(child: Text('Utente non disponibile.')),
           );
@@ -524,7 +534,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
         return Scaffold(
           appBar: AppBar(
+            centerTitle: true,
             title: const BrandWordmark(height: 42, alignment: Alignment.center),
+            actions: [
+              IconButton(
+                onPressed: widget.authController.isBusy
+                    ? null
+                    : widget.authController.logout,
+                icon: const Icon(Icons.logout),
+                tooltip: 'Esci',
+              ),
+            ],
           ),
           body: RefreshIndicator(
             onRefresh: _refreshAll,
