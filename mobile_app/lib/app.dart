@@ -4,7 +4,6 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
-import 'core/config/app_config.dart';
 import 'core/navigation/app_launch_target.dart';
 import 'core/network/api_client.dart';
 import 'core/network/session_store.dart';
@@ -39,14 +38,12 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
     WidgetsBinding.instance.addObserver(this);
     final apiClient = ApiClient(sessionStore: SessionStore());
     _authController = AuthController(apiClient);
-    if (AppConfig.firebaseMessagingConfigured) {
-      final pushNotificationsService = PushNotificationsService(
-        apiClient: apiClient,
-        onLaunchTargetRequested: _handlePushLaunchTarget,
-      );
-      _pushNotificationsService = pushNotificationsService;
-      _authController.beforeLogoutHook = pushNotificationsService.prepareForLogout;
-    }
+    final pushNotificationsService = PushNotificationsService(
+      apiClient: apiClient,
+      onLaunchTargetRequested: _handlePushLaunchTarget,
+    );
+    _pushNotificationsService = pushNotificationsService;
+    _authController.beforeLogoutHook = pushNotificationsService.prepareForLogout;
     _authController.addListener(_handleAuthStateChanged);
     _appLinks = AppLinks();
     _bootstrapFuture = _bootstrap();

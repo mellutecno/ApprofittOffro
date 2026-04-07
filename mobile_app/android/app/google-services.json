@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "563868667101",
+    "project_id": "approfittoffro-840db",
+    "storage_bucket": "approfittoffro-840db.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:563868667101:android:56c30dfa02460d319fdf34",
+        "android_client_info": {
+          "package_name": "com.example.approfittoffro_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAgwCI0YP-wJT5FNdULzEsacIy7f78BY6s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

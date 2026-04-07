@@ -24,6 +24,8 @@ class PushNotificationsService {
   bool _initialized = false;
   bool _firebaseAvailable = false;
   bool _authenticated = false;
+  bool _syncingRegistration = false;
+  bool _syncRegistrationQueued = false;
   String? _currentToken;
   String? _registeredToken;
 
@@ -38,23 +40,29 @@ class PushNotificationsService {
     if (!Platform.isAndroid) {
       return;
     }
-    if (!AppConfig.firebaseMessagingConfigured) {
-      return;
-    }
 
     try {
-      await Firebase.initializeApp(
-        options: FirebaseOptions(
-          apiKey: AppConfig.firebaseApiKey,
-          appId: AppConfig.firebaseAppId,
-          messagingSenderId: AppConfig.firebaseMessagingSenderId,
-          projectId: AppConfig.firebaseProjectId,
-          storageBucket: AppConfig.firebaseStorageBucket.isEmpty
-              ? null
-              : AppConfig.firebaseStorageBucket,
-        ),
-      );
-      _firebaseAvailable = true;
+      if (Firebase.apps.isEmpty) {
+        if (AppConfig.firebaseMessagingConfigured) {
+          await Firebase.initializeApp(
+            options: FirebaseOptions(
+              apiKey: AppConfig.firebaseApiKey,
+              appId: AppConfig.firebaseAppId,
+              messagingSenderId: AppConfig.firebaseMessagingSenderId,
+              projectId: AppConfig.firebaseProjectId,
+              storageBucket: AppConfig.firebaseStorageBucket.isEmpty
+                  ? null
+                  : AppConfig.firebaseStorageBucket,
+            ),
+          );
+        } else {
+          await Firebase.initializeApp();
+        }
+      }
+      _firebaseAvailable = Firebase.apps.isNotEmpty;
+      if (!_firebaseAvailable) {
+        return;
+      }
       _messaging = FirebaseMessaging.instance;
       _messageOpenedSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
         _handleNotificationTap,
@@ -75,7 +83,20 @@ class PushNotificationsService {
 
   Future<void> syncWithAuth(bool authenticated) async {
     _authenticated = authenticated;
-    await _syncRegistration();
+    if (_syncingRegistration) {
+      _syncRegistrationQueued = true;
+      return;
+    }
+
+    do {
+      _syncingRegistration = true;
+      _syncRegistrationQueued = false;
+      try {
+        await _syncRegistration();
+      } finally {
+        _syncingRegistration = false;
+      }
+    } while (_syncRegistrationQueued);
   }
 
   Future<void> dispose() async {
