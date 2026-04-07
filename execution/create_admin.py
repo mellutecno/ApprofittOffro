@@ -13,6 +13,12 @@ import os
 
 from PIL import Image, ImageDraw
 
+HOME_DIR = os.path.expanduser("~")
+os.environ.setdefault("APP_ENV_FILE", os.path.join(HOME_DIR, ".env"))
+if os.name != "nt" and "APP_DATA_DIR" not in os.environ:
+    # Su PythonAnywhere il database live e gli upload stanno nella home utente.
+    os.environ["APP_DATA_DIR"] = HOME_DIR
+
 from app import app, db, User, UPLOAD_FOLDER
 
 
@@ -67,6 +73,7 @@ def main():
                 user.fascia_eta = str(args.age)
             db.session.commit()
             print(f"[OK] Utente esistente promosso ad admin: {user.email}")
+            print(f"[INFO] DATA_ROOT={os.getenv('APP_DATA_DIR', '')}")
             return
 
         user = User(
@@ -89,6 +96,7 @@ def main():
         db.session.add(user)
         db.session.commit()
         print(f"[OK] Nuovo amministratore creato: {user.email}")
+        print(f"[INFO] DATA_ROOT={os.getenv('APP_DATA_DIR', '')}")
 
 
 if __name__ == "__main__":
