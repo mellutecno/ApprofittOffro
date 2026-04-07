@@ -2037,6 +2037,7 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
         "lat": user.latitudine if include_private else None,
         "lon": user.longitudine if include_private else None,
         "verificato": bool(user.verificato),
+        "is_admin": bool(user.is_admin),
         "followers_count": user.followers_count,
         "following_count": user.following_count,
         "rating_average": rating_info["average"],
