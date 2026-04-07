@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/navigation/app_launch_target.dart';
 import 'core/network/api_client.dart';
 import 'core/network/session_store.dart';
+import 'core/notifications/push_notifications_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/brand_wordmark.dart';
 import 'features/auth/landing_page.dart';
@@ -24,6 +25,7 @@ class ApprofittOffroMobileApp extends StatefulWidget {
 class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
     with WidgetsBindingObserver {
   late final AuthController _authController;
+  late final PushNotificationsService _pushNotificationsService;
   late final Future<void> _bootstrapFuture;
   late final AppLinks _appLinks;
   StreamSubscription<Uri?>? _linkSubscription;
@@ -36,6 +38,12 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
     WidgetsBinding.instance.addObserver(this);
     final apiClient = ApiClient(sessionStore: SessionStore());
     _authController = AuthController(apiClient);
+    _pushNotificationsService = PushNotificationsService(
+      apiClient: apiClient,
+      onLaunchTargetRequested: _handlePushLaunchTarget,
+    );
+    _authController.beforeLogoutHook = _pushNotificationsService.prepareForLogout;
+    _authController.addListener(_handleAuthStateChanged);
     _appLinks = AppLinks();
     _bootstrapFuture = _bootstrap();
     _listenForIncomingLinks();
@@ -45,6 +53,8 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _linkSubscription?.cancel();
+    _authController.removeListener(_handleAuthStateChanged);
+    unawaited(_pushNotificationsService.dispose());
     _authController.dispose();
     super.dispose();
   }
@@ -55,8 +65,25 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
   }
 
   Future<void> _bootstrap() async {
+    await _pushNotificationsService.initialize();
     await _authController.initialize();
+    await _pushNotificationsService.syncWithAuth(_authController.isAuthenticated);
     await _resolveInitialLink();
+  }
+
+  void _handleAuthStateChanged() {
+    unawaited(
+      _pushNotificationsService.syncWithAuth(_authController.isAuthenticated),
+    );
+  }
+
+  void _handlePushLaunchTarget(AppLaunchTarget target) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _pendingLaunchTarget = target;
+    });
   }
 
   Future<void> _resolveInitialLink() async {
@@ -103,6 +130,12 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
 
     if (host == 'profile' && segments.contains('pending-requests')) {
       return AppLaunchTarget.pendingRequests;
+    }
+    if (host == 'profile' || target == 'profile') {
+      return AppLaunchTarget.profile;
+    }
+    if (host == 'offers' || target == 'offers') {
+      return AppLaunchTarget.offers;
     }
     if (host == 'pending-requests' ||
         (host == 'requests' && segments.contains('pending')) ||

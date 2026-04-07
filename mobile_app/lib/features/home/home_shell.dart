@@ -115,10 +115,15 @@ class _HomeShellState extends State<HomeShell> {
       return;
     }
 
-    if (!_isAdminUser &&
-        target == AppLaunchTarget.pendingRequests &&
-        _selectedIndex != _profileTabIndex) {
-      setState(() => _selectedIndex = _profileTabIndex);
+    if (!_isAdminUser) {
+      if (target == AppLaunchTarget.pendingRequests ||
+          target == AppLaunchTarget.profile) {
+        if (_selectedIndex != _profileTabIndex) {
+          setState(() => _selectedIndex = _profileTabIndex);
+        }
+      } else if (target == AppLaunchTarget.offers && _selectedIndex != 0) {
+        setState(() => _selectedIndex = 0);
+      }
     }
 
     widget.onLaunchTargetHandled?.call();

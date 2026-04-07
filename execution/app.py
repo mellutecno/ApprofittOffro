@@ -22,6 +22,7 @@ from functools import wraps
 from dotenv import load_dotenv
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2 import id_token as google_id_token
+from google.oauth2 import service_account
 from flask import (
     Flask,
     render_template,
@@ -59,6 +60,7 @@ from models import (
     SESSI_UTENTE,
     UserPhoto,
     UserFollow,
+    DevicePushToken,
 )
 from verify_photo import verifica_volto
 from upload_storage import create_upload_storage, StorageObjectNotFound
@@ -147,6 +149,15 @@ app.config["GOOGLE_OAUTH_CLIENT_IDS"] = os.getenv(
     "GOOGLE_OAUTH_CLIENT_IDS",
     os.getenv("GOOGLE_OAUTH_CLIENT_ID", ""),
 ).strip()
+app.config["FIREBASE_PROJECT_ID"] = os.getenv("FIREBASE_PROJECT_ID", "").strip()
+app.config["FIREBASE_SERVICE_ACCOUNT_FILE"] = os.getenv(
+    "FIREBASE_SERVICE_ACCOUNT_FILE",
+    "",
+).strip()
+app.config["FIREBASE_SERVICE_ACCOUNT_JSON"] = os.getenv(
+    "FIREBASE_SERVICE_ACCOUNT_JSON",
+    "",
+).strip()
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -166,6 +177,10 @@ COMMUNITY_GENDER_FILTERS = [
     ("maschio", "Maschi"),
     ("femmina", "Femmine"),
 ]
+PUSH_PLATFORM_ANDROID = "android"
+PUSH_DEEP_LINK_BASE = "approfittoffro://"
+FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
+PUSH_CHANNEL_ID = "approfittoffro_alerts"
 
 
 def get_google_oauth_client_ids():
@@ -428,6 +443,17 @@ def send_claim_request_notification_to_host(claim):
         offer=offer,
         data_evento=data_evento,
     )
+    send_push_to_user(
+        offer.autore,
+        title="Nuova richiesta da approvare",
+        body=f"{guest.nome} vuole approfittare di {offer.nome_locale}.",
+        target="pending-requests",
+        extra_data={
+            "offer_id": offer.id,
+            "claim_id": claim.id,
+            "guest_name": guest.nome,
+        },
+    )
 
 
 def send_claim_accepted_email(claim):
@@ -457,6 +483,17 @@ def send_claim_accepted_email(claim):
         user=guest,
         offer=offer,
         data_evento=data_evento,
+    )
+    send_push_to_user(
+        guest,
+        title="Richiesta accettata",
+        body=f"{offer.autore.nome} ha accettato la tua richiesta per {offer.nome_locale}.",
+        target="offers",
+        extra_data={
+            "offer_id": offer.id,
+            "claim_id": claim.id,
+            "host_name": offer.autore.nome if offer.autore else "",
+        },
     )
 
 
@@ -488,6 +525,17 @@ def send_claim_rejected_email(claim):
         offer=offer,
         host=offer.autore,
         data_evento=data_evento,
+    )
+    send_push_to_user(
+        guest,
+        title="Richiesta non accettata",
+        body=f"{offer.autore.nome} non ha accettato la tua richiesta per {offer.nome_locale}.",
+        target="offers",
+        extra_data={
+            "offer_id": offer.id,
+            "claim_id": claim.id,
+            "host_name": offer.autore.nome if offer.autore else "",
+        },
     )
 
 
@@ -521,7 +569,7 @@ def send_review_received_email(review, *, is_update=False):
         f"reviewer_email={reviewer.email or '-'} reviewed_email={reviewed.email} "
         f"update={is_update} provider={get_active_email_provider()}"
     )
-    return send_email(
+    sent = send_email(
         subject=f"{reviewer.nome} {action_label} una recensione",
         recipients=[reviewed.email],
         template="review_received.html",
@@ -534,6 +582,24 @@ def send_review_received_email(review, *, is_update=False):
         commento=review.commento or "",
         is_update=is_update,
     )
+    push_title = "Recensione aggiornata" if is_update else "Nuova recensione ricevuta"
+    push_body = (
+        f"{reviewer.nome} ha aggiornato la recensione per {offer.nome_locale}."
+        if is_update
+        else f"{reviewer.nome} ti ha lasciato una recensione per {offer.nome_locale}."
+    )
+    send_push_to_user(
+        reviewed,
+        title=push_title,
+        body=push_body,
+        target="profile",
+        extra_data={
+            "offer_id": offer.id,
+            "review_id": review.id,
+            "reviewer_name": reviewer.nome,
+        },
+    )
+    return sent
 
 
 def snapshot_offer_notification_state(offer):
@@ -861,6 +927,199 @@ def send_email_html(subject, recipients, html_body, background=True):
     except Exception as e:
         print(f"[MAIL_ERROR] Errore invio email '{subject}': {e}")
         return False
+
+
+_firebase_credentials_cache = None
+
+
+def _load_firebase_service_account_info():
+    raw_json = app.config.get("FIREBASE_SERVICE_ACCOUNT_JSON", "").strip()
+    if raw_json:
+        try:
+            return json.loads(raw_json)
+        except json.JSONDecodeError as exc:
+            print(f"[PUSH_CONFIG_ERROR] FIREBASE_SERVICE_ACCOUNT_JSON non valido: {exc}")
+            return None
+
+    file_path = app.config.get("FIREBASE_SERVICE_ACCOUNT_FILE", "").strip()
+    if not file_path:
+        return None
+    if not os.path.exists(file_path):
+        print(f"[PUSH_CONFIG_ERROR] File service account Firebase non trovato: {file_path}")
+        return None
+    try:
+        with open(file_path, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except Exception as exc:
+        print(f"[PUSH_CONFIG_ERROR] Impossibile leggere il service account Firebase: {exc}")
+        return None
+
+
+def get_firebase_project_id():
+    configured = app.config.get("FIREBASE_PROJECT_ID", "").strip()
+    if configured:
+        return configured
+    info = _load_firebase_service_account_info() or {}
+    return str(info.get("project_id", "") or "").strip()
+
+
+def get_firebase_credentials():
+    global _firebase_credentials_cache
+    if _firebase_credentials_cache is not None:
+        return _firebase_credentials_cache
+
+    info = _load_firebase_service_account_info()
+    if not info:
+        return None
+
+    try:
+        _firebase_credentials_cache = service_account.Credentials.from_service_account_info(
+            info,
+            scopes=[FCM_SCOPE],
+        )
+        return _firebase_credentials_cache
+    except Exception as exc:
+        print(f"[PUSH_CONFIG_ERROR] Service account Firebase non utilizzabile: {exc}")
+        return None
+
+
+def push_delivery_enabled():
+    return bool(get_firebase_project_id() and get_firebase_credentials())
+
+
+def get_firebase_access_token():
+    credentials = get_firebase_credentials()
+    if not credentials:
+        return ""
+
+    try:
+        if not credentials.valid or credentials.expired or not credentials.token:
+            credentials.refresh(GoogleAuthRequest())
+        return credentials.token or ""
+    except Exception as exc:
+        print(f"[PUSH_AUTH_ERROR] Impossibile ottenere access token Firebase: {exc}")
+        return ""
+
+
+def build_push_target_deeplink(target):
+    normalized = str(target or "").strip().lower()
+    if normalized == "pending-requests":
+        return f"{PUSH_DEEP_LINK_BASE}profile/pending-requests"
+    if normalized == "profile":
+        return f"{PUSH_DEEP_LINK_BASE}profile"
+    if normalized == "offers":
+        return f"{PUSH_DEEP_LINK_BASE}offers"
+    return f"{PUSH_DEEP_LINK_BASE}login"
+
+
+def deactivate_push_token(token_record, *, reason=""):
+    if not token_record or not token_record.active:
+        return
+    token_record.active = False
+    token_record.last_seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.session.commit()
+    print(
+        f"[PUSH_TOKEN_DEACTIVATED] token_id={token_record.id} "
+        f"user_id={token_record.user_id} reason={reason or '-'}"
+    )
+
+
+def send_push_to_user(user, *, title, body, target="login", extra_data=None):
+    if not user:
+        return 0
+    if not push_delivery_enabled():
+        print(
+            f"[PUSH_SKIP] Firebase non configurato. user={getattr(user, 'id', None)} title={title}"
+        )
+        return 0
+
+    project_id = get_firebase_project_id()
+    access_token = get_firebase_access_token()
+    if not project_id or not access_token:
+        print(
+            f"[PUSH_SKIP] Credenziali Firebase incomplete. user={getattr(user, 'id', None)} title={title}"
+        )
+        return 0
+
+    tokens = (
+        DevicePushToken.query.filter_by(user_id=user.id, active=True)
+        .order_by(
+            DevicePushToken.last_seen_at.desc(),
+            DevicePushToken.created_at.desc(),
+        )
+        .all()
+    )
+    if not tokens:
+        print(f"[PUSH_SKIP] Nessun token attivo per user={user.id} title={title}")
+        return 0
+
+    payload_data = {
+        "target": str(target or "login"),
+        "deep_link": build_push_target_deeplink(target),
+    }
+    for key, value in (extra_data or {}).items():
+        payload_data[str(key)] = str(value)
+
+    endpoint = f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+    success_count = 0
+
+    for token_record in tokens:
+        body_payload = {
+            "message": {
+                "token": token_record.token,
+                "notification": {
+                    "title": title,
+                    "body": body,
+                },
+                "data": payload_data,
+                "android": {
+                    "priority": "high",
+                    "notification": {
+                        "channel_id": PUSH_CHANNEL_ID,
+                        "click_action": "FLUTTER_NOTIFICATION_CLICK",
+                    },
+                },
+            }
+        }
+        request_body = json.dumps(body_payload).encode("utf-8")
+        req = Request(
+            endpoint,
+            data=request_body,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json; charset=utf-8",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(req, timeout=20) as response:
+                response.read()
+            token_record.last_seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            db.session.commit()
+            success_count += 1
+            print(
+                f"[PUSH_SENT] user={user.id} token_id={token_record.id} target={target} title={title}"
+            )
+        except HTTPError as exc:
+            details = ""
+            try:
+                details = exc.read().decode("utf-8", errors="replace")
+            except Exception:
+                details = ""
+            print(
+                f"[PUSH_ERROR] user={user.id} token_id={token_record.id} status={exc.code} body={details}"
+            )
+            if "UNREGISTERED" in details or "registration-token-not-registered" in details:
+                deactivate_push_token(token_record, reason="unregistered")
+            elif "INVALID_ARGUMENT" in details and "token" in details.lower():
+                deactivate_push_token(token_record, reason="invalid-token")
+        except Exception as exc:
+            print(
+                f"[PUSH_ERROR] user={user.id} token_id={token_record.id} "
+                f"target={target} error={exc}"
+            )
+
+    return success_count
 
 
 def build_verification_email_html(user, link_verifica):
@@ -3952,6 +4211,65 @@ def api_user_me():
         "success": True,
         "user": user_payload,
     })
+
+
+@app.route("/api/push/token", methods=["POST"])
+@login_required
+def api_register_push_token():
+    """Registra o riattiva il token push del dispositivo corrente."""
+    data = request.get_json(silent=True) or {}
+    token = str(data.get("token", "")).strip()
+    platform = str(data.get("platform", PUSH_PLATFORM_ANDROID)).strip().lower() or PUSH_PLATFORM_ANDROID
+    device_label = str(data.get("device_label", "")).strip()[:160]
+
+    if len(token) < 20:
+        return jsonify({"success": False, "error": "Token push non valido."}), 400
+
+    token_record = DevicePushToken.query.filter_by(token=token).first()
+    if token_record is None:
+        token_record = DevicePushToken(
+            user_id=current_user.id,
+            token=token,
+            platform=platform,
+            device_label=device_label or None,
+            active=True,
+            last_seen_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        )
+        db.session.add(token_record)
+    else:
+        token_record.user_id = current_user.id
+        token_record.platform = platform
+        token_record.device_label = device_label or token_record.device_label
+        token_record.active = True
+        token_record.last_seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    db.session.commit()
+    return jsonify({
+        "success": True,
+        "message": "Token push registrato.",
+        "push_enabled": push_delivery_enabled(),
+    })
+
+
+@app.route("/api/push/token", methods=["DELETE"])
+@login_required
+def api_unregister_push_token():
+    """Disattiva il token push del dispositivo corrente."""
+    data = request.get_json(silent=True) or {}
+    token = str(data.get("token", "")).strip()
+    if len(token) < 20:
+        return jsonify({"success": False, "error": "Token push non valido."}), 400
+
+    token_record = DevicePushToken.query.filter_by(
+        token=token,
+        user_id=current_user.id,
+    ).first()
+    if token_record:
+        token_record.active = False
+        token_record.last_seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        db.session.commit()
+
+    return jsonify({"success": True, "message": "Token push disattivato."})
 
 
 @app.route("/api/user/reviews", methods=["GET"])

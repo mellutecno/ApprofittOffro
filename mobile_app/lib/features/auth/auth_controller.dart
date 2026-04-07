@@ -12,6 +12,7 @@ class AuthController extends ChangeNotifier {
 
   final ApiClient apiClient;
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  Future<void> Function()? beforeLogoutHook;
 
   AppUser? _currentUser;
   bool _isBusy = false;
@@ -150,6 +151,9 @@ class AuthController extends ChangeNotifier {
   Future<void> logout() async {
     _setBusy(true);
     try {
+      if (beforeLogoutHook != null) {
+        await beforeLogoutHook!();
+      }
       try {
         await _googleSignIn.signOut();
       } catch (_) {
@@ -304,6 +308,9 @@ class AuthController extends ChangeNotifier {
     _errorMessage = null;
 
     try {
+      if (beforeLogoutHook != null) {
+        await beforeLogoutHook!();
+      }
       final message = await apiClient.deleteMyAccount();
       try {
         await _googleSignIn.signOut();

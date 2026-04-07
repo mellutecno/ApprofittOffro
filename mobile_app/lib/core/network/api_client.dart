@@ -158,6 +158,36 @@ class ApiClient {
     return AppUser.fromJson(payload['user'] as Map<String, dynamic>);
   }
 
+  Future<void> registerPushToken({
+    required String token,
+    required String platform,
+    String deviceLabel = '',
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/push/token',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'token': token,
+        'platform': platform,
+        'device_label': deviceLabel,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+  }
+
+  Future<void> unregisterPushToken(String token) async {
+    final response = await _send(
+      method: 'DELETE',
+      path: '/api/push/token',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'token': token}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+  }
+
   Future<ReviewHistoryBundle> fetchMyReviewHistory() async {
     final response = await _send(method: 'GET', path: '/api/user/reviews');
     final payload = _decodeJson(response.body);

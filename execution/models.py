@@ -89,6 +89,12 @@ class User(UserMixin, db.Model):
         lazy=True,
         cascade="all, delete-orphan",
     )
+    push_tokens = db.relationship(
+        "DevicePushToken",
+        backref="user",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -188,6 +194,23 @@ class UserFollow(db.Model):
 
     def __repr__(self):
         return f"<UserFollow follower={self.follower_id} followed={self.followed_id}>"
+
+
+class DevicePushToken(db.Model):
+    """Token push registrato da un dispositivo mobile."""
+    __tablename__ = "device_push_tokens"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    token = db.Column(db.String(512), unique=True, nullable=False)
+    platform = db.Column(db.String(32), nullable=False, default="android")
+    device_label = db.Column(db.String(160), nullable=True)
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    last_seen_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    def __repr__(self):
+        return f"<DevicePushToken user={self.user_id} platform={self.platform} active={self.active}>"
 
 
 class Claim(db.Model):
