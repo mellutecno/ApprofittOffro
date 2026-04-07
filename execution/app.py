@@ -2089,6 +2089,7 @@ def serialize_admin_user_summary(user):
         "email": user.email or "",
         "foto": user.foto_filename or "",
         "eta_display": user.eta_display,
+        "sesso": user.sesso or "non_dico",
         "citta": user.citta or "",
         "city_label": extract_city_label(user.citta),
         "bio": user.bio or "",

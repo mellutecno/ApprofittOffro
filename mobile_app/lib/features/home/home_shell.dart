@@ -40,8 +40,8 @@ class _HomeShellState extends State<HomeShell> {
   String? _lastReviewsAlertSignature;
 
   bool get _isAdminUser => widget.authController.currentUser?.isAdmin == true;
-  int get _profileTabIndex => _isAdminUser ? 2 : 3;
-  int? get _adminTabIndex => _isAdminUser ? 3 : null;
+  int get _profileTabIndex => _isAdminUser ? 0 : 3;
+  int? get _adminTabIndex => _isAdminUser ? 1 : null;
 
   @override
   void initState() {
@@ -96,6 +96,9 @@ class _HomeShellState extends State<HomeShell> {
       unawaited(_offersController.loadOffers());
       if (!_isAdminUser) {
         unawaited(_communityController.loadPeople());
+      }
+      if (_isAdminUser && mounted) {
+        setState(() => _selectedIndex = _adminTabIndex ?? 0);
       }
       _applyLaunchTargetIfNeeded();
       _maybeShowProfileManagementAlert();
@@ -318,29 +321,32 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = <Widget>[
-      OffersPage(
-        authController: widget.authController,
-        offersController: _offersController,
-      ),
-      if (!_isAdminUser)
-        CommunityPage(
-          authController: widget.authController,
-          communityController: _communityController,
-        ),
-      CreateOfferPage(
-        authController: widget.authController,
-        onOfferCreated: () async {
-          await _offersController.loadOffers();
-          if (!mounted) {
-            return;
-          }
-          setState(() => _selectedIndex = 0);
-        },
-      ),
-      ProfilePage(authController: widget.authController),
-      if (_isAdminUser) AdminPage(authController: widget.authController),
-    ];
+    final pages = _isAdminUser
+        ? <Widget>[
+            ProfilePage(authController: widget.authController),
+            AdminPage(authController: widget.authController),
+          ]
+        : <Widget>[
+            OffersPage(
+              authController: widget.authController,
+              offersController: _offersController,
+            ),
+            CommunityPage(
+              authController: widget.authController,
+              communityController: _communityController,
+            ),
+            CreateOfferPage(
+              authController: widget.authController,
+              onOfferCreated: () async {
+                await _offersController.loadOffers();
+                if (!mounted) {
+                  return;
+                }
+                setState(() => _selectedIndex = 0);
+              },
+            ),
+            ProfilePage(authController: widget.authController),
+          ];
     final selectedIndex = _selectedIndex.clamp(0, pages.length - 1);
 
     return Scaffold(
@@ -355,41 +361,53 @@ class _HomeShellState extends State<HomeShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
-        destinations: [
-          NavigationDestination(
-            icon: Icon(Icons.restaurant_menu_outlined),
-            selectedIcon: Icon(Icons.restaurant_menu_rounded),
-            label: 'Approfitta',
-          ),
-          if (!_isAdminUser)
-            NavigationDestination(
-              icon: Icon(Icons.groups_rounded),
-              selectedIcon: Icon(Icons.groups),
-              label: 'Community',
-            ),
-          NavigationDestination(
-            icon: Icon(Icons.add_circle_outline),
-            selectedIcon: Icon(Icons.add_circle),
-            label: 'Offri',
-          ),
-          NavigationDestination(
-            icon: _ProfileTabIcon(
-              selected: false,
-              hasAlert: !_isAdminUser && _hasReviewsToManage(),
-            ),
-            selectedIcon: _ProfileTabIcon(
-              selected: true,
-              hasAlert: !_isAdminUser && _hasReviewsToManage(),
-            ),
-            label: 'Profilo',
-          ),
-          if (_isAdminUser)
-            const NavigationDestination(
-              icon: Icon(Icons.admin_panel_settings_outlined),
-              selectedIcon: Icon(Icons.admin_panel_settings_rounded),
-              label: 'Admin',
-            ),
-        ],
+        destinations: _isAdminUser
+            ? [
+                NavigationDestination(
+                  icon: _ProfileTabIcon(
+                    selected: false,
+                    hasAlert: false,
+                  ),
+                  selectedIcon: _ProfileTabIcon(
+                    selected: true,
+                    hasAlert: false,
+                  ),
+                  label: 'Profilo',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.admin_panel_settings_outlined),
+                  selectedIcon: Icon(Icons.admin_panel_settings_rounded),
+                  label: 'Admin',
+                ),
+              ]
+            : [
+                const NavigationDestination(
+                  icon: Icon(Icons.restaurant_menu_outlined),
+                  selectedIcon: Icon(Icons.restaurant_menu_rounded),
+                  label: 'Approfitta',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.groups_rounded),
+                  selectedIcon: Icon(Icons.groups),
+                  label: 'Community',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.add_circle_outline),
+                  selectedIcon: Icon(Icons.add_circle),
+                  label: 'Offri',
+                ),
+                NavigationDestination(
+                  icon: _ProfileTabIcon(
+                    selected: false,
+                    hasAlert: _hasReviewsToManage(),
+                  ),
+                  selectedIcon: _ProfileTabIcon(
+                    selected: true,
+                    hasAlert: _hasReviewsToManage(),
+                  ),
+                  label: 'Profilo',
+                ),
+              ],
         onDestinationSelected: (index) {
           setState(() => _selectedIndex = index);
         },

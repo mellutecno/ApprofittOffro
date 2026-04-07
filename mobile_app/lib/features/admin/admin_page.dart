@@ -27,13 +27,50 @@ class AdminPage extends StatefulWidget {
 }
 
 class _AdminPageState extends State<AdminPage> {
+  static const List<DropdownMenuItem<String>> _genderItems =
+      <DropdownMenuItem<String>>[
+    DropdownMenuItem(value: '', child: Text('Tutti')),
+    DropdownMenuItem(value: 'femmina', child: Text('Femmine')),
+    DropdownMenuItem(value: 'maschio', child: Text('Maschi')),
+    DropdownMenuItem(value: 'non_dico', child: Text('Non dichiarato')),
+  ];
+
+  static const List<DropdownMenuItem<String>> _ageRangeItems =
+      <DropdownMenuItem<String>>[
+    DropdownMenuItem(value: '', child: Text('Tutte le età')),
+    DropdownMenuItem(value: '18-25', child: Text('18-25')),
+    DropdownMenuItem(value: '26-35', child: Text('26-35')),
+    DropdownMenuItem(value: '36-45', child: Text('36-45')),
+    DropdownMenuItem(value: '46-55', child: Text('46-55')),
+    DropdownMenuItem(value: '56-65', child: Text('56-65')),
+    DropdownMenuItem(value: '66+', child: Text('66+')),
+  ];
+
   late Future<AdminDashboardData> _dashboardFuture;
+  late final TextEditingController _userSearchController;
+  late final TextEditingController _offerSearchController;
+
   _AdminSection _selectedSection = _AdminSection.users;
+  String _userQuery = '';
+  String _selectedGender = '';
+  String _selectedAgeRange = '';
+  String _offerQuery = '';
+  DateTime? _offerFromDate;
+  DateTime? _offerToDate;
 
   @override
   void initState() {
     super.initState();
     _dashboardFuture = widget.authController.apiClient.fetchAdminDashboard();
+    _userSearchController = TextEditingController();
+    _offerSearchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _userSearchController.dispose();
+    _offerSearchController.dispose();
+    super.dispose();
   }
 
   Future<void> _reloadDashboard() async {
@@ -47,6 +84,167 @@ class _AdminPageState extends State<AdminPage> {
       return 'Data non disponibile';
     }
     return DateFormat("d MMM yyyy, HH:mm", 'it_IT').format(dateTime.toLocal());
+  }
+
+  String _formatDate(DateTime? dateTime) {
+    if (dateTime == null) {
+      return 'Seleziona';
+    }
+    return DateFormat("d MMM yyyy", 'it_IT').format(dateTime);
+  }
+
+  int? _extractAge(AdminUserSummary user) {
+    final match = RegExp(r'(\d{1,3})').firstMatch(user.ageDisplay);
+    return match == null ? null : int.tryParse(match.group(1) ?? '');
+  }
+
+  bool _matchesAgeFilter(AdminUserSummary user) {
+    if (_selectedAgeRange.isEmpty) {
+      return true;
+    }
+    final age = _extractAge(user);
+    if (age == null) {
+      return false;
+    }
+    switch (_selectedAgeRange) {
+      case '18-25':
+        return age >= 18 && age <= 25;
+      case '26-35':
+        return age >= 26 && age <= 35;
+      case '36-45':
+        return age >= 36 && age <= 45;
+      case '46-55':
+        return age >= 46 && age <= 55;
+      case '56-65':
+        return age >= 56 && age <= 65;
+      case '66+':
+        return age >= 66;
+      default:
+        return true;
+    }
+  }
+
+  List<AdminUserSummary> _filteredUsers(AdminDashboardData data) {
+    final query = _userQuery.trim().toLowerCase();
+    return data.users.where((user) {
+      if (_selectedGender.isNotEmpty && user.gender != _selectedGender) {
+        return false;
+      }
+      if (!_matchesAgeFilter(user)) {
+        return false;
+      }
+      if (query.isEmpty) {
+        return true;
+      }
+      final haystack = [
+        user.name,
+        user.email,
+        user.cityLabel,
+        user.city,
+      ].join(' ').toLowerCase();
+      return haystack.contains(query);
+    }).toList();
+  }
+
+  List<AdminOfferSummary> _filteredOffers(List<AdminOfferSummary> offers) {
+    final query = _offerQuery.trim().toLowerCase();
+    final fromBoundary = _offerFromDate == null
+        ? null
+        : DateTime(
+            _offerFromDate!.year, _offerFromDate!.month, _offerFromDate!.day);
+    final toBoundary = _offerToDate == null
+        ? null
+        : DateTime(
+            _offerToDate!.year,
+            _offerToDate!.month,
+            _offerToDate!.day,
+            23,
+            59,
+            59,
+            999,
+          );
+
+    return offers.where((offer) {
+      final startsAt = offer.startsAt?.toLocal();
+      if (fromBoundary != null &&
+          (startsAt == null || startsAt.isBefore(fromBoundary))) {
+        return false;
+      }
+      if (toBoundary != null &&
+          (startsAt == null || startsAt.isAfter(toBoundary))) {
+        return false;
+      }
+      if (query.isEmpty) {
+        return true;
+      }
+      final haystack = [
+        offer.localeName,
+        offer.address,
+        offer.author.name,
+        offer.author.email,
+        offer.description,
+      ].join(' ').toLowerCase();
+      return haystack.contains(query);
+    }).toList();
+  }
+
+  Future<void> _pickOfferDate({
+    required bool isStart,
+  }) async {
+    final initialDate =
+        (isStart ? _offerFromDate : _offerToDate) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2035),
+      locale: const Locale('it', 'IT'),
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    setState(() {
+      if (isStart) {
+        _offerFromDate = picked;
+        if (_offerToDate != null && _offerToDate!.isBefore(picked)) {
+          _offerToDate = picked;
+        }
+      } else {
+        _offerToDate = picked;
+        if (_offerFromDate != null && picked.isBefore(_offerFromDate!)) {
+          _offerFromDate = picked;
+        }
+      }
+    });
+  }
+
+  void _resetUserFilters() {
+    setState(() {
+      _userQuery = '';
+      _selectedGender = '';
+      _selectedAgeRange = '';
+      _userSearchController.clear();
+    });
+  }
+
+  void _resetOfferFilters() {
+    setState(() {
+      _offerQuery = '';
+      _offerFromDate = null;
+      _offerToDate = null;
+      _offerSearchController.clear();
+    });
+  }
+
+  String _genderLabel(String value) {
+    switch (value) {
+      case 'femmina':
+        return 'Femmina';
+      case 'maschio':
+        return 'Maschio';
+      default:
+        return 'Non dichiarato';
+    }
   }
 
   Future<void> _confirmDeleteUser(AdminUserSummary user) async {
@@ -129,17 +327,13 @@ class _AdminPageState extends State<AdminPage> {
               const SizedBox(height: 12),
               TextField(
                 controller: subjectController,
-                decoration: const InputDecoration(
-                  labelText: 'Oggetto',
-                ),
+                decoration: const InputDecoration(labelText: 'Oggetto'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: messageController,
                 maxLines: 5,
-                decoration: const InputDecoration(
-                  labelText: 'Messaggio',
-                ),
+                decoration: const InputDecoration(labelText: 'Messaggio'),
               ),
             ],
           ),
@@ -203,9 +397,7 @@ class _AdminPageState extends State<AdminPage> {
               TextField(
                 controller: reasonController,
                 maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Motivazione',
-                ),
+                decoration: const InputDecoration(labelText: 'Motivazione'),
               ),
             ],
           ),
@@ -329,41 +521,185 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildUsersFilters(List<AdminUserSummary> filteredUsers) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Trova utenti',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: AppTheme.brown,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _userSearchController,
+              onChanged: (value) => setState(() => _userQuery = value),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search_rounded),
+                labelText: 'Cerca per nome, email o città',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedGender,
+                    items: _genderItems,
+                    onChanged: (value) =>
+                        setState(() => _selectedGender = value ?? ''),
+                    decoration: const InputDecoration(labelText: 'Sesso'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedAgeRange,
+                    items: _ageRangeItems,
+                    onChanged: (value) =>
+                        setState(() => _selectedAgeRange = value ?? ''),
+                    decoration:
+                        const InputDecoration(labelText: 'Fascia d’età'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text(
+                  '${filteredUsers.length} utenti trovati',
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.72),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: _resetUserFilters,
+                  icon: const Icon(Icons.restart_alt_rounded),
+                  label: const Text('Azzera'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOffersFilters(List<AdminOfferSummary> filteredOffers) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Trova eventi',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: AppTheme.brown,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _offerSearchController,
+              onChanged: (value) => setState(() => _offerQuery = value),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search_rounded),
+                labelText: 'Cerca per locale, autore, email o indirizzo',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickOfferDate(isStart: true),
+                    icon: const Icon(Icons.event_available_rounded),
+                    label: Text('Dal ${_formatDate(_offerFromDate)}'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickOfferDate(isStart: false),
+                    icon: const Icon(Icons.event_rounded),
+                    label: Text('Al ${_formatDate(_offerToDate)}'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text(
+                  '${filteredOffers.length} eventi trovati',
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.72),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: _resetOfferFilters,
+                  icon: const Icon(Icons.restart_alt_rounded),
+                  label: const Text('Azzera'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<Widget> _buildSectionItems(AdminDashboardData data) {
     switch (_selectedSection) {
       case _AdminSection.users:
-        if (data.users.isEmpty) {
+        final filteredUsers = _filteredUsers(data);
+        if (filteredUsers.isEmpty) {
           return const [
             _AdminEmptyState(
               title: 'Nessun utente da mostrare',
-              subtitle: 'Appena si iscrivono nuovi profili, li vedrai qui.',
+              subtitle:
+                  'Prova ad allargare i filtri o a cambiare la ricerca utenti.',
             ),
           ];
         }
-        return data.users.map(_buildUserCard).toList();
+        return filteredUsers.map(_buildUserCard).toList();
       case _AdminSection.futureOffers:
-        if (data.futureOffers.isEmpty) {
+        final filteredOffers = _filteredOffers(data.futureOffers);
+        if (filteredOffers.isEmpty) {
           return const [
             _AdminEmptyState(
               title: 'Nessun evento futuro',
-              subtitle: 'Al momento non ci sono tavoli ancora programmati.',
+              subtitle:
+                  'Non ci sono eventi futuri che corrispondono ai filtri.',
             ),
           ];
         }
-        return data.futureOffers
-            .map((offer) => _buildOfferCard(offer))
-            .toList();
+        return filteredOffers.map(_buildOfferCard).toList();
       case _AdminSection.pastOffers:
-        if (data.pastOffers.isEmpty) {
+        final filteredOffers = _filteredOffers(data.pastOffers);
+        if (filteredOffers.isEmpty) {
           return const [
             _AdminEmptyState(
               title: 'Nessun evento passato',
               subtitle:
-                  'Lo storico sarà visibile qui appena ci saranno eventi chiusi.',
+                  'Non ci sono eventi passati che corrispondono ai filtri.',
             ),
           ];
         }
-        return data.pastOffers.map((offer) => _buildOfferCard(offer)).toList();
+        return filteredOffers.map(_buildOfferCard).toList();
     }
   }
 
@@ -418,7 +754,7 @@ class _AdminPageState extends State<AdminPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${user.ageDisplay} anni • ${user.cityLabel.isNotEmpty ? user.cityLabel : 'Città non definita'}',
+                        '${user.ageDisplay.isEmpty ? 'Età n.d.' : '${user.ageDisplay} anni'} • ${_genderLabel(user.gender)} • ${user.cityLabel.isNotEmpty ? user.cityLabel : 'Città non definita'}',
                         style: TextStyle(
                           color: AppTheme.brown.withValues(alpha: 0.68),
                         ),
@@ -544,7 +880,9 @@ class _AdminPageState extends State<AdminPage> {
                 _MiniStat(label: 'Posti', value: offer.totalSeats),
                 _MiniStat(label: 'Disponibili', value: offer.availableSeats),
                 _MiniStat(
-                    label: 'Partecipanti', value: offer.participantsCount),
+                  label: 'Partecipanti',
+                  value: offer.participantsCount,
+                ),
               ],
             ),
             if (offer.description.trim().isNotEmpty) ...[
@@ -631,6 +969,14 @@ class _AdminPageState extends State<AdminPage> {
         }
 
         final dashboard = data!;
+        final filteredUsers = _filteredUsers(dashboard);
+        final filteredFutureOffers = _filteredOffers(dashboard.futureOffers);
+        final filteredPastOffers = _filteredOffers(dashboard.pastOffers);
+        final currentCount = switch (_selectedSection) {
+          _AdminSection.users => filteredUsers.length,
+          _AdminSection.futureOffers => filteredFutureOffers.length,
+          _AdminSection.pastOffers => filteredPastOffers.length,
+        };
         final items = _buildSectionItems(dashboard);
 
         return RefreshIndicator(
@@ -688,8 +1034,7 @@ class _AdminPageState extends State<AdminPage> {
                             selected: <_AdminSection>{_selectedSection},
                             onSelectionChanged: (selection) {
                               setState(
-                                () => _selectedSection = selection.first,
-                              );
+                                  () => _selectedSection = selection.first);
                             },
                           ),
                         ),
@@ -700,13 +1045,21 @@ class _AdminPageState extends State<AdminPage> {
               ),
               SliverToBoxAdapter(
                 child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                  child: _selectedSection == _AdminSection.users
+                      ? _buildUsersFilters(filteredUsers)
+                      : _buildOffersFilters(
+                          _selectedSection == _AdminSection.futureOffers
+                              ? filteredFutureOffers
+                              : filteredPastOffers,
+                        ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                   child: Text(
-                    _selectedSection == _AdminSection.users
-                        ? 'Utenti registrati'
-                        : _selectedSection == _AdminSection.futureOffers
-                            ? 'Eventi futuri'
-                            : 'Eventi passati',
+                    '${_selectedSection.label} • $currentCount risultati',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 18,

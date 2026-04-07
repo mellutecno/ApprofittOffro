@@ -28,6 +28,7 @@ class AdminUserSummary {
     required this.email,
     required this.photoFilename,
     required this.ageDisplay,
+    required this.gender,
     required this.city,
     required this.cityLabel,
     required this.bio,
@@ -46,6 +47,7 @@ class AdminUserSummary {
   final String email;
   final String photoFilename;
   final String ageDisplay;
+  final String gender;
   final String city;
   final String cityLabel;
   final String bio;
@@ -65,6 +67,7 @@ class AdminUserSummary {
       email: (json['email'] ?? '').toString(),
       photoFilename: (json['foto'] ?? '').toString(),
       ageDisplay: (json['eta_display'] ?? '').toString(),
+      gender: (json['sesso'] ?? 'non_dico').toString(),
       city: (json['citta'] ?? '').toString(),
       cityLabel: (json['city_label'] ?? '').toString(),
       bio: (json['bio'] ?? '').toString(),
