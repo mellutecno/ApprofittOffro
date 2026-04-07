@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const cream = Color(0xFFF6EFE6);
-  static const paper = Color(0xFFFFFCF7);
-  static const sand = Color(0xFFEADCC7);
-  static const peach = Color(0xFFF3D6C1);
-  static const orange = Color(0xFFA36D60);
-  static const brown = Color(0xFF402C24);
-  static const espresso = Color(0xFF241713);
-  static const sage = Color(0xFFD7E1D0);
-  static const mist = Color(0xFFFBF7F1);
-  static const cardBorder = Color(0xFFE7D8C8);
-  static const moss = Color(0xFF56705B);
-  static const gold = Color(0xFFC59A3B);
+  static const cream = Color(0xFFF8F2FF);
+  static const paper = Color(0xFFFFFCFF);
+  static const sand = Color(0xFFE7DBFF);
+  static const peach = Color(0xFFF8D8EC);
+  static const orange = Color(0xFFB75CC8);
+  static const brown = Color(0xFF43275C);
+  static const espresso = Color(0xFF28163D);
+  static const sage = Color(0xFFD8F0FF);
+  static const mist = Color(0xFFF7F3FF);
+  static const cardBorder = Color(0xFFE6D8F8);
+  static const moss = Color(0xFF2E8AD1);
+  static const gold = Color(0xFFD49B00);
 
   static const heroGradient = LinearGradient(
-    colors: [Color(0xFFF5D8C3), Color(0xFFF3E5D8), Color(0xFFDCE6D7)],
+    colors: [Color(0xFFFFD8EE), Color(0xFFF1DEFF), Color(0xFFD8F2FF)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
