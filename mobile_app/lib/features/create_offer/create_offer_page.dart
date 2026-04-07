@@ -13,6 +13,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_config.dart';
+import '../../core/media/profile_photo_cropper.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../../models/offer.dart';
@@ -492,6 +493,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                         child: Image.file(
                           File(_pickedImage!.path),
                           fit: BoxFit.cover,
+                          alignment: Alignment.center,
                         ),
                       ),
                     ),
@@ -828,7 +830,21 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     if (image == null || !mounted) {
       return;
     }
-    setState(() => _pickedImage = image);
+    try {
+      final croppedImage = await ProfilePhotoCropper.cropPickedPhoto(
+        image,
+        title: 'Ritaglia foto offerta',
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _pickedImage = croppedImage);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      _showMessage('Non riesco a ritagliare la foto in questo momento.');
+    }
   }
 
   Future<void> _useCurrentLocation({bool silent = false}) async {

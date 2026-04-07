@@ -33,7 +33,10 @@ class _HomeShellState extends State<HomeShell> {
   late final OffersController _offersController;
   late final CommunityController _communityController;
   bool _mandatoryProfileFlowOpen = false;
-  String? _lastProfileAlertSignature;
+  bool _managementAlertInFlight = false;
+  bool _reviewAlertVisible = false;
+  String? _lastOffersAlertSignature;
+  String? _lastReviewsAlertSignature;
 
   @override
   void initState() {
@@ -129,56 +132,129 @@ class _HomeShellState extends State<HomeShell> {
 
     final user = widget.authController.currentUser;
     if (user == null) {
-      _lastProfileAlertSignature = null;
+      _lastOffersAlertSignature = null;
+      _lastReviewsAlertSignature = null;
       return;
     }
 
     final hasOffersToManage = _hasOffersToManage();
     final hasReviewsToManage = _hasReviewsToManage();
-    if (!hasOffersToManage && !hasReviewsToManage) {
-      _lastProfileAlertSignature = null;
-      return;
-    }
-
-    final signature =
-        '${user.id}:${hasOffersToManage ? 1 : 0}:${hasReviewsToManage ? 1 : 0}';
-    if (_lastProfileAlertSignature == signature && !forceProfileTab) {
-      return;
-    }
-    _lastProfileAlertSignature = signature;
-
-    if (forceProfileTab && _selectedIndex != 3) {
-      setState(() => _selectedIndex = 3);
-    }
-
-    final String message;
-    if (hasOffersToManage && hasReviewsToManage) {
-      message = 'Hai delle offerte e delle recensioni da gestire nel profilo.';
-    } else if (hasOffersToManage) {
-      message = 'Hai delle offerte da gestire nel profilo.';
-    } else {
-      message = 'Hai delle recensioni da gestire nel profilo.';
-    }
-
     final messenger = ScaffoldMessenger.maybeOf(context);
-    if (messenger == null) {
+
+    if (!hasReviewsToManage && _reviewAlertVisible) {
+      messenger?.hideCurrentSnackBar();
+      _reviewAlertVisible = false;
+    }
+
+    if (!hasOffersToManage) {
+      _lastOffersAlertSignature = null;
+    }
+    if (!hasReviewsToManage) {
+      _lastReviewsAlertSignature = null;
+    }
+
+    if (!hasOffersToManage && !hasReviewsToManage) {
       return;
     }
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        action: SnackBarAction(
-          label: 'Apri',
-          onPressed: () {
-            if (!mounted) {
-              return;
-            }
-            setState(() => _selectedIndex = 3);
-          },
-        ),
+
+    final offersSignature = hasOffersToManage
+        ? '${user.id}:${user.pendingClaimRequests.length}:${user.manageableOffersCount}:${_offersController.hiddenOwnOffersCount}'
+        : null;
+    final reviewsSignature = hasReviewsToManage
+        ? '${user.id}:${user.pendingReviewReminders.length}'
+        : null;
+    final shouldShowOffers = offersSignature != null &&
+        _lastOffersAlertSignature != offersSignature;
+    final shouldShowReviews = reviewsSignature != null &&
+        _lastReviewsAlertSignature != reviewsSignature;
+
+    if (!shouldShowOffers && !shouldShowReviews) {
+      return;
+    }
+
+    _lastOffersAlertSignature = offersSignature;
+    _lastReviewsAlertSignature = reviewsSignature;
+    if (_managementAlertInFlight) {
+      return;
+    }
+
+    _managementAlertInFlight = true;
+    unawaited(
+      _runManagementAlertSequence(
+        showOffersAlert: shouldShowOffers,
+        showReviewAlert: shouldShowReviews,
+        restoreReviewAlert: hasReviewsToManage,
+        forceProfileTab: forceProfileTab,
       ),
     );
+  }
+
+  Future<void> _runManagementAlertSequence({
+    required bool showOffersAlert,
+    required bool showReviewAlert,
+    required bool restoreReviewAlert,
+    required bool forceProfileTab,
+  }) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) {
+      _managementAlertInFlight = false;
+      return;
+    }
+
+    try {
+      if (showOffersAlert) {
+        if (_reviewAlertVisible) {
+          messenger.hideCurrentSnackBar();
+          _reviewAlertVisible = false;
+        }
+        await messenger
+            .showSnackBar(
+              const SnackBar(
+                content: Text('Hai delle offerte da gestire nel profilo.'),
+                duration: Duration(seconds: 5),
+              ),
+            )
+            .closed;
+      }
+
+      if ((showReviewAlert || restoreReviewAlert) &&
+          mounted &&
+          _hasReviewsToManage()) {
+        messenger.hideCurrentSnackBar();
+        _reviewAlertVisible = true;
+        unawaited(
+          messenger
+              .showSnackBar(
+                SnackBar(
+                  content: const Text(
+                    'Hai delle recensioni da gestire nel profilo.',
+                  ),
+                  duration: const Duration(days: 1),
+                  action: SnackBarAction(
+                    label: 'Apri',
+                    onPressed: () {
+                      if (!mounted) {
+                        return;
+                      }
+                      setState(() => _selectedIndex = 3);
+                    },
+                  ),
+                ),
+              )
+              .closed
+              .then((_) {
+                _reviewAlertVisible = false;
+              }),
+        );
+      }
+    } finally {
+      _managementAlertInFlight = false;
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _maybeShowProfileManagementAlert(forceProfileTab: forceProfileTab);
+        });
+      }
+    }
   }
 
   Future<void> _maybeOpenMandatoryProfileSetup() async {
@@ -274,11 +350,11 @@ class _HomeShellState extends State<HomeShell> {
           NavigationDestination(
             icon: _ProfileTabIcon(
               selected: false,
-              hasAlert: _hasOffersToManage() || _hasReviewsToManage(),
+              hasAlert: _hasReviewsToManage(),
             ),
             selectedIcon: _ProfileTabIcon(
               selected: true,
-              hasAlert: _hasOffersToManage() || _hasReviewsToManage(),
+              hasAlert: _hasReviewsToManage(),
             ),
             label: 'Profilo',
           ),

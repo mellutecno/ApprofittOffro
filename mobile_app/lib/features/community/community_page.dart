@@ -143,6 +143,11 @@ class _CommunityPageState extends State<CommunityPage> {
                           constraints: const BoxConstraints(maxWidth: 360),
                           child: Column(
                             children: [
+                              _CommunityResultCount(
+                                count: widget.communityController.people.length,
+                                isLoading: widget.communityController.isLoading,
+                              ),
+                              const SizedBox(height: 12),
                               Row(
                                 children: [
                                   Expanded(
@@ -171,11 +176,6 @@ class _CommunityPageState extends State<CommunityPage> {
                                     ),
                                   ),
                                 ],
-                              ),
-                              const SizedBox(height: 12),
-                              _CommunityResultCount(
-                                count: widget.communityController.people.length,
-                                isLoading: widget.communityController.isLoading,
                               ),
                               const SizedBox(height: 12),
                               Text(
