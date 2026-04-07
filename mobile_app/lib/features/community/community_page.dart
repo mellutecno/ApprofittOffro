@@ -47,6 +47,14 @@ class _CommunityPageState extends State<CommunityPage> {
     );
   }
 
+  bool _isShowingAllUsers(int radiusKm) {
+    return radiusKm >= CommunityController.maxRadiusKm;
+  }
+
+  String _distanceDisplayLabel(int radiusKm) {
+    return _isShowingAllUsers(radiusKm) ? 'Tutti' : '$radiusKm km';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -80,7 +88,11 @@ class _CommunityPageState extends State<CommunityPage> {
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Ora vedi utenti entro $selectedKm km.'),
+        content: Text(
+          _isShowingAllUsers(selectedKm)
+              ? 'Ora vedi tutti gli utenti.'
+              : 'Ora vedi utenti entro $selectedKm km.',
+        ),
       ),
     );
   }
@@ -140,6 +152,7 @@ class _CommunityPageState extends State<CommunityPage> {
                         const SizedBox(height: 12),
                         _CommunityDistanceControl(
                           valueKm: distanceValue,
+                          valueLabel: _distanceDisplayLabel(distanceValue),
                           isExpanded: _isDistanceCardExpanded,
                           isSaving: widget.communityController.isLoading,
                           onChanged: (value) {
@@ -414,6 +427,7 @@ class _CommunityFilterTile extends StatelessWidget {
 class _CommunityDistanceControl extends StatelessWidget {
   const _CommunityDistanceControl({
     required this.valueKm,
+    required this.valueLabel,
     required this.isExpanded,
     required this.isSaving,
     required this.onChanged,
@@ -423,6 +437,7 @@ class _CommunityDistanceControl extends StatelessWidget {
   });
 
   final int valueKm;
+  final String valueLabel;
   final bool isExpanded;
   final bool isSaving;
   final ValueChanged<double> onChanged;
@@ -458,7 +473,7 @@ class _CommunityDistanceControl extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Utenti nel raggio di $valueKm km',
+                      'Utenti nel raggio di $valueLabel',
                       style: const TextStyle(
                         color: AppTheme.espresso,
                         fontWeight: FontWeight.w800,
@@ -501,7 +516,7 @@ class _CommunityDistanceControl extends StatelessWidget {
                       CommunityController.maxRadiusKm,
                     )
                     .toDouble(),
-                label: '$valueKm km',
+                label: valueLabel,
                 onChanged: isSaving ? null : onChanged,
               ),
             ),
@@ -516,7 +531,7 @@ class _CommunityDistanceControl extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  '${CommunityController.maxRadiusKm} km',
+                  'Tutti',
                   style: TextStyle(
                     color: AppTheme.brown.withValues(alpha: 0.72),
                     fontWeight: FontWeight.w700,
