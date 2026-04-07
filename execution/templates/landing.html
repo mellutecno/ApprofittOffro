@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ApprofittOffro e una piattaforma social geolocalizzata per condividere colazioni, pranzi e cene nei locali della tua zona.">
+    <title>ApprofittOffro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=86">
+    <meta name="theme-color" content="#FF7043">
+</head>
+<body class="public-discovery">
+    <div class="page-top-title" aria-label="ApprofittOffro">
+        <img class="topmark-mobile" src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
+        <img class="topmark-desktop" src="{{ url_for('static', filename='img/WhatsApp_Image_2026-03-22_at_21.54.07-removebg-preview.png') }}" alt="ApprofittOffro">
+    </div>
+
+    <main class="container main-content" style="max-width: 1100px;">
+        <section class="glass-card" style="padding: 32px; margin-bottom: 24px; text-align: center;">
+            <div style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border-radius:999px; background:rgba(255,112,67,0.12); color:var(--primary); font-size:0.82rem; font-weight:900; letter-spacing:0.08em; text-transform:uppercase;">
+                Solo app Android
+            </div>
+            <h1 style="margin:18px 0 12px 0; font-size:clamp(2rem, 6vw, 3.4rem);">Incontri reali intorno a colazioni, pranzi e cene.</h1>
+            <p style="max-width:760px; margin:0 auto; color:var(--text-muted); font-size:1.08rem; line-height:1.7;">
+                ApprofittOffro e una piattaforma social geolocalizzata per scoprire persone della tua zona,
+                condividere un pasto in un locale e creare occasioni concrete per conoscersi offline.
+                L'accesso via web non e disponibile: l'esperienza utente vive dentro l'app Android.
+            </p>
+            <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:12px; margin-top:24px;">
+                {% if play_store_url %}
+                <a href="{{ play_store_url }}" class="btn btn-primary btn-lg" rel="noopener noreferrer" target="_blank">
+                    Scarica da Google Play
+                </a>
+                {% else %}
+                <button class="btn btn-primary btn-lg" type="button" disabled>
+                    Presto su Google Play
+                </button>
+                {% endif %}
+                <span class="btn btn-outline btn-lg" style="pointer-events:none;">
+                    Accesso utenti solo da app
+                </span>
+            </div>
+        </section>
+
+        <section style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:18px; margin-bottom: 24px;">
+            <article class="glass-card" style="padding:24px;">
+                <div class="pill-badge" style="display:inline-flex; margin-bottom:12px;">1. Crea il profilo</div>
+                <h2 style="margin:0 0 8px 0; font-size:1.35rem;">Profilo autentico</h2>
+                <p style="margin:0; color:var(--text-muted); line-height:1.6;">
+                    Foto reali, bio, gusti alimentari e posizione aiutano a creare fiducia e a vedere persone vicine davvero compatibili con il tuo stile.
+                </p>
+            </article>
+            <article class="glass-card" style="padding:24px;">
+                <div class="pill-badge" style="display:inline-flex; margin-bottom:12px;">2. Offri o approfitta</div>
+                <h2 style="margin:0 0 8px 0; font-size:1.35rem;">Tavoli veri, locali veri</h2>
+                <p style="margin:0; color:var(--text-muted); line-height:1.6;">
+                    Pubblica colazioni, pranzi e cene nei locali della tua zona, oppure trova eventi vicini e chiedi di partecipare in pochi tocchi.
+                </p>
+            </article>
+            <article class="glass-card" style="padding:24px;">
+                <div class="pill-badge" style="display:inline-flex; margin-bottom:12px;">3. Costruisci reputazione</div>
+                <h2 style="margin:0 0 8px 0; font-size:1.35rem;">Recensioni e community</h2>
+                <p style="margin:0; color:var(--text-muted); line-height:1.6;">
+                    Dopo ogni incontro lasci feedback reali, segui i profili che ti piacciono e scopri nuove opportunita locali con piu fiducia.
+                </p>
+            </article>
+        </section>
+
+        <section class="glass-card" style="padding:28px; margin-bottom: 16px;">
+            <h2 style="margin:0 0 14px 0;">Come funziona oggi</h2>
+            <ul style="margin:0; padding-left:20px; color:var(--text-muted); line-height:1.8;">
+                <li>Registrazione e accesso disponibili solo dall'app Android.</li>
+                <li>Community geolocalizzata con filtri per distanza, eta e sesso.</li>
+                <li>Offerte future, richieste di partecipazione, approvazione host e recensioni finali.</li>
+                <li>Web lasciato come vetrina informativa, senza area utenti pubblica.</li>
+            </ul>
+        </section>
+    </main>
+</body>
+</html>

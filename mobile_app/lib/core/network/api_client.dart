@@ -181,6 +181,16 @@ class ApiClient {
     return AdminDashboardData.fromJson(payload);
   }
 
+  Future<AdminEditableUser> fetchAdminUser(int userId) async {
+    final response =
+        await _send(method: 'GET', path: '/api/admin/users/$userId');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return AdminEditableUser.fromJson(
+      payload['user'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+    );
+  }
+
   Future<List<UserPreview>> fetchPeople({
     String ageRange = '',
     String gender = '',
@@ -441,6 +451,49 @@ class ApiClient {
     _ensureSuccess(payload, response.statusCode);
     return payload['message']?.toString() ??
         'Account eliminato e utente avvisato via email.';
+  }
+
+  Future<String> updateAdminUser({
+    required int userId,
+    required String nome,
+    required String email,
+    required String eta,
+    required int actionRadiusKm,
+    required String gender,
+    required bool verified,
+    required String numeroTelefono,
+    required String citta,
+    required double? latitude,
+    required double? longitude,
+    required String preferredFoods,
+    required String intolerances,
+    required String bio,
+    List<String> existingGalleryFilenames = const [],
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/admin/users/$userId',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'nome': nome,
+        'email': email,
+        'eta': eta,
+        'sesso': gender,
+        'verificato': verified,
+        'raggio_azione': actionRadiusKm,
+        'numero_telefono': numeroTelefono,
+        'citta': citta,
+        'latitudine': latitude,
+        'longitudine': longitude,
+        'cibi_preferiti': preferredFoods,
+        'intolleranze': intolerances,
+        'bio': bio,
+        'existing_gallery_filenames': existingGalleryFilenames,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Utente aggiornato con successo.';
   }
 
   Future<String> sendAdminMessage(

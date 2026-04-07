@@ -1,3 +1,5 @@
+import 'offer.dart';
+
 class AdminDashboardStats {
   const AdminDashboardStats({
     required this.users,
@@ -83,6 +85,70 @@ class AdminUserSummary {
   }
 }
 
+class AdminEditableUser {
+  const AdminEditableUser({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.photoFilename,
+    required this.galleryFilenames,
+    required this.age,
+    required this.actionRadiusKm,
+    required this.gender,
+    required this.phoneNumber,
+    required this.city,
+    required this.latitude,
+    required this.longitude,
+    required this.preferredFoods,
+    required this.intolerances,
+    required this.bio,
+    required this.isVerified,
+    required this.isAdmin,
+  });
+
+  final int id;
+  final String name;
+  final String email;
+  final String photoFilename;
+  final List<String> galleryFilenames;
+  final String age;
+  final int actionRadiusKm;
+  final String gender;
+  final String phoneNumber;
+  final String city;
+  final double? latitude;
+  final double? longitude;
+  final String preferredFoods;
+  final String intolerances;
+  final String bio;
+  final bool isVerified;
+  final bool isAdmin;
+
+  factory AdminEditableUser.fromJson(Map<String, dynamic> json) {
+    return AdminEditableUser(
+      id: json['id'] as int? ?? 0,
+      name: (json['nome'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+      photoFilename: (json['foto'] ?? '').toString(),
+      galleryFilenames: (json['gallery_filenames'] as List<dynamic>? ?? [])
+          .map((item) => item.toString())
+          .toList(),
+      age: (json['eta'] ?? '').toString(),
+      actionRadiusKm: json['raggio_azione'] as int? ?? 15,
+      gender: (json['sesso'] ?? 'non_dico').toString(),
+      phoneNumber: (json['numero_telefono'] ?? '').toString(),
+      city: (json['citta'] ?? '').toString(),
+      latitude: (json['lat'] as num?)?.toDouble(),
+      longitude: (json['lon'] as num?)?.toDouble(),
+      preferredFoods: (json['cibi_preferiti'] ?? '').toString(),
+      intolerances: (json['intolleranze'] ?? '').toString(),
+      bio: (json['bio'] ?? '').toString(),
+      isVerified: json['verificato'] == true,
+      isAdmin: json['is_admin'] == true,
+    );
+  }
+}
+
 class AdminOfferAuthorSummary {
   const AdminOfferAuthorSummary({
     required this.id,
@@ -113,6 +179,8 @@ class AdminOfferSummary {
     required this.localeName,
     required this.address,
     required this.localePhone,
+    required this.latitude,
+    required this.longitude,
     required this.startsAt,
     required this.status,
     required this.description,
@@ -128,6 +196,8 @@ class AdminOfferSummary {
   final String localeName;
   final String address;
   final String localePhone;
+  final double latitude;
+  final double longitude;
   final DateTime? startsAt;
   final String status;
   final String description;
@@ -144,6 +214,8 @@ class AdminOfferSummary {
       localeName: (json['nome_locale'] ?? '').toString(),
       address: (json['indirizzo'] ?? '').toString(),
       localePhone: (json['telefono_locale'] ?? '').toString(),
+      latitude: (json['lat'] as num?)?.toDouble() ?? 0,
+      longitude: (json['lon'] as num?)?.toDouble() ?? 0,
       startsAt: _parseDate(json['data_ora']),
       status: (json['stato'] ?? '').toString(),
       description: (json['descrizione'] ?? '').toString(),
@@ -154,6 +226,39 @@ class AdminOfferSummary {
       author: AdminOfferAuthorSummary.fromJson(
         (json['autore'] as Map<String, dynamic>? ?? const <String, dynamic>{}),
       ),
+    );
+  }
+
+  Offer toEditableOffer() {
+    return Offer(
+      id: id,
+      tipoPasto: mealType,
+      nomeLocale: localeName,
+      indirizzo: address,
+      telefonoLocale: localePhone,
+      latitude: latitude,
+      longitude: longitude,
+      distanceKm: 0,
+      postiTotali: totalSeats,
+      postiDisponibili: availableSeats,
+      stato: status,
+      dataOra: startsAt ?? DateTime.now().add(const Duration(hours: 1)),
+      bookingClosed: false,
+      descrizione: description,
+      fotoLocale: photoFilename,
+      autoreNome: author.name,
+      autoreId: author.id,
+      autoreFoto: author.photoFilename,
+      autoreGallery: const <String>[],
+      autoreEta: '',
+      autoreRatingAverage: 0,
+      autoreRatingCount: 0,
+      hostWhatsAppLink: '',
+      participants: const <Participant>[],
+      isOwn: true,
+      alreadyClaimed: false,
+      canClaim: false,
+      claimStatus: 'open',
     );
   }
 }

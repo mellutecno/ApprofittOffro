@@ -6,6 +6,8 @@ import '../../core/widgets/brand_hero_card.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../../models/admin_dashboard.dart';
 import '../auth/auth_controller.dart';
+import '../create_offer/create_offer_page.dart';
+import 'admin_edit_user_page.dart';
 
 enum _AdminSection {
   users('Utenti'),
@@ -375,6 +377,34 @@ class _AdminPageState extends State<AdminPage> {
     } finally {
       subjectController.dispose();
       messageController.dispose();
+    }
+  }
+
+  Future<void> _editUser(AdminUserSummary user) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => AdminEditUserPage(
+          authController: widget.authController,
+          userId: user.id,
+        ),
+      ),
+    );
+    if (changed == true && mounted) {
+      await _reloadDashboard();
+    }
+  }
+
+  Future<void> _editOffer(AdminOfferSummary offer) async {
+    final result = await Navigator.of(context).push<CreateOfferPageResult>(
+      MaterialPageRoute<CreateOfferPageResult>(
+        builder: (_) => CreateOfferPage(
+          authController: widget.authController,
+          initialOffer: offer.toEditableOffer(),
+        ),
+      ),
+    );
+    if (result?.changed == true && mounted) {
+      await _reloadDashboard();
     }
   }
 
@@ -787,17 +817,28 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ],
             const SizedBox(height: 14),
-            Row(
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
               children: [
-                Expanded(
+                SizedBox(
+                  width: 180,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _editUser(user),
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Modifica'),
+                  ),
+                ),
+                SizedBox(
+                  width: 180,
                   child: OutlinedButton.icon(
                     onPressed: () => _contactUser(user),
                     icon: const Icon(Icons.mail_outline_rounded),
                     label: const Text('Contatta'),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
+                SizedBox(
+                  width: 180,
                   child: FilledButton.icon(
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFFBE3455),
@@ -898,16 +939,32 @@ class _AdminPageState extends State<AdminPage> {
               ),
             ],
             const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFBE3455),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (offer.startsAt == null ||
+                    !offer.startsAt!.toLocal().isBefore(DateTime.now()))
+                  SizedBox(
+                    width: 180,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _editOffer(offer),
+                      icon: const Icon(Icons.edit_calendar_outlined),
+                      label: const Text('Modifica'),
+                    ),
+                  ),
+                SizedBox(
+                  width: 180,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFBE3455),
+                    ),
+                    onPressed: () => _confirmDeleteOffer(offer),
+                    icon: const Icon(Icons.delete_outline_rounded),
+                    label: const Text('Elimina evento'),
+                  ),
                 ),
-                onPressed: () => _confirmDeleteOffer(offer),
-                icon: const Icon(Icons.delete_outline_rounded),
-                label: const Text('Elimina evento'),
-              ),
+              ],
             ),
           ],
         ),

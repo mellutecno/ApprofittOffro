@@ -1726,61 +1726,35 @@ def extract_city_label(address_text):
         return parts[-1]
     return raw_address
 
+
+def render_public_landing():
+    """Mostra la landing pubblica, lasciando l'uso del prodotto alla sola app."""
+    return render_template(
+        "landing.html",
+        play_store_url=os.getenv("PLAY_STORE_URL", "").strip(),
+    )
+
 # ===================================================================
 # PAGINE (Template)
 # ===================================================================
 
 @app.route("/")
 def index():
-    return redirect(url_for("dashboard"))
+    return render_public_landing()
 
 @app.route("/register")
 def register_page():
-    return render_template("register.html")
+    return redirect(url_for("index"))
 
 @app.route("/login")
 def login_page():
-    return render_template("index.html")
+    return redirect(url_for("index"))
 
 @app.route("/dashboard")
 def dashboard():
     if current_user.is_authenticated and is_admin_user(current_user):
         return redirect(url_for("admin_dashboard"))
-
-    is_authenticated = current_user.is_authenticated
-    pending_review_reminders = (
-        get_pending_review_reminders(current_user)
-        if is_authenticated
-        else []
-    )
-    has_user_location = (
-        is_authenticated
-        and current_user.latitudine is not None
-        and current_user.longitudine is not None
-    )
-    default_lat = (
-        current_user.latitudine
-        if is_authenticated and current_user.latitudine is not None
-        else 41.9
-    )
-    default_lon = (
-        current_user.longitudine
-        if is_authenticated and current_user.longitudine is not None
-        else 12.5
-    )
-    can_participate = is_authenticated and is_profile_complete(current_user)
-
-    return render_template(
-        "dashboard.html",
-        tipi_pasto=TIPI_PASTO,
-        is_authenticated=is_authenticated,
-        can_participate=can_participate,
-        has_user_location=has_user_location,
-        default_lat=default_lat,
-        default_lon=default_lon,
-        pending_review_reminders=pending_review_reminders,
-        format_offer_datetime_label=format_offer_datetime_label,
-    )
+    return redirect(url_for("index"))
 
 
 @app.route("/people")
@@ -1789,45 +1763,7 @@ def dashboard():
 def people_page():
     if is_admin_user(current_user):
         return redirect(url_for("admin_dashboard"))
-
-    selected_age_range, parsed_age_range, age_range_error = parse_age_range_filter(
-        request.args.get("age_range")
-    )
-
-    if age_range_error:
-        flash(age_range_error, "error")
-
-    people_query = User.query.options(selectinload(User.photos)).filter(
-        User.id != current_user.id,
-        User.is_admin.is_(False),
-        User.verificato.is_(True),
-        User.bio.isnot(None),
-        User.bio != "",
-        User.cibi_preferiti.isnot(None),
-        User.cibi_preferiti != "",
-        User.intolleranze.isnot(None),
-        User.intolleranze != "",
-    )
-
-    if isinstance(parsed_age_range, tuple):
-        people_query = people_query.filter(
-            User.eta >= parsed_age_range[0],
-            User.eta <= parsed_age_range[1],
-        )
-    elif isinstance(parsed_age_range, int):
-        people_query = people_query.filter(User.eta >= parsed_age_range)
-
-    people = people_query.order_by(User.eta.asc(), User.nome.asc()).all()
-    followed_user_ids = get_followed_user_ids(current_user.id)
-
-    return render_template(
-        "people.html",
-        people=people,
-        extract_city_label=extract_city_label,
-        age_ranges=FASCE_ETA,
-        selected_age_range=selected_age_range,
-        followed_user_ids=followed_user_ids,
-    )
+    return redirect(url_for("index"))
 
 
 @app.route("/admin")
@@ -1931,7 +1867,7 @@ def verify_email(token):
 def new_offer_page():
     if is_admin_user(current_user):
         return redirect(url_for("admin_dashboard"))
-    return render_template("create_offer.html", tipi_pasto=TIPI_PASTO, allow_admin_timing_bypass=False)
+    return redirect(url_for("index"))
 
 
 @app.route("/profile")
@@ -1939,6 +1875,7 @@ def new_offer_page():
 def profile_page():
     if is_admin_user(current_user):
         return redirect(url_for("admin_dashboard"))
+    return redirect(url_for("index"))
 
     my_offers = Offer.query.filter_by(user_id=current_user.id).order_by(
         Offer.created_at.desc()
@@ -2104,6 +2041,31 @@ def serialize_admin_user_summary(user):
     }
 
 
+def serialize_admin_user_detail(user):
+    """Serializza tutti i campi modificabili di un utente per l'editor admin mobile."""
+    return {
+        "id": user.id,
+        "nome": user.nome,
+        "email": user.email or "",
+        "foto": user.foto_filename or "",
+        "gallery_filenames": list(user.gallery_filenames),
+        "eta": user.eta if user.eta is not None else "",
+        "eta_display": user.eta_display,
+        "sesso": user.sesso or "non_dico",
+        "numero_telefono": user.numero_telefono or "",
+        "raggio_azione": int(user.raggio_azione or 15),
+        "citta": user.citta or "",
+        "lat": user.latitudine,
+        "lon": user.longitudine,
+        "cibi_preferiti": user.cibi_preferiti or "",
+        "intolleranze": user.intolleranze or "",
+        "bio": user.bio or "",
+        "verificato": bool(user.verificato),
+        "is_admin": bool(user.is_admin),
+        "created_at": user.created_at.isoformat() if user.created_at else "",
+    }
+
+
 def serialize_admin_offer_summary(offer):
     """Serializza i dati essenziali di un evento per il pannello admin mobile."""
     accepted_claims = [
@@ -2116,6 +2078,8 @@ def serialize_admin_offer_summary(offer):
         "nome_locale": offer.nome_locale,
         "indirizzo": offer.indirizzo,
         "telefono_locale": getattr(offer, "telefono_locale", "") or "",
+        "lat": offer.latitudine,
+        "lon": offer.longitudine,
         "data_ora": offer.data_ora.isoformat() if offer.data_ora else "",
         "stato": offer.stato or "",
         "descrizione": offer.descrizione or "",
@@ -2493,6 +2457,8 @@ def remove_user_self_service(user):
 @profile_completed_required
 def public_profile(user_id):
     """Schermata pubblica dove visito le preferenze di un utente che dona cibo."""
+    if not is_admin_user(current_user):
+        return redirect(url_for("index"))
     from models import Review, Offer, Claim
     user = User.query.get_or_404(user_id)
     rating_info = get_user_rating(user_id)
@@ -3452,6 +3418,8 @@ def api_delete_offer(offer_id):
 def edit_offer_page(offer_id):
     """Schermata per la modifica di un'offerta esistente."""
     offer = Offer.query.get_or_404(offer_id)
+    if not is_admin_user(current_user):
+        return redirect(url_for("index"))
     if not can_manage_offer(offer, current_user):
         flash("Non puoi modificare le offerte altrui.", "error")
         return redirect(url_for("dashboard"))
@@ -4294,6 +4262,69 @@ def api_admin_dashboard():
             serialize_admin_offer_summary(offer)
             for offer in past_offers
         ],
+    })
+
+
+@app.route("/api/admin/users/<int:user_id>", methods=["GET", "POST"])
+@admin_required
+def api_admin_user_detail(user_id):
+    """Legge o aggiorna i dati di un utente standard dal pannello admin mobile."""
+    user = User.query.options(selectinload(User.photos)).get(user_id)
+    if not user:
+        return jsonify({"success": False, "error": "Utente non trovato."}), 404
+    if is_admin_user(user):
+        return jsonify({
+            "success": False,
+            "error": "Per ora la modifica mobile vale solo per gli utenti standard.",
+        }), 403
+
+    if request.method == "GET":
+        return jsonify({
+            "success": True,
+            "user": serialize_admin_user_detail(user),
+        })
+
+    data = request.get_json(silent=True) or {}
+    payload, errors = validate_profile_update_input(
+        user,
+        {
+            "nome": data.get("nome", user.nome),
+            "email": data.get("email", user.email),
+            "eta": data.get("eta", user.eta if user.eta is not None else user.fascia_eta),
+            "sesso": data.get("sesso", user.sesso or "non_dico"),
+            "raggio_azione": data.get("raggio_azione", user.raggio_azione or 15),
+            "numero_telefono": data.get("numero_telefono", user.numero_telefono or ""),
+            "citta": data.get("citta", user.citta or ""),
+            "latitudine": data.get("latitudine", user.latitudine),
+            "longitudine": data.get("longitudine", user.longitudine),
+            "cibi_preferiti": data.get("cibi_preferiti", user.cibi_preferiti or ""),
+            "intolleranze": data.get("intolleranze", user.intolleranze or ""),
+            "bio": data.get("bio", user.bio or ""),
+            "existing_gallery_filenames": data.get(
+                "existing_gallery_filenames",
+                list(user.gallery_filenames),
+            ),
+        },
+        foto_files=[],
+        require_primary_face=False,
+    )
+    if errors:
+        delete_upload_files(payload.get("uploaded_gallery_filenames", []))
+        return jsonify({"success": False, "errors": errors}), 400
+
+    verified_value = bool(data.get("verificato", user.verificato))
+    success, save_errors, _ = save_profile_update_for_user(
+        user,
+        payload,
+        verified=verified_value,
+    )
+    if not success:
+        return jsonify({"success": False, "errors": save_errors}), 400
+
+    return jsonify({
+        "success": True,
+        "message": f"Profilo di {user.nome} aggiornato con successo.",
+        "user": serialize_admin_user_detail(user),
     })
 
 
