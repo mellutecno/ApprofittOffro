@@ -28,11 +28,13 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   late Future<List<Offer>> _myOffersFuture;
+  late Future<List<Offer>> _myClaimsFuture;
 
   @override
   void initState() {
     super.initState();
     _myOffersFuture = _loadMyOffers();
+    _myClaimsFuture = _loadMyClaims();
   }
 
   Future<List<Offer>> _loadMyOffers() async {
@@ -44,15 +46,28 @@ class _ProfilePageState extends State<ProfilePage> {
     return myOffers;
   }
 
+  Future<List<Offer>> _loadMyClaims() async {
+    final offers = await widget.authController.apiClient.fetchOffers(
+      radiusKm: 999,
+    );
+    final myClaims = offers
+        .where((offer) => offer.alreadyClaimed && !offer.isOwn)
+        .toList()
+      ..sort((a, b) => b.dataOra.compareTo(a.dataOra));
+    return myClaims;
+  }
+
   Future<void> _refreshAll() async {
     await widget.authController.refreshCurrentUser();
-    final future = _loadMyOffers();
+    final offersFuture = _loadMyOffers();
+    final claimsFuture = _loadMyClaims();
     if (mounted) {
       setState(() {
-        _myOffersFuture = future;
+        _myOffersFuture = offersFuture;
+        _myClaimsFuture = claimsFuture;
       });
     }
-    await future;
+    await Future.wait([offersFuture, claimsFuture]);
   }
 
   Future<void> _handlePendingClaimDecision(
@@ -874,34 +889,63 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Dati personali',
+                  'I miei approfitti',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
-                const SizedBox(height: 8),
-                _InfoCard(title: 'Email', value: user.email),
-                _InfoCard(
-                  title: 'Numero di telefono',
-                  value: user.phoneNumber.isNotEmpty
-                      ? user.phoneNumber
-                      : 'Non indicato',
-                ),
-                if (user.bio.isNotEmpty)
-                  _InfoCard(
-                    title: 'Bio',
-                    value: user.bio,
-                    emphasizedValue: true,
-                  ),
-                _InfoCard(
-                  title: 'Cibi preferiti',
-                  value: user.preferredFoods.isNotEmpty
-                      ? user.preferredFoods
-                      : 'Non ancora indicati',
-                ),
-                _InfoCard(
-                  title: 'Intolleranze',
-                  value: user.intolerances.isNotEmpty
-                      ? user.intolerances
-                      : 'Nessuna indicata',
+                const SizedBox(height: 10),
+                FutureBuilder<List<Offer>>(
+                  future: _myClaimsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (snapshot.hasError) {
+                      return const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(18),
+                          child: Text(
+                            'Non riesco a caricare i tuoi approfitti adesso.',
+                          ),
+                        ),
+                      );
+                    }
+
+                    final claims = snapshot.data ?? const <Offer>[];
+                    if (claims.isEmpty) {
+                      return const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(18),
+                          child: Text(
+                            'Qui trovi gli eventi a cui hai approfittato o partecipato.',
+                          ),
+                        ),
+                      );
+                    }
+
+                    return Column(
+                      children: claims
+                          .map(
+                            (offer) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _OwnOfferPreviewCard(
+                                offer: offer,
+                                apiClient: apiClient,
+                                buttonLabel: 'Apri evento',
+                                onOpen: () => _openOwnOfferDetails(offer),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    );
+                  },
                 ),
                 const SizedBox(height: 20),
                 Text(
@@ -1569,11 +1613,13 @@ class _OwnOfferPreviewCard extends StatelessWidget {
     required this.offer,
     required this.apiClient,
     required this.onOpen,
+    this.buttonLabel = 'Apri offerta',
   });
 
   final Offer offer;
   final ApiClient apiClient;
   final VoidCallback onOpen;
+  final String buttonLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1667,7 +1713,7 @@ class _OwnOfferPreviewCard extends StatelessWidget {
           const SizedBox(height: 14),
           OutlinedButton(
             onPressed: onOpen,
-            child: const Text('Apri offerta'),
+            child: Text(buttonLabel),
           ),
         ],
       ),
@@ -1737,49 +1783,6 @@ class _CompactInfoChip extends StatelessWidget {
           color: foregroundColor,
           fontWeight: FontWeight.w800,
           fontSize: 12.5,
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({
-    required this.title,
-    required this.value,
-    this.emphasizedValue = false,
-  });
-
-  final String title;
-  final String value;
-  final bool emphasizedValue;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: AppTheme.espresso,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                color: AppTheme.brown.withValues(alpha: 0.92),
-                fontSize: emphasizedValue ? 17 : null,
-                fontWeight: emphasizedValue ? FontWeight.w700 : FontWeight.w500,
-                height: 1.4,
-              ),
-            ),
-          ],
         ),
       ),
     );
