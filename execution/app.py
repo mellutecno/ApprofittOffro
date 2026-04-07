@@ -3095,6 +3095,7 @@ def get_google_place_details(place_id):
                     "location",
                     "primaryType",
                     "nationalPhoneNumber",
+                    "internationalPhoneNumber",
                 ]
             ),
         },
@@ -3119,7 +3120,10 @@ def get_google_place_details(place_id):
         "latitude": float(location.get("latitude") or 0),
         "longitude": float(location.get("longitude") or 0),
         "primary_type": (payload.get("primaryType") or "").strip(),
-        "phone_number": (payload.get("nationalPhoneNumber") or "").strip(),
+        "phone_number": (
+            (payload.get("nationalPhoneNumber") or "").strip()
+            or (payload.get("internationalPhoneNumber") or "").strip()
+        ),
     }
 
 

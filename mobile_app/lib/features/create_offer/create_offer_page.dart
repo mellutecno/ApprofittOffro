@@ -1149,7 +1149,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   }
 
   Future<void> _confirmMapSelection() async {
-    final place = _mapDraftSelection;
+    var place = _mapDraftSelection;
     if (place == null) {
       _showMessage(
         'Seleziona un locale o un indirizzo sulla mappa prima di continuare.',
@@ -1157,21 +1157,37 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
 
-    if (_isManualAddressPlaceId(place.id)) {
-      _addressController.text = place.address;
+    if (!_isManualAddressPlaceId(place.id) &&
+        place.id.isNotEmpty &&
+        place.phoneNumber.trim().isEmpty) {
+      setState(() => _resolvingMapTapAddress = true);
+      try {
+        await _hydrateDraftPlaceDetails(place);
+        place = _mapDraftSelection ?? place;
+      } finally {
+        if (mounted) {
+          setState(() => _resolvingMapTapAddress = false);
+        }
+      }
+    }
+
+    final confirmedPlace = place;
+
+    if (_isManualAddressPlaceId(confirmedPlace.id)) {
+      _addressController.text = confirmedPlace.address;
     } else {
-      _localeController.text = place.name;
-      _addressController.text = place.address;
-      _phoneController.text = place.phoneNumber;
+      _localeController.text = confirmedPlace.name;
+      _addressController.text = confirmedPlace.address;
+      _phoneController.text = confirmedPlace.phoneNumber;
     }
 
     setState(() {
-      _selectedPlaceId = place.id;
-      _selectedLatitude = place.latitude;
-      _selectedLongitude = place.longitude;
+      _selectedPlaceId = confirmedPlace.id;
+      _selectedLatitude = confirmedPlace.latitude;
+      _selectedLongitude = confirmedPlace.longitude;
       _selectedPrimaryType =
-          _isManualAddressPlaceId(place.id) ? '' : place.primaryType;
-      _currentMapCenter = LatLng(place.latitude, place.longitude);
+          _isManualAddressPlaceId(confirmedPlace.id) ? '' : confirmedPlace.primaryType;
+      _currentMapCenter = LatLng(confirmedPlace.latitude, confirmedPlace.longitude);
       _mapDraftSelection = null;
     });
     _refreshMapPicker();
