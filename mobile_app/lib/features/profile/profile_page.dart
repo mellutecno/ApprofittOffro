@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../../models/app_user.dart';
 import '../../models/offer.dart';
+import '../../models/public_profile.dart';
 import '../../models/user_preview.dart';
 import '../auth/auth_controller.dart';
 import '../create_offer/create_offer_page.dart';
@@ -104,13 +105,12 @@ class _ProfilePageState extends State<ProfilePage> {
                 'it_IT',
               ).format(reminder.offerDateTime!.toLocal())
             : '';
-        final editableUntilText =
-            existingReview?.editableUntil != null
-                ? DateFormat(
-                    "dd/MM 'alle' HH:mm",
-                    'it_IT',
-                  ).format(existingReview!.editableUntil!.toLocal())
-                : '';
+        final editableUntilText = existingReview?.editableUntil != null
+            ? DateFormat(
+                "dd/MM 'alle' HH:mm",
+                'it_IT',
+              ).format(existingReview!.editableUntil!.toLocal())
+            : '';
 
         return StatefulBuilder(
           builder: (context, setSheetState) {
@@ -120,7 +120,8 @@ class _ProfilePageState extends State<ProfilePage> {
               }
               setSheetState(() => isSubmitting = true);
               try {
-                final message = await widget.authController.apiClient.submitReview(
+                final message =
+                    await widget.authController.apiClient.submitReview(
                   offerId: reminder.offerId,
                   reviewedId: reminder.targetUser.id,
                   rating: selectedRating,
@@ -222,12 +223,15 @@ class _ProfilePageState extends State<ProfilePage> {
                                       fontWeight: FontWeight.w800,
                                     ),
                                   ),
-                                  if (reminder.offerAddress.trim().isNotEmpty) ...[
+                                  if (reminder.offerAddress
+                                      .trim()
+                                      .isNotEmpty) ...[
                                     const SizedBox(height: 6),
                                     Text(
                                       reminder.offerAddress,
                                       style: TextStyle(
-                                        color: AppTheme.brown.withValues(alpha: 0.82),
+                                        color: AppTheme.brown
+                                            .withValues(alpha: 0.82),
                                         height: 1.35,
                                       ),
                                     ),
@@ -237,7 +241,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                     Text(
                                       whenText,
                                       style: TextStyle(
-                                        color: AppTheme.brown.withValues(alpha: 0.74),
+                                        color: AppTheme.brown
+                                            .withValues(alpha: 0.74),
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -576,8 +581,9 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                           child: CircleAvatar(
                             radius: 56,
-                            backgroundImage:
-                                photoUrl != null ? NetworkImage(photoUrl) : null,
+                            backgroundImage: photoUrl != null
+                                ? NetworkImage(photoUrl)
+                                : null,
                             child: photoUrl == null
                                 ? const Icon(Icons.person, size: 48)
                                 : null,
@@ -711,6 +717,58 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 20),
+                Text(
+                  'Recensioni ricevute',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 10),
+                if (user.reviewsReceived.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Text('Non hai ancora recensioni ricevute.'),
+                    ),
+                  )
+                else
+                  ...user.reviewsReceived.map(
+                    (review) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _ReviewHistoryCard(
+                        review: review,
+                        title: review.reviewer?.nome.isNotEmpty == true
+                            ? review.reviewer!.nome
+                            : 'Utente',
+                        subtitle: 'Ti ha lasciato questa recensione',
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 20),
+                Text(
+                  'Recensioni lasciate',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 10),
+                if (user.reviewsGiven.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Text('Non hai ancora lasciato recensioni.'),
+                    ),
+                  )
+                else
+                  ...user.reviewsGiven.map(
+                    (review) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _ReviewHistoryCard(
+                        review: review,
+                        title: review.reviewed?.nome.isNotEmpty == true
+                            ? review.reviewed!.nome
+                            : 'Utente',
+                        subtitle: 'Hai lasciato questa recensione',
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 20),
                 Text(
                   'Persone incrociate',
@@ -1086,13 +1144,12 @@ class _PendingReviewCard extends StatelessWidget {
           ).format(reminder.offerDateTime!.toLocal())
         : '';
     final existingReview = reminder.existingReview;
-    final editableUntilText =
-        existingReview?.editableUntil != null
-            ? DateFormat(
-                "dd/MM 'alle' HH:mm",
-                'it_IT',
-              ).format(existingReview!.editableUntil!.toLocal())
-            : '';
+    final editableUntilText = existingReview?.editableUntil != null
+        ? DateFormat(
+            "dd/MM 'alle' HH:mm",
+            'it_IT',
+          ).format(existingReview!.editableUntil!.toLocal())
+        : '';
 
     return Card(
       child: Padding(
@@ -1283,6 +1340,156 @@ class _PendingReviewCard extends StatelessWidget {
   }
 }
 
+class _ReviewHistoryCard extends StatelessWidget {
+  const _ReviewHistoryCard({
+    required this.review,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final UserReview review;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final offer = review.offer;
+    final createdAtText = review.createdAt != null
+        ? DateFormat("dd/MM/yyyy 'alle' HH:mm", 'it_IT')
+            .format(review.createdAt!.toLocal())
+        : '';
+    final editableUntilText =
+        review.viewerCanEdit && review.editableUntil != null
+            ? DateFormat("dd/MM 'alle' HH:mm", 'it_IT')
+                .format(review.editableUntil!.toLocal())
+            : '';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          color: AppTheme.brown.withValues(alpha: 0.76),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.star_rounded,
+                  color: AppTheme.gold,
+                  size: 18,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${review.rating}/5',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+            if (review.comment.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                review.comment,
+                style: const TextStyle(
+                  color: AppTheme.espresso,
+                  fontWeight: FontWeight.w700,
+                  height: 1.35,
+                ),
+              ),
+            ],
+            if (offer != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppTheme.mist,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppTheme.cardBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${offer.mealType} - ${offer.localeName}',
+                      style: const TextStyle(
+                        color: AppTheme.espresso,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (offer.address.trim().isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        offer.address,
+                        style: TextStyle(
+                          color: AppTheme.brown.withValues(alpha: 0.82),
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                    if (offer.dateTime != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        DateFormat(
+                          "EEEE d MMMM 'alle' HH:mm",
+                          'it_IT',
+                        ).format(offer.dateTime!.toLocal()),
+                        style: TextStyle(
+                          color: AppTheme.brown.withValues(alpha: 0.74),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+            if (createdAtText.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Scritta il $createdAtText',
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.74),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            if (editableUntilText.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Modificabile fino al $editableUntilText.',
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.78),
+                  fontWeight: FontWeight.w700,
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _MetUserSummaryCard extends StatelessWidget {
   const _MetUserSummaryCard({
     required this.user,
@@ -1371,8 +1578,8 @@ class _OwnOfferPreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mealColor = _mealColor(offer.tipoPasto);
-    final occupiedSeats =
-        (offer.postiTotali - offer.postiDisponibili).clamp(0, offer.postiTotali);
+    final occupiedSeats = (offer.postiTotali - offer.postiDisponibili)
+        .clamp(0, offer.postiTotali);
     final authorPhotoUrl = offer.autoreFoto.isNotEmpty
         ? apiClient.buildUploadUrl(offer.autoreFoto)
         : null;
@@ -1398,8 +1605,9 @@ class _OwnOfferPreviewCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 28,
-                backgroundImage:
-                    authorPhotoUrl != null ? NetworkImage(authorPhotoUrl) : null,
+                backgroundImage: authorPhotoUrl != null
+                    ? NetworkImage(authorPhotoUrl)
+                    : null,
                 child: authorPhotoUrl == null ? const Icon(Icons.person) : null,
               ),
               const SizedBox(width: 12),
@@ -1567,8 +1775,7 @@ class _InfoCard extends StatelessWidget {
               style: TextStyle(
                 color: AppTheme.brown.withValues(alpha: 0.92),
                 fontSize: emphasizedValue ? 17 : null,
-                fontWeight:
-                    emphasizedValue ? FontWeight.w700 : FontWeight.w500,
+                fontWeight: emphasizedValue ? FontWeight.w700 : FontWeight.w500,
                 height: 1.4,
               ),
             ),

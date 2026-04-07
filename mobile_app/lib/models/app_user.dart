@@ -1,3 +1,4 @@
+import 'public_profile.dart';
 import 'user_preview.dart';
 
 class ReviewOfferSummary {
@@ -130,11 +131,9 @@ class PendingReviewReminder {
 
   factory PendingReviewReminder.fromJson(Map<String, dynamic> json) {
     final offer = json['offer'] as Map<String, dynamic>? ?? const {};
-    final targetUser =
-        json['target_user'] as Map<String, dynamic>? ??
-            const <String, dynamic>{};
-    final existingReview =
-        json['existing_review'] as Map<String, dynamic>?;
+    final targetUser = json['target_user'] as Map<String, dynamic>? ??
+        const <String, dynamic>{};
+    final existingReview = json['existing_review'] as Map<String, dynamic>?;
 
     return PendingReviewReminder(
       offerId: offer['id'] as int? ?? 0,
@@ -182,6 +181,8 @@ class AppUser {
     required this.claimsCount,
     required this.pendingClaimRequests,
     required this.pendingReviewReminders,
+    required this.reviewsReceived,
+    required this.reviewsGiven,
   });
 
   final int id;
@@ -212,6 +213,8 @@ class AppUser {
   final int claimsCount;
   final List<PendingClaimRequest> pendingClaimRequests;
   final List<PendingReviewReminder> pendingReviewReminders;
+  final List<UserReview> reviewsReceived;
+  final List<UserReview> reviewsGiven;
 
   bool get hasAnyProfilePhoto =>
       photoFilename.trim().isNotEmpty ||
@@ -271,6 +274,14 @@ class AppUser {
               .cast<Map<String, dynamic>>()
               .map(PendingReviewReminder.fromJson)
               .toList(),
+      reviewsReceived: (json['reviews_received'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(UserReview.fromJson)
+          .toList(),
+      reviewsGiven: (json['reviews_given'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(UserReview.fromJson)
+          .toList(),
     );
   }
 }

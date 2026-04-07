@@ -2068,6 +2068,7 @@ def serialize_review_preview(review, *, viewer=None):
             and can_edit_review(review)
         ),
         "reviewer": serialize_user_preview(review.reviewer) if review.reviewer else None,
+        "reviewed": serialize_user_preview(review.reviewed) if review.reviewed else None,
         "offer": {
             "id": offer.id,
             "tipo_pasto": offer.tipo_pasto,
@@ -3842,6 +3843,26 @@ def api_user_me():
         if relation.follower and not is_admin_user(relation.follower)
     ]
     met_users = get_met_users_for_user(current_user)
+    reviews_received = (
+        Review.query.options(
+            selectinload(Review.reviewer).selectinload(User.photos),
+            selectinload(Review.reviewed).selectinload(User.photos),
+            selectinload(Review.offerta),
+        )
+        .filter(Review.reviewed_id == current_user.id)
+        .order_by(Review.created_at.desc())
+        .all()
+    )
+    reviews_given = (
+        Review.query.options(
+            selectinload(Review.reviewer).selectinload(User.photos),
+            selectinload(Review.reviewed).selectinload(User.photos),
+            selectinload(Review.offerta),
+        )
+        .filter(Review.reviewer_id == current_user.id)
+        .order_by(Review.created_at.desc())
+        .all()
+    )
     user_payload = serialize_user_preview(
         current_user,
         viewer=current_user,
@@ -3884,6 +3905,14 @@ def api_user_me():
             for reminder in get_pending_review_reminders(current_user)
         )
         if payload
+    ]
+    user_payload["reviews_received"] = [
+        serialize_review_preview(review, viewer=current_user)
+        for review in reviews_received
+    ]
+    user_payload["reviews_given"] = [
+        serialize_review_preview(review, viewer=current_user)
+        for review in reviews_given
     ]
     user_payload["stats"] = {
         "offerte_totali": Offer.query.filter_by(user_id=current_user.id).count(),

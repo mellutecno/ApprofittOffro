@@ -13,7 +13,6 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_config.dart';
-import '../../core/media/profile_photo_cropper.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../../models/offer.dart';
@@ -498,12 +497,18 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                     const SizedBox(height: 14),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(22),
-                      child: AspectRatio(
-                        aspectRatio: 16 / 10,
-                        child: Image.file(
-                          File(_pickedImage!.path),
-                          fit: BoxFit.cover,
-                          alignment: Alignment.center,
+                      child: Container(
+                        color: AppTheme.paper,
+                        child: AspectRatio(
+                          aspectRatio: 16 / 10,
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Image.file(
+                              File(_pickedImage!.path),
+                              fit: BoxFit.contain,
+                              alignment: Alignment.center,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -840,21 +845,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     if (image == null || !mounted) {
       return;
     }
-    try {
-      final croppedImage = await ProfilePhotoCropper.cropPickedPhoto(
-        image,
-        title: 'Ritaglia foto offerta',
-      );
-      if (!mounted) {
-        return;
-      }
-      setState(() => _pickedImage = croppedImage);
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      _showMessage('Non riesco a ritagliare la foto in questo momento.');
-    }
+    setState(() => _pickedImage = image);
   }
 
   Future<void> _useCurrentLocation({bool silent = false}) async {
@@ -1753,9 +1744,7 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
     final titleText = isManualAddress ? 'Indirizzo selezionato' : place.name;
     final subtitleText = isManualAddress
         ? place.address
-        : (place.address.trim().isEmpty
-              ? 'Locale selezionato'
-              : place.address);
+        : (place.address.trim().isEmpty ? 'Locale selezionato' : place.address);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -1808,9 +1797,7 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
                 textStyle: const TextStyle(fontWeight: FontWeight.w800),
               ),
               child: Text(
-                isManualAddress
-                    ? 'Seleziona questo indirizzo'
-                    : 'Offri qui',
+                isManualAddress ? 'Seleziona questo indirizzo' : 'Offri qui',
               ),
             ),
           ),

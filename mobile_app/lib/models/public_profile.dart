@@ -37,6 +37,7 @@ class UserReview {
     required this.viewerCanEdit,
     required this.offer,
     required this.reviewer,
+    required this.reviewed,
   });
 
   final int id;
@@ -47,6 +48,7 @@ class UserReview {
   final bool viewerCanEdit;
   final ReviewedOfferSummary? offer;
   final UserPreview? reviewer;
+  final UserPreview? reviewed;
 
   factory UserReview.fromJson(Map<String, dynamic> json) {
     final editableUntilRaw = (json['editable_until'] ?? '').toString().trim();
@@ -67,6 +69,9 @@ class UserReview {
           : null,
       reviewer: json['reviewer'] is Map<String, dynamic>
           ? UserPreview.fromJson(json['reviewer'] as Map<String, dynamic>)
+          : null,
+      reviewed: json['reviewed'] is Map<String, dynamic>
+          ? UserPreview.fromJson(json['reviewed'] as Map<String, dynamic>)
           : null,
     );
   }
