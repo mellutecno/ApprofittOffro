@@ -384,8 +384,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             _SectionCard(
               key: _venueSectionKey,
               title: null,
-              subtitle:
-                  'Nome, indirizzo e telefono si compilano in automatico quando selezioni un locale sulla mappa. Se preferisci, puoi anche scrivere nome e telefono a mano e usare la mappa solo per prendere l\'indirizzo.',
+              subtitle: null,
               child: Column(
                 children: [
                   TextFormField(
@@ -443,6 +442,16 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text(
+                  'Compilazione automatica selezionando il locale dalla mappa.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.brown.withValues(alpha: 0.74),
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
                 Text(
                   'Scegli dalla mappa',
                   style: theme.textTheme.titleLarge,
@@ -1572,52 +1581,48 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     }
 
     final placemark = placemarks.first;
-    final parts = <String>[];
+    String clean(String? value) =>
+        (value ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
 
-    final streetParts = [
-      placemark.street,
-      placemark.thoroughfare,
-      placemark.subThoroughfare,
-      placemark.name,
-    ]
-        .whereType<String>()
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toList();
-    if (streetParts.isNotEmpty) {
-      parts.add(streetParts.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim());
-    }
+    final thoroughfare = clean(placemark.thoroughfare);
+    var street = clean(placemark.street);
+    final civic = clean(placemark.subThoroughfare);
+    final fallbackName = clean(placemark.name);
+    final locality = clean(placemark.locality);
 
-    final localityLine = [
-      placemark.postalCode,
-      placemark.locality,
-      placemark.subAdministrativeArea,
-      placemark.administrativeArea,
-    ]
-        .whereType<String>()
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .join(' ')
-        .trim();
-    if (localityLine.isNotEmpty) {
-      parts.add(localityLine);
-    }
-
-    final country = placemark.country?.trim();
-    if (country != null && country.isNotEmpty) {
-      parts.add(country);
-    }
-
-    final uniqueParts = <String>[];
-    for (final part in parts) {
-      if (!uniqueParts.contains(part)) {
-        uniqueParts.add(part);
+    if (street.isEmpty) {
+      street = thoroughfare;
+    } else if (thoroughfare.isNotEmpty) {
+      final lowerStreet = street.toLowerCase();
+      final lowerThoroughfare = thoroughfare.toLowerCase();
+      if (!lowerStreet.contains(lowerThoroughfare) &&
+          !lowerThoroughfare.contains(lowerStreet)) {
+        street = thoroughfare;
       }
     }
-    if (uniqueParts.isEmpty) {
-      return 'Indirizzo selezionato';
+
+    var primaryLine = street;
+    if (primaryLine.isEmpty) {
+      primaryLine = fallbackName;
     }
-    return uniqueParts.join(', ');
+
+    if (civic.isNotEmpty) {
+      final lowerPrimary = primaryLine.toLowerCase();
+      final lowerCivic = civic.toLowerCase();
+      if (!lowerPrimary.contains(lowerCivic)) {
+        primaryLine = '$primaryLine $civic'.trim();
+      }
+    }
+
+    primaryLine = primaryLine.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    if (primaryLine.isNotEmpty && primaryLine != 'Unnamed Road') {
+      return primaryLine;
+    }
+    if (locality.isNotEmpty) {
+      return locality;
+    }
+    return 'Indirizzo selezionato';
   }
 
   void _showMessage(String message) {
@@ -1747,9 +1752,9 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isManualAddress = place.id.startsWith('manual_address:');
-    final titleText = isManualAddress ? 'Indirizzo selezionato' : place.name;
+    final titleText = isManualAddress ? place.address : place.name;
     final subtitleText = isManualAddress
-        ? place.address
+        ? 'Indirizzo selezionato'
         : (place.address.trim().isEmpty ? 'Locale selezionato' : place.address);
     return Container(
       width: double.infinity,
@@ -1772,7 +1777,7 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
         children: [
           Text(
             titleText,
-            maxLines: isManualAddress ? 2 : 1,
+            maxLines: isManualAddress ? 3 : 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w900,
@@ -1782,7 +1787,7 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             subtitleText,
-            maxLines: isManualAddress ? 3 : 1,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall?.copyWith(
               color: AppTheme.brown.withValues(alpha: 0.74),
