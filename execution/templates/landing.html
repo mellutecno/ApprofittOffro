@@ -5,75 +5,345 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="ApprofittOffro e una piattaforma social geolocalizzata per condividere colazioni, pranzi e cene nei locali della tua zona.">
     <title>ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=86">
-    <meta name="theme-color" content="#FF7043">
+    <meta name="theme-color" content="#ffffff">
+    <style>
+        :root {
+            --bg: linear-gradient(180deg, #fff8ff 0%, #f8f4ff 28%, #eef7ff 100%);
+            --card: rgba(255, 255, 255, 0.92);
+            --card-border: rgba(122, 75, 185, 0.14);
+            --text: #3f245f;
+            --muted: #6f6183;
+            --pink: #f23f97;
+            --purple: #7a4bb9;
+            --blue: #22b8ff;
+            --shadow: 0 24px 60px rgba(100, 79, 150, 0.14);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Arial, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+        }
+
+        .shell {
+            width: min(1160px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 26px 0 48px;
+        }
+
+        .wordmark {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 22px;
+        }
+
+        .wordmark img {
+            width: min(100%, 440px);
+            height: auto;
+            filter: drop-shadow(0 16px 22px rgba(112, 86, 160, 0.12));
+        }
+
+        .hero {
+            display: grid;
+            grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+            gap: 22px;
+            align-items: stretch;
+            margin-bottom: 22px;
+        }
+
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 30px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(12px);
+        }
+
+        .hero-copy {
+            padding: 34px;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 14px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, rgba(242, 63, 151, 0.12), rgba(34, 184, 255, 0.12));
+            color: var(--purple);
+            font-size: 0.8rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        h1 {
+            margin: 18px 0 14px;
+            font-size: clamp(2.2rem, 5vw, 4.2rem);
+            line-height: 1.04;
+        }
+
+        .hero-copy p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 1.08rem;
+            line-height: 1.75;
+        }
+
+        .hero-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 52px;
+            padding: 0 22px;
+            border-radius: 18px;
+            text-decoration: none;
+            font-weight: 800;
+            font-size: 0.98rem;
+            letter-spacing: 0.01em;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--pink), var(--blue));
+            color: #fff;
+            box-shadow: 0 16px 28px rgba(111, 74, 186, 0.22);
+        }
+
+        .btn-secondary {
+            background: #fff;
+            color: var(--purple);
+            border: 1px solid rgba(122, 75, 185, 0.18);
+        }
+
+        .hero-visual {
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background:
+                linear-gradient(160deg, rgba(242, 63, 151, 0.12), rgba(34, 184, 255, 0.12)),
+                #ffffff;
+        }
+
+        .hero-visual img {
+            width: 100%;
+            height: auto;
+            border-radius: 24px;
+            object-fit: cover;
+            box-shadow: 0 18px 30px rgba(82, 52, 141, 0.14);
+        }
+
+        .hero-note {
+            margin-top: 16px;
+            padding: 16px 18px;
+            border-radius: 22px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(246, 241, 255, 0.92));
+            border: 1px solid rgba(122, 75, 185, 0.12);
+            color: var(--muted);
+            line-height: 1.65;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px;
+            margin-bottom: 22px;
+        }
+
+        .card {
+            padding: 24px;
+        }
+
+        .card h2, .how-it-works h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.28rem;
+        }
+
+        .card p, .how-it-works p, .how-it-works li {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.72;
+        }
+
+        .step {
+            display: inline-flex;
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(122, 75, 185, 0.09);
+            color: var(--purple);
+            font-size: 0.78rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .how-it-works {
+            padding: 28px;
+        }
+
+        .how-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+            gap: 22px;
+            align-items: start;
+        }
+
+        .checklist {
+            margin: 0;
+            padding-left: 20px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .launch-box {
+            padding: 22px;
+            border-radius: 24px;
+            background: linear-gradient(135deg, rgba(242, 63, 151, 0.08), rgba(34, 184, 255, 0.08));
+            border: 1px solid rgba(122, 75, 185, 0.14);
+        }
+
+        .launch-box strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 1.02rem;
+        }
+
+        .footnote {
+            margin-top: 20px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        @media (max-width: 880px) {
+            .hero,
+            .grid,
+            .how-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-copy,
+            .hero-visual,
+            .card,
+            .how-it-works {
+                padding: 24px;
+            }
+
+            .shell {
+                width: min(100% - 20px, 1160px);
+                padding-top: 18px;
+            }
+        }
+    </style>
 </head>
-<body class="public-discovery">
-    <div class="page-top-title" aria-label="ApprofittOffro">
-        <img class="topmark-mobile" src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
-        <img class="topmark-desktop" src="{{ url_for('static', filename='img/WhatsApp_Image_2026-03-22_at_21.54.07-removebg-preview.png') }}" alt="ApprofittOffro">
-    </div>
+<body>
+    <main class="shell">
+        <div class="wordmark">
+            <img src="{{ url_for('static', filename='img/WhatsApp_Image_2026-03-22_at_21.54.07-removebg-preview.png') }}" alt="ApprofittOffro">
+        </div>
 
-    <main class="container main-content" style="max-width: 1100px;">
-        <section class="glass-card" style="padding: 32px; margin-bottom: 24px; text-align: center;">
-            <div style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border-radius:999px; background:rgba(255,112,67,0.12); color:var(--primary); font-size:0.82rem; font-weight:900; letter-spacing:0.08em; text-transform:uppercase;">
-                Solo app Android
+        <section class="hero">
+            <div class="panel hero-copy">
+                <div class="eyebrow">Social meal-sharing geolocalizzato</div>
+                <h1>Conosci persone vere partendo da una colazione, un pranzo o una cena nella tua zona.</h1>
+                <p>
+                    ApprofittOffro non e un semplice social e non e una classica dating app.
+                    E una piattaforma locale per offrire un tavolo, unirsi a un invito gia aperto,
+                    scoprire profili vicini e trasformare il tempo libero in occasioni concrete per incontrarsi offline.
+                </p>
+                <div class="hero-actions">
+                    {% if play_store_url %}
+                    <a href="{{ play_store_url }}" class="btn btn-primary" rel="noopener noreferrer" target="_blank">
+                        Scarica l'app su Google Play
+                    </a>
+                    {% else %}
+                    <span class="btn btn-primary">Google Play in arrivo</span>
+                    {% endif %}
+                    <span class="btn btn-secondary">App Store prossimamente</span>
+                </div>
             </div>
-            <h1 style="margin:18px 0 12px 0; font-size:clamp(2rem, 6vw, 3.4rem);">Incontri reali intorno a colazioni, pranzi e cene.</h1>
-            <p style="max-width:760px; margin:0 auto; color:var(--text-muted); font-size:1.08rem; line-height:1.7;">
-                ApprofittOffro e una piattaforma social geolocalizzata per scoprire persone della tua zona,
-                condividere un pasto in un locale e creare occasioni concrete per conoscersi offline.
-                L'accesso via web non e disponibile: l'esperienza utente vive dentro l'app Android.
-            </p>
-            <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:12px; margin-top:24px;">
-                {% if play_store_url %}
-                <a href="{{ play_store_url }}" class="btn btn-primary btn-lg" rel="noopener noreferrer" target="_blank">
-                    Scarica da Google Play
-                </a>
-                {% else %}
-                <button class="btn btn-primary btn-lg" type="button" disabled>
-                    Presto su Google Play
-                </button>
-                {% endif %}
-                <span class="btn btn-outline btn-lg" style="pointer-events:none;">
-                    Accesso utenti solo da app
-                </span>
+
+            <aside class="panel hero-visual">
+                <img src="{{ url_for('static', filename='img/hero-friends.jpg') }}" alt="Persone che condividono un momento conviviale">
+                <div class="hero-note">
+                    <strong style="color: var(--text);">Oggi l'accesso utenti e solo da app Android.</strong>
+                    Il sito web resta come vetrina informativa. La registrazione, la community, le offerte
+                    e gli incontri reali si gestiscono dall'app.
+                </div>
+            </aside>
+        </section>
+
+        <section class="grid">
+            <article class="panel card">
+                <div class="step">1. Crea il profilo</div>
+                <h2>Profilo riconoscibile</h2>
+                <p>
+                    Foto reali, bio, gusti alimentari, recensioni e posizione aiutano a creare fiducia
+                    e a filtrare meglio chi vuoi incontrare nella tua zona.
+                </p>
+            </article>
+            <article class="panel card">
+                <div class="step">2. Offri o approfitta</div>
+                <h2>Eventi locali veri</h2>
+                <p>
+                    Pubblica colazioni, pranzi e cene in un locale, a casa o dove preferisci.
+                    Oppure apri gli eventi disponibili vicino a te e chiedi di partecipare.
+                </p>
+            </article>
+            <article class="panel card">
+                <div class="step">3. Costruisci reputazione</div>
+                <h2>Recensioni dopo l'incontro</h2>
+                <p>
+                    Dopo ogni pasto puoi lasciare una recensione reale. Nel tempo la community diventa
+                    piu affidabile, leggibile e interessante da frequentare.
+                </p>
+            </article>
+        </section>
+
+        <section class="panel how-it-works">
+            <div class="how-layout">
+                <div>
+                    <h2>Come funziona oggi</h2>
+                    <p style="margin-bottom: 14px;">
+                        L'app e gia pensata per un utilizzo reale: community geolocalizzata,
+                        offerte future, richieste di partecipazione, approvazione host, recensioni,
+                        profili pubblici e gestione admin da smartphone.
+                    </p>
+                    <ul class="checklist">
+                        <li>Registrazione e accesso disponibili solo dall'app Android.</li>
+                        <li>Community con filtri per distanza, eta e sesso.</li>
+                        <li>Offerte di colazione, pranzo e cena con posti, data, foto e descrizione.</li>
+                        <li>Richieste di partecipazione, accettazione, rifiuto e notifiche email.</li>
+                        <li>Recensioni finali per costruire reputazione e fiducia.</li>
+                    </ul>
+                </div>
+                <aside class="launch-box">
+                    <strong>Roadmap breve</strong>
+                    <p style="margin-bottom: 10px;">
+                        Android e la piattaforma attiva adesso.
+                    </p>
+                    <p style="margin: 0;">
+                        La versione iPhone e prevista in una fase successiva, dopo il consolidamento
+                        dell'esperienza Android e della parte amministrativa mobile.
+                    </p>
+                </aside>
             </div>
         </section>
 
-        <section style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:18px; margin-bottom: 24px;">
-            <article class="glass-card" style="padding:24px;">
-                <div class="pill-badge" style="display:inline-flex; margin-bottom:12px;">1. Crea il profilo</div>
-                <h2 style="margin:0 0 8px 0; font-size:1.35rem;">Profilo autentico</h2>
-                <p style="margin:0; color:var(--text-muted); line-height:1.6;">
-                    Foto reali, bio, gusti alimentari e posizione aiutano a creare fiducia e a vedere persone vicine davvero compatibili con il tuo stile.
-                </p>
-            </article>
-            <article class="glass-card" style="padding:24px;">
-                <div class="pill-badge" style="display:inline-flex; margin-bottom:12px;">2. Offri o approfitta</div>
-                <h2 style="margin:0 0 8px 0; font-size:1.35rem;">Tavoli veri, locali veri</h2>
-                <p style="margin:0; color:var(--text-muted); line-height:1.6;">
-                    Pubblica colazioni, pranzi e cene nei locali della tua zona, oppure trova eventi vicini e chiedi di partecipare in pochi tocchi.
-                </p>
-            </article>
-            <article class="glass-card" style="padding:24px;">
-                <div class="pill-badge" style="display:inline-flex; margin-bottom:12px;">3. Costruisci reputazione</div>
-                <h2 style="margin:0 0 8px 0; font-size:1.35rem;">Recensioni e community</h2>
-                <p style="margin:0; color:var(--text-muted); line-height:1.6;">
-                    Dopo ogni incontro lasci feedback reali, segui i profili che ti piacciono e scopri nuove opportunita locali con piu fiducia.
-                </p>
-            </article>
-        </section>
-
-        <section class="glass-card" style="padding:28px; margin-bottom: 16px;">
-            <h2 style="margin:0 0 14px 0;">Come funziona oggi</h2>
-            <ul style="margin:0; padding-left:20px; color:var(--text-muted); line-height:1.8;">
-                <li>Registrazione e accesso disponibili solo dall'app Android.</li>
-                <li>Community geolocalizzata con filtri per distanza, eta e sesso.</li>
-                <li>Offerte future, richieste di partecipazione, approvazione host e recensioni finali.</li>
-                <li>Web lasciato come vetrina informativa, senza area utenti pubblica.</li>
-            </ul>
-        </section>
+        <p class="footnote">
+            ApprofittOffro: incontri di opportunita intorno a tavoli veri, persone vere e locali della tua zona.
+        </p>
     </main>
 </body>
 </html>

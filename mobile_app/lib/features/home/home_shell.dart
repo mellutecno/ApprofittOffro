@@ -41,7 +41,7 @@ class _HomeShellState extends State<HomeShell> {
 
   bool get _isAdminUser => widget.authController.currentUser?.isAdmin == true;
   int get _profileTabIndex => _isAdminUser ? 0 : 3;
-  int? get _adminTabIndex => _isAdminUser ? 1 : null;
+  int? get _adminTabIndex => _isAdminUser ? 0 : null;
 
   @override
   void initState() {
@@ -115,7 +115,8 @@ class _HomeShellState extends State<HomeShell> {
       return;
     }
 
-    if (target == AppLaunchTarget.pendingRequests &&
+    if (!_isAdminUser &&
+        target == AppLaunchTarget.pendingRequests &&
         _selectedIndex != _profileTabIndex) {
       setState(() => _selectedIndex = _profileTabIndex);
     }
@@ -323,7 +324,6 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final pages = _isAdminUser
         ? <Widget>[
-            ProfilePage(authController: widget.authController),
             AdminPage(authController: widget.authController),
           ]
         : <Widget>[
@@ -362,19 +362,8 @@ class _HomeShellState extends State<HomeShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         destinations: _isAdminUser
-            ? [
+            ? const [
                 NavigationDestination(
-                  icon: _ProfileTabIcon(
-                    selected: false,
-                    hasAlert: false,
-                  ),
-                  selectedIcon: _ProfileTabIcon(
-                    selected: true,
-                    hasAlert: false,
-                  ),
-                  label: 'Profilo',
-                ),
-                const NavigationDestination(
                   icon: Icon(Icons.admin_panel_settings_outlined),
                   selectedIcon: Icon(Icons.admin_panel_settings_rounded),
                   label: 'Admin',
