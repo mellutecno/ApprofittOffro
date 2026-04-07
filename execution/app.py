@@ -2079,6 +2079,57 @@ def serialize_review_preview(review, *, viewer=None):
     }
 
 
+def serialize_admin_user_summary(user):
+    """Serializza i dati essenziali di un utente per il pannello admin mobile."""
+    rating_info = get_user_rating(user.id)
+    return {
+        "id": user.id,
+        "nome": user.nome,
+        "email": user.email or "",
+        "foto": user.foto_filename or "",
+        "eta_display": user.eta_display,
+        "citta": user.citta or "",
+        "city_label": extract_city_label(user.citta),
+        "bio": user.bio or "",
+        "verificato": bool(user.verificato),
+        "is_admin": bool(user.is_admin),
+        "created_at": user.created_at.isoformat() if user.created_at else "",
+        "offers_count": len(user.offerte),
+        "claims_count": len(user.claims),
+        "reviews_count": len(user.reviews_ricevute),
+        "rating_average": rating_info["average"],
+        "rating_count": rating_info["count"],
+    }
+
+
+def serialize_admin_offer_summary(offer):
+    """Serializza i dati essenziali di un evento per il pannello admin mobile."""
+    accepted_claims = [
+        claim for claim in offer.claims
+        if claim.status == CLAIM_STATUS_ACCEPTED
+    ]
+    return {
+        "id": offer.id,
+        "tipo_pasto": offer.tipo_pasto,
+        "nome_locale": offer.nome_locale,
+        "indirizzo": offer.indirizzo,
+        "telefono_locale": getattr(offer, "telefono_locale", "") or "",
+        "data_ora": offer.data_ora.isoformat() if offer.data_ora else "",
+        "stato": offer.stato or "",
+        "descrizione": offer.descrizione or "",
+        "foto_locale": getattr(offer, "foto_locale", "") or "",
+        "posti_totali": int(offer.posti_totali or 0),
+        "posti_disponibili": int(offer.posti_disponibili or 0),
+        "participants_count": len(accepted_claims),
+        "autore": {
+            "id": offer.autore.id if offer.autore else 0,
+            "nome": offer.autore.nome if offer.autore else "",
+            "email": offer.autore.email if offer.autore else "",
+            "foto": offer.autore.foto_filename if offer.autore else "",
+        },
+    }
+
+
 def serialize_pending_claim_request(claim, *, viewer=None, followed_user_ids=None):
     """Serializza una richiesta pendente verso l'host proprietario dell'offerta."""
     offer = claim.offerta
@@ -4191,6 +4242,57 @@ def api_admin_delete_user(user_id):
 
     remove_user_with_cleanup(user, motivazione, current_user)
     return jsonify({"success": True, "message": "Account eliminato e utente avvisato via email."})
+
+
+@app.route("/api/admin/dashboard", methods=["GET"])
+@admin_required
+def api_admin_dashboard():
+    """Espone dati aggregati per il pannello amministratore mobile."""
+    now = local_now()
+    all_offers = (
+        Offer.query.options(
+            selectinload(Offer.autore).selectinload(User.photos),
+            selectinload(Offer.claims),
+        )
+        .order_by(Offer.data_ora.desc())
+        .all()
+    )
+    upcoming_offers = [offer for offer in all_offers if offer.data_ora >= now]
+    past_offers = [offer for offer in all_offers if offer.data_ora < now]
+    users = (
+        User.query.options(
+            selectinload(User.photos),
+            selectinload(User.offerte),
+            selectinload(User.claims),
+            selectinload(User.reviews_ricevute),
+        )
+        .filter_by(is_admin=False)
+        .order_by(User.created_at.desc())
+        .all()
+    )
+    admins_count = User.query.filter_by(is_admin=True).count()
+
+    return jsonify({
+        "success": True,
+        "stats": {
+            "users": len(users),
+            "admins": admins_count,
+            "future_offers": len(upcoming_offers),
+            "past_offers": len(past_offers),
+        },
+        "users": [
+            serialize_admin_user_summary(user)
+            for user in users
+        ],
+        "future_offers": [
+            serialize_admin_offer_summary(offer)
+            for offer in upcoming_offers
+        ],
+        "past_offers": [
+            serialize_admin_offer_summary(offer)
+            for offer in past_offers
+        ],
+    })
 
 
 @app.route("/api/admin/users/<int:user_id>/message", methods=["POST"])

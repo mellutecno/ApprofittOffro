@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../../models/app_user.dart';
+import '../../models/admin_dashboard.dart';
 import '../../models/offer.dart';
 import '../../models/place_candidate.dart';
 import '../../models/public_profile.dart';
@@ -171,6 +172,13 @@ class ApiClient {
           .map(UserReview.fromJson)
           .toList(),
     );
+  }
+
+  Future<AdminDashboardData> fetchAdminDashboard() async {
+    final response = await _send(method: 'GET', path: '/api/admin/dashboard');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return AdminDashboardData.fromJson(payload);
   }
 
   Future<List<UserPreview>> fetchPeople({
@@ -417,6 +425,42 @@ class ApiClient {
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return payload['message']?.toString() ?? 'Offerta eliminata con successo.';
+  }
+
+  Future<String> deleteAdminUser(
+    int userId, {
+    required String motivazione,
+  }) async {
+    final response = await _send(
+      method: 'DELETE',
+      path: '/api/admin/users/$userId',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'motivazione': motivazione}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ??
+        'Account eliminato e utente avvisato via email.';
+  }
+
+  Future<String> sendAdminMessage(
+    int userId, {
+    required String subject,
+    required String message,
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/admin/users/$userId/message',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'subject': subject,
+        'message': message,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ??
+        'Comunicazione inviata con successo.';
   }
 
   Future<String> updateProfile({

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/navigation/app_launch_target.dart';
+import '../admin/admin_page.dart';
 import '../auth/auth_controller.dart';
 import '../community/community_controller.dart';
 import '../community/community_page.dart';
@@ -38,13 +39,22 @@ class _HomeShellState extends State<HomeShell> {
   String? _lastOffersAlertSignature;
   String? _lastReviewsAlertSignature;
 
+  bool get _isAdminUser => widget.authController.currentUser?.isAdmin == true;
+  int get _profileTabIndex => _isAdminUser ? 2 : 3;
+  int? get _adminTabIndex => _isAdminUser ? 3 : null;
+
   @override
   void initState() {
     super.initState();
+    if (_isAdminUser) {
+      _selectedIndex = _adminTabIndex ?? 0;
+    }
     _offersController = OffersController(widget.authController.apiClient)
       ..loadOffers();
-    _communityController = CommunityController(widget.authController.apiClient)
-      ..loadPeople();
+    _communityController = CommunityController(widget.authController.apiClient);
+    if (!_isAdminUser) {
+      unawaited(_communityController.loadPeople());
+    }
     widget.authController.addListener(_handleAuthStateChanged);
     _offersController.addListener(_handleOffersStateChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -84,7 +94,9 @@ class _HomeShellState extends State<HomeShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeOpenMandatoryProfileSetup());
       unawaited(_offersController.loadOffers());
-      unawaited(_communityController.loadPeople());
+      if (!_isAdminUser) {
+        unawaited(_communityController.loadPeople());
+      }
       _applyLaunchTargetIfNeeded();
       _maybeShowProfileManagementAlert();
     });
@@ -100,8 +112,9 @@ class _HomeShellState extends State<HomeShell> {
       return;
     }
 
-    if (target == AppLaunchTarget.pendingRequests && _selectedIndex != 3) {
-      setState(() => _selectedIndex = 3);
+    if (target == AppLaunchTarget.pendingRequests &&
+        _selectedIndex != _profileTabIndex) {
+      setState(() => _selectedIndex = _profileTabIndex);
     }
 
     widget.onLaunchTargetHandled?.call();
@@ -137,6 +150,12 @@ class _HomeShellState extends State<HomeShell> {
       return;
     }
 
+    if (user.isAdmin) {
+      _lastOffersAlertSignature = null;
+      _lastReviewsAlertSignature = null;
+      return;
+    }
+
     final hasOffersToManage = _hasOffersToManage();
     final hasReviewsToManage = _hasReviewsToManage();
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -163,8 +182,8 @@ class _HomeShellState extends State<HomeShell> {
     final reviewsSignature = hasReviewsToManage
         ? '${user.id}:${user.pendingReviewReminders.length}'
         : null;
-    final shouldShowOffers = offersSignature != null &&
-        _lastOffersAlertSignature != offersSignature;
+    final shouldShowOffers =
+        offersSignature != null && _lastOffersAlertSignature != offersSignature;
     final shouldShowReviews = reviewsSignature != null &&
         _lastReviewsAlertSignature != reviewsSignature;
 
@@ -236,15 +255,15 @@ class _HomeShellState extends State<HomeShell> {
                       if (!mounted) {
                         return;
                       }
-                      setState(() => _selectedIndex = 3);
+                      setState(() => _selectedIndex = _profileTabIndex);
                     },
                   ),
                 ),
               )
               .closed
               .then((_) {
-                _reviewAlertVisible = false;
-              }),
+            _reviewAlertVisible = false;
+          }),
         );
       }
     } finally {
@@ -280,7 +299,9 @@ class _HomeShellState extends State<HomeShell> {
 
     await widget.authController.refreshCurrentUser();
     await _offersController.loadOffers();
-    await _communityController.loadPeople();
+    if (!_isAdminUser) {
+      await _communityController.loadPeople();
+    }
     _mandatoryProfileFlowOpen = false;
 
     if (!mounted) {
@@ -302,10 +323,11 @@ class _HomeShellState extends State<HomeShell> {
         authController: widget.authController,
         offersController: _offersController,
       ),
-      CommunityPage(
-        authController: widget.authController,
-        communityController: _communityController,
-      ),
+      if (!_isAdminUser)
+        CommunityPage(
+          authController: widget.authController,
+          communityController: _communityController,
+        ),
       CreateOfferPage(
         authController: widget.authController,
         onOfferCreated: () async {
@@ -317,31 +339,34 @@ class _HomeShellState extends State<HomeShell> {
         },
       ),
       ProfilePage(authController: widget.authController),
+      if (_isAdminUser) AdminPage(authController: widget.authController),
     ];
+    final selectedIndex = _selectedIndex.clamp(0, pages.length - 1);
 
     return Scaffold(
       body: SafeArea(
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 220),
           child: KeyedSubtree(
-            key: ValueKey<int>(_selectedIndex),
-            child: pages[_selectedIndex],
+            key: ValueKey<int>(selectedIndex),
+            child: pages[selectedIndex],
           ),
         ),
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
+        selectedIndex: selectedIndex,
         destinations: [
           NavigationDestination(
             icon: Icon(Icons.restaurant_menu_outlined),
             selectedIcon: Icon(Icons.restaurant_menu_rounded),
             label: 'Approfitta',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.groups_rounded),
-            selectedIcon: Icon(Icons.groups),
-            label: 'Community',
-          ),
+          if (!_isAdminUser)
+            NavigationDestination(
+              icon: Icon(Icons.groups_rounded),
+              selectedIcon: Icon(Icons.groups),
+              label: 'Community',
+            ),
           NavigationDestination(
             icon: Icon(Icons.add_circle_outline),
             selectedIcon: Icon(Icons.add_circle),
@@ -350,14 +375,20 @@ class _HomeShellState extends State<HomeShell> {
           NavigationDestination(
             icon: _ProfileTabIcon(
               selected: false,
-              hasAlert: _hasReviewsToManage(),
+              hasAlert: !_isAdminUser && _hasReviewsToManage(),
             ),
             selectedIcon: _ProfileTabIcon(
               selected: true,
-              hasAlert: _hasReviewsToManage(),
+              hasAlert: !_isAdminUser && _hasReviewsToManage(),
             ),
             label: 'Profilo',
           ),
+          if (_isAdminUser)
+            const NavigationDestination(
+              icon: Icon(Icons.admin_panel_settings_outlined),
+              selectedIcon: Icon(Icons.admin_panel_settings_rounded),
+              label: 'Admin',
+            ),
         ],
         onDestinationSelected: (index) {
           setState(() => _selectedIndex = index);
