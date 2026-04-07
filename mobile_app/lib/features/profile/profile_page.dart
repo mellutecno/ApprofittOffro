@@ -29,12 +29,15 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late Future<List<Offer>> _myOffersFuture;
   late Future<List<Offer>> _myClaimsFuture;
+  late Future<ReviewHistoryBundle> _reviewHistoryFuture;
 
   @override
   void initState() {
     super.initState();
     _myOffersFuture = _loadMyOffers();
     _myClaimsFuture = _loadMyClaims();
+    _reviewHistoryFuture = _loadReviewHistory();
+    unawaited(widget.authController.refreshCurrentUser());
   }
 
   Future<List<Offer>> _loadMyOffers() async {
@@ -57,17 +60,23 @@ class _ProfilePageState extends State<ProfilePage> {
     return myClaims;
   }
 
+  Future<ReviewHistoryBundle> _loadReviewHistory() {
+    return widget.authController.apiClient.fetchMyReviewHistory();
+  }
+
   Future<void> _refreshAll() async {
     await widget.authController.refreshCurrentUser();
     final offersFuture = _loadMyOffers();
     final claimsFuture = _loadMyClaims();
+    final reviewHistoryFuture = _loadReviewHistory();
     if (mounted) {
       setState(() {
         _myOffersFuture = offersFuture;
         _myClaimsFuture = claimsFuture;
+        _reviewHistoryFuture = reviewHistoryFuture;
       });
     }
-    await Future.wait([offersFuture, claimsFuture]);
+    await Future.wait([offersFuture, claimsFuture, reviewHistoryFuture]);
   }
 
   Future<void> _handlePendingClaimDecision(
@@ -744,58 +753,114 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 20),
-                Text(
-                  'Recensioni ricevute',
-                  style: Theme.of(context).textTheme.titleLarge,
+                FutureBuilder<ReviewHistoryBundle>(
+                  future: _reviewHistoryFuture,
+                  builder: (context, snapshot) {
+                    final isLoading =
+                        snapshot.connectionState != ConnectionState.done;
+                    final hasError = snapshot.hasError;
+                    final reviewsReceived =
+                        snapshot.data?.received ?? const <UserReview>[];
+                    final reviewsGiven =
+                        snapshot.data?.given ?? const <UserReview>[];
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 20),
+                        Text(
+                          'Recensioni ricevute',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 10),
+                        if (isLoading)
+                          const Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            ),
+                          )
+                        else if (hasError)
+                          const Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(18),
+                              child: Text(
+                                'Non riesco a caricare le recensioni ricevute adesso.',
+                              ),
+                            ),
+                          )
+                        else if (reviewsReceived.isEmpty)
+                          const Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(18),
+                              child:
+                                  Text('Non hai ancora recensioni ricevute.'),
+                            ),
+                          )
+                        else
+                          ...reviewsReceived.map(
+                            (review) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _ReviewHistoryCard(
+                                review: review,
+                                title: review.reviewer?.nome.isNotEmpty == true
+                                    ? review.reviewer!.nome
+                                    : 'Utente',
+                                subtitle: 'Ti ha lasciato questa recensione',
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Recensioni lasciate',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 10),
+                        if (isLoading)
+                          const Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            ),
+                          )
+                        else if (hasError)
+                          const Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(18),
+                              child: Text(
+                                'Non riesco a caricare le recensioni lasciate adesso.',
+                              ),
+                            ),
+                          )
+                        else if (reviewsGiven.isEmpty)
+                          const Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(18),
+                              child:
+                                  Text('Non hai ancora lasciato recensioni.'),
+                            ),
+                          )
+                        else
+                          ...reviewsGiven.map(
+                            (review) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _ReviewHistoryCard(
+                                review: review,
+                                title: review.reviewed?.nome.isNotEmpty == true
+                                    ? review.reviewed!.nome
+                                    : 'Utente',
+                                subtitle: 'Hai lasciato questa recensione',
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
-                const SizedBox(height: 10),
-                if (user.reviewsReceived.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Text('Non hai ancora recensioni ricevute.'),
-                    ),
-                  )
-                else
-                  ...user.reviewsReceived.map(
-                    (review) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _ReviewHistoryCard(
-                        review: review,
-                        title: review.reviewer?.nome.isNotEmpty == true
-                            ? review.reviewer!.nome
-                            : 'Utente',
-                        subtitle: 'Ti ha lasciato questa recensione',
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 20),
-                Text(
-                  'Recensioni lasciate',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 10),
-                if (user.reviewsGiven.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Text('Non hai ancora lasciato recensioni.'),
-                    ),
-                  )
-                else
-                  ...user.reviewsGiven.map(
-                    (review) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _ReviewHistoryCard(
-                        review: review,
-                        title: review.reviewed?.nome.isNotEmpty == true
-                            ? review.reviewed!.nome
-                            : 'Utente',
-                        subtitle: 'Hai lasciato questa recensione',
-                      ),
-                    ),
-                  ),
                 const SizedBox(height: 20),
                 Text(
                   'Persone incrociate',

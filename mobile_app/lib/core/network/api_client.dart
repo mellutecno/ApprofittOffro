@@ -21,6 +21,16 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+class ReviewHistoryBundle {
+  const ReviewHistoryBundle({
+    required this.received,
+    required this.given,
+  });
+
+  final List<UserReview> received;
+  final List<UserReview> given;
+}
+
 class ApiClient {
   ApiClient({required this.sessionStore});
 
@@ -72,7 +82,8 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> fetchGoogleAuthConfig() async {
-    final response = await _send(method: 'GET', path: '/api/auth/google/config');
+    final response =
+        await _send(method: 'GET', path: '/api/auth/google/config');
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return payload;
@@ -144,6 +155,22 @@ class ApiClient {
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return AppUser.fromJson(payload['user'] as Map<String, dynamic>);
+  }
+
+  Future<ReviewHistoryBundle> fetchMyReviewHistory() async {
+    final response = await _send(method: 'GET', path: '/api/user/reviews');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return ReviewHistoryBundle(
+      received: (payload['reviews_received'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(UserReview.fromJson)
+          .toList(),
+      given: (payload['reviews_given'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(UserReview.fromJson)
+          .toList(),
+    );
   }
 
   Future<List<UserPreview>> fetchPeople({

@@ -3933,6 +3933,44 @@ def api_user_me():
     })
 
 
+@app.route("/api/user/reviews", methods=["GET"])
+@login_required
+def api_user_reviews():
+    """Restituisce le recensioni ricevute e lasciate dell'utente corrente."""
+    reviews_received = (
+        Review.query.options(
+            selectinload(Review.reviewer).selectinload(User.photos),
+            selectinload(Review.reviewed).selectinload(User.photos),
+            selectinload(Review.offerta),
+        )
+        .filter(Review.reviewed_id == current_user.id)
+        .order_by(Review.created_at.desc())
+        .all()
+    )
+    reviews_given = (
+        Review.query.options(
+            selectinload(Review.reviewer).selectinload(User.photos),
+            selectinload(Review.reviewed).selectinload(User.photos),
+            selectinload(Review.offerta),
+        )
+        .filter(Review.reviewer_id == current_user.id)
+        .order_by(Review.created_at.desc())
+        .all()
+    )
+
+    return jsonify({
+        "success": True,
+        "reviews_received": [
+            serialize_review_preview(review, viewer=current_user)
+            for review in reviews_received
+        ],
+        "reviews_given": [
+            serialize_review_preview(review, viewer=current_user)
+            for review in reviews_given
+        ],
+    })
+
+
 @app.route("/api/people", methods=["GET"])
 @login_required
 def api_people():
