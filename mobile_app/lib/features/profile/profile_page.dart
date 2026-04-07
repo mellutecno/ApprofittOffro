@@ -1013,9 +1013,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     final hasError = snapshot.hasError;
                     final reviewsReceived =
                         snapshot.data?.received ?? const <UserReview>[];
-                    final reviewsGiven =
-                        snapshot.data?.given ?? const <UserReview>[];
-
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1036,23 +1033,6 @@ class _ProfilePageState extends State<ProfilePage> {
                                         reviews: reviewsReceived,
                                         isReceived: true,
                                       ),
-                        ),
-                        const SizedBox(height: 20),
-                        _ReviewHistorySectionCard(
-                          title: 'Recensioni lasciate',
-                          icon: Icons.rate_review_rounded,
-                          count: reviewsGiven.length,
-                          isLoading: isLoading,
-                          hasError: hasError,
-                          emptyText: 'Non hai ancora lasciato recensioni.',
-                          actionLabel: 'Apri recensioni',
-                          onTap: reviewsGiven.isEmpty || isLoading || hasError
-                              ? null
-                              : () => _openReviewHistorySheet(
-                                    title: 'Recensioni lasciate',
-                                    reviews: reviewsGiven,
-                                    isReceived: false,
-                                  ),
                         ),
                       ],
                     );

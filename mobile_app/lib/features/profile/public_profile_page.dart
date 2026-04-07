@@ -40,6 +40,256 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
     await future;
   }
 
+  Future<void> _openReviewHistorySheet(PublicProfile profile) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.72,
+          minChildSize: 0.48,
+          maxChildSize: 0.92,
+          builder: (context, scrollController) {
+            return Material(
+              color: AppTheme.cream,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardBorder,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Recensioni ricevute',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                        ),
+                        Text(
+                          '${profile.reviews.length}',
+                          style: TextStyle(
+                            color: AppTheme.brown.withValues(alpha: 0.78),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.separated(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      itemCount: profile.reviews.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final review = profile.reviews[index];
+                        return _CompactPublicReviewTile(
+                          review: review,
+                          title: review.reviewer?.nome ?? 'Utente',
+                          subtitle: 'Ha lasciato una recensione',
+                          onTap: () {
+                            Navigator.of(sheetContext).pop();
+                            _openReviewDetailSheet(profile, review);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openReviewDetailSheet(
+    PublicProfile profile,
+    UserReview review,
+  ) async {
+    final offer = review.offer;
+    final reviewDateText = review.createdAt != null
+        ? DateFormat("dd/MM/yyyy 'alle' HH:mm", 'it_IT').format(
+            review.createdAt!.toLocal(),
+          )
+        : '';
+    final eventDateText = offer?.dateTime != null
+        ? DateFormat("EEEE d MMMM 'alle' HH:mm", 'it_IT').format(
+            offer!.dateTime!.toLocal(),
+          )
+        : '';
+
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+          child: Material(
+            color: AppTheme.cream,
+            borderRadius: BorderRadius.circular(28),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: AppTheme.cardBorder,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    review.reviewer?.nome ?? 'Utente',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Ha lasciato questa recensione',
+                    style: TextStyle(
+                      color: AppTheme.brown.withValues(alpha: 0.76),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: List.generate(
+                      5,
+                      (index) => Icon(
+                        index < review.rating
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded,
+                        color: AppTheme.gold,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                  if (offer != null) ...[
+                    const SizedBox(height: 18),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.mist,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppTheme.cardBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _reviewOfferLabel(offer),
+                            style: const TextStyle(
+                              color: AppTheme.espresso,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          if (eventDateText.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              eventDateText,
+                              style: TextStyle(
+                                color: AppTheme.brown.withValues(alpha: 0.76),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (review.comment.trim().isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    Text(
+                      review.comment,
+                      style: const TextStyle(
+                        color: AppTheme.espresso,
+                        fontWeight: FontWeight.w700,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                  if (reviewDateText.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Scritta il $reviewDateText',
+                      style: TextStyle(
+                        color: AppTheme.brown.withValues(alpha: 0.72),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                  if (review.viewerCanEdit && review.editableUntil != null) ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      'Puoi modificarla fino al ${DateFormat("dd/MM 'alle' HH:mm", 'it_IT').format(review.editableUntil!.toLocal())}.',
+                      style: TextStyle(
+                        color: AppTheme.brown.withValues(alpha: 0.78),
+                        fontWeight: FontWeight.w700,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(sheetContext).pop();
+                        _openReviewEditor(profile, review);
+                      },
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Modifica recensione'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _reviewOfferLabel(ReviewedOfferSummary? offer) {
+    if (offer == null) {
+      return 'Evento';
+    }
+    final meal = offer.mealType.trim();
+    final locale = offer.localeName.trim();
+    if (meal.isEmpty && locale.isEmpty) {
+      return 'Evento';
+    }
+    if (meal.isEmpty) {
+      return locale;
+    }
+    if (locale.isEmpty) {
+      return meal;
+    }
+    return '$meal - $locale';
+  }
+
   Future<void> _toggleFollow(PublicProfile profile) async {
     setState(() => _isTogglingFollow = true);
     try {
@@ -427,7 +677,8 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                   const Card(
                     child: Padding(
                       padding: EdgeInsets.all(18),
-                      child: Text('Per ora questo profilo non ha ancora follower.'),
+                      child: Text(
+                          'Per ora questo profilo non ha ancora follower.'),
                     ),
                   )
                 else
@@ -441,8 +692,9 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                       return Card(
                         child: ListTile(
                           leading: CircleAvatar(
-                            backgroundImage:
-                                imageUrl != null ? NetworkImage(imageUrl) : null,
+                            backgroundImage: imageUrl != null
+                                ? NetworkImage(imageUrl)
+                                : null,
                             child: imageUrl == null
                                 ? const Icon(Icons.person_outline)
                                 : null,
@@ -467,136 +719,16 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                     },
                   ),
                 const SizedBox(height: 20),
-                Text(
-                  'Recensioni',
-                  style: Theme.of(context).textTheme.titleLarge,
+                _CompactReviewSectionCard(
+                  title: 'Recensioni ricevute',
+                  icon: Icons.reviews_rounded,
+                  count: profile.reviews.length,
+                  emptyText: 'Per ora non ci sono ancora recensioni.',
+                  actionLabel: 'Apri recensioni',
+                  onTap: profile.reviews.isEmpty
+                      ? null
+                      : () => _openReviewHistorySheet(profile),
                 ),
-                const SizedBox(height: 10),
-                if (profile.reviews.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Text('Per ora non ci sono ancora recensioni.'),
-                    ),
-                  )
-                else
-                  ...profile.reviews.map(
-                    (review) => Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    review.reviewer?.nome ?? 'Utente',
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w700),
-                                  ),
-                                ),
-                                const Icon(
-                                  Icons.star_rounded,
-                                  color: Color(0xFFD49B00),
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 4),
-                                Text('${review.rating}'),
-                              ],
-                            ),
-                            if (review.comment.isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              Text(
-                                review.comment,
-                                style: const TextStyle(
-                                  color: AppTheme.espresso,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.35,
-                                ),
-                              ),
-                            ],
-                            if (review.offer != null) ...[
-                              const SizedBox(height: 10),
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.mist,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: AppTheme.cardBorder),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${review.offer!.mealType} - ${review.offer!.localeName}',
-                                      style: const TextStyle(
-                                        color: AppTheme.espresso,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    if (review.offer!.address.trim().isNotEmpty) ...[
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        review.offer!.address,
-                                        style: TextStyle(
-                                          color: AppTheme.brown.withValues(alpha: 0.82),
-                                          height: 1.35,
-                                        ),
-                                      ),
-                                    ],
-                                    if (review.offer!.dateTime != null) ...[
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        DateFormat(
-                                          "EEEE d MMMM 'alle' HH:mm",
-                                          'it_IT',
-                                        ).format(review.offer!.dateTime!.toLocal()),
-                                        style: TextStyle(
-                                          color: AppTheme.brown.withValues(alpha: 0.74),
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ],
-                            if (review.createdAt != null) ...[
-                              const SizedBox(height: 10),
-                              Text(
-                                DateFormat('dd/MM/yyyy')
-                                  .format(review.createdAt!),
-                                style: const TextStyle(color: Colors.black54),
-                              ),
-                            ],
-                            if (review.viewerCanEdit &&
-                                review.editableUntil != null) ...[
-                              const SizedBox(height: 12),
-                              Text(
-                                'Puoi modificarla fino al ${DateFormat("dd/MM 'alle' HH:mm", 'it_IT').format(review.editableUntil!.toLocal())}.',
-                                style: TextStyle(
-                                  color: AppTheme.brown.withValues(alpha: 0.78),
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.35,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              OutlinedButton.icon(
-                                onPressed: () => _openReviewEditor(
-                                  profile,
-                                  review,
-                                ),
-                                icon: const Icon(Icons.edit_outlined),
-                                label: const Text('Modifica recensione'),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
                 const SizedBox(height: 24),
               ],
             ),
@@ -710,12 +842,178 @@ class _InfoCard extends StatelessWidget {
               value,
               style: TextStyle(
                 fontSize: emphasizedValue ? 17 : null,
-                fontWeight:
-                    emphasizedValue ? FontWeight.w700 : FontWeight.w500,
+                fontWeight: emphasizedValue ? FontWeight.w700 : FontWeight.w500,
                 height: 1.4,
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactReviewSectionCard extends StatelessWidget {
+  const _CompactReviewSectionCard({
+    required this.title,
+    required this.icon,
+    required this.count,
+    required this.emptyText,
+    required this.actionLabel,
+    this.onTap,
+  });
+
+  final String title;
+  final IconData icon;
+  final int count;
+  final String emptyText;
+  final String actionLabel;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppTheme.mist,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppTheme.cardBorder),
+                ),
+                child: Icon(icon, color: AppTheme.orange),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Text(
+                      count == 0 ? emptyText : '$count recensioni',
+                      style: TextStyle(
+                        color: AppTheme.brown.withValues(alpha: 0.76),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (count > 0) ...[
+                Text(
+                  actionLabel,
+                  style: TextStyle(
+                    color: AppTheme.orange,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(Icons.chevron_right_rounded, color: AppTheme.orange),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactPublicReviewTile extends StatelessWidget {
+  const _CompactPublicReviewTile({
+    required this.review,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final UserReview review;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final offer = review.offer;
+    final eventDateText = offer?.dateTime != null
+        ? DateFormat("EEEE d MMMM 'alle' HH:mm", 'it_IT').format(
+            offer!.dateTime!.toLocal(),
+          )
+        : '';
+
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            color: AppTheme.brown.withValues(alpha: 0.72),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.star_rounded,
+                    color: AppTheme.gold,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${review.rating}/5',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.chevron_right_rounded, color: AppTheme.orange),
+                ],
+              ),
+              if (offer != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  '${offer.mealType} - ${offer.localeName}',
+                  style: const TextStyle(
+                    color: AppTheme.espresso,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+              if (eventDateText.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  eventDateText,
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.76),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
