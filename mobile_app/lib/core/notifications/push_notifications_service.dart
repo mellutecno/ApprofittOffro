@@ -17,7 +17,7 @@ class PushNotificationsService {
 
   final ApiClient _apiClient;
   final void Function(AppLaunchTarget target) _onLaunchTargetRequested;
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  FirebaseMessaging? _messaging;
 
   StreamSubscription<String>? _tokenRefreshSubscription;
   StreamSubscription<RemoteMessage>? _messageOpenedSubscription;
@@ -55,14 +55,15 @@ class PushNotificationsService {
         ),
       );
       _firebaseAvailable = true;
+      _messaging = FirebaseMessaging.instance;
       _messageOpenedSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
         _handleNotificationTap,
       );
-      final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+      final initialMessage = await _messaging!.getInitialMessage();
       if (initialMessage != null) {
         _handleNotificationTap(initialMessage);
       }
-      _tokenRefreshSubscription = _messaging.onTokenRefresh.listen((token) {
+      _tokenRefreshSubscription = _messaging!.onTokenRefresh.listen((token) {
         _currentToken = token;
         _registeredToken = null;
         unawaited(_syncRegistration());
@@ -90,13 +91,17 @@ class PushNotificationsService {
     if (!_firebaseAvailable) {
       return;
     }
+    final messaging = _messaging;
+    if (messaging == null) {
+      return;
+    }
 
     if (!_authenticated) {
       await _unregisterTokenIfNeeded();
       return;
     }
 
-    final settings = await _messaging.requestPermission(
+    final settings = await messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
@@ -108,7 +113,7 @@ class PushNotificationsService {
       return;
     }
 
-    _currentToken ??= await _messaging.getToken();
+    _currentToken ??= await messaging.getToken();
     final token = _currentToken;
     if (token == null || token.isEmpty || token == _registeredToken) {
       return;

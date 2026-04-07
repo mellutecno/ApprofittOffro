@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'core/config/app_config.dart';
 import 'core/navigation/app_launch_target.dart';
 import 'core/network/api_client.dart';
 import 'core/network/session_store.dart';
@@ -25,7 +26,7 @@ class ApprofittOffroMobileApp extends StatefulWidget {
 class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
     with WidgetsBindingObserver {
   late final AuthController _authController;
-  late final PushNotificationsService _pushNotificationsService;
+  PushNotificationsService? _pushNotificationsService;
   late final Future<void> _bootstrapFuture;
   late final AppLinks _appLinks;
   StreamSubscription<Uri?>? _linkSubscription;
@@ -38,11 +39,14 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
     WidgetsBinding.instance.addObserver(this);
     final apiClient = ApiClient(sessionStore: SessionStore());
     _authController = AuthController(apiClient);
-    _pushNotificationsService = PushNotificationsService(
-      apiClient: apiClient,
-      onLaunchTargetRequested: _handlePushLaunchTarget,
-    );
-    _authController.beforeLogoutHook = _pushNotificationsService.prepareForLogout;
+    if (AppConfig.firebaseMessagingConfigured) {
+      final pushNotificationsService = PushNotificationsService(
+        apiClient: apiClient,
+        onLaunchTargetRequested: _handlePushLaunchTarget,
+      );
+      _pushNotificationsService = pushNotificationsService;
+      _authController.beforeLogoutHook = pushNotificationsService.prepareForLogout;
+    }
     _authController.addListener(_handleAuthStateChanged);
     _appLinks = AppLinks();
     _bootstrapFuture = _bootstrap();
@@ -54,7 +58,10 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
     WidgetsBinding.instance.removeObserver(this);
     _linkSubscription?.cancel();
     _authController.removeListener(_handleAuthStateChanged);
-    unawaited(_pushNotificationsService.dispose());
+    final pushNotificationsService = _pushNotificationsService;
+    if (pushNotificationsService != null) {
+      unawaited(pushNotificationsService.dispose());
+    }
     _authController.dispose();
     super.dispose();
   }
@@ -65,15 +72,24 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
   }
 
   Future<void> _bootstrap() async {
-    await _pushNotificationsService.initialize();
+    final pushNotificationsService = _pushNotificationsService;
+    if (pushNotificationsService != null) {
+      await pushNotificationsService.initialize();
+    }
     await _authController.initialize();
-    await _pushNotificationsService.syncWithAuth(_authController.isAuthenticated);
+    if (pushNotificationsService != null) {
+      await pushNotificationsService.syncWithAuth(_authController.isAuthenticated);
+    }
     await _resolveInitialLink();
   }
 
   void _handleAuthStateChanged() {
+    final pushNotificationsService = _pushNotificationsService;
+    if (pushNotificationsService == null) {
+      return;
+    }
     unawaited(
-      _pushNotificationsService.syncWithAuth(_authController.isAuthenticated),
+      pushNotificationsService.syncWithAuth(_authController.isAuthenticated),
     );
   }
 
