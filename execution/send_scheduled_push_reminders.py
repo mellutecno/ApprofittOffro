@@ -88,7 +88,7 @@ def main():
             debug_upper_bound = now + timedelta(hours=max(args.upcoming_hours, 12))
             debug_offers = (
                 Offer.query.filter(
-                    Offer.stato == "attiva",
+                    Offer.stato.in_(["attiva", "completata"]),
                     Offer.data_ora > now,
                     Offer.data_ora <= debug_upper_bound,
                 )
