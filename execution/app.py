@@ -174,6 +174,7 @@ BREAKFAST_COMMITMENT_GAP_HOURS = 3
 MEAL_COMMITMENT_GAP_HOURS = 4
 DEFAULT_USER_LATITUDE = 41.9028
 DEFAULT_USER_LONGITUDE = 12.4964
+DEFAULT_PROFILE_PLACEHOLDER_FILENAME = "user_placeholder.png"
 COMMUNITY_GENDER_FILTERS = [
     ("", "Tutti"),
     ("maschio", "Maschi"),
@@ -1382,7 +1383,7 @@ def verify_image_payload_has_face(image_payload):
                 pass
 
 
-def ensure_default_profile_placeholder(filename="user_placeholder.png"):
+def ensure_default_profile_placeholder(filename=DEFAULT_PROFILE_PLACEHOLDER_FILENAME):
     """Crea un avatar neutro per i profili generati via provider esterni."""
     try:
         upload_storage.read(filename)
@@ -1400,6 +1401,31 @@ def ensure_default_profile_placeholder(filename="user_placeholder.png"):
     image.save(output, "PNG")
     upload_storage.save_bytes(filename, output.getvalue(), "image/png")
     return filename
+
+
+def is_placeholder_profile_photo(filename):
+    """Indica se un filename corrisponde all'avatar neutro generato dal backend."""
+    return str(filename or "").strip().lower() == DEFAULT_PROFILE_PLACEHOLDER_FILENAME
+
+
+def filter_visible_profile_photos(filenames):
+    """Esclude placeholder e valori vuoti dalle foto considerate valide per il profilo."""
+    return [
+        filename
+        for filename in (str(item or "").strip() for item in filenames or [])
+        if filename and not is_placeholder_profile_photo(filename)
+    ]
+
+
+def get_visible_profile_gallery_filenames(user, *, include_gallery=False):
+    """Restituisce solo le foto profilo reali e visibili per API e onboarding."""
+    filenames = list(user.gallery_filenames if include_gallery else user.gallery_filenames[:2])
+    return filter_visible_profile_photos(filenames)
+
+
+def user_has_visible_profile_photo(user):
+    """Indica se il profilo possiede almeno una foto reale e non un placeholder."""
+    return bool(filter_visible_profile_photos(user.gallery_filenames))
 
 
 def download_google_profile_photo(picture_url, user_key):
@@ -1426,6 +1452,13 @@ def download_google_profile_photo(picture_url, user_key):
             f"user_google_{user_key}_{uuid.uuid4().hex[:10]}.{extension}",
             return_payload=True,
         )
+        verifica = verify_image_payload_has_face(payload)
+        if not verifica["valida"]:
+            print(
+                "[GOOGLE_PHOTO_INVALID] "
+                f"user_key={user_key} detail={verifica.get('errore', 'volto non riconosciuto')}"
+            )
+            return None
         upload_storage.save_bytes(
             payload["filename"],
             payload["bytes"],
@@ -1619,10 +1652,7 @@ def resolve_google_user(identity_payload):
         db.session.commit()
         return user, False, should_notify_admin
 
-    photo_filename = (
-        download_google_profile_photo(picture_url, google_sub[:10])
-        or ensure_default_profile_placeholder()
-    )
+    photo_filename = download_google_profile_photo(picture_url, google_sub[:10]) or ""
 
     user = User(
         nome=display_name,
@@ -1647,7 +1677,8 @@ def resolve_google_user(identity_payload):
     user.set_password(uuid.uuid4().hex)
     db.session.add(user)
     db.session.flush()
-    replace_user_gallery(user, [photo_filename])
+    if photo_filename:
+        replace_user_gallery(user, [photo_filename])
     db.session.commit()
     return user, True, True
 
@@ -1865,7 +1896,13 @@ def profile_completed_required(f):
 
 
 def is_profile_complete(user):
-    return bool(user.numero_telefono and user.cibi_preferiti and user.intolleranze and user.bio)
+    return bool(
+        user_has_visible_profile_photo(user)
+        and user.numero_telefono
+        and user.cibi_preferiti
+        and user.intolleranze
+        and user.bio
+    )
 
 
 def is_admin_user(user):
@@ -1922,7 +1959,7 @@ def require_complete_profile_json():
     if current_user.is_authenticated and not is_admin_user(current_user) and not is_profile_complete(current_user):
         return jsonify({
             "success": False,
-            "error": "Completa numero di cellulare, bio e identikit alimentare prima di partecipare o pubblicare offerte.",
+            "error": "Completa almeno una foto profilo reale, numero di cellulare, bio e identikit alimentare prima di partecipare o pubblicare offerte.",
         }), 403
     return None
 
@@ -2299,12 +2336,15 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
                 followed_id=user.id,
             ).first() is not None
 
-    gallery_filenames = list(user.gallery_filenames if include_gallery else user.gallery_filenames[:2])
+    gallery_filenames = get_visible_profile_gallery_filenames(
+        user,
+        include_gallery=include_gallery,
+    )
     payload = {
         "id": user.id,
         "nome": user.nome,
         "email": user.email if include_private else "",
-        "foto": user.foto_filename or "",
+        "foto": gallery_filenames[0] if gallery_filenames else "",
         "gallery_filenames": gallery_filenames,
         "eta": user.eta,
         "eta_display": user.eta_display,

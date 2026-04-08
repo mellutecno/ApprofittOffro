@@ -225,7 +225,8 @@ class AppUser {
       phoneNumber.trim().isEmpty ||
       city.trim().isEmpty ||
       bio.trim().isEmpty ||
-      preferredFoods.trim().isEmpty;
+      preferredFoods.trim().isEmpty ||
+      intolerances.trim().isEmpty;
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
     final stats = json['stats'] as Map<String, dynamic>? ?? const {};
