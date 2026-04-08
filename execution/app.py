@@ -459,19 +459,13 @@ def get_followers_notification_targets(offer):
 
 
 def notify_followers_for_new_offer(offer):
-    """Invia una mail ai profili che seguono l'autore quando nasce una nuova offerta."""
+    """Avvisa i follower quando nasce una nuova offerta, via email e push."""
     if offer.data_ora <= local_now():
-        return 0
-
-    if not email_delivery_enabled():
-        print(
-            f"[MAIL_SKIP] Provider email non configurato: nessuna notifica follower per l'offerta {offer.id}."
-        )
-        return 0
+        return {"followers": 0, "emails": 0, "push_users": 0}
 
     followers = get_followers_notification_targets(offer)
     if not followers:
-        return 0
+        return {"followers": 0, "emails": 0, "push_users": 0}
 
     data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
     booking_rule_copy = (
@@ -481,23 +475,53 @@ def notify_followers_for_new_offer(offer):
     )
     meal_label = get_meal_type_label(offer.tipo_pasto)
     spots_copy = get_spots_copy(offer.posti_disponibili)
+    email_enabled = email_delivery_enabled()
+    email_count = 0
+    push_users = 0
+    push_title = f"Nuova {offer.tipo_pasto} disponibile"
+    push_body = f"{offer.autore.nome} ha pubblicato {offer.nome_locale} per il {data_evento}."
 
-    for follower in followers:
-        send_email(
-            get_followed_offer_notification_subject(offer),
-            [follower.email],
-            "nearby_offer_notification.html",
-            user=follower,
-            offer=offer,
-            autore=offer.autore,
-            notification_heading=get_followed_offer_notification_heading(offer),
-            meal_label=meal_label,
-            data_evento=data_evento,
-            spots_copy=spots_copy,
-            booking_rule_copy=booking_rule_copy,
+    if not email_enabled:
+        print(
+            f"[MAIL_SKIP] Provider email non configurato: notifiche follower solo push per l'offerta {offer.id}."
         )
 
-    return len(followers)
+    for follower in followers:
+        if email_enabled and follower.email:
+            send_email(
+                get_followed_offer_notification_subject(offer),
+                [follower.email],
+                "nearby_offer_notification.html",
+                user=follower,
+                offer=offer,
+                autore=offer.autore,
+                notification_heading=get_followed_offer_notification_heading(offer),
+                meal_label=meal_label,
+                data_evento=data_evento,
+                spots_copy=spots_copy,
+                booking_rule_copy=booking_rule_copy,
+            )
+            email_count += 1
+
+        push_sent = send_push_to_user(
+            follower,
+            title=push_title,
+            body=push_body,
+            target="offers",
+            extra_data={
+                "offer_id": offer.id,
+                "author_name": offer.autore.nome if offer.autore else "",
+                "meal_type": offer.tipo_pasto,
+            },
+        )
+        if push_sent > 0:
+            push_users += 1
+
+    return {
+        "followers": len(followers),
+        "emails": email_count,
+        "push_users": push_users,
+    }
 
 
 def send_claim_request_notification_to_host(claim):
@@ -4024,21 +4048,34 @@ def api_create_offer():
 
     db.session.add(offer)
     db.session.commit()
-    notified_users = notify_followers_for_new_offer(offer)
+    notification_stats = notify_followers_for_new_offer(offer)
+    notified_users = notification_stats["followers"]
+    email_notifications = notification_stats["emails"]
+    push_notifications = notification_stats["push_users"]
 
     message = "Offerta creata con successo!"
-    if notified_users == 1:
+    if notified_users == 1 and email_notifications and push_notifications:
+        message += " Abbiamo avvisato 1 persona che ti segue via email e push."
+    elif notified_users > 1 and email_notifications and push_notifications:
+        message += f" Abbiamo avvisato {notified_users} persone che ti seguono via email e push."
+    elif notified_users == 1 and push_notifications:
+        message += " Abbiamo avvisato 1 persona che ti segue con una notifica push."
+    elif notified_users > 1 and push_notifications:
+        message += f" Abbiamo avvisato {notified_users} persone che ti seguono con una notifica push."
+    elif notified_users == 1 and email_notifications:
         message += " Abbiamo avvisato 1 persona che ti segue via email."
     elif notified_users > 1:
         message += f" Abbiamo avvisato {notified_users} persone che ti seguono via email."
     elif get_followers_notification_targets(offer):
-        message += " L'offerta e' pronta, ma le email ai follower non sono attive su questo ambiente."
+        message += " L'offerta e' pronta, ma le notifiche ai follower non sono attive su questo ambiente."
 
     return jsonify({
         "success": True,
         "message": message,
         "offer_id": offer.id,
         "notified_users": notified_users,
+        "email_notifications": email_notifications,
+        "push_notifications": push_notifications,
     })
 
 
