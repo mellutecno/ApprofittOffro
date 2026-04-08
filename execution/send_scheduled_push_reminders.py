@@ -20,6 +20,8 @@ if os.name != "nt" and "APP_DATA_DIR" not in os.environ:
     os.environ["APP_DATA_DIR"] = HOME_DIR
 
 from app import (
+    SQLITE_PATH,
+    Offer,
     app,
     local_now,
     send_pending_review_reminders,
@@ -64,6 +66,11 @@ def build_parser():
         action="store_true",
         help="Salta i reminder recensione da lasciare.",
     )
+    parser.add_argument(
+        "--debug-offers",
+        action="store_true",
+        help="Mostra i prossimi eventi visti dal server per diagnosticare il reminder.",
+    )
     return parser
 
 
@@ -72,7 +79,36 @@ def main():
 
     with app.app_context():
         now = local_now()
-        print(f"[REMINDER_JOB] now={now.isoformat()} dry_run={args.dry_run}")
+        print(
+            f"[REMINDER_JOB] now={now.isoformat()} dry_run={args.dry_run} db={SQLITE_PATH}"
+        )
+
+        if args.debug_offers:
+            debug_upper_bound = now + timedelta(hours=max(args.upcoming_hours, 12))
+            debug_offers = (
+                Offer.query.filter(
+                    Offer.stato == "attiva",
+                    Offer.data_ora > now,
+                    Offer.data_ora <= debug_upper_bound,
+                )
+                .order_by(Offer.data_ora.asc())
+                .all()
+            )
+            print(
+                "[REMINDER_DEBUG_OFFERS] "
+                f"count={len(debug_offers)} "
+                f"window_end={debug_upper_bound.isoformat()}"
+            )
+            for offer in debug_offers[:20]:
+                print(
+                    "[REMINDER_DEBUG_OFFER] "
+                    f"id={offer.id} "
+                    f"meal={offer.tipo_pasto} "
+                    f"starts_at={offer.data_ora.isoformat()} "
+                    f"status={offer.stato} "
+                    f"host_id={offer.user_id} "
+                    f"locale={offer.nome_locale}"
+                )
 
         if not args.skip_upcoming:
             upcoming_stats = send_upcoming_event_reminders(
