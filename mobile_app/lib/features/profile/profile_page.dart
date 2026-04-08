@@ -1281,36 +1281,38 @@ class _ProfilePageState extends State<ProfilePage> {
                       children: [
                         const SizedBox(height: 20),
                         _ReviewHistorySectionCard(
-                          title: 'Recensioni ricevute',
+                          title: 'Cosa dicono di te',
                           icon: Icons.reviews_rounded,
                           count: reviewsReceived.length,
                           isLoading: isLoading,
                           hasError: hasError,
-                          emptyText: 'Non hai ancora recensioni ricevute.',
+                          emptyText:
+                              'Qui troverai cosa scrive la community di te.',
                           actionLabel: 'Apri recensioni',
                           onTap:
                               reviewsReceived.isEmpty || isLoading || hasError
                                   ? null
                                   : () => _openReviewHistorySheet(
-                                        title: 'Recensioni ricevute',
+                                        title: 'Cosa dicono di te',
                                         reviews: reviewsReceived,
                                         isReceived: true,
                                       ),
                         ),
                         const SizedBox(height: 12),
                         _ReviewHistorySectionCard(
-                          title: 'Recensioni scritte',
+                          title: 'Cosa dici degli altri',
                           icon: Icons.edit_note_rounded,
                           count: reviewsGiven.length,
                           isLoading: isLoading,
                           hasError: hasError,
-                          emptyText: 'Non hai ancora recensioni scritte.',
+                          emptyText:
+                              'Qui troverai le recensioni che lasci agli altri utenti.',
                           actionLabel: 'Apri recensioni',
                           onTap:
                               reviewsGiven.isEmpty || isLoading || hasError
                                   ? null
                                   : () => _openReviewHistorySheet(
-                                        title: 'Recensioni scritte',
+                                        title: 'Cosa dici degli altri',
                                         reviews: reviewsGiven,
                                         isReceived: false,
                                       ),
