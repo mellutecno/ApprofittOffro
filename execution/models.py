@@ -213,6 +213,24 @@ class DevicePushToken(db.Model):
         return f"<DevicePushToken user={self.user_id} platform={self.platform} active={self.active}>"
 
 
+class NotificationDeliveryLog(db.Model):
+    """Registro dei reminder/notifiche schedulate gia' inviate, per evitare duplicati."""
+    __tablename__ = "notification_delivery_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    offer_id = db.Column(db.Integer, db.ForeignKey("offers.id"), nullable=False)
+    reminder_type = db.Column(db.String(64), nullable=False)
+    dedupe_key = db.Column(db.String(255), unique=True, nullable=False)
+    sent_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    def __repr__(self):
+        return (
+            f"<NotificationDeliveryLog user={self.user_id} "
+            f"offer={self.offer_id} type={self.reminder_type}>"
+        )
+
+
 class Claim(db.Model):
     """Registra quando un utente approfitta di un'offerta."""
     __tablename__ = "claims"

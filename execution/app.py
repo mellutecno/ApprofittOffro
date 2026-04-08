@@ -61,6 +61,7 @@ from models import (
     UserPhoto,
     UserFollow,
     DevicePushToken,
+    NotificationDeliveryLog,
 )
 from verify_photo import verifica_volto
 from upload_storage import create_upload_storage, StorageObjectNotFound
@@ -184,6 +185,9 @@ PUSH_PLATFORM_ANDROID = "android"
 PUSH_DEEP_LINK_BASE = "approfittoffro://"
 FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 PUSH_CHANNEL_ID = "approfittoffro_alerts"
+UPCOMING_EVENT_REMINDER_HOURS = 2
+REVIEW_REMINDER_DELAY_HOURS = 3
+REVIEW_REMINDER_LOOKBACK_HOURS = 72
 
 
 def get_google_oauth_client_ids():
@@ -731,6 +735,265 @@ def send_follow_started_push(follower, followed):
             "follow_started": "true",
         },
     )
+
+
+def build_notification_dedupe_key(reminder_type, *, offer_id, user_id, related_user_id=None):
+    parts = [str(reminder_type or "").strip().lower(), str(offer_id), str(user_id)]
+    if related_user_id is not None:
+        parts.append(str(related_user_id))
+    return ":".join(parts)
+
+
+def notification_delivery_exists(dedupe_key):
+    if not dedupe_key:
+        return False
+    return (
+        NotificationDeliveryLog.query.filter_by(dedupe_key=dedupe_key).first()
+        is not None
+    )
+
+
+def record_notification_delivery(*, user_id, offer_id, reminder_type, dedupe_key):
+    if not dedupe_key or notification_delivery_exists(dedupe_key):
+        return False
+    db.session.add(
+        NotificationDeliveryLog(
+            user_id=user_id,
+            offer_id=offer_id,
+            reminder_type=reminder_type,
+            dedupe_key=dedupe_key,
+        )
+    )
+    db.session.commit()
+    return True
+
+
+def send_upcoming_event_reminders(
+    *,
+    now=None,
+    hours_ahead=UPCOMING_EVENT_REMINDER_HOURS,
+    dry_run=False,
+):
+    now = now or local_now()
+    upper_bound = now + timedelta(hours=hours_ahead)
+    sent = {"host": 0, "participants": 0}
+    skipped = {"already_sent": 0, "missing_token": 0}
+
+    offers = (
+        Offer.query.options(
+            selectinload(Offer.autore),
+            selectinload(Offer.claims).selectinload(Claim.utente),
+        )
+        .filter(
+            Offer.stato == "attiva",
+            Offer.data_ora > now,
+            Offer.data_ora <= upper_bound,
+        )
+        .order_by(Offer.data_ora.asc())
+        .all()
+    )
+
+    for offer in offers:
+        data_evento = format_offer_datetime_label(offer.data_ora, now=now)
+        host_key = build_notification_dedupe_key(
+            "event_imminent_host",
+            offer_id=offer.id,
+            user_id=offer.user_id,
+        )
+        if notification_delivery_exists(host_key):
+            skipped["already_sent"] += 1
+        elif dry_run:
+            sent["host"] += 1
+        else:
+            push_sent = send_push_to_user(
+                offer.autore,
+                title="Evento tra poco",
+                body=f"Il tuo {offer.tipo_pasto} da {offer.nome_locale} inizia {data_evento}.",
+                target="profile",
+                extra_data={
+                    "offer_id": offer.id,
+                    "event_reminder": "true",
+                    "role": "host",
+                },
+            )
+            if push_sent > 0:
+                record_notification_delivery(
+                    user_id=offer.user_id,
+                    offer_id=offer.id,
+                    reminder_type="event_imminent_host",
+                    dedupe_key=host_key,
+                )
+                sent["host"] += 1
+            else:
+                skipped["missing_token"] += 1
+
+        for claim in get_offer_accepted_claims(offer):
+            participant = claim.utente
+            if not participant:
+                continue
+            participant_key = build_notification_dedupe_key(
+                "event_imminent_guest",
+                offer_id=offer.id,
+                user_id=participant.id,
+            )
+            if notification_delivery_exists(participant_key):
+                skipped["already_sent"] += 1
+                continue
+            if dry_run:
+                sent["participants"] += 1
+                continue
+            push_sent = send_push_to_user(
+                participant,
+                title="Evento tra poco",
+                body=f"Il tuo {offer.tipo_pasto} da {offer.nome_locale} inizia {data_evento}.",
+                target="profile",
+                extra_data={
+                    "offer_id": offer.id,
+                    "event_reminder": "true",
+                    "role": "guest",
+                },
+            )
+            if push_sent > 0:
+                record_notification_delivery(
+                    user_id=participant.id,
+                    offer_id=offer.id,
+                    reminder_type="event_imminent_guest",
+                    dedupe_key=participant_key,
+                )
+                sent["participants"] += 1
+            else:
+                skipped["missing_token"] += 1
+
+    return {
+        "offers_considered": len(offers),
+        "sent": sent,
+        "skipped": skipped,
+        "window_end": upper_bound.isoformat(),
+    }
+
+
+def send_pending_review_reminders(
+    *,
+    now=None,
+    delay_hours=REVIEW_REMINDER_DELAY_HOURS,
+    lookback_hours=REVIEW_REMINDER_LOOKBACK_HOURS,
+    dry_run=False,
+):
+    now = now or local_now()
+    threshold = now - timedelta(hours=delay_hours)
+    lower_bound = now - timedelta(hours=lookback_hours)
+    sent = 0
+    skipped = {"already_sent": 0, "missing_token": 0}
+
+    offers = (
+        Offer.query.options(
+            selectinload(Offer.autore),
+            selectinload(Offer.claims).selectinload(Claim.utente),
+        )
+        .filter(
+            Offer.stato.notin_(["annullata", "archiviata_admin"]),
+            Offer.data_ora <= threshold,
+            Offer.data_ora >= lower_bound,
+        )
+        .order_by(Offer.data_ora.desc())
+        .all()
+    )
+
+    for offer in offers:
+        data_evento = format_offer_datetime_label(offer.data_ora, now=now)
+        host = offer.autore
+        if not host:
+            continue
+
+        for claim in get_offer_accepted_claims(offer):
+            guest = claim.utente
+            if not guest:
+                continue
+
+            guest_review = Review.query.filter_by(
+                reviewer_id=guest.id,
+                reviewed_id=host.id,
+                offer_id=offer.id,
+            ).first()
+            if not guest_review:
+                guest_key = build_notification_dedupe_key(
+                    "review_reminder",
+                    offer_id=offer.id,
+                    user_id=guest.id,
+                    related_user_id=host.id,
+                )
+                if notification_delivery_exists(guest_key):
+                    skipped["already_sent"] += 1
+                elif dry_run:
+                    sent += 1
+                else:
+                    push_sent = send_push_to_user(
+                        guest,
+                        title="Recensione da lasciare",
+                        body=f"Non dimenticare di recensire {host.nome} per {offer.nome_locale}.",
+                        target="profile",
+                        extra_data={
+                            "offer_id": offer.id,
+                            "review_reminder": "true",
+                            "review_target_id": host.id,
+                        },
+                    )
+                    if push_sent > 0:
+                        record_notification_delivery(
+                            user_id=guest.id,
+                            offer_id=offer.id,
+                            reminder_type="review_reminder",
+                            dedupe_key=guest_key,
+                        )
+                        sent += 1
+                    else:
+                        skipped["missing_token"] += 1
+
+            host_review = Review.query.filter_by(
+                reviewer_id=host.id,
+                reviewed_id=guest.id,
+                offer_id=offer.id,
+            ).first()
+            if not host_review:
+                host_key = build_notification_dedupe_key(
+                    "review_reminder",
+                    offer_id=offer.id,
+                    user_id=host.id,
+                    related_user_id=guest.id,
+                )
+                if notification_delivery_exists(host_key):
+                    skipped["already_sent"] += 1
+                elif dry_run:
+                    sent += 1
+                else:
+                    push_sent = send_push_to_user(
+                        host,
+                        title="Recensione da lasciare",
+                        body=f"Non dimenticare di recensire {guest.nome} per {offer.nome_locale}.",
+                        target="profile",
+                        extra_data={
+                            "offer_id": offer.id,
+                            "review_reminder": "true",
+                            "review_target_id": guest.id,
+                        },
+                    )
+                    if push_sent > 0:
+                        record_notification_delivery(
+                            user_id=host.id,
+                            offer_id=offer.id,
+                            reminder_type="review_reminder",
+                            dedupe_key=host_key,
+                        )
+                        sent += 1
+                    else:
+                        skipped["missing_token"] += 1
+
+    return {
+        "offers_considered": len(offers),
+        "sent": sent,
+        "skipped": skipped,
+        "threshold": threshold.isoformat(),
+    }
 
 
 def snapshot_offer_notification_state(offer):
