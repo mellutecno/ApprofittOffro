@@ -433,6 +433,12 @@ def get_followed_offer_notification_heading(offer):
     return f"{offer.autore.nome} ha pubblicato una nuova {offer.tipo_pasto}"
 
 
+def get_followed_offer_push_body(offer, data_evento=None):
+    """Corpo push sintetico per le offerte dei profili seguiti."""
+    data_evento = data_evento or offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    return f"{offer.nome_locale} • {data_evento}"
+
+
 def get_session_idle_timeout_seconds(user):
     """Restituisce il timeout inattivita' per il tipo di utente."""
     timeout_minutes = (
@@ -478,8 +484,8 @@ def notify_followers_for_new_offer(offer):
     email_enabled = email_delivery_enabled()
     email_count = 0
     push_users = 0
-    push_title = f"Nuova {offer.tipo_pasto} disponibile"
-    push_body = f"{offer.autore.nome} ha pubblicato {offer.nome_locale} per il {data_evento}."
+    push_title = get_followed_offer_notification_heading(offer)
+    push_body = get_followed_offer_push_body(offer, data_evento=data_evento)
 
     if not email_enabled:
         print(
@@ -765,17 +771,29 @@ def notify_claimants_for_offer_update(offer, previous_state, actor):
 
     notified = 0
     for claim in claims:
-        if not claim.utente.email:
+        if not claim.utente:
             continue
-        send_email(
-            f"Evento aggiornato: {offer.nome_locale}",
-            [claim.utente.email],
-            "offer_updated.html",
-            user=claim.utente,
-            offer=offer,
-            actor_name=actor_name,
-            data_evento=data_evento,
-            changes=changes,
+        if claim.utente.email:
+            send_email(
+                f"Evento aggiornato: {offer.nome_locale}",
+                [claim.utente.email],
+                "offer_updated.html",
+                user=claim.utente,
+                offer=offer,
+                actor_name=actor_name,
+                data_evento=data_evento,
+                changes=changes,
+            )
+        send_push_to_user(
+            claim.utente,
+            title="Evento aggiornato",
+            body=f"{actor_name} ha aggiornato {offer.nome_locale} • {data_evento}.",
+            target="offers",
+            extra_data={
+                "offer_id": offer.id,
+                "updated_by": actor_name,
+                "change_count": len(changes),
+            },
         )
         notified += 1
 
@@ -2721,6 +2739,32 @@ def remove_offer_with_notifications(
             data_evento=data_evento,
             motivazione=motivazione,
             admin_user=acting_admin,
+        )
+
+    if not is_past_offer:
+        for claim in claims:
+            if claim.utente:
+                send_push_to_user(
+                    claim.utente,
+                    title="Evento annullato",
+                    body=f"{offer.nome_locale} • {data_evento} non Ã¨ piÃ¹ disponibile.",
+                    target="offers",
+                    extra_data={
+                        "offer_id": offer.id,
+                        "cancelled": "true",
+                    },
+                )
+
+    if not is_past_offer and notify_owner and acting_admin and offer.autore:
+        send_push_to_user(
+            offer.autore,
+            title="Offerta rimossa dall'amministratore",
+            body=f"{offer.nome_locale} • {data_evento} Ã¨ stata rimossa.",
+            target="offers",
+            extra_data={
+                "offer_id": offer.id,
+                "admin_removed": "true",
+            },
         )
 
     if preserve_review_history and is_past_offer:
