@@ -1,0 +1,15 @@
+<div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#eff6ff; padding:32px; border-radius:16px; border:1px solid #bfdbfe;">
+    <h2 style="color:#1d4ed8;">Partecipazione rimossa dall'evento</h2>
+    <p>Ciao <b>{{ user.nome }}</b>, una partecipazione collegata al tuo evento è stata rimossa da un amministratore.</p>
+
+    <div style="background:white; padding:20px; border-radius:12px; margin:16px 0; border-left:4px solid #3b82f6;">
+        <b>Evento:</b> {{ offer.nome_locale }}<br>
+        <b>Data:</b> {{ data_evento }}<br>
+        <b>Utente rimosso:</b> {{ removed_user.nome }}<br>
+        <b>Motivazione:</b><br>
+        <i style="color:#6b7280;">"{{ motivazione }}"</i>
+    </div>
+
+    <p style="font-size:0.95rem; color:#4b5563;">Se l'evento era completo, il posto è stato riaperto automaticamente.</p>
+    <p style="color:#9ca3af; font-size:0.8rem; margin-top:24px;">— {{ admin_user.nome }} • Team ApprofittOffro</p>
+</div>

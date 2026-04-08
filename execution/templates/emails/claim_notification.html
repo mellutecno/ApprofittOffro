@@ -1,11 +1,12 @@
-<div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#f9fafb; padding:32px; border-radius:16px;">
-    <h2 style="color:#ef4444;">🍽️ ApprofittOffro</h2>
-    <h3>Ciao {{ offer.autore.nome }}, hai un nuovo partecipante!</h3>
-    <p><b>{{ user.nome }}</b> si è appena prenotato/a per la tua offerta:</p>
-    <div style="background:white; padding:20px; border-radius:12px; border-left:4px solid #10b981; margin:16px 0;">
-        <b style="font-size:1.2rem;">{{ offer.nome_locale }}</b><br>
-        📅 {{ data_evento }}<br>
-        👥 Posti rimanenti: <b>{{ offer.posti_disponibili }}</b>
+<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px; border-radius: 16px;">
+    <h2 style="color: #ef4444;">ApprofittOffro</h2>
+    <h3>Ciao {{ offer.autore.nome }}, hai una nuova richiesta.</h3>
+    <p><b>{{ user.nome }}</b> vuole partecipare alla tua offerta:</p>
+    <div style="background: white; padding: 20px; border-radius: 12px; border-left: 4px solid #f59e0b; margin: 16px 0;">
+        <b style="font-size: 1.2rem;">{{ offer.nome_locale }}</b><br>
+        {{ data_evento }}<br>
+        {{ offer.tipo_pasto.capitalize() }}
     </div>
-    <p style="color:#6b7280; font-size:0.85rem;">— Il Team di ApprofittOffro</p>
+    <p>Apri il tuo profilo e vai in <b>Profilo</b> per accettare o rifiutare la richiesta.</p>
+    <p style="color: #6b7280; font-size: 0.85rem;">- Il Team di ApprofittOffro</p>
 </div>

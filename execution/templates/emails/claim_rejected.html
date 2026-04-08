@@ -1,0 +1,13 @@
+<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #f9fafb; padding: 32px; border-radius: 16px;">
+    <h2 style="color: #ef4444;">ApprofittOffro</h2>
+    <h3>Ciao {{ user.nome }}, questa volta non e' andata.</h3>
+    <p>La tua richiesta per questa offerta non e' stata accettata dall'organizzatore:</p>
+    <div style="background: white; padding: 20px; border-radius: 12px; border-left: 4px solid #ef4444; margin: 16px 0;">
+        <b style="font-size: 1.2rem;">{{ offer.nome_locale }}</b><br>
+        {{ offer.indirizzo }}<br>
+        {{ data_evento }}<br>
+        {{ offer.tipo_pasto.capitalize() }}
+    </div>
+    <p>Non preoccuparti: puoi continuare a cercare altre occasioni aperte nella community.</p>
+    <p style="color: #6b7280; font-size: 0.85rem;">- Il Team di ApprofittOffro</p>
+</div>

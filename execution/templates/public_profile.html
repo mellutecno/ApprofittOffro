@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profilo di {{ user.nome }} — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css?v=69">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -15,27 +15,64 @@
       }
     </script>
 </head>
-<body>
-    <nav class="navbar">
-        <a href="/dashboard" class="navbar-brand">
-            <div class="logo-icon">🍽️</div>
-            <span>ApprofittOffro</span>
-        </a>
-        <div class="nav-links">
-            <a href="/dashboard" class="btn btn-outline btn-sm">Home</a>
-            {% if user.id == current_user.id %}
-            <a href="/profile" class="btn btn-accent btn-sm">Il Mio Profilo</a>
-            {% endif %}
+<body class="profile-page member-discovery public-profile-page">
+    <div class="page-top-title" id="page-top-title" aria-label="ApprofittOffro">
+        <img class="topmark-mobile" src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
+        <img class="topmark-desktop" src="{{ url_for('static', filename='img/WhatsApp_Image_2026-03-22_at_21.54.07-removebg-preview.png') }}" alt="ApprofittOffro">
+    </div>
+    <nav class="navbar toast-navbar">
+        <div class="guest-toast-menu" id="toast-nav-menu">
+            <button type="button" class="toast-menu-trigger" id="toast-nav-trigger" aria-expanded="false" aria-controls="toast-nav-links" aria-label="Apri menu" onclick="toggleToastNavMenu()">
+                <span class="toast-menu-trigger-icon" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </span>
+            </button>
+            <div class="guest-toast-links" id="toast-nav-links" hidden>
+                <a href="/dashboard" class="btn btn-outline btn-sm">Home</a>
+                <a href="/people" class="btn btn-outline btn-sm">Community</a>
+                {% if user.id == current_user.id %}
+                <a href="/profile" class="btn btn-accent btn-sm">Su di me</a>
+                {% endif %}
+            </div>
         </div>
     </nav>
 
     <main class="container main-content" style="max-width: 700px;">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div style="margin: 0 auto 18px auto;">
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}" style="
+                border-radius: 14px;
+                margin-bottom: 10px;
+                {% if category == 'success' %}
+                background: #E8F5E9;
+                color: #1F5130;
+                border: 1px solid rgba(56, 142, 60, 0.22);
+                {% elif category == 'error' %}
+                background: #FDECEC;
+                color: #8A1F1F;
+                border: 1px solid rgba(211, 47, 47, 0.2);
+                {% elif category == 'warning' %}
+                background: #FFF4E5;
+                color: #8A4B11;
+                border: 1px solid rgba(255, 152, 0, 0.22);
+                {% endif %}
+              ">{{ message }}</div>
+            {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
         <div class="glass-card" style="padding: 40px;">
             <div style="display: flex; align-items: center; gap: 32px; flex-wrap: wrap;">
-                <img src="{{ url_for('uploaded_file', filename=user.foto_filename) }}" alt="Foto di {{ user.nome }}" style="width: 140px; height: 140px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: var(--shadow-md);">
+                <button type="button" class="profile-photo-hero-button" onclick="openPublicProfileGallery(0)" aria-label="Apri galleria foto di {{ user.nome }}">
+                    <img src="{{ url_for('uploaded_file', filename=user.gallery_filenames[0]) }}?v={{ user.gallery_filenames[0] }}" alt="Foto di {{ user.nome }}" style="width: 140px; height: 140px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: var(--shadow-md);">
+                </button>
                 <div style="flex: 1; min-width: 250px;">
                     <h1 style="margin-bottom: 4px;">{{ user.nome }}</h1>
-                    <p style="color: var(--text-muted); font-size: 1.1rem; font-weight: 600;">{{ user.fascia_eta }} anni • {{ user.citta.split(',')[0] if user.citta else 'Luogo segreto' }}</p>
+                    <p style="color: var(--text-muted); font-size: 1.1rem; font-weight: 600;">{{ user.eta_display }} anni • {{ user.citta if user.citta else 'Luogo segreto' }}</p>
                     
                     <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
                         <span style="color: var(--warning); font-size: 1.2rem; font-weight: 800;">
@@ -51,19 +88,31 @@
                     {% if user.verificato %}
                     <span style="background: var(--success); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; display: inline-block; margin-top: 12px; letter-spacing: 0.5px;">✓ VERIFICATO</span>
                     {% endif %}
+                    {% if current_user.id != user.id %}
+                    <div style="margin-top: 16px;">
+                        {% if is_following %}
+                        <form method="post" action="/users/{{ user.id }}/unfollow" style="display:inline-block;">
+                            <input type="hidden" name="next" value="{{ request.path }}">
+                            <button type="submit" class="btn btn-outline btn-sm" style="color:#6A4330; border-color: rgba(106, 67, 48, 0.28); background: rgba(255,255,255,0.82);">Non seguire più</button>
+                        </form>
+                        {% else %}
+                        <form method="post" action="/users/{{ user.id }}/follow" style="display:inline-block;">
+                            <input type="hidden" name="next" value="{{ request.path }}">
+                            <button type="submit" class="btn btn-outline btn-sm" style="color:#6A4330; border-color: rgba(255, 112, 67, 0.34); background: rgba(255,255,255,0.82);">Segui</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
 
-            {% if shared_offer %}
-            <div class="glass-card" style="margin: 20px 0; padding: 20px; text-align: center; border: 2px solid var(--primary);">
-                <h3 style="margin-bottom: 8px;">Hai condiviso un pasto con {{ user.nome }}!</h3>
-                <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">Il tuo feedback aiuta la community a restare sicura e amichevole.</p>
-                <button onclick="openReviewModal({{ shared_offer.id }}, '{{ shared_offer.nome_locale }}', {{ user.id }})" class="btn btn-primary">🌟 Lascia una Recensione</button>
-            </div>
-            {% elif pending_offer %}
-            <div class="glass-card" style="margin: 20px 0; padding: 20px; text-align: center; border: 1px dashed var(--primary);">
-                <h4 style="margin-bottom: 8px; color: var(--primary);">Pasto appena concluso o in corso ✨</h4>
-                <p style="font-size: 0.9rem; color: var(--text-muted);">Abbiamo impostato un tempo di attesa di 3 ore per permetterti di goderti il pasto con calma. Torna qui tra poco per lasciare la tua recensione!</p>
+            {% if user.gallery_filenames %}
+            <div class="profile-gallery-strip" style="margin-top:20px; justify-content:flex-start;">
+                {% for filename in user.gallery_filenames %}
+                <button type="button" class="profile-gallery-thumb {% if loop.first %}is-primary{% endif %}" onclick="openPublicProfileGallery({{ loop.index0 }})" aria-label="Apri foto {{ loop.index }}">
+                    <img src="{{ url_for('uploaded_file', filename=filename) }}?v={{ filename }}" alt="Foto di {{ user.nome }}">
+                </button>
+                {% endfor %}
             </div>
             {% endif %}
 
@@ -112,6 +161,22 @@
             </div>
         </div>
 
+        {% if shared_offer %}
+        <div class="glass-card" style="margin: 28px 0 0 0; padding: 20px; text-align: center; border: 2px solid var(--primary);">
+            <h3 style="margin-bottom: 8px;">Hai condiviso un pasto con {{ user.nome }}!</h3>
+            <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">Il tuo feedback aiuta la community a restare sicura e amichevole.</p>
+            {% if editable_review %}
+            <button type="button" onclick='openReviewModal({{ shared_offer.id }}, {{ shared_offer.nome_locale|tojson }}, {{ user.id }}, {{ editable_review.rating }}, {{ editable_review.commento|default("", true)|tojson }})' class="btn btn-outline">✏️ Modifica recensione</button>
+            {% else %}
+            <button type="button" onclick='openReviewModal({{ shared_offer.id }}, {{ shared_offer.nome_locale|tojson }}, {{ user.id }})' class="btn btn-primary">🌟 Lascia una Recensione</button>
+            {% endif %}
+        </div>
+        {% elif pending_offer %}
+        <div class="glass-card" style="margin: 28px 0 0 0; padding: 20px; text-align: center; border: 1px dashed var(--primary);">
+            <p style="font-size: 0.9rem; color: var(--text-muted);">Tu e questo utente avete interagito, quindi torna più tardi per una recensione.</p>
+        </div>
+        {% endif %}
+
         <h3 style="font-size: 1.3rem; font-family: 'Outfit', sans-serif; font-weight: 700; margin: 48px 0 16px; color: var(--text-main);">⭐ Cosa dicono gli altri ({{ rating_info.count }})</h3>
         
         {% if reviews %}
@@ -142,16 +207,34 @@
         </div>
         {% endif %}
 
+    <div id="public-profile-gallery-modal" class="profile-gallery-modal" aria-hidden="true">
+        <div class="profile-gallery-modal-backdrop" onclick="closePublicProfileGallery()"></div>
+        <div class="profile-gallery-dialog" role="dialog" aria-modal="true" aria-label="Galleria foto profilo" onclick="event.stopPropagation()">
+            <button type="button" class="profile-gallery-close" onclick="closePublicProfileGallery()" aria-label="Chiudi galleria">&times;</button>
+            <div class="profile-gallery-stage">
+                <img id="public-profile-gallery-image" src="" alt="Foto profilo ingrandita">
+            </div>
+            <div class="profile-gallery-controls">
+                <div id="public-profile-gallery-caption" class="profile-gallery-caption"></div>
+                <button type="button" class="profile-gallery-nav profile-gallery-prev" id="public-profile-gallery-prev" onclick="movePublicProfileGallery(-1)" aria-label="Foto precedente">&#8249;</button>
+                <button type="button" class="profile-gallery-nav profile-gallery-next" id="public-profile-gallery-next" onclick="movePublicProfileGallery(1)" aria-label="Foto successiva">&#8250;</button>
+            </div>
+            <div id="public-profile-gallery-thumbs" class="profile-gallery-modal-thumbs"></div>
+        </div>
+    </div>
+
     <!-- Review Modal -->
-    <div id="review-modal" class="modal" style="display: none; align-items: center; justify-content: center;">
-        <div class="glass-card" style="width: 100%; max-width: 450px; position: relative;">
+    <div id="review-modal" class="review-modal-shell" aria-hidden="true">
+        <div class="review-modal-backdrop" onclick="closeReviewModal()"></div>
+        <div class="glass-card review-modal-dialog" style="width: 100%; max-width: 450px; position: relative;" onclick="event.stopPropagation()">
             <button onclick="closeReviewModal()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;">&times;</button>
-            <h2 class="text-center mb-1">Lascia un feedback</h2>
+            <h2 id="review-modal-title" class="text-center mb-1">Lascia un feedback</h2>
             <p class="text-center text-muted mb-3" id="review-venue-name"></p>
             
             <form id="review-form">
                 <input type="hidden" id="review-offer-id">
                 <input type="hidden" id="review-reviewed-id">
+                <input type="hidden" id="review-is-edit" value="0">
                 <div class="form-group text-center">
                     <label>Quanto ti è piaciuta l'esperienza?</label>
                     <div id="star-rating" style="display: flex; justify-content: center; gap: 12px; font-size: 2.2rem; margin: 15px 0;">
@@ -169,13 +252,124 @@
                     <textarea id="review-commento" class="form-control" rows="3" placeholder="Es: Ottima compagnia e cibo delizioso!"></textarea>
                 </div>
                 
-                <button type="submit" class="btn btn-primary btn-block mt-3">Invia Recensione</button>
+                <button type="submit" id="review-submit-btn" class="btn btn-primary btn-block mt-3">Invia Recensione</button>
             </form>
         </div>
     </div>
 
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=3"></script>
     <script>
+        function toggleToastNavMenu(forceOpen) {
+            const trigger = document.getElementById('toast-nav-trigger');
+            const menu = document.getElementById('toast-nav-links');
+            if (!trigger || !menu) return;
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : menu.hidden;
+            menu.hidden = !shouldOpen;
+            trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
+
+        document.addEventListener('click', (event) => {
+            const menu = document.getElementById('toast-nav-menu');
+            if (menu && !menu.contains(event.target)) {
+                toggleToastNavMenu(false);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                toggleToastNavMenu(false);
+                closePublicProfileGallery();
+            }
+        });
+
+        const publicProfileGalleryFilenames = {{ user.gallery_filenames|tojson }};
+        let publicProfileGalleryIndex = 0;
+
+        function mountPublicProfileGalleryModal() {
+            const modal = document.getElementById('public-profile-gallery-modal');
+            if (modal && modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+            return modal;
+        }
+
+        function buildPublicProfileUploadUrl(filename) {
+            return `/uploads/${encodeURIComponent(filename)}?v=${encodeURIComponent(filename)}`;
+        }
+
+        function renderPublicProfileGalleryThumbs() {
+            const container = document.getElementById('public-profile-gallery-thumbs');
+            if (!container) return;
+
+            container.innerHTML = '';
+            publicProfileGalleryFilenames.forEach((filename, index) => {
+                const thumb = document.createElement('button');
+                thumb.type = 'button';
+                thumb.className = `profile-gallery-thumb ${index === publicProfileGalleryIndex ? 'is-primary' : ''}`;
+                thumb.setAttribute('aria-label', `Apri foto ${index + 1}`);
+                thumb.onclick = () => openPublicProfileGallery(index);
+
+                const img = document.createElement('img');
+                img.src = buildPublicProfileUploadUrl(filename);
+                img.alt = `Foto profilo ${index + 1}`;
+                thumb.appendChild(img);
+                container.appendChild(thumb);
+            });
+        }
+
+        function refreshPublicProfileGallery() {
+            const modal = document.getElementById('public-profile-gallery-modal');
+            const image = document.getElementById('public-profile-gallery-image');
+            const caption = document.getElementById('public-profile-gallery-caption');
+            const prev = document.getElementById('public-profile-gallery-prev');
+            const next = document.getElementById('public-profile-gallery-next');
+
+            if (!modal || !image || !publicProfileGalleryFilenames.length) return;
+
+            publicProfileGalleryIndex = Math.max(0, Math.min(publicProfileGalleryIndex, publicProfileGalleryFilenames.length - 1));
+            const currentFilename = publicProfileGalleryFilenames[publicProfileGalleryIndex];
+            image.src = buildPublicProfileUploadUrl(currentFilename);
+            caption.textContent = `Foto ${publicProfileGalleryIndex + 1} di ${publicProfileGalleryFilenames.length}`;
+            if (prev) prev.disabled = publicProfileGalleryFilenames.length <= 1;
+            if (next) next.disabled = publicProfileGalleryFilenames.length <= 1;
+            renderPublicProfileGalleryThumbs();
+        }
+
+        function openPublicProfileGallery(index = 0) {
+            if (!publicProfileGalleryFilenames.length) return;
+            const modal = mountPublicProfileGalleryModal();
+            if (!modal) return;
+            publicProfileGalleryIndex = index;
+            modal.classList.add('is-visible');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+            refreshPublicProfileGallery();
+        }
+
+        function closePublicProfileGallery() {
+            const modal = document.getElementById('public-profile-gallery-modal');
+            if (!modal) return;
+            modal.classList.remove('is-visible');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+        }
+
+        function movePublicProfileGallery(direction) {
+            if (publicProfileGalleryFilenames.length <= 1) return;
+            publicProfileGalleryIndex = (publicProfileGalleryIndex + direction + publicProfileGalleryFilenames.length) % publicProfileGalleryFilenames.length;
+            refreshPublicProfileGallery();
+        }
+
+        mountPublicProfileGalleryModal();
+
+        function mountReviewModal() {
+            const modal = document.getElementById('review-modal');
+            if (modal && modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+            return modal;
+        }
+
         // --- Review Modal Logic ---
         let selectedRating = 0;
         const stars = document.querySelectorAll('#star-rating .star');
@@ -204,19 +398,36 @@
             });
         }
 
-        function openReviewModal(offerId, venueName, reviewedId) {
+        function openReviewModal(offerId, venueName, reviewedId, existingRating = 0, existingComment = '') {
+            const reviewModal = mountReviewModal();
             document.getElementById('review-offer-id').value = offerId;
             document.getElementById('review-reviewed-id').value = reviewedId;
             document.getElementById('review-venue-name').innerHTML = `Pasto presso <b>${venueName}</b>`;
-            document.getElementById('review-modal').style.display = 'flex';
-            selectedRating = 0;
-            highlightStars(0);
-            document.getElementById('review-commento').value = '';
+            document.getElementById('review-is-edit').value = existingRating ? '1' : '0';
+            document.getElementById('review-modal-title').textContent = existingRating ? 'Modifica il tuo feedback' : 'Lascia un feedback';
+            document.getElementById('review-submit-btn').textContent = existingRating ? 'Aggiorna recensione' : 'Invia Recensione';
+            reviewModal.classList.add('is-visible');
+            reviewModal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+            selectedRating = Number(existingRating) || 0;
+            highlightStars(selectedRating);
+            document.getElementById('selected-rating').value = selectedRating;
+            document.getElementById('review-commento').value = existingComment || '';
+            reviewModal.scrollTop = 0;
+            const reviewDialog = document.querySelector('.review-modal-dialog');
+            if (reviewDialog) {
+                reviewDialog.scrollTop = 0;
+            }
         }
 
         function closeReviewModal() {
-            document.getElementById('review-modal').style.display = 'none';
+            const reviewModal = document.getElementById('review-modal');
+            reviewModal.classList.remove('is-visible');
+            reviewModal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
         }
+
+        mountReviewModal();
 
         document.getElementById('review-form').addEventListener('submit', async (e) => {
             e.preventDefault();

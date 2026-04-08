@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: approfittoffro
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd execution && gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_TIMEZONE
+        value: Europe/Rome
+      - key: APP_STORAGE_BACKEND
+        value: r2
+      - key: APP_UPLOAD_FOLDER
+        value: /tmp/approfittoffro-uploads
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_DEFAULT_SENDER
+        sync: false
+      - key: EMAIL_PROVIDER
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_REPLY_TO
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_ENDPOINT_URL
+        sync: false

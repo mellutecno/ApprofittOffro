@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Il tuo profilo su ApprofittOffro.">
     <title>Profilo — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css?v=85">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -16,17 +16,36 @@
       }
     </script>
 </head>
-<body>
+<body class="profile-page member-discovery">
+    {% macro whatsapp_icon_svg(icon_class='') -%}
+    <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true" class="{{ icon_class }}">
+        <path d="M19.11 17.19c-.28-.14-1.64-.81-1.89-.91-.25-.09-.43-.14-.61.14-.19.28-.7.91-.86 1.09-.16.19-.31.21-.59.07-.28-.14-1.16-.43-2.21-1.36-.82-.73-1.37-1.62-1.53-1.9-.16-.28-.02-.43.12-.57.12-.12.28-.31.42-.47.14-.16.19-.28.28-.47.09-.19.05-.35-.02-.49-.07-.14-.61-1.47-.84-2.01-.22-.53-.45-.46-.61-.46h-.52c-.19 0-.49.07-.75.35-.26.28-.98.96-.98 2.35s1 2.74 1.14 2.93c.14.19 1.95 2.98 4.73 4.18.66.28 1.18.45 1.58.58.66.21 1.26.18 1.74.11.53-.08 1.64-.67 1.87-1.33.23-.66.23-1.23.16-1.35-.06-.12-.25-.19-.52-.33Z"/>
+        <path d="M16 3.2c-7.07 0-12.8 5.58-12.8 12.47 0 2.2.58 4.35 1.69 6.24L3.2 28.8l7.09-1.84c1.84 1 3.92 1.53 6.01 1.53 7.07 0 12.8-5.58 12.8-12.47S23.07 3.2 16 3.2Zm0 22.99c-1.94 0-3.84-.52-5.5-1.5l-.39-.23-4.21 1.09 1.12-4.05-.26-.41a10.05 10.05 0 0 1-1.56-5.37c0-5.56 4.64-10.08 10.35-10.08S26.9 10.16 26.9 15.72c0 5.56-4.64 10.08-10.35 10.08Z"/>
+    </svg>
+    {%- endmacro %}
+    <div class="page-top-title" id="page-top-title" aria-label="ApprofittOffro">
+        <img class="topmark-mobile" src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
+        <img class="topmark-desktop" src="{{ url_for('static', filename='img/WhatsApp_Image_2026-03-22_at_21.54.07-removebg-preview.png') }}" alt="ApprofittOffro">
+    </div>
     <!-- Navbar -->
-    <nav class="navbar">
-        <a href="/dashboard" class="navbar-brand">
-            <div class="logo-icon">🍽️</div>
-            <span>ApprofittOffro</span>
-        </a>
-        <div class="nav-links">
-            <a href="/dashboard" class="btn btn-outline btn-sm">Home</a>
-            <a href="/new-offer" class="btn btn-primary btn-sm">Offri</a>
-            <a href="/logout" class="btn btn-ghost btn-sm" style="color:var(--text-muted)">Esci</a>
+    <nav class="navbar toast-navbar">
+        <div class="guest-toast-menu" id="toast-nav-menu">
+            <button type="button" class="toast-menu-trigger" id="toast-nav-trigger" aria-expanded="false" aria-controls="toast-nav-links" aria-label="Apri menu" onclick="toggleToastNavMenu()">
+                <span class="toast-menu-trigger-icon" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </span>
+            </button>
+            <div class="guest-toast-links" id="toast-nav-links" hidden>
+                <a href="/dashboard" class="btn btn-outline btn-sm">Home</a>
+                <a href="/people" class="btn btn-outline btn-sm">Community</a>
+                {% if current_user.is_admin %}
+                <a href="/admin" class="btn btn-outline btn-sm">Admin</a>
+                {% endif %}
+                <a href="/new-offer" class="btn btn-outline btn-sm">Offri</a>
+                <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
+            </div>
         </div>
     </nav>
 
@@ -40,7 +59,7 @@
                 {% with messages = get_flashed_messages(with_categories=true) %}
                   {% if messages %}
                     {% for category, message in messages %}
-                      <div class="alert alert-{{ category }} mb-4" style="border-radius: 12px; text-align: center;">
+                      <div class="alert alert-{{ category }} mb-4 profile-inline-alert" style="border-radius: 12px; text-align: center;">
                           {{ message }}
                       </div>
                     {% endfor %}
@@ -51,15 +70,27 @@
             <!-- Identikit Alimentare Form -->
             <div class="glass-card mb-4" style="text-align: center;">
                 <h2 style="margin-bottom: 8px;">Il Tuo Profilo 👤</h2>
-                <p style="color: var(--text-muted); margin-bottom: 32px;">Gestisci il tuo identikit alimentare e la tua posizione.</p>
+                <p style="color: var(--text-muted); margin-bottom: 32px;">Gestisci il tuo identikit alimentare, il tuo cellulare e la tua posizione.</p>
                 
                 <form id="profile-form" enctype="multipart/form-data">
                     <div style="margin-bottom: 32px;">
                         <div class="photo-upload" id="photo-upload-btn" style="margin: 0 auto;">
-                            <img id="photo-preview" src="/uploads/{{ current_user.foto_filename }}" alt="{{ current_user.nome }}" style="width: 100%; height: 100%; object-fit: cover;">
-                            <input type="file" id="foto" name="foto" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer;">
+                            <img id="photo-preview" src="{{ url_for('uploaded_file', filename=current_user.gallery_filenames[0]) }}?v={{ current_user.gallery_filenames[0] }}" alt="{{ current_user.nome }}" style="width: 100%; height: 100%; object-fit: cover;">
+                            <input type="file" id="foto" name="foto" accept="image/*" multiple style="position: absolute; inset: 0; opacity: 0; cursor: pointer;">
                         </div>
-                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px; font-weight: 600;">Tocca la foto per cambiarla</p>
+                        <div class="profile-photo-guidance">
+                            <strong>Come caricare le foto:</strong>
+                            <br>La <strong>prima immagine</strong> deve far vedere chiaramente il volto, altrimenti il sistema non salva la galleria.
+                            <br>Le altre foto devono restare <strong>reali e riconoscibili della stessa persona</strong>.
+                        </div>
+                        <div id="profile-gallery-preview" class="profile-gallery-strip">
+                            {% for filename in current_user.gallery_filenames %}
+                            <button type="button" class="profile-gallery-thumb {% if loop.first %}is-primary{% endif %}" onclick="openOwnProfileGallery({{ loop.index0 }})" aria-label="Apri foto {{ loop.index }}">
+                                <img src="{{ url_for('uploaded_file', filename=filename) }}?v={{ filename }}" alt="Foto di {{ current_user.nome }}">
+                            </button>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm profile-gallery-launch" onclick="openOwnProfileGallery(0)">Sfoglia le tue foto</button>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; text-align: left;">
@@ -74,12 +105,13 @@
                     </div>
 
                     <div class="form-group" style="text-align: left; margin-bottom: 24px;">
-                        <label>Fascia d'età</label>
-                        <select name="fascia_eta" class="form-control" required>
-                            {% for val, label in fasce_eta %}
-                                <option value="{{ val }}" {% if current_user.fascia_eta == val %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
+                        <label>Età</label>
+                        <input type="number" name="eta" class="form-control" min="18" max="120" value="{{ current_user.eta if current_user.eta is not none else current_user.fascia_eta.split('-')[0].replace('+', '') }}" required>
+                    </div>
+
+                    <div class="form-group" style="text-align: left; margin-bottom: 24px;">
+                        <label>Cellulare</label>
+                        <input type="tel" name="numero_telefono" class="form-control" value="{{ current_user.numero_telefono or '' }}" placeholder="Es. +39 333 1234567" autocomplete="tel" required>
                     </div>
 
                     <div class="form-group" style="text-align: left;">
@@ -137,6 +169,24 @@
                 </div>
             </div>
 
+            <h3 class="mb-2">💌 Chi ti segue</h3>
+            {% if followers %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 40px;">
+                {% for follower in followers %}
+                <a href="/profile/{{ follower.id }}" class="glass-card" style="padding: 14px; text-align: center; text-decoration: none; transition: transform 0.2s; display: block; border-radius: 18px;">
+                    <img src="/uploads/{{ follower.foto_filename }}" class="avatar" style="width: 58px; height: 58px; margin: 0 auto 10px; border: 2px solid var(--primary);">
+                    <div style="font-weight: 800; font-size: 0.86rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ follower.nome }}</div>
+                    <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 4px;">{{ follower.eta_display }} anni</div>
+                    <div style="font-size: 0.75rem; color: var(--primary); font-weight: 700; margin-top: 6px;">{{ follower.citta if follower.citta else 'Città privata' }}</div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 20px; margin-bottom: 40px; border-style: dotted;">
+                <p style="font-size: 0.85rem; color: var(--text-muted);">Per ora non ti segue ancora nessuno.</p>
+            </div>
+            {% endif %}
+
             <!-- Community: Persone incontrate -->
             <h3 class="mb-2">👥 Persone che ho incontrato</h3>
             {% if met_users %}
@@ -168,7 +218,7 @@
                     </span>
                     <h4 class="mt-1">{{ offer.nome_locale }}</h4>
                     <div class="address">📍 {{ offer.indirizzo }}</div>
-                    <div class="datetime-info">📅 {{ offer.data_ora.strftime('%d/%m/%Y %H:%M') }}</div>
+                    <div class="datetime-info">📅 {{ format_offer_datetime_label(offer.data_ora) }}</div>
                     {% if offer.descrizione %}
                     <div class="description">{{ offer.descrizione }}</div>
                     {% endif %}
@@ -193,19 +243,28 @@
                         <div style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">👥 Partecipanti:</div>
                         <div style="display: flex; flex-direction: column; gap: 8px;">
                             {% for c in offer.claims %}
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <img src="/uploads/{{ c.utente.foto_filename }}" class="avatar" style="width: 28px; height: 28px;">
                                     <span style="font-weight: 700; font-size: 0.85rem;">{{ c.utente.nome }}</span>
                                 </div>
-                                {% if offer.data_ora < completion_threshold and offer.stato != 'annullata' %}
-                                    {% set host_reviewed_guest = offer.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|selectattr('reviewed_id', 'equalto', c.utente.id)|list %}
-                                    {% if not host_reviewed_guest %}
-                                    <button onclick="openReviewModal({{ offer.id }}, '{{ c.utente.nome }}', {{ c.utente.id }})" class="btn btn-accent btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">🌟 Recensisci</button>
-                                    {% else %}
-                                    <span style="font-size: 0.7rem; color: var(--success); font-weight: 700;">✨ Recensito</span>
+                                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                                    {% set participant_whatsapp = build_whatsapp_offer_link(current_user, c.utente, offer) %}
+                                    {% if participant_whatsapp %}
+                                    <a href="{{ participant_whatsapp }}" target="_blank" rel="noopener noreferrer" class="profile-whatsapp-icon-btn" title="Apri WhatsApp con {{ c.utente.nome }}" aria-label="Apri WhatsApp con {{ c.utente.nome }}">{{ whatsapp_icon_svg('profile-whatsapp-icon') }}</a>
                                     {% endif %}
-                                {% endif %}
+                                    {% if offer.data_ora < completion_threshold and offer.stato != 'annullata' %}
+                                        {% set host_reviewed_guest = offer.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|selectattr('reviewed_id', 'equalto', c.utente.id)|list %}
+                                        {% set existing_host_review = host_reviewed_guest[0] if host_reviewed_guest else None %}
+                                        {% if not existing_host_review %}
+                                        <button type="button" onclick='openReviewModal({{ offer.id }}, {{ offer.nome_locale|tojson }}, {{ c.utente.id }})' class="btn btn-accent btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">🌟 Recensisci</button>
+                                        {% elif existing_host_review.created_at >= review_edit_threshold %}
+                                        <button type="button" onclick='openReviewModal({{ offer.id }}, {{ offer.nome_locale|tojson }}, {{ c.utente.id }}, {{ existing_host_review.rating }}, {{ existing_host_review.commento|default("", true)|tojson }})' class="btn btn-outline btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">✏️ Modifica recensione</button>
+                                        {% else %}
+                                        <span style="font-size: 0.7rem; color: var(--success); font-weight: 700;">✨ Recensito</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
                             </div>
                             {% endfor %}
                         </div>
@@ -270,17 +329,26 @@
                     </span>
                     <h4 class="mt-1">{{ claim.offerta.nome_locale }}</h4>
                     <div class="address">📍 {{ claim.offerta.indirizzo }}</div>
-                    <div class="datetime-info" style="margin-top: 8px; font-weight: 500;">📅 {{ claim.offerta.data_ora.strftime('%d/%m/%Y alle ore %H:%M') }}</div>
+                    <div class="datetime-info" style="margin-top: 8px; font-weight: 500;">📅 {{ format_offer_datetime_label(claim.offerta.data_ora) }}</div>
                 </div>
                 <div class="offer-card-footer" style="flex-direction: column; gap: 8px;">
+                    {% set host_whatsapp = build_whatsapp_offer_link(current_user, claim.offerta.autore, claim.offerta) %}
+                    {% if host_whatsapp %}
+                    <div style="display:flex; justify-content:center; width:100%;">
+                        <a href="{{ host_whatsapp }}" target="_blank" rel="noopener noreferrer" class="profile-whatsapp-icon-btn" title="Apri WhatsApp con {{ claim.offerta.autore.nome }}" aria-label="Apri WhatsApp con {{ claim.offerta.autore.nome }}">{{ whatsapp_icon_svg('profile-whatsapp-icon') }}</a>
+                    </div>
+                    {% endif %}
                     {% set has_reviewed = claim.offerta.reviews|selectattr('reviewer_id', 'equalto', current_user.id)|list %}
+                    {% set existing_claim_review = has_reviewed[0] if has_reviewed else None %}
                     
-                    {% if claim.offerta.data_ora < now and not has_reviewed and claim.offerta.stato != 'annullata' %}
-                    <button onclick="openReviewModal({{ claim.offerta.id }}, '{{ claim.offerta.nome_locale }}', {{ claim.offerta.user_id }})" class="btn btn-primary btn-sm" style="width:100%;">🌟 Lascia Recensione</button>
-                    {% elif has_reviewed %}
+                    {% if claim.offerta.data_ora < completion_threshold and not existing_claim_review and claim.offerta.stato != 'annullata' %}
+                    <button type="button" onclick='openReviewModal({{ claim.offerta.id }}, {{ claim.offerta.nome_locale|tojson }}, {{ claim.offerta.user_id }})' class="btn btn-primary btn-sm" style="width:100%;">🌟 Lascia Recensione</button>
+                    {% elif existing_claim_review and existing_claim_review.created_at >= review_edit_threshold %}
+                    <button type="button" onclick='openReviewModal({{ claim.offerta.id }}, {{ claim.offerta.nome_locale|tojson }}, {{ claim.offerta.user_id }}, {{ existing_claim_review.rating }}, {{ existing_claim_review.commento|default("", true)|tojson }})' class="btn btn-outline btn-sm" style="width:100%;">✏️ Modifica recensione</button>
+                    {% elif existing_claim_review %}
                     <div class="text-center" style="color: var(--success); font-weight: 700; font-size: 0.85rem; padding: 8px;">✨ Già Recensito</div>
                     {% elif claim.offerta.data_ora < now %}
-                    <div class="text-center" style="color: var(--text-muted); font-size: 0.85rem; padding: 8px;">⏳ Concluso</div>
+                                    <div class="text-center" style="color: var(--text-muted); font-size: 0.85rem; padding: 8px;">⏳ Torna più tardi per una recensione</div>
                     {% else %}
                     <button onclick="if(confirm('Sei sicuro di voler annullare la partecipazione? L\'organizzatore verrà avvisato via email.')) unclaimOffer({{ claim.id }})" class="btn btn-outline btn-sm" style="width:100%; color:var(--error); border-color:var(--error);">🚫 Annulla</button>
                     {% endif %}
@@ -296,16 +364,34 @@
         {% endif %}
     </div>
 
+    <div id="own-profile-gallery-modal" class="profile-gallery-modal" aria-hidden="true">
+        <div class="profile-gallery-modal-backdrop" onclick="closeOwnProfileGallery()"></div>
+        <div class="profile-gallery-dialog" role="dialog" aria-modal="true" aria-label="Galleria foto profilo" onclick="event.stopPropagation()">
+            <button type="button" class="profile-gallery-close" onclick="closeOwnProfileGallery()" aria-label="Chiudi galleria">&times;</button>
+            <div class="profile-gallery-stage">
+                <img id="own-profile-gallery-image" src="" alt="Foto profilo ingrandita">
+            </div>
+            <div class="profile-gallery-controls">
+                <div id="own-profile-gallery-caption" class="profile-gallery-caption"></div>
+                <button type="button" class="profile-gallery-nav profile-gallery-prev" id="own-profile-gallery-prev" onclick="moveOwnProfileGallery(-1)" aria-label="Foto precedente">&#8249;</button>
+                <button type="button" class="profile-gallery-nav profile-gallery-next" id="own-profile-gallery-next" onclick="moveOwnProfileGallery(1)" aria-label="Foto successiva">&#8250;</button>
+            </div>
+            <div id="own-profile-gallery-thumbs" class="profile-gallery-modal-thumbs"></div>
+        </div>
+    </div>
+
     <!-- Review Modal -->
-    <div id="review-modal" class="modal" style="display: none; align-items: center; justify-content: center;">
-        <div class="glass-card" style="width: 100%; max-width: 450px; position: relative;">
+    <div id="review-modal" class="review-modal-shell" aria-hidden="true">
+        <div class="review-modal-backdrop" onclick="closeReviewModal()"></div>
+        <div class="glass-card review-modal-dialog" style="width: 100%; max-width: 450px; position: relative;" onclick="event.stopPropagation()">
             <button onclick="closeReviewModal()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;">&times;</button>
-            <h2 class="text-center mb-1">Lascia un feedback</h2>
+            <h2 id="review-modal-title" class="text-center mb-1">Lascia un feedback</h2>
             <p class="text-center text-muted mb-3" id="review-venue-name"></p>
             
             <form id="review-form">
                 <input type="hidden" id="review-offer-id">
                 <input type="hidden" id="review-reviewed-id">
+                <input type="hidden" id="review-is-edit" value="0">
                 <div class="form-group text-center">
                     <label>Quanto ti è piaciuta l'esperienza?</label>
                     <div id="star-rating" style="display: flex; justify-content: center; gap: 12px; font-size: 2.2rem; margin: 15px 0;">
@@ -323,15 +409,145 @@
                     <textarea id="review-commento" class="form-control" rows="3" placeholder="Es: Ottima compagnia e cibo delizioso!"></textarea>
                 </div>
                 
-                <button type="submit" class="btn btn-primary btn-block mt-3">Invia Recensione</button>
+                <button type="submit" id="review-submit-btn" class="btn btn-primary btn-block mt-3">Invia Recensione</button>
             </form>
         </div>
     </div>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=3"></script>
     <script>
+        function toggleToastNavMenu(forceOpen) {
+            const trigger = document.getElementById('toast-nav-trigger');
+            const menu = document.getElementById('toast-nav-links');
+            if (!trigger || !menu) return;
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : menu.hidden;
+            menu.hidden = !shouldOpen;
+            trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
+
+        document.addEventListener('click', (event) => {
+            const menu = document.getElementById('toast-nav-menu');
+            if (menu && !menu.contains(event.target)) {
+                toggleToastNavMenu(false);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                toggleToastNavMenu(false);
+                closeOwnProfileGallery();
+            }
+        });
+
+        const ownProfileGalleryFilenames = {{ current_user.gallery_filenames|tojson }};
+        let ownProfileGalleryIndex = 0;
+
+        function mountOwnProfileGalleryModal() {
+            const modal = document.getElementById('own-profile-gallery-modal');
+            if (modal && modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+            return modal;
+        }
+
+        function buildUploadUrl(filename, extraVersion = '') {
+            const suffix = extraVersion ? `${extraVersion}-${filename}` : filename;
+            return `/uploads/${encodeURIComponent(filename)}?v=${encodeURIComponent(suffix)}`;
+        }
+
+        function getOwnProfileGalleryUrls() {
+            return ownProfileGalleryFilenames.map(filename => buildUploadUrl(filename));
+        }
+
+        function renderProfileAlert(messages, tone = 'error') {
+            const alertsBox = document.getElementById('profile-alerts');
+            if (!alertsBox) return;
+            const entries = Array.isArray(messages) ? messages : [messages];
+            alertsBox.innerHTML = entries.map(message => `
+                <div class="alert alert-${tone} mb-4" style="border-radius: 12px; text-align: center;">
+                    ${message}
+                </div>
+            `).join('');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function renderOwnProfileGalleryThumbs() {
+            const container = document.getElementById('own-profile-gallery-thumbs');
+            if (!container) return;
+
+            container.innerHTML = '';
+            ownProfileGalleryFilenames.forEach((filename, index) => {
+                const thumb = document.createElement('button');
+                thumb.type = 'button';
+                thumb.className = `profile-gallery-thumb ${index === ownProfileGalleryIndex ? 'is-primary' : ''}`;
+                thumb.setAttribute('aria-label', `Apri foto ${index + 1}`);
+                thumb.onclick = () => openOwnProfileGallery(index);
+
+                const img = document.createElement('img');
+                img.src = buildUploadUrl(filename);
+                img.alt = `Foto profilo ${index + 1}`;
+
+                thumb.appendChild(img);
+                container.appendChild(thumb);
+            });
+        }
+
+        function refreshOwnProfileGalleryModal() {
+            const urls = getOwnProfileGalleryUrls();
+            const modal = document.getElementById('own-profile-gallery-modal');
+            const image = document.getElementById('own-profile-gallery-image');
+            const caption = document.getElementById('own-profile-gallery-caption');
+            const prev = document.getElementById('own-profile-gallery-prev');
+            const next = document.getElementById('own-profile-gallery-next');
+
+            if (!modal || !image || !urls.length) return;
+
+            const safeIndex = Math.max(0, Math.min(ownProfileGalleryIndex, urls.length - 1));
+            ownProfileGalleryIndex = safeIndex;
+            image.src = urls[safeIndex];
+            caption.textContent = `Foto ${safeIndex + 1} di ${urls.length}`;
+            if (prev) prev.disabled = urls.length <= 1;
+            if (next) next.disabled = urls.length <= 1;
+            renderOwnProfileGalleryThumbs();
+        }
+
+        function openOwnProfileGallery(index = 0) {
+            if (!ownProfileGalleryFilenames.length) return;
+            const modal = mountOwnProfileGalleryModal();
+            if (!modal) return;
+            ownProfileGalleryIndex = index;
+            modal.classList.add('is-visible');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+            refreshOwnProfileGalleryModal();
+        }
+
+        function closeOwnProfileGallery() {
+            const modal = document.getElementById('own-profile-gallery-modal');
+            if (!modal) return;
+            modal.classList.remove('is-visible');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+        }
+
+        function moveOwnProfileGallery(direction) {
+            if (ownProfileGalleryFilenames.length <= 1) return;
+            ownProfileGalleryIndex = (ownProfileGalleryIndex + direction + ownProfileGalleryFilenames.length) % ownProfileGalleryFilenames.length;
+            refreshOwnProfileGalleryModal();
+        }
+
+        mountOwnProfileGalleryModal();
+
+        function mountReviewModal() {
+            const modal = document.getElementById('review-modal');
+            if (modal && modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+            return modal;
+        }
+
         // --- Review Modal Logic ---
         let selectedRating = 0;
         const stars = document.querySelectorAll('#star-rating .star');
@@ -360,19 +576,36 @@
             });
         }
 
-        function openReviewModal(offerId, venueName, reviewedId) {
+        function openReviewModal(offerId, venueName, reviewedId, existingRating = 0, existingComment = '') {
+            const reviewModal = mountReviewModal();
             document.getElementById('review-offer-id').value = offerId;
             document.getElementById('review-reviewed-id').value = reviewedId;
             document.getElementById('review-venue-name').innerHTML = `Pasto presso <b>${venueName}</b>`;
-            document.getElementById('review-modal').style.display = 'flex';
-            selectedRating = 0;
-            highlightStars(0);
-            document.getElementById('review-commento').value = '';
+            document.getElementById('review-is-edit').value = existingRating ? '1' : '0';
+            document.getElementById('review-modal-title').textContent = existingRating ? 'Modifica il tuo feedback' : 'Lascia un feedback';
+            document.getElementById('review-submit-btn').textContent = existingRating ? 'Aggiorna recensione' : 'Invia Recensione';
+            reviewModal.classList.add('is-visible');
+            reviewModal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+            selectedRating = Number(existingRating) || 0;
+            highlightStars(selectedRating);
+            document.getElementById('selected-rating').value = selectedRating;
+            document.getElementById('review-commento').value = existingComment || '';
+            reviewModal.scrollTop = 0;
+            const reviewDialog = document.querySelector('.review-modal-dialog');
+            if (reviewDialog) {
+                reviewDialog.scrollTop = 0;
+            }
         }
 
         function closeReviewModal() {
-            document.getElementById('review-modal').style.display = 'none';
+            const reviewModal = document.getElementById('review-modal');
+            reviewModal.classList.remove('is-visible');
+            reviewModal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
         }
+
+        mountReviewModal();
 
         document.getElementById('review-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -383,6 +616,7 @@
             }
 
             const offerId = document.getElementById('review-offer-id').value;
+            const reviewedId = document.getElementById('review-reviewed-id').value;
             const commento = document.getElementById('review-commento').value;
 
             try {
@@ -471,17 +705,72 @@
         }
 
         const fotoInput = document.getElementById('foto');
+        const profileGalleryPreview = document.getElementById('profile-gallery-preview');
+        function renderProfileGalleryFromUrls(urls, filenames = []) {
+            const preview = document.getElementById('photo-preview');
+            if (!urls || !urls.length) return;
+
+            if (preview) {
+                preview.src = urls[0];
+            }
+
+            if (profileGalleryPreview) {
+                profileGalleryPreview.innerHTML = '';
+                urls.forEach((url, index) => {
+                    const thumbButton = document.createElement('button');
+                    thumbButton.type = 'button';
+                    thumbButton.className = `profile-gallery-thumb ${index === 0 ? 'is-primary' : ''}`;
+                    thumbButton.setAttribute('aria-label', `Apri foto ${index + 1}`);
+                    thumbButton.onclick = () => openOwnProfileGallery(index);
+
+                    const thumb = document.createElement('img');
+                    thumb.src = url;
+                    thumb.alt = `Foto profilo ${index + 1}`;
+                    thumbButton.appendChild(thumb);
+                    profileGalleryPreview.appendChild(thumbButton);
+                });
+            }
+
+            if (filenames.length) {
+                ownProfileGalleryFilenames.splice(0, ownProfileGalleryFilenames.length, ...filenames);
+                ownProfileGalleryIndex = 0;
+                renderOwnProfileGalleryThumbs();
+            }
+        }
+
         if (fotoInput) {
             fotoInput.addEventListener('change', function() {
-                const file = this.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = e => {
-                        const preview = document.getElementById('photo-preview');
-                        if (preview) preview.src = e.target.result;
-                    };
-                    reader.readAsDataURL(file);
+                const selectedFiles = Array.from(this.files || []).slice(0, 5);
+                const preview = document.getElementById('photo-preview');
+
+                if (!selectedFiles.length) {
+                    return;
                 }
+
+                if (profileGalleryPreview) {
+                    profileGalleryPreview.innerHTML = '';
+                }
+
+                selectedFiles.forEach((file, index) => {
+                    const objectUrl = URL.createObjectURL(file);
+
+                    if (index === 0 && preview) {
+                        preview.src = objectUrl;
+                    }
+
+                    if (profileGalleryPreview) {
+                        const thumbButton = document.createElement('button');
+                        thumbButton.type = 'button';
+                        thumbButton.className = `profile-gallery-thumb ${index === 0 ? 'is-primary' : ''}`;
+                        thumbButton.setAttribute('aria-label', `Anteprima foto ${index + 1}`);
+
+                        const thumb = document.createElement('img');
+                        thumb.src = objectUrl;
+                        thumb.alt = `Foto profilo ${index + 1}`;
+                        thumbButton.appendChild(thumb);
+                        profileGalleryPreview.appendChild(thumbButton);
+                    }
+                });
             });
         }
 
@@ -533,12 +822,21 @@
                     });
                     const data = await res.json();
                     if (data.success) {
+                        renderProfileAlert('Profilo aggiornato con successo!', 'success');
+                        if (data.gallery_filenames && data.gallery_filenames.length) {
+                            const galleryUrls = data.gallery_filenames.map(
+                                filename => buildUploadUrl(filename, Date.now())
+                            );
+                            renderProfileGalleryFromUrls(galleryUrls, data.gallery_filenames);
+                        }
                         showToast('Profilo aggiornato con successo!', 'success');
-                        setTimeout(() => window.location.href = '/dashboard', 1500);
+                        setTimeout(() => window.location.href = `/profile?updated=${Date.now()}`, 1200);
                     } else {
+                        renderProfileAlert(data.errors, 'error');
                         showToast(data.errors.join(' '), 'error');
                     }
                 } catch (err) {
+                    renderProfileAlert('Errore di connessione. Riprova tra poco.', 'error');
                     showToast('Errore di connessione', 'error');
                 } finally {
                     btn.innerHTML = originalText;

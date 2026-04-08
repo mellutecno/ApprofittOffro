@@ -1,0 +1,23 @@
+<div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#fffaf4; padding:32px; border-radius:16px; border:1px solid #fed7aa;">
+    <h2 style="color:#c2410c;">✏️ Evento aggiornato</h2>
+    <p>Ciao <b>{{ user.nome }}</b>, l'evento a cui hai aderito è stato aggiornato da <b>{{ actor_name }}</b>.</p>
+
+    <div style="background:white; padding:20px; border-radius:12px; margin:16px 0; border-left:4px solid #f97316;">
+        <b style="font-size:1.15rem;">{{ offer.nome_locale }}</b><br>
+        📍 {{ offer.indirizzo }}<br>
+        🕒 {{ data_evento }}<br>
+        {{ '☕' if offer.tipo_pasto == 'colazione' else '🌙' if offer.tipo_pasto == 'cena' else '🍝' }} {{ offer.tipo_pasto.capitalize() }}
+    </div>
+
+    <div style="background:rgba(249,115,22,0.08); padding:16px; border-radius:12px; color:#7c2d12; margin-bottom:16px;">
+        <b>Cosa è cambiato:</b>
+        <ul style="margin:10px 0 0 18px; padding:0;">
+            {% for change in changes %}
+            <li style="margin-bottom:6px;">{{ change }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <p style="font-size:0.95rem; color:#4b5563;">Apri ApprofittOffro per ricontrollare i dettagli aggiornati dell'evento.</p>
+    <p style="color:#9ca3af; font-size:0.8rem; margin-top:24px;">- Team ApprofittOffro</p>
+</div>

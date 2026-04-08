@@ -6,10 +6,22 @@ Applicazione web per offrire e approfittare di pasti.
 import os
 import uuid
 import math
-from datetime import datetime, timedelta
+import re
+import sqlite3
+import io
+import tempfile
+import json
+from html import escape
+from urllib.parse import quote
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from functools import wraps
 
 from dotenv import load_dotenv
+from google.auth.transport.requests import Request as GoogleAuthRequest
+from google.oauth2 import id_token as google_id_token
 from flask import (
     Flask,
     render_template,
@@ -19,7 +31,10 @@ from flask import (
     flash,
     jsonify,
     session,
+    abort,
 )
+from sqlalchemy import or_
+from sqlalchemy.orm import selectinload
 from flask_login import (
     LoginManager,
     login_user,
@@ -29,10 +44,24 @@ from flask_login import (
 )
 from functools import wraps
 from werkzeug.utils import secure_filename
-from PIL import Image
+from PIL import Image, ImageDraw
 
-from models import db, User, Offer, Claim, FASCE_ETA, TIPI_PASTO
+from models import (
+    db,
+    User,
+    Offer,
+    Claim,
+    CLAIM_STATUS_ACCEPTED,
+    CLAIM_STATUS_PENDING,
+    Review,
+    TIPI_PASTO,
+    FASCE_ETA,
+    SESSI_UTENTE,
+    UserPhoto,
+    UserFollow,
+)
 from verify_photo import verifica_volto
+from upload_storage import create_upload_storage, StorageObjectNotFound
 
 # ---------------------------------------------------------------------------
 # Configurazione
@@ -45,6 +74,7 @@ def load_app_env():
     """Carica il primo file .env disponibile, con override via APP_ENV_FILE."""
     env_candidates = [
         os.getenv("APP_ENV_FILE"),
+        os.path.join(os.path.expanduser("~"), ".env"),
         os.path.join(EXECUTION_DIR, ".env"),
         os.path.join(PROJECT_ROOT, ".env"),
     ]
@@ -65,6 +95,23 @@ SQLITE_PATH = os.path.abspath(
 UPLOAD_FOLDER = os.path.abspath(
     os.getenv("APP_UPLOAD_FOLDER", os.path.join(DATA_ROOT, "uploads"))
 )
+APP_TIMEZONE_NAME = os.getenv("APP_TIMEZONE", "Europe/Rome")
+
+try:
+    APP_TIMEZONE = ZoneInfo(APP_TIMEZONE_NAME)
+except ZoneInfoNotFoundError:
+    APP_TIMEZONE = timezone.utc
+
+
+def normalize_database_url(database_url):
+    """Rende compatibili gli URL Postgres di Render con SQLAlchemy/psycopg."""
+    if not database_url:
+        return None
+    if database_url.startswith("postgres://"):
+        return "postgresql+psycopg://" + database_url[len("postgres://"):]
+    if database_url.startswith("postgresql://") and "+psycopg" not in database_url:
+        return "postgresql+psycopg://" + database_url[len("postgresql://"):]
+    return database_url
 
 # Garantisce che SQLite possa essere creato anche in deploy che puntano fuori repo.
 os.makedirs(os.path.dirname(SQLITE_PATH), exist_ok=True)
@@ -84,17 +131,592 @@ def add_header(response):
     return response
 
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "approfittoffro-dev-key-change-me")
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-    "DATABASE_URL",
-    "sqlite:///" + SQLITE_PATH,
-)
+app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(
+    os.getenv("DATABASE_URL")
+) or ("sqlite:///" + SQLITE_PATH)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64 MB max upload (telefoni moderni)
+app.config["UPLOAD_STORAGE_BACKEND"] = os.getenv("APP_STORAGE_BACKEND", "local").strip().lower()
+app.config["R2_ACCOUNT_ID"] = os.getenv("R2_ACCOUNT_ID", "")
+app.config["R2_ACCESS_KEY_ID"] = os.getenv("R2_ACCESS_KEY_ID", "")
+app.config["R2_SECRET_ACCESS_KEY"] = os.getenv("R2_SECRET_ACCESS_KEY", "")
+app.config["R2_BUCKET_NAME"] = os.getenv("R2_BUCKET_NAME", "")
+app.config["R2_ENDPOINT_URL"] = os.getenv("R2_ENDPOINT_URL", "")
+app.config["GOOGLE_PLACES_API_KEY"] = os.getenv("GOOGLE_PLACES_API_KEY", "").strip()
+app.config["GOOGLE_OAUTH_CLIENT_IDS"] = os.getenv(
+    "GOOGLE_OAUTH_CLIENT_IDS",
+    os.getenv("GOOGLE_OAUTH_CLIENT_ID", ""),
+).strip()
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+upload_storage = create_upload_storage(app.config)
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+MAX_PROFILE_PHOTOS = 5
+BREAKFAST_BOOKING_LEAD_HOURS = 1
+MEAL_BOOKING_LEAD_HOURS = 6
+USER_SESSION_IDLE_TIMEOUT_MINUTES = 60
+ADMIN_SESSION_IDLE_TIMEOUT_MINUTES = 30
+REVIEW_EDIT_WINDOW_HOURS = 3
+DEFAULT_USER_LATITUDE = 41.9028
+DEFAULT_USER_LONGITUDE = 12.4964
+COMMUNITY_GENDER_FILTERS = [
+    ("", "Tutti"),
+    ("maschio", "Maschi"),
+    ("femmina", "Femmine"),
+]
+
+
+def get_google_oauth_client_ids():
+    """Restituisce i client OAuth Google ammessi per il login mobile."""
+    raw_value = app.config.get("GOOGLE_OAUTH_CLIENT_IDS", "")
+    return [item.strip() for item in re.split(r"[\s,;]+", raw_value) if item.strip()]
+
+
+def google_oauth_enabled():
+    return bool(get_google_oauth_client_ids())
+
+
+@app.route("/api/auth/google/config", methods=["GET"])
+def api_google_login_config():
+    """Espone la configurazione pubblica minima necessaria al login Google mobile."""
+    allowed_client_ids = get_google_oauth_client_ids()
+    return jsonify(
+        {
+            "success": True,
+            "enabled": bool(allowed_client_ids),
+            "server_client_id": allowed_client_ids[0] if allowed_client_ids else "",
+        }
+    )
+
+
+def local_now():
+    """Restituisce l'ora locale dell'app come datetime naive coerente con i dati salvati."""
+    return datetime.now(APP_TIMEZONE).replace(tzinfo=None)
+
+
+def format_offer_datetime_label(data_ora, now=None):
+    """Formatta la data per le card evento, mostrando Oggi/Domani solo per eventi futuri imminenti."""
+    if now is None:
+        now = local_now()
+
+    if data_ora < now:
+        return data_ora.strftime("%d/%m/%Y alle %H:%M")
+
+    today = now.date()
+    event_day = data_ora.date()
+
+    if event_day == today:
+        return f"Oggi alle {data_ora.strftime('%H:%M')}"
+    if event_day == today + timedelta(days=1):
+        return f"Domani alle {data_ora.strftime('%H:%M')}"
+
+    return data_ora.strftime("%d/%m/%Y alle %H:%M")
+
+
+def get_booking_lead_hours_for_meal_type(tipo_pasto):
+    """Restituisce l'anticipo minimo richiesto per il tipo di pasto."""
+    return BREAKFAST_BOOKING_LEAD_HOURS if tipo_pasto == "colazione" else MEAL_BOOKING_LEAD_HOURS
+
+
+def get_offer_booking_lead_hours(offer):
+    """Restituisce l'anticipo minimo richiesto per prenotare un'offerta."""
+    return get_booking_lead_hours_for_meal_type(offer.tipo_pasto)
+
+
+def get_offer_booking_deadline(offer):
+    """Calcola il momento oltre il quale non si puo' piu' approfittare dell'offerta."""
+    return offer.data_ora - timedelta(hours=get_offer_booking_lead_hours(offer))
+
+
+def get_booking_deadline_for_meal_type(tipo_pasto, data_ora):
+    """Calcola la scadenza prenotazioni per un nuovo evento non ancora persistito."""
+    return data_ora - timedelta(hours=get_booking_lead_hours_for_meal_type(tipo_pasto))
+
+
+def is_offer_booking_closed(offer, now=None):
+    """Indica se la finestra per approfittare dell'offerta e' gia' chiusa."""
+    if now is None:
+        now = local_now()
+    return now >= get_offer_booking_deadline(offer)
+
+
+def is_new_offer_publication_too_late(tipo_pasto, data_ora, now=None):
+    """Indica se l'offerta nascerebbe gia' con prenotazioni chiuse."""
+    if now is None:
+        now = local_now()
+    return now >= get_booking_deadline_for_meal_type(tipo_pasto, data_ora)
+
+
+def get_offer_booking_closed_message(offer):
+    """Messaggio esplicativo per la chiusura delle prenotazioni."""
+    if offer.tipo_pasto == "colazione":
+        return "Le colazioni si possono approfittare solo fino a 1 ora prima dell'inizio."
+    return "Pranzi e cene si possono approfittare solo fino a 6 ore prima dell'inizio."
+
+
+def get_offer_publication_too_late_message(tipo_pasto):
+    """Messaggio esplicativo quando si tenta di pubblicare troppo tardi."""
+    if tipo_pasto == "colazione":
+        return "Questa colazione verrebbe pubblicata troppo tardi: deve essere inserita almeno 1 ora prima dell'inizio."
+    if tipo_pasto == "pranzo":
+        return "Questo pranzo verrebbe pubblicato troppo tardi: i pranzi devono essere inseriti almeno 6 ore prima dell'inizio."
+    return "Questa cena verrebbe pubblicata troppo tardi: le cene devono essere inserite almeno 6 ore prima dell'inizio."
+
+
+def get_same_day_offer_conflict(user_id, tipo_pasto, data_ora, exclude_offer_id=None):
+    """Trova un'altra offerta dello stesso utente, stesso pasto e stessa data."""
+    day_start = data_ora.replace(hour=0, minute=0, second=0, microsecond=0)
+    next_day = day_start + timedelta(days=1)
+
+    query = Offer.query.filter(
+        Offer.user_id == user_id,
+        Offer.tipo_pasto == tipo_pasto,
+        Offer.stato != "annullata",
+        Offer.data_ora >= day_start,
+        Offer.data_ora < next_day,
+    )
+
+    if exclude_offer_id is not None:
+        query = query.filter(Offer.id != exclude_offer_id)
+
+    return query.order_by(Offer.data_ora.asc()).first()
+
+
+def get_meal_type_copy(tipo_pasto):
+    """Etichette testuali per messaggi UX sul tipo di pasto."""
+    labels = {
+        "colazione": {"singular": "colazione", "plural": "colazioni"},
+        "pranzo": {"singular": "pranzo", "plural": "pranzi"},
+        "cena": {"singular": "cena", "plural": "cene"},
+    }
+    return labels.get(tipo_pasto, {"singular": tipo_pasto, "plural": tipo_pasto})
+
+
+def get_meal_type_label(tipo_pasto):
+    """Restituisce il nome leggibile del tipo di pasto."""
+    for value, label in TIPI_PASTO:
+        if value == tipo_pasto:
+            return label
+    return tipo_pasto.title()
+
+
+def get_spots_copy(spots_count):
+    """Restituisce una label leggibile per i posti disponibili."""
+    if spots_count == 1:
+        return "1 posto disponibile"
+    return f"{spots_count} posti disponibili"
+
+
+def get_offer_accepted_claims(offer):
+    """Restituisce solo i claim gia' accettati dall'host."""
+    return [claim for claim in offer.claims if claim.status == CLAIM_STATUS_ACCEPTED]
+
+
+def get_offer_pending_claims(offer):
+    """Restituisce solo le richieste ancora in attesa di approvazione."""
+    return [claim for claim in offer.claims if claim.status == CLAIM_STATUS_PENDING]
+
+
+def get_followed_offer_notification_subject(offer):
+    """Costruisce l'oggetto mail per le nuove offerte dei profili seguiti."""
+    if offer.tipo_pasto == "pranzo":
+        return f"{offer.autore.nome} ha pubblicato un nuovo pranzo: {offer.nome_locale}"
+    return f"{offer.autore.nome} ha pubblicato una nuova {offer.tipo_pasto}: {offer.nome_locale}"
+
+
+def get_followed_offer_notification_heading(offer):
+    """Titolo mail con genere corretto per le offerte dei profili seguiti."""
+    if offer.tipo_pasto == "pranzo":
+        return f"{offer.autore.nome} ha pubblicato un nuovo pranzo"
+    return f"{offer.autore.nome} ha pubblicato una nuova {offer.tipo_pasto}"
+
+
+def get_session_idle_timeout_seconds(user):
+    """Restituisce il timeout inattivita' per il tipo di utente."""
+    timeout_minutes = (
+        ADMIN_SESSION_IDLE_TIMEOUT_MINUTES
+        if is_admin_user(user)
+        else USER_SESSION_IDLE_TIMEOUT_MINUTES
+    )
+    return timeout_minutes * 60
+
+
+def get_followers_notification_targets(offer):
+    """Trova gli utenti che seguono l'autore e devono ricevere le nuove offerte."""
+    return User.query.join(
+        UserFollow,
+        UserFollow.follower_id == User.id,
+    ).filter(
+        UserFollow.followed_id == offer.user_id,
+        User.verificato.is_(True),
+        User.is_admin.is_(False),
+        User.email.isnot(None),
+        User.email != "",
+        User.id != offer.user_id,
+    ).all()
+
+
+def notify_followers_for_new_offer(offer):
+    """Invia una mail ai profili che seguono l'autore quando nasce una nuova offerta."""
+    if offer.data_ora <= local_now():
+        return 0
+
+    if not email_delivery_enabled():
+        print(
+            f"[MAIL_SKIP] Provider email non configurato: nessuna notifica follower per l'offerta {offer.id}."
+        )
+        return 0
+
+    followers = get_followers_notification_targets(offer)
+    if not followers:
+        return 0
+
+    data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    booking_rule_copy = (
+        "Le colazioni si possono approfittare fino a 1 ora prima."
+        if offer.tipo_pasto == "colazione"
+        else "Pranzi e cene si possono approfittare fino a 6 ore prima."
+    )
+    meal_label = get_meal_type_label(offer.tipo_pasto)
+    spots_copy = get_spots_copy(offer.posti_disponibili)
+
+    for follower in followers:
+        send_email(
+            get_followed_offer_notification_subject(offer),
+            [follower.email],
+            "nearby_offer_notification.html",
+            user=follower,
+            offer=offer,
+            autore=offer.autore,
+            notification_heading=get_followed_offer_notification_heading(offer),
+            meal_label=meal_label,
+            data_evento=data_evento,
+            spots_copy=spots_copy,
+            booking_rule_copy=booking_rule_copy,
+        )
+
+    return len(followers)
+
+
+def send_claim_request_notification_to_host(claim):
+    """Avvisa l'host che e' arrivata una nuova richiesta da approvare."""
+    offer = claim.offerta
+    guest = claim.utente
+    if not offer or not guest:
+        print(
+            f"[CLAIM_MAIL_SKIP] richiesta host non inviata: claim={getattr(claim, 'id', None)} offer/guest mancanti"
+        )
+        return
+    if not offer.autore.email:
+        print(
+            f"[CLAIM_MAIL_SKIP] richiesta host non inviata: host senza email offer={offer.id} host={offer.user_id}"
+        )
+        return
+
+    data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    print(
+        f"[CLAIM_MAIL_FLOW] richiesta host claim={claim.id} offer={offer.id} host_email={offer.autore.email} guest_email={guest.email or '-'} provider={get_active_email_provider()}"
+    )
+    send_email(
+        f"Nuova richiesta da approvare per '{offer.nome_locale}'",
+        [offer.autore.email],
+        "claim_notification.html",
+        background=False,
+        user=guest,
+        offer=offer,
+        data_evento=data_evento,
+    )
+
+
+def send_claim_accepted_email(claim):
+    """Conferma al partecipante che l'host ha accettato la richiesta."""
+    offer = claim.offerta
+    guest = claim.utente
+    if not offer or not guest:
+        print(
+            f"[CLAIM_MAIL_SKIP] accettazione non inviata: claim={getattr(claim, 'id', None)} offer/guest mancanti"
+        )
+        return
+    if not guest.email:
+        print(
+            f"[CLAIM_MAIL_SKIP] accettazione non inviata: guest senza email claim={claim.id} guest={guest.id}"
+        )
+        return
+
+    data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    print(
+        f"[CLAIM_MAIL_FLOW] accettazione claim={claim.id} offer={offer.id} guest_email={guest.email} host_email={offer.autore.email or '-'} provider={get_active_email_provider()}"
+    )
+    send_email(
+        f"Richiesta accettata per '{offer.nome_locale}'",
+        [guest.email],
+        "claim_confirmed.html",
+        background=False,
+        user=guest,
+        offer=offer,
+        data_evento=data_evento,
+    )
+
+
+def send_claim_rejected_email(claim):
+    """Avvisa il partecipante che la richiesta e' stata rifiutata dall'host."""
+    offer = claim.offerta
+    guest = claim.utente
+    if not offer or not guest:
+        print(
+            f"[CLAIM_MAIL_SKIP] rifiuto non inviato: claim={getattr(claim, 'id', None)} offer/guest mancanti"
+        )
+        return
+    if not guest.email:
+        print(
+            f"[CLAIM_MAIL_SKIP] rifiuto non inviato: guest senza email claim={claim.id} guest={guest.id}"
+        )
+        return
+
+    data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    print(
+        f"[CLAIM_MAIL_FLOW] rifiuto claim={claim.id} offer={offer.id} guest_email={guest.email} host_email={offer.autore.email or '-'} provider={get_active_email_provider()}"
+    )
+    send_email(
+        f"Richiesta non accettata per '{offer.nome_locale}'",
+        [guest.email],
+        "claim_rejected.html",
+        background=False,
+        user=guest,
+        offer=offer,
+        host=offer.autore,
+        data_evento=data_evento,
+    )
+
+
+def send_review_received_email(review, *, is_update=False):
+    """Avvisa il destinatario quando riceve o vede aggiornata una recensione."""
+    if not review:
+        return False
+
+    offer = review.offerta
+    reviewer = review.reviewer
+    reviewed = review.reviewed
+    if not offer or not reviewer or not reviewed:
+        print(
+            f"[REVIEW_MAIL_SKIP] review={getattr(review, 'id', None)} offer/reviewer/reviewed mancanti"
+        )
+        return False
+    if not reviewed.email:
+        print(
+            f"[REVIEW_MAIL_SKIP] review={review.id} destinatario senza email reviewed={reviewed.id}"
+        )
+        return False
+
+    data_evento = (
+        offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+        if offer.data_ora
+        else ""
+    )
+    action_label = "ha aggiornato" if is_update else "ti ha lasciato"
+    print(
+        f"[REVIEW_MAIL_FLOW] review={review.id} offer={offer.id} "
+        f"reviewer_email={reviewer.email or '-'} reviewed_email={reviewed.email} "
+        f"update={is_update} provider={get_active_email_provider()}"
+    )
+    return send_email(
+        subject=f"{reviewer.nome} {action_label} una recensione",
+        recipients=[reviewed.email],
+        template="review_received.html",
+        background=False,
+        reviewed_user=reviewed,
+        reviewer_user=reviewer,
+        offer=offer,
+        data_evento=data_evento,
+        rating=review.rating,
+        commento=review.commento or "",
+        is_update=is_update,
+    )
+
+
+def snapshot_offer_notification_state(offer):
+    """Cattura i campi dell'offerta utili per notificare modifiche ai partecipanti."""
+    return {
+        "tipo_pasto": offer.tipo_pasto,
+        "nome_locale": offer.nome_locale,
+        "indirizzo": offer.indirizzo,
+        "data_ora": offer.data_ora,
+        "posti_totali": offer.posti_totali,
+        "descrizione": (offer.descrizione or "").strip(),
+    }
+
+
+def get_offer_update_changes(previous_state, offer):
+    """Elenca i cambiamenti rilevanti per i partecipanti di un evento."""
+    changes = []
+
+    if previous_state["tipo_pasto"] != offer.tipo_pasto:
+        changes.append(
+            f"Tipo di pasto: {get_meal_type_label(previous_state['tipo_pasto'])} -> {get_meal_type_label(offer.tipo_pasto)}"
+        )
+    if previous_state["nome_locale"] != offer.nome_locale:
+        changes.append(f"Locale: {previous_state['nome_locale']} -> {offer.nome_locale}")
+    if previous_state["indirizzo"] != offer.indirizzo:
+        changes.append(f"Indirizzo: {previous_state['indirizzo']} -> {offer.indirizzo}")
+    if previous_state["data_ora"] != offer.data_ora:
+        changes.append(
+            f"Quando: {previous_state['data_ora'].strftime('%d/%m/%Y alle %H:%M')} -> {offer.data_ora.strftime('%d/%m/%Y alle %H:%M')}"
+        )
+    if previous_state["posti_totali"] != offer.posti_totali:
+        changes.append(f"Posti totali: {previous_state['posti_totali']} -> {offer.posti_totali}")
+    if previous_state["descrizione"] != (offer.descrizione or "").strip():
+        changes.append("Descrizione aggiornata")
+
+    return changes
+
+
+def notify_claimants_for_offer_update(offer, previous_state, actor):
+    """Avvisa i partecipanti quando un'offerta gia' prenotata viene modificata."""
+    changes = get_offer_update_changes(previous_state, offer)
+    if not changes:
+        return 0
+
+    claims = Claim.query.filter_by(
+        offer_id=offer.id,
+        status=CLAIM_STATUS_ACCEPTED,
+    ).all()
+    if not claims:
+        return 0
+
+    data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    actor_name = actor.nome if actor else offer.autore.nome
+
+    notified = 0
+    for claim in claims:
+        if not claim.utente.email:
+            continue
+        send_email(
+            f"Evento aggiornato: {offer.nome_locale}",
+            [claim.utente.email],
+            "offer_updated.html",
+            user=claim.utente,
+            offer=offer,
+            actor_name=actor_name,
+            data_evento=data_evento,
+            changes=changes,
+        )
+        notified += 1
+
+    return notified
+
+
+def ensure_legacy_sqlite_compatibility(sqlite_path):
+    """Aggiunge le colonne legacy mancanti per evitare crash su vecchi DB SQLite."""
+    conn = sqlite3.connect(sqlite_path)
+    try:
+        cur = conn.cursor()
+
+        def table_exists(table_name):
+            cur.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (table_name,),
+            )
+            return cur.fetchone() is not None
+
+        def columns_for(table_name):
+            cur.execute(f"PRAGMA table_info({table_name})")
+            return {row[1] for row in cur.fetchall()}
+
+        def ensure_column(table_name, column_name, ddl):
+            if not table_exists(table_name):
+                return
+            if column_name in columns_for(table_name):
+                return
+            cur.execute(ddl)
+
+        legacy_columns = {
+            "users": [
+                ("eta", "ALTER TABLE users ADD COLUMN eta INTEGER"),
+                ("sesso", "ALTER TABLE users ADD COLUMN sesso VARCHAR(20) DEFAULT 'non_dico'"),
+                ("numero_telefono", "ALTER TABLE users ADD COLUMN numero_telefono VARCHAR(32)"),
+                ("google_sub", "ALTER TABLE users ADD COLUMN google_sub VARCHAR(255)"),
+                ("citta", "ALTER TABLE users ADD COLUMN citta VARCHAR(200)"),
+                ("cibi_preferiti", "ALTER TABLE users ADD COLUMN cibi_preferiti VARCHAR(300)"),
+                ("intolleranze", "ALTER TABLE users ADD COLUMN intolleranze VARCHAR(300)"),
+                ("bio", "ALTER TABLE users ADD COLUMN bio VARCHAR(500)"),
+                ("raggio_azione", "ALTER TABLE users ADD COLUMN raggio_azione INTEGER DEFAULT 10"),
+                ("verificato", "ALTER TABLE users ADD COLUMN verificato INTEGER DEFAULT 0"),
+                ("verification_token", "ALTER TABLE users ADD COLUMN verification_token VARCHAR(100)"),
+                ("is_admin", "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"),
+                ("admin_verified_notified_at", "ALTER TABLE users ADD COLUMN admin_verified_notified_at DATETIME"),
+            ],
+            "offers": [
+                ("foto_locale", "ALTER TABLE offers ADD COLUMN foto_locale VARCHAR(256)"),
+                ("stato", "ALTER TABLE offers ADD COLUMN stato VARCHAR(20) DEFAULT 'attiva'"),
+                ("telefono_locale", "ALTER TABLE offers ADD COLUMN telefono_locale VARCHAR(50)"),
+            ],
+            "claims": [
+                ("status", "ALTER TABLE claims ADD COLUMN status VARCHAR(20) DEFAULT 'accepted'"),
+            ],
+        }
+
+        for table_name, columns in legacy_columns.items():
+            for column_name, ddl in columns:
+                ensure_column(table_name, column_name, ddl)
+
+        if not table_exists("user_photos"):
+            cur.execute("""
+                CREATE TABLE user_photos (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    filename VARCHAR(256) NOT NULL,
+                    position INTEGER NOT NULL DEFAULT 0,
+                    created_at DATETIME
+                )
+            """)
+
+        if not table_exists("user_follows"):
+            cur.execute("""
+                CREATE TABLE user_follows (
+                    id INTEGER PRIMARY KEY,
+                    follower_id INTEGER NOT NULL,
+                    followed_id INTEGER NOT NULL,
+                    created_at DATETIME,
+                    CONSTRAINT unique_user_follow UNIQUE (follower_id, followed_id)
+                )
+            """)
+
+        if table_exists("users"):
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)")
+
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def ensure_database_schema_compatibility():
+    """Allinea i campi schema aggiunti dopo il primo deploy anche su database non-SQLite."""
+    database_url = app.config["SQLALCHEMY_DATABASE_URI"]
+    if database_url.startswith("sqlite:///"):
+        return
+
+    try:
+        with db.engine.begin() as conn:
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub VARCHAR(255)"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_verified_notified_at DATETIME"
+            )
+            conn.exec_driver_sql(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE claims ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'accepted'"
+            )
+    except Exception as exc:
+        print(f"[SCHEMA_COMPAT_ERROR] {exc}")
+
+
+if app.config["SQLALCHEMY_DATABASE_URI"].startswith("sqlite:///"):
+    ensure_legacy_sqlite_compatibility(SQLITE_PATH)
 
 # --- Email Config (Motore Flask-Mail) ---
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -103,55 +725,373 @@ app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', '')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', '')
 app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('MAIL_USERNAME', ''))
+app.config['EMAIL_PROVIDER'] = os.getenv('EMAIL_PROVIDER', 'auto').strip().lower()
+app.config['RESEND_API_KEY'] = os.getenv('RESEND_API_KEY', '').strip()
+app.config['RESEND_REPLY_TO'] = os.getenv('RESEND_REPLY_TO', '').strip()
 
 from flask_mail import Mail, Message
 from threading import Thread
 
 mail = Mail(app)
 
-def send_async_email(app, msg):
-    with app.app_context():
-        try:
-            mail.send(msg)
-            print(f"[MAIL_INVIATA] Inviata con successo a: {msg.recipients[0]}")
-        except Exception as e:
-            print(f"[MAIL_ERRORE] Impossibile inviare a: {msg.recipients[0]}: {e}")
+def get_active_email_provider():
+    configured = app.config.get("EMAIL_PROVIDER", "auto")
+    if configured and configured != "auto":
+        return configured
+    if app.config.get("RESEND_API_KEY"):
+        return "resend"
+    if app.config.get("MAIL_USERNAME") and app.config.get("MAIL_PASSWORD"):
+        return "smtp"
+    return "disabled"
 
-def send_email(subject, recipients, template, **kwargs):
-    """Renderizza e invia un'email in background."""
+
+def email_delivery_enabled():
+    """Indica se esiste davvero un provider pronto a spedire email."""
+    return get_active_email_provider() in {"smtp", "resend"}
+
+
+def deliver_smtp_email(msg):
+    try:
+        mail.send(msg)
+        print(f"[MAIL_INVIATA] Inviata con successo a: {msg.recipients[0]}")
+        return True
+    except Exception as e:
+        print(f"[MAIL_ERRORE] Impossibile inviare a: {msg.recipients[0]}: {e}")
+        return False
+
+
+def send_async_smtp_email(app, msg):
+    with app.app_context():
+        deliver_smtp_email(msg)
+
+
+def deliver_resend_email(payload):
+    try:
+        api_key = app.config.get("RESEND_API_KEY", "")
+        if not api_key:
+            raise RuntimeError("RESEND_API_KEY mancante.")
+
+        request_payload = {
+            "from": payload["from_email"],
+            "to": payload["recipients"],
+            "subject": payload["subject"],
+            "html": payload["html_body"],
+        }
+        if payload.get("reply_to"):
+            request_payload["reply_to"] = payload["reply_to"]
+
+        request = Request(
+            "https://api.resend.com/emails",
+            data=json.dumps(request_payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+
+        with urlopen(request, timeout=20) as response:
+            response.read()
+        print(f"[MAIL_INVIATA_RESEND] Inviata con successo a: {payload['recipients'][0]}")
+        return True
+    except HTTPError as e:
+        try:
+            details = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            details = ""
+        print(
+            f"[MAIL_ERRORE_RESEND] HTTP {e.code} verso {payload['recipients'][0]}: {details}"
+        )
+    except URLError as e:
+        print(f"[MAIL_ERRORE_RESEND] Errore di rete verso {payload['recipients'][0]}: {e}")
+    except Exception as e:
+        print(f"[MAIL_ERRORE_RESEND] Impossibile inviare a: {payload['recipients'][0]}: {e}")
+    return False
+
+
+def send_async_resend_email(app, payload):
+    with app.app_context():
+        deliver_resend_email(payload)
+
+
+def send_email(subject, recipients, template, background=True, **kwargs):
+    """Renderizza e invia un'email, in background o subito secondo il flusso."""
     try:
         html_body = render_template(f"emails/{template}", **kwargs)
-        msg = Message(subject, recipients=recipients)
-        msg.html = html_body
-        Thread(target=send_async_email, args=(app, msg)).start()
+        return send_email_html(
+            subject,
+            recipients,
+            html_body,
+            background=background,
+        )
     except Exception as e:
         print(f"[MAIL_ERROR] Errore preparazione email {template}: {e}")
+        return False
 
-def process_image(file_storage, filename, size=(800, 800)):
-    """Salva, ruota (EXIF) e ridimensiona un'immagine."""
-    path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    file_storage.save(path)
+
+def send_email_html(subject, recipients, html_body, background=True):
+    """Invia un contenuto HTML gia' pronto tramite il provider configurato."""
+    try:
+        provider = get_active_email_provider()
+        if provider == "smtp":
+            msg = Message(subject, recipients=recipients)
+            msg.html = html_body
+            if background:
+                Thread(target=send_async_smtp_email, args=(app, msg)).start()
+                return True
+            return deliver_smtp_email(msg)
+
+        if provider == "resend":
+            payload = {
+                "subject": subject,
+                "recipients": recipients,
+                "html_body": html_body,
+                "from_email": app.config.get("MAIL_DEFAULT_SENDER"),
+                "reply_to": app.config.get("RESEND_REPLY_TO") or None,
+            }
+            if background:
+                Thread(target=send_async_resend_email, args=(app, payload)).start()
+                return True
+            return deliver_resend_email(payload)
+
+        print(
+            f"[MAIL_SKIP] Nessun provider email configurato. Salto invio '{subject}' a {recipients}."
+        )
+        return False
+    except Exception as e:
+        print(f"[MAIL_ERROR] Errore invio email '{subject}': {e}")
+        return False
+
+
+def build_verification_email_html(user, link_verifica):
+    """Costruisce un contenuto di verifica robusto e pulito, anche come fallback."""
+    return render_template(
+        "emails/verification.html",
+        user=user,
+        link_verifica=link_verifica,
+    )
+
+
+def send_registration_verification_email(user, link_verifica):
+    """Invia la mail di verifica con un fallback semplificato se il template fallisce."""
+    subject = "Benvenuto su ApprofittOffro! Conferma la tua email"
+
+    try:
+        html_body = build_verification_email_html(user, link_verifica)
+    except Exception as exc:
+        print(f"[MAIL_ERROR] Template verification.html non renderizzabile: {exc}")
+        html_body = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif; background:#F2EEEC; padding:24px; color:#2B2D42;">
+            <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:18px;padding:32px;border:1px solid #E5E0DC;">
+              <h1 style="margin-top:0;">Benvenuto in ApprofittOffro, {escape(user.nome)}!</h1>
+              <p>Per iniziare a usare la community in sicurezza, conferma il tuo indirizzo email.</p>
+              <p>
+                <a href="{escape(link_verifica)}" style="display:inline-block;background:#0EA5E9;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:bold;">
+                  Conferma la mia email
+                </a>
+              </p>
+              <p style="font-size:13px;color:#6B7280;">Se non hai richiesto tu l'iscrizione, ignora semplicemente questa email.</p>
+            </div>
+          </body>
+        </html>
+        """
+
+    return send_email_html(
+        subject,
+        [user.email],
+        html_body,
+        background=False,
+    )
+
+
+def notify_admin_for_verified_user(user, source="email"):
+    """Avvisa l'amministratore quando un utente risulta verificato."""
+    admin_email = os.getenv("ADMIN_EMAIL")
+    if not admin_email:
+        print("[MAIL_SKIP] ADMIN_EMAIL non configurata, notifica admin saltata.")
+        return False
+    if getattr(user, "admin_verified_notified_at", None):
+        print(
+            f"[ADMIN_VERIFY_MAIL] user={getattr(user, 'id', None)} "
+            f"email={getattr(user, 'email', '')} source={source} sent=False already_notified=True"
+        )
+        return False
+
+    source_label = "Google" if source == "google" else "Email"
+    created_at = getattr(user, "created_at", None)
+    created_at_text = (
+        created_at.strftime("%d/%m/%Y %H:%M")
+        if created_at is not None
+        else datetime.now().strftime("%d/%m/%Y %H:%M")
+    )
+    html_body = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background:#F2EEEC; padding:24px; color:#2B2D42;">
+        <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:18px;padding:32px;border:1px solid #E5E0DC;">
+          <h1 style="margin-top:0;">Nuovo utente verificato</h1>
+          <p>Un nuovo utente si è registrato ed è già verificato su <b>ApprofittOffro</b>.</p>
+          <div style="background:#F8F5F2;border:1px solid #E5E0DC;border-radius:14px;padding:16px;">
+            <p><b>Nome:</b> {escape(user.nome or '')}</p>
+            <p><b>Email:</b> {escape(user.email or '')}</p>
+            <p><b>Metodo:</b> {escape(source_label)}</p>
+            <p><b>Registrato il:</b> {escape(created_at_text)}</p>
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+    sent = send_email_html(
+        subject=f"Nuovo Utente Verificato: {user.nome}",
+        recipients=[admin_email],
+        html_body=html_body,
+        background=False,
+    )
+    if sent:
+        user.admin_verified_notified_at = datetime.now()
+        db.session.commit()
+    print(
+        f"[ADMIN_VERIFY_MAIL] user={getattr(user, 'id', None)} email={getattr(user, 'email', '')} "
+        f"source={source_label} sent={sent}"
+    )
+    return sent
+
+def process_image(file_storage, filename, size=(800, 800), return_payload=False):
+    """Ruota (EXIF), ridimensiona e salva un'immagine sul backend attivo."""
+    payload = None
+
     try:
         from PIL import ImageOps
-        img = Image.open(path)
-        img = ImageOps.exif_transpose(img)
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        img.thumbnail(size, Image.LANCZOS)
-        # Se vogliamo forzare JPG per risparmiare spazio
-        if not filename.lower().endswith(".jpg"):
-            new_filename = filename.rsplit(".", 1)[0] + ".jpg"
-            new_path = os.path.join(app.config["UPLOAD_FOLDER"], new_filename)
-            img.save(new_path, "JPEG", quality=85)
-            if path != new_path:
-                os.remove(path)
-            return new_filename
+
+        if hasattr(file_storage, "stream") and hasattr(file_storage.stream, "seek"):
+            file_storage.stream.seek(0)
+            source_stream = file_storage.stream
         else:
-            img.save(path, quality=85)
-            return filename
+            source_stream = file_storage
+
+        img = Image.open(source_stream)
+        img = ImageOps.exif_transpose(img)
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        img.thumbnail(size, Image.LANCZOS)
+
+        final_filename = filename.rsplit(".", 1)[0] + ".jpg"
+        output = io.BytesIO()
+        img.save(output, "JPEG", quality=85)
+        payload = {
+            "filename": final_filename,
+            "bytes": output.getvalue(),
+            "content_type": "image/jpeg",
+        }
     except Exception as e:
         print(f"[IMAGE_ERROR] Errore processamento {filename}: {e}")
+        if hasattr(file_storage, "stream") and hasattr(file_storage.stream, "seek"):
+            file_storage.stream.seek(0)
+            raw_bytes = file_storage.stream.read()
+        else:
+            raw_bytes = file_storage.read()
+
+        payload = {
+            "filename": filename,
+            "bytes": raw_bytes,
+            "content_type": getattr(file_storage, "mimetype", None) or "application/octet-stream",
+        }
+    finally:
+        if hasattr(file_storage, "stream") and hasattr(file_storage.stream, "seek"):
+            file_storage.stream.seek(0)
+
+    if return_payload:
+        return payload
+
+    upload_storage.save_bytes(
+        payload["filename"],
+        payload["bytes"],
+        payload.get("content_type"),
+    )
+    return payload["filename"]
+
+
+class MemoryUpload:
+    """Wrapper minimale per trattare bytes remoti come upload locale."""
+
+    def __init__(self, data, content_type="application/octet-stream"):
+        self.stream = io.BytesIO(data)
+        self.mimetype = content_type
+
+    def read(self):
+        return self.stream.read()
+
+
+def verify_image_payload_has_face(image_payload):
+    """Verifica il volto su un file temporaneo locale ricavato dal payload elaborato."""
+    suffix = os.path.splitext(image_payload["filename"])[1] or ".jpg"
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as handle:
+            handle.write(image_payload["bytes"])
+            temp_path = handle.name
+        return verifica_volto(temp_path)
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+
+
+def ensure_default_profile_placeholder(filename="user_placeholder.png"):
+    """Crea un avatar neutro per i profili generati via provider esterni."""
+    try:
+        upload_storage.read(filename)
         return filename
+    except StorageObjectNotFound:
+        pass
+
+    image = Image.new("RGB", (512, 512), "#F6EFE6")
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((48, 48, 464, 464), radius=140, fill="#E56F36")
+    draw.ellipse((168, 118, 344, 294), fill="#FFF8F1")
+    draw.rounded_rectangle((132, 286, 380, 430), radius=84, fill="#FFF8F1")
+
+    output = io.BytesIO()
+    image.save(output, "PNG")
+    upload_storage.save_bytes(filename, output.getvalue(), "image/png")
+    return filename
+
+
+def download_google_profile_photo(picture_url, user_key):
+    """Scarica e salva l'avatar Google, se disponibile."""
+    if not picture_url:
+        return None
+
+    try:
+        response = urlopen(
+            Request(
+                picture_url,
+                headers={"User-Agent": "ApprofittOffro/1.0"},
+            ),
+            timeout=8,
+        )
+        content_type = response.headers.get_content_type() or "image/jpeg"
+        image_bytes = response.read()
+        if not image_bytes:
+            return None
+
+        extension = "png" if "png" in content_type else "jpg"
+        payload = process_image(
+            MemoryUpload(image_bytes, content_type),
+            f"user_google_{user_key}_{uuid.uuid4().hex[:10]}.{extension}",
+            return_payload=True,
+        )
+        upload_storage.save_bytes(
+            payload["filename"],
+            payload["bytes"],
+            payload.get("content_type"),
+        )
+        return payload["filename"]
+    except Exception as exc:
+        print(f"[GOOGLE_PHOTO_ERROR] {exc}")
+        return None
 
 # ---------------------------------------------------------------------------
 # Inizializzazione
@@ -172,22 +1112,619 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def extract_uploaded_photos(field_name="foto"):
+    """Recupera le foto caricate da un input multiplo, ignorando elementi vuoti."""
+    return [photo for photo in request.files.getlist(field_name) if photo and photo.filename]
+
+
+def delete_upload_files(filenames):
+    """Elimina una lista di file caricati, ignorando silenziosamente quelli mancanti."""
+    for filename in {name for name in filenames if name and name != "nessuna.jpg"}:
+        upload_storage.delete(filename)
+
+
+def save_profile_gallery_files(user_key, photos, require_primary_face=True):
+    """Salva fino a MAX_PROFILE_PHOTOS immagini profilo e verifica il volto sulla prima."""
+    if not photos:
+        return [], []
+
+    errors = []
+    if len(photos) > MAX_PROFILE_PHOTOS:
+        errors.append(f"Puoi caricare al massimo {MAX_PROFILE_PHOTOS} foto profilo.")
+
+    for photo in photos:
+        if not allowed_file(photo.filename):
+            errors.append("Formato foto non valido. Usa JPG, PNG o WEBP.")
+            break
+
+    if errors:
+        return [], errors
+
+    saved_filenames = []
+    for index, photo in enumerate(photos):
+        ext = photo.filename.rsplit(".", 1)[1].lower() if "." in photo.filename else "jpg"
+        image_payload = process_image(
+            photo,
+            f"user_{user_key}_{uuid.uuid4().hex[:10]}.{ext}",
+            return_payload=True,
+        )
+
+        if index == 0 and require_primary_face:
+            verifica = verify_image_payload_has_face(image_payload)
+            if not verifica["valida"]:
+                delete_upload_files(saved_filenames)
+                dettaglio = verifica.get("errore", "Il volto non e stato riconosciuto in modo affidabile.")
+                return [], [
+                    "La prima foto deve mostrare chiaramente il volto della persona. "
+                    "Carica come prima immagine una foto reale, frontale o comunque ben visibile. "
+                    f"Dettaglio: {dettaglio}"
+                ]
+
+        upload_storage.save_bytes(
+            image_payload["filename"],
+            image_payload["bytes"],
+            image_payload.get("content_type"),
+        )
+        saved_filenames.append(image_payload["filename"])
+
+    return saved_filenames, []
+
+
+def replace_user_gallery(user, filenames):
+    """Sostituisce la galleria utente mantenendo la prima foto come avatar principale."""
+    old_filenames = list(user.gallery_filenames)
+    for photo in list(user.photos):
+        db.session.delete(photo)
+    db.session.flush()
+
+    for position, filename in enumerate(filenames):
+        db.session.add(UserPhoto(user_id=user.id, filename=filename, position=position))
+
+    user.foto_filename = filenames[0]
+    db.session.flush()
+    db.session.expire(user, ["photos"])
+    return [filename for filename in old_filenames if filename not in filenames]
+
+
+def build_google_display_name(identity_payload):
+    """Determina un nome utente pulito a partire dai dati Google."""
+    raw_name = str(identity_payload.get("name", "") or "").strip()
+    if raw_name:
+        return raw_name[:100]
+
+    email = str(identity_payload.get("email", "") or "").strip().lower()
+    local_part = email.split("@", 1)[0] if "@" in email else email
+    fallback = local_part.replace(".", " ").replace("_", " ").strip()
+    return (fallback.title() or "Nuovo utente")[:100]
+
+
+def verify_google_identity_token(raw_token):
+    """Verifica il token Google e restituisce i claim essenziali."""
+    if not google_oauth_enabled():
+        raise ValueError("Login Google non configurato su questo ambiente.")
+    if not raw_token:
+        raise ValueError("Token Google mancante.")
+
+    try:
+        identity_payload = google_id_token.verify_oauth2_token(
+            raw_token,
+            GoogleAuthRequest(),
+            audience=None,
+        )
+    except Exception as exc:
+        raise ValueError("Token Google non valido.") from exc
+
+    allowed_client_ids = get_google_oauth_client_ids()
+    audience = str(identity_payload.get("aud", "") or "").strip()
+    issuer = str(identity_payload.get("iss", "") or "").strip()
+    email = str(identity_payload.get("email", "") or "").strip().lower()
+    google_sub = str(identity_payload.get("sub", "") or "").strip()
+
+    if audience not in allowed_client_ids:
+        raise ValueError("Client Google non autorizzato.")
+    if issuer not in {"accounts.google.com", "https://accounts.google.com"}:
+        raise ValueError("Token Google non valido.")
+    if not identity_payload.get("email_verified"):
+        raise ValueError("L'account Google deve avere un'email verificata.")
+    if not email or not google_sub:
+        raise ValueError("Google non ha restituito dati sufficienti per il login.")
+
+    return {
+        "sub": google_sub,
+        "email": email,
+        "name": build_google_display_name(identity_payload),
+        "picture": str(identity_payload.get("picture", "") or "").strip(),
+    }
+
+
+def resolve_google_user(identity_payload):
+    """Trova o crea l'utente associato all'identità Google verificata."""
+    google_sub = identity_payload["sub"]
+    email = identity_payload["email"]
+    display_name = identity_payload["name"]
+    picture_url = identity_payload.get("picture", "")
+
+    user = User.query.filter_by(google_sub=google_sub).first()
+    if user:
+        if is_admin_user(user):
+            raise ValueError("Per ora l'accesso Google non è disponibile per gli account admin.")
+        if user.email != email:
+            conflicting_user = User.query.filter_by(email=email).first()
+            if conflicting_user and conflicting_user.id != user.id:
+                raise ValueError("Questa email Google è già collegata a un altro account.")
+            user.email = email
+        if not user.nome:
+            user.nome = display_name
+        should_notify_admin = user.admin_verified_notified_at is None
+        user.verificato = True
+        user.verification_token = None
+        db.session.commit()
+        return user, False, should_notify_admin
+
+    user = User.query.filter_by(email=email).first()
+    if user:
+        if is_admin_user(user):
+            raise ValueError("Per ora l'accesso Google non è disponibile per gli account admin.")
+        if user.google_sub and user.google_sub != google_sub:
+            raise ValueError("Questo account è già collegato a un altro accesso Google.")
+        user.google_sub = google_sub
+        if not user.nome:
+            user.nome = display_name
+        should_notify_admin = user.admin_verified_notified_at is None
+        user.verificato = True
+        user.verification_token = None
+        db.session.commit()
+        return user, False, should_notify_admin
+
+    photo_filename = (
+        download_google_profile_photo(picture_url, google_sub[:10])
+        or ensure_default_profile_placeholder()
+    )
+
+    user = User(
+        nome=display_name,
+        email=email,
+        password_hash="",
+        google_sub=google_sub,
+        foto_filename=photo_filename,
+        fascia_eta="18-25",
+        eta=None,
+        sesso="non_dico",
+        numero_telefono=None,
+        latitudine=DEFAULT_USER_LATITUDE,
+        longitudine=DEFAULT_USER_LONGITUDE,
+        citta="",
+        cibi_preferiti="",
+        intolleranze="",
+        bio="",
+        verificato=True,
+        verification_token=None,
+        is_admin=False,
+    )
+    user.set_password(uuid.uuid4().hex)
+    db.session.add(user)
+    db.session.flush()
+    replace_user_gallery(user, [photo_filename])
+    db.session.commit()
+    return user, True, True
+
+
+def get_followed_user_ids(user_id):
+    return {
+        row.followed_id
+        for row in UserFollow.query.filter_by(follower_id=user_id).all()
+    }
+
+
+def get_profile_form_values(user, source=None):
+    has_source = source is not None
+    source = source or {}
+    eta_value = user.eta if user.eta is not None else str(user.fascia_eta).split("-", 1)[0].replace("+", "")
+    return {
+        "nome": (source.get("nome") if source else user.nome) or user.nome,
+        "email": (source.get("email") if source else user.email) or user.email,
+        "eta": (source.get("eta") if source else eta_value) or eta_value,
+        "numero_telefono": (source.get("numero_telefono") if source else (user.numero_telefono or "")) or "",
+        "citta": (source.get("citta") if source else (user.citta or "")) or "",
+        "latitudine": source.get("latitudine") if has_source else user.latitudine,
+        "longitudine": source.get("longitudine") if has_source else user.longitudine,
+        "cibi_preferiti": (source.get("cibi_preferiti") if source else (user.cibi_preferiti or "")) or "",
+        "intolleranze": (source.get("intolleranze") if source else (user.intolleranze or "")) or "",
+        "bio": (source.get("bio") if source else (user.bio or "")) or "",
+        "verificato": (
+            str(source.get("verificato", "")).lower() in {"1", "true", "on", "yes"}
+            if source
+            else bool(user.verificato)
+        ),
+    }
+
+
+def validate_profile_update_input(user, source, *, foto_files=None, require_primary_face=True):
+    uploaded_gallery_filenames = []
+    source = source or {}
+
+    nome = str(source.get("nome", user.nome) or "").strip()
+    email = str(source.get("email", user.email) or "").strip().lower()
+    numero_telefono_raw = source.get("numero_telefono", user.numero_telefono or "")
+    eta_raw = source.get(
+        "eta",
+        user.eta if user.eta is not None else user.fascia_eta,
+    )
+    sesso_raw = source.get("sesso", user.sesso or "non_dico")
+    raggio_raw = source.get("raggio_azione", user.raggio_azione or 15)
+    lat_raw = str(source.get("latitudine", "") or "").strip()
+    lon_raw = str(source.get("longitudine", "") or "").strip()
+    citta = str(source.get("citta", user.citta or "") or "").strip()
+    pref = str(source.get("cibi_preferiti", user.cibi_preferiti or "") or "").strip()
+    intoll = str(source.get("intolleranze", user.intolleranze or "") or "").strip()
+    bio = str(source.get("bio", user.bio or "") or "").strip()
+    existing_gallery_raw = source.get("existing_gallery_filenames")
+
+    if isinstance(existing_gallery_raw, str) and existing_gallery_raw.strip():
+        try:
+            requested_existing_gallery = json.loads(existing_gallery_raw)
+        except Exception:
+            requested_existing_gallery = []
+    elif isinstance(existing_gallery_raw, (list, tuple)):
+        requested_existing_gallery = list(existing_gallery_raw)
+    else:
+        requested_existing_gallery = list(user.gallery_filenames)
+
+    current_gallery = list(user.gallery_filenames)
+    existing_gallery_filenames = [
+        filename
+        for filename in current_gallery
+        if filename in {str(item) for item in requested_existing_gallery if str(item).strip()}
+    ]
+
+    errors = []
+    if not nome:
+        errors.append("Il nome non può essere vuoto.")
+    if not email or "@" not in email:
+        errors.append("Inserisci un'email valida.")
+
+    numero_telefono, phone_error = normalize_phone_number(numero_telefono_raw)
+    if phone_error:
+        errors.append(phone_error)
+
+    eta, eta_error = parse_age_value(eta_raw)
+    if eta_error:
+        errors.append(eta_error)
+    sesso, sesso_error = parse_gender_value(sesso_raw)
+    if sesso_error:
+        errors.append(sesso_error)
+    try:
+        raggio_azione = int(float(str(raggio_raw).replace(",", ".").strip()))
+        if raggio_azione == 999:
+            pass
+        elif raggio_azione < 1 or raggio_azione > 500:
+            raise ValueError()
+    except Exception:
+        errors.append(
+            "Il raggio d'azione deve essere un numero tra 1 e 500 km."
+        )
+        raggio_azione = None
+
+    existing_user = User.query.filter_by(email=email).first()
+    if email != user.email and existing_user and existing_user.id != user.id:
+        errors.append("Questa email è già associata a un altro account.")
+
+    if len(pref) > 0 and len(pref) < 3:
+        errors.append("Quali sono i tuoi cibi preferiti? Scrivi qualcosa in più.")
+    if len(bio) > 0 and len(bio) < 5:
+        errors.append("Raccontaci qualcosa di più nella Bio.")
+
+    latitudine = None
+    longitudine = None
+    if lat_raw or lon_raw:
+        if not lat_raw or not lon_raw:
+            errors.append("Inserisci sia latitudine che longitudine, oppure lascia entrambi invariati.")
+        else:
+            try:
+                latitudine = float(lat_raw)
+                longitudine = float(lon_raw)
+            except ValueError:
+                errors.append("Latitudine e longitudine devono essere numeri validi.")
+
+    if foto_files:
+        uploaded_gallery_filenames, photo_errors = save_profile_gallery_files(
+            user.id,
+            foto_files,
+            require_primary_face=require_primary_face and not existing_gallery_filenames,
+        )
+        errors.extend(photo_errors)
+
+    final_gallery_filenames = existing_gallery_filenames + uploaded_gallery_filenames
+    if len(final_gallery_filenames) > MAX_PROFILE_PHOTOS:
+        errors.append(f"Puoi tenere al massimo {MAX_PROFILE_PHOTOS} foto profilo.")
+    if not final_gallery_filenames:
+        errors.append("Devi tenere almeno una foto profilo.")
+
+    payload = {
+        "nome": nome,
+        "email": email,
+        "eta": eta if not eta_error else None,
+        "sesso": sesso,
+        "raggio_azione": raggio_azione,
+        "numero_telefono": numero_telefono,
+        "citta": citta,
+        "latitudine": latitudine,
+        "longitudine": longitudine,
+        "cibi_preferiti": pref,
+        "intolleranze": intoll,
+        "bio": bio,
+        "final_gallery_filenames": final_gallery_filenames,
+        "uploaded_gallery_filenames": uploaded_gallery_filenames,
+    }
+
+    return payload, errors
+
+
+def save_profile_update_for_user(user, payload, *, verified=None):
+    old_gallery_filenames = []
+    uploaded_gallery_filenames = payload.get("uploaded_gallery_filenames", [])
+    final_gallery_filenames = payload.get("final_gallery_filenames", list(user.gallery_filenames))
+
+    user.nome = payload["nome"]
+    user.email = payload["email"]
+    user.fascia_eta = str(payload["eta"])
+    user.eta = payload["eta"]
+    user.sesso = payload["sesso"]
+    user.raggio_azione = payload["raggio_azione"]
+    user.numero_telefono = payload["numero_telefono"]
+    user.citta = payload["citta"]
+    if payload["latitudine"] is not None and payload["longitudine"] is not None:
+        user.latitudine = payload["latitudine"]
+        user.longitudine = payload["longitudine"]
+
+    user.cibi_preferiti = payload["cibi_preferiti"]
+    user.intolleranze = payload["intolleranze"]
+    user.bio = payload["bio"]
+
+    if verified is not None:
+        user.verificato = bool(verified)
+
+    if final_gallery_filenames != list(user.gallery_filenames):
+        old_gallery_filenames = replace_user_gallery(user, final_gallery_filenames)
+
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        delete_upload_files(uploaded_gallery_filenames)
+        return False, [f"Errore nel salvataggio del profilo: {exc}"], []
+
+    db.session.refresh(user)
+    db.session.expire(user, ["photos"])
+    delete_upload_files(old_gallery_filenames)
+    return True, [], old_gallery_filenames
+
+
 # ---------------------------------------------------------------------------
 # Crea le tabelle al primo avvio
 # ---------------------------------------------------------------------------
 with app.app_context():
     db.create_all()
+    ensure_database_schema_compatibility()
 
 
 def profile_completed_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if current_user.is_authenticated:
-            if not current_user.cibi_preferiti or not current_user.intolleranze or not current_user.bio:
-                flash("Ciao! Completa il tuo identikit alimentare e la tua bio: sono obbligatori per poter esplorare le offerte e partecipare ai pasti. 🍽️", "warning")
+            if is_admin_user(current_user):
+                return f(*args, **kwargs)
+            if not is_profile_complete(current_user):
+                flash("Ciao! Completa il tuo numero di cellulare, l'identikit alimentare e la tua bio: sono obbligatori per poter pubblicare offerte, partecipare ai pasti e vedere i profili completi. 🍽️", "warning")
                 return redirect(url_for('profile_page'))
         return f(*args, **kwargs)
     return decorated_function
+
+
+def is_profile_complete(user):
+    return bool(user.numero_telefono and user.cibi_preferiti and user.intolleranze and user.bio)
+
+
+def is_admin_user(user):
+    return bool(getattr(user, "is_admin", False))
+
+
+@app.before_request
+def enforce_session_timeout():
+    if request.endpoint == "static":
+        return None
+
+    if not current_user.is_authenticated:
+        session.pop("last_activity_at", None)
+        session.pop("login_at", None)
+        return None
+
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    last_activity_at = session.get("last_activity_at")
+    timeout_seconds = get_session_idle_timeout_seconds(current_user)
+
+    if last_activity_at and now_ts - int(last_activity_at) > timeout_seconds:
+        logout_user()
+        session.clear()
+        message = "Sessione scaduta per inattivita'. Effettua di nuovo il login."
+        if request.path.startswith("/api/"):
+            return jsonify({
+                "success": False,
+                "error": message,
+                "redirect": url_for("login_page"),
+            }), 401
+        flash(message, "warning")
+        return redirect(url_for("login_page"))
+
+    session["last_activity_at"] = now_ts
+    session.setdefault("login_at", now_ts)
+    return None
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return login_manager.unauthorized()
+        if not is_admin_user(current_user):
+            if request.path.startswith("/api/"):
+                return jsonify({"success": False, "error": "Area riservata agli amministratori."}), 403
+            flash("Area riservata agli amministratori.", "error")
+            return redirect(url_for("dashboard"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def require_complete_profile_json():
+    if current_user.is_authenticated and not is_admin_user(current_user) and not is_profile_complete(current_user):
+        return jsonify({
+            "success": False,
+            "error": "Completa numero di cellulare, bio e identikit alimentare prima di partecipare o pubblicare offerte.",
+        }), 403
+    return None
+
+
+def parse_age_value(age_raw):
+    """Valida e converte l'età inserita dall'utente."""
+    normalized_age = str(age_raw).strip()
+    legacy_match = re.match(r"^(\d{1,3})", normalized_age)
+
+    try:
+        age = int(legacy_match.group(1) if legacy_match else normalized_age)
+    except (TypeError, ValueError, AttributeError):
+        return None, "Inserisci un'età valida."
+
+    if age < 18:
+        return None, "Per usare ApprofittOffro devi avere almeno 18 anni."
+    if age > 120:
+        return None, "Inserisci un'età realistica."
+    return age, None
+
+
+def normalize_phone_number(phone_raw):
+    """Normalizza un recapito telefonico per un uso futuro in chat/WhatsApp."""
+    normalized_phone = str(phone_raw or "").strip()
+    if not normalized_phone:
+        return None, "Inserisci un numero di cellulare valido."
+
+    compact_phone = re.sub(r"[\s().-]+", "", normalized_phone)
+    if compact_phone.startswith("00"):
+        compact_phone = f"+{compact_phone[2:]}"
+
+    if compact_phone.startswith("+"):
+        digit_block = compact_phone[1:]
+    else:
+        digit_block = compact_phone
+
+    if not digit_block.isdigit():
+        return None, "Il numero di cellulare può contenere solo cifre, spazi, trattini e il prefisso +."
+
+    if len(digit_block) < 8 or len(digit_block) > 15:
+        return None, "Inserisci un numero di cellulare reale, con almeno 8 cifre."
+
+    if not compact_phone.startswith("+") and digit_block.startswith("3") and len(digit_block) in {9, 10}:
+        return f"+39{digit_block}", None
+
+    return f"+{digit_block}" if compact_phone.startswith("+") else digit_block, None
+
+
+def phone_to_whatsapp_digits(phone_raw):
+    normalized_phone, phone_error = normalize_phone_number(phone_raw)
+    if phone_error or not normalized_phone:
+        return ""
+    return re.sub(r"\D", "", normalized_phone)
+
+
+def build_whatsapp_offer_link(sender_user, recipient_user, offer):
+    """Crea un link WhatsApp diretto solo se entrambi gli utenti hanno un recapito valido."""
+    if not sender_user or not recipient_user or not offer:
+        return ""
+    if not getattr(sender_user, "numero_telefono", None) or not getattr(recipient_user, "numero_telefono", None):
+        return ""
+
+    recipient_digits = phone_to_whatsapp_digits(recipient_user.numero_telefono)
+    if not recipient_digits:
+        return ""
+
+    tipo_pasto_label = dict(TIPI_PASTO).get(offer.tipo_pasto, offer.tipo_pasto).lower()
+    message = (
+        f"Ciao {recipient_user.nome}, sono {sender_user.nome} da ApprofittOffro. "
+        f"Ti scrivo per il {tipo_pasto_label} da {offer.nome_locale} del "
+        f"{offer.data_ora.strftime('%d/%m/%Y alle %H:%M')}."
+    )
+    return f"https://wa.me/{recipient_digits}?text={quote(message)}"
+
+
+def parse_optional_age_bound(age_raw, label):
+    normalized_age = str(age_raw or "").strip()
+    if not normalized_age:
+        return None, None
+    try:
+        age = int(normalized_age)
+    except (TypeError, ValueError):
+        return None, f"Inserisci un valore valido per {label}."
+    if age < 18 or age > 120:
+        return None, f"{label.capitalize()} deve essere compresa tra 18 e 120."
+    return age, None
+
+
+def parse_age_range_filter(age_range_raw):
+    age_range = str(age_range_raw or "").strip()
+    if not age_range:
+        return "", None, None
+
+    valid_ranges = {value: label for value, label in FASCE_ETA}
+    if age_range not in valid_ranges:
+        return "", None, "Seleziona una fascia d'età valida."
+
+    if age_range.endswith("+"):
+        min_age = int(age_range[:-1])
+        return age_range, min_age, None
+
+    try:
+        min_age, max_age = [int(value) for value in age_range.split("-", 1)]
+    except ValueError:
+        return "", None, "Seleziona una fascia d'età valida."
+
+    return age_range, (min_age, max_age), None
+
+
+def parse_gender_value(gender_raw, *, default="non_dico", allow_empty=False):
+    gender = str(gender_raw if gender_raw is not None else default).strip().lower()
+    valid_values = {value for value, _ in SESSI_UTENTE}
+    if allow_empty and not gender:
+        return "", None
+    if not gender:
+        gender = default
+    if gender not in valid_values:
+        return default, "Seleziona un sesso valido."
+    return gender, None
+
+
+def parse_community_gender_filter(gender_raw):
+    gender = str(gender_raw or "").strip().lower()
+    valid_values = {value for value, _ in COMMUNITY_GENDER_FILTERS}
+    if gender not in valid_values:
+        return "", "Seleziona un filtro sesso valido."
+    return gender, None
+
+
+def get_safe_next_url(default_endpoint="people_page"):
+    next_url = str(request.form.get("next", "") or request.args.get("next", "")).strip()
+    if next_url.startswith("/"):
+        return next_url
+    return url_for(default_endpoint)
+
+
+def extract_city_label(address_text):
+    raw_address = str(address_text or "").strip()
+    if not raw_address:
+        return ""
+
+    parts = [part.strip() for part in raw_address.split(",") if part.strip()]
+    if len(parts) >= 2:
+        return parts[-1]
+    return raw_address
 
 # ===================================================================
 # PAGINE (Template)
@@ -195,23 +1732,182 @@ def profile_completed_required(f):
 
 @app.route("/")
 def index():
-    if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
-    return render_template("index.html")
+    return redirect(url_for("dashboard"))
 
 @app.route("/register")
 def register_page():
-    return render_template("register.html", fasce_eta=FASCE_ETA)
+    return render_template("register.html")
 
 @app.route("/login")
 def login_page():
     return render_template("index.html")
 
 @app.route("/dashboard")
+def dashboard():
+    if current_user.is_authenticated and is_admin_user(current_user):
+        return redirect(url_for("admin_dashboard"))
+
+    is_authenticated = current_user.is_authenticated
+    pending_review_reminders = (
+        get_pending_review_reminders(current_user)
+        if is_authenticated
+        else []
+    )
+    has_user_location = (
+        is_authenticated
+        and current_user.latitudine is not None
+        and current_user.longitudine is not None
+    )
+    default_lat = (
+        current_user.latitudine
+        if is_authenticated and current_user.latitudine is not None
+        else 41.9
+    )
+    default_lon = (
+        current_user.longitudine
+        if is_authenticated and current_user.longitudine is not None
+        else 12.5
+    )
+    can_participate = is_authenticated and is_profile_complete(current_user)
+
+    return render_template(
+        "dashboard.html",
+        tipi_pasto=TIPI_PASTO,
+        is_authenticated=is_authenticated,
+        can_participate=can_participate,
+        has_user_location=has_user_location,
+        default_lat=default_lat,
+        default_lon=default_lon,
+        pending_review_reminders=pending_review_reminders,
+        format_offer_datetime_label=format_offer_datetime_label,
+    )
+
+
+@app.route("/people")
 @login_required
 @profile_completed_required
-def dashboard():
-    return render_template("dashboard.html", tipi_pasto=TIPI_PASTO)
+def people_page():
+    if is_admin_user(current_user):
+        return redirect(url_for("admin_dashboard"))
+
+    selected_age_range, parsed_age_range, age_range_error = parse_age_range_filter(
+        request.args.get("age_range")
+    )
+
+    if age_range_error:
+        flash(age_range_error, "error")
+
+    people_query = User.query.options(selectinload(User.photos)).filter(
+        User.id != current_user.id,
+        User.is_admin.is_(False),
+        User.verificato.is_(True),
+        User.bio.isnot(None),
+        User.bio != "",
+        User.cibi_preferiti.isnot(None),
+        User.cibi_preferiti != "",
+        User.intolleranze.isnot(None),
+        User.intolleranze != "",
+    )
+
+    if isinstance(parsed_age_range, tuple):
+        people_query = people_query.filter(
+            User.eta >= parsed_age_range[0],
+            User.eta <= parsed_age_range[1],
+        )
+    elif isinstance(parsed_age_range, int):
+        people_query = people_query.filter(User.eta >= parsed_age_range)
+
+    people = people_query.order_by(User.eta.asc(), User.nome.asc()).all()
+    followed_user_ids = get_followed_user_ids(current_user.id)
+
+    return render_template(
+        "people.html",
+        people=people,
+        extract_city_label=extract_city_label,
+        age_ranges=FASCE_ETA,
+        selected_age_range=selected_age_range,
+        followed_user_ids=followed_user_ids,
+    )
+
+
+@app.route("/admin")
+@admin_required
+def admin_dashboard():
+    now = local_now()
+    all_offers = Offer.query.order_by(Offer.data_ora.desc()).all()
+    upcoming_offers = [offer for offer in all_offers if offer.data_ora >= now]
+    past_offers = [offer for offer in all_offers if offer.data_ora < now]
+    users = User.query.options(selectinload(User.photos)).filter_by(is_admin=False).order_by(User.created_at.desc()).all()
+    admins = User.query.filter_by(is_admin=True).order_by(User.created_at.desc()).all()
+
+    stats = {
+        "users": len(users),
+        "admins": len(admins),
+        "future_offers": len(upcoming_offers),
+        "past_offers": len(past_offers),
+    }
+
+    return render_template(
+        "admin.html",
+        users=users,
+        upcoming_offers=upcoming_offers,
+        past_offers=past_offers,
+        stats=stats,
+        now=now,
+    )
+
+
+@app.route("/admin/users/<int:user_id>/edit", methods=["GET", "POST"])
+@admin_required
+def admin_edit_user_page(user_id):
+    user = User.query.options(selectinload(User.photos)).get_or_404(user_id)
+
+    if is_admin_user(user):
+        flash("Per ora puoi modificare solo i profili utenti standard.", "warning")
+        return redirect(url_for("admin_dashboard"))
+
+    if request.method == "POST":
+        foto_files = extract_uploaded_photos("foto")
+        payload, errors = validate_profile_update_input(
+            user,
+            request.form,
+            foto_files=foto_files,
+            require_primary_face=True,
+        )
+        verified_value = str(request.form.get("verificato", "")).lower() in {"1", "true", "on", "yes"}
+
+        if errors:
+            delete_upload_files(payload.get("uploaded_gallery_filenames", []))
+            for error in errors:
+                flash(error, "error")
+            return render_template(
+                "admin_edit_user.html",
+                user=user,
+                form_values=get_profile_form_values(user, request.form),
+            )
+
+        success, save_errors, _ = save_profile_update_for_user(
+            user,
+            payload,
+            verified=verified_value,
+        )
+        if not success:
+            for error in save_errors:
+                flash(error, "error")
+            return render_template(
+                "admin_edit_user.html",
+                user=user,
+                form_values=get_profile_form_values(user, request.form),
+            )
+
+        flash(f"Profilo di {user.nome} aggiornato con successo.", "success")
+        return redirect(url_for("admin_edit_user_page", user_id=user.id))
+
+    return render_template(
+        "admin_edit_user.html",
+        user=user,
+        form_values=get_profile_form_values(user),
+    )
 
 @app.route("/verify/<token>")
 def verify_email(token):
@@ -224,33 +1920,33 @@ def verify_email(token):
     user.verification_token = None
     db.session.commit()
 
-    # Notifica Amministratore
-    admin_email = os.getenv("ADMIN_EMAIL")
-    if admin_email:
-        send_email(
-            subject=f"Nuovo Utente Verificato: {user.nome}",
-            recipients=[admin_email],
-            template="new_user_notification.html",
-            user=user
-        )
+    notify_admin_for_verified_user(user)
     
     flash("Email verificata con successo! Ora puoi accedere.", "success")
-    return redirect(url_for("index"))
+    return redirect(url_for("login_page"))
 
 @app.route("/new-offer")
 @login_required
 @profile_completed_required
 def new_offer_page():
-    return render_template("create_offer.html", tipi_pasto=TIPI_PASTO)
+    if is_admin_user(current_user):
+        return redirect(url_for("admin_dashboard"))
+    return render_template("create_offer.html", tipi_pasto=TIPI_PASTO, allow_admin_timing_bypass=False)
 
 
 @app.route("/profile")
 @login_required
 def profile_page():
+    if is_admin_user(current_user):
+        return redirect(url_for("admin_dashboard"))
+
     my_offers = Offer.query.filter_by(user_id=current_user.id).order_by(
         Offer.created_at.desc()
     ).all()
-    my_claims = Claim.query.filter_by(user_id=current_user.id).order_by(
+    my_claims = Claim.query.filter_by(
+        user_id=current_user.id,
+        status=CLAIM_STATUS_ACCEPTED,
+    ).order_by(
         Claim.created_at.desc()
     ).all()
 
@@ -264,25 +1960,37 @@ def profile_page():
 
     # 2. Ospiti che mi hanno fatto visita (da mie offerte)
     for o in my_offers:
-        for c in o.claims:
+        for c in get_offer_accepted_claims(o):
             guest = c.utente
             if guest.id not in met_users_dict:
                 met_users_dict[guest.id] = guest
+
+    followers = [
+        relation.follower
+        for relation in sorted(
+            current_user.followers_rel,
+            key=lambda item: item.created_at or datetime.min,
+            reverse=True,
+        )
+        if relation.follower and not is_admin_user(relation.follower)
+    ]
 
     return render_template(
         "profile.html",
         my_offers=my_offers,
         my_claims=my_claims,
         met_users=met_users_dict.values(),
-        fasce_eta=FASCE_ETA,
+        followers=followers,
         rating_info=get_user_rating(current_user.id),
-        now=datetime.now(),
-        completion_threshold=datetime.now() - timedelta(hours=3)
+        now=local_now(),
+        completion_threshold=local_now() - timedelta(hours=3),
+        review_edit_threshold=local_now() - timedelta(hours=REVIEW_EDIT_WINDOW_HOURS),
+        format_offer_datetime_label=format_offer_datetime_label,
+        build_whatsapp_offer_link=build_whatsapp_offer_link,
     )
 
 def get_user_rating(user_id):
     """Calcola la media delle recensioni per un utente."""
-    from models import Review
     reviews = Review.query.filter_by(reviewed_id=user_id).all()
     if not reviews:
         return {"average": 0, "count": 0}
@@ -290,9 +1998,442 @@ def get_user_rating(user_id):
     return {"average": round(avg, 1), "count": len(reviews)}
 
 
+def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include_gallery=False, include_private=False):
+    """Serializza un profilo utente in JSON per API web/mobile."""
+    if not user:
+        return None
+
+    rating_info = get_user_rating(user.id)
+    viewer_is_authenticated = bool(viewer and getattr(viewer, "is_authenticated", False))
+    is_self = viewer_is_authenticated and viewer.id == user.id
+    is_following = False
+
+    if viewer_is_authenticated and not is_self:
+        if followed_user_ids is not None:
+            is_following = user.id in followed_user_ids
+        else:
+            is_following = UserFollow.query.filter_by(
+                follower_id=viewer.id,
+                followed_id=user.id,
+            ).first() is not None
+
+    gallery_filenames = list(user.gallery_filenames if include_gallery else user.gallery_filenames[:2])
+    payload = {
+        "id": user.id,
+        "nome": user.nome,
+        "email": user.email if include_private else "",
+        "foto": user.foto_filename or "",
+        "gallery_filenames": gallery_filenames,
+        "eta": user.eta,
+        "eta_display": user.eta_display,
+        "sesso": user.sesso or "non_dico",
+        "citta": user.citta or "",
+        "city_label": extract_city_label(user.citta),
+        "bio": user.bio or "",
+        "cibi_preferiti": user.cibi_preferiti or "",
+        "intolleranze": user.intolleranze or "",
+        "raggio_azione": int(user.raggio_azione or 15),
+        "numero_telefono": user.numero_telefono if include_private else "",
+        "lat": user.latitudine if include_private else None,
+        "lon": user.longitudine if include_private else None,
+        "verificato": bool(user.verificato),
+        "followers_count": user.followers_count,
+        "following_count": user.following_count,
+        "rating_average": rating_info["average"],
+        "rating_count": rating_info["count"],
+        "is_following": is_following,
+        "is_self": is_self,
+    }
+    return payload
+
+
+def serialize_review_preview(review, *, viewer=None):
+    """Serializza una recensione con reviewer essenziale e dati evento."""
+    offer = review.offerta
+    editable_until = (
+        review.created_at + timedelta(hours=REVIEW_EDIT_WINDOW_HOURS)
+        if review.created_at
+        else None
+    )
+    return {
+        "id": review.id,
+        "rating": review.rating,
+        "commento": review.commento or "",
+        "created_at": review.created_at.isoformat() if review.created_at else "",
+        "editable_until": editable_until.isoformat() if editable_until else "",
+        "viewer_can_edit": bool(
+            viewer
+            and getattr(viewer, "is_authenticated", False)
+            and review.reviewer_id == viewer.id
+            and can_edit_review(review)
+        ),
+        "reviewer": serialize_user_preview(review.reviewer) if review.reviewer else None,
+        "reviewed": serialize_user_preview(review.reviewed) if review.reviewed else None,
+        "offer": {
+            "id": offer.id,
+            "tipo_pasto": offer.tipo_pasto,
+            "nome_locale": offer.nome_locale,
+            "indirizzo": offer.indirizzo,
+            "data_ora": offer.data_ora.isoformat() if offer.data_ora else "",
+        } if offer else None,
+    }
+
+
+def serialize_pending_claim_request(claim, *, viewer=None, followed_user_ids=None):
+    """Serializza una richiesta pendente verso l'host proprietario dell'offerta."""
+    offer = claim.offerta
+    guest = claim.utente
+    if not offer or not guest:
+        return None
+
+    return {
+        "claim_id": claim.id,
+        "requested_at": claim.created_at.isoformat() if claim.created_at else "",
+        "offer": {
+            "id": offer.id,
+            "tipo_pasto": offer.tipo_pasto,
+            "nome_locale": offer.nome_locale,
+            "indirizzo": offer.indirizzo,
+            "data_ora": offer.data_ora.isoformat() if offer.data_ora else "",
+        },
+        "requester": serialize_user_preview(
+            guest,
+            viewer=viewer,
+            followed_user_ids=followed_user_ids,
+        ),
+    }
+
+
+def serialize_pending_review_reminder(item, *, viewer=None, followed_user_ids=None):
+    """Serializza un promemoria recensione per l'app mobile."""
+    offer = item.get("offer")
+    target_user = item.get("target_user")
+    existing_review = item.get("existing_review")
+    if not offer or not target_user:
+        return None
+
+    editable_until = (
+        existing_review.created_at + timedelta(hours=REVIEW_EDIT_WINDOW_HOURS)
+        if existing_review and existing_review.created_at
+        else None
+    )
+
+    return {
+        "offer": {
+            "id": offer.id,
+            "tipo_pasto": offer.tipo_pasto,
+            "nome_locale": offer.nome_locale,
+            "indirizzo": offer.indirizzo,
+            "data_ora": offer.data_ora.isoformat() if offer.data_ora else "",
+        },
+        "target_user": serialize_user_preview(
+            target_user,
+            viewer=viewer,
+            followed_user_ids=followed_user_ids,
+        ),
+        "role_label": item.get("role_label", ""),
+        "existing_review": {
+            "id": existing_review.id,
+            "rating": existing_review.rating,
+            "commento": existing_review.commento or "",
+            "created_at": existing_review.created_at.isoformat() if existing_review.created_at else "",
+            "editable_until": editable_until.isoformat() if editable_until else "",
+        } if existing_review else None,
+    }
+
+
+def get_pending_review_reminders(user, now=None):
+    """Restituisce le interazioni concluse da recensire, sia da ospite che da host."""
+    if not user or not getattr(user, "is_authenticated", False):
+        return []
+
+    now = now or local_now()
+    threshold = now - timedelta(hours=3)
+    reminders = []
+    seen_pairs = set()
+
+    my_claims = Claim.query.filter_by(
+        user_id=user.id,
+        status=CLAIM_STATUS_ACCEPTED,
+    ).order_by(Claim.created_at.desc()).all()
+    for claim in my_claims:
+        offer = claim.offerta
+        if not offer or offer.stato == "annullata" or offer.data_ora > threshold:
+            continue
+
+        review_key = (offer.id, offer.user_id)
+        if review_key in seen_pairs:
+            continue
+
+        existing_review = Review.query.filter_by(
+            reviewer_id=user.id,
+            reviewed_id=offer.user_id,
+            offer_id=offer.id,
+        ).first()
+        if existing_review and not can_edit_review(existing_review, now):
+            continue
+
+        seen_pairs.add(review_key)
+        reminders.append({
+            "offer": offer,
+            "target_user": offer.autore,
+            "role_label": "host",
+            "existing_review": existing_review,
+        })
+
+    my_offers = Offer.query.filter_by(user_id=user.id).order_by(Offer.data_ora.desc()).all()
+    for offer in my_offers:
+        if offer.stato == "annullata" or offer.data_ora > threshold:
+            continue
+
+        for claim in get_offer_accepted_claims(offer):
+            guest = claim.utente
+            review_key = (offer.id, guest.id)
+            if review_key in seen_pairs:
+                continue
+
+            existing_review = Review.query.filter_by(
+                reviewer_id=user.id,
+                reviewed_id=guest.id,
+                offer_id=offer.id,
+            ).first()
+            if existing_review and not can_edit_review(existing_review, now):
+                continue
+
+            seen_pairs.add(review_key)
+            reminders.append({
+                "offer": offer,
+                "target_user": guest,
+                "role_label": "guest",
+                "existing_review": existing_review,
+            })
+
+    reminders.sort(key=lambda item: item["offer"].data_ora, reverse=True)
+    return reminders
+
+
+def get_met_users_for_user(user):
+    """Restituisce gli utenti incontrati nei pasti offerti o partecipati."""
+    if not user:
+        return []
+
+    met_users_dict = {}
+
+    my_claims = Claim.query.filter_by(
+        user_id=user.id,
+        status=CLAIM_STATUS_ACCEPTED,
+    ).all()
+    for claim in my_claims:
+        offer = claim.offerta
+        host = offer.autore if offer else None
+        if (
+            host
+            and host.id != user.id
+            and not is_admin_user(host)
+            and host.id not in met_users_dict
+        ):
+            met_users_dict[host.id] = host
+
+    my_offers = Offer.query.filter_by(user_id=user.id).all()
+    for offer in my_offers:
+        for claim in get_offer_accepted_claims(offer):
+            guest = claim.utente
+            if (
+                guest
+                and guest.id != user.id
+                and not is_admin_user(guest)
+                and guest.id not in met_users_dict
+            ):
+                met_users_dict[guest.id] = guest
+
+    return sorted(
+        met_users_dict.values(),
+        key=lambda item: (item.nome or "").lower(),
+    )
+
+
+def can_edit_review(review, now=None):
+    """Permette di correggere una recensione solo entro una finestra limitata."""
+    if not review:
+        return False
+    now = now or local_now()
+    return review.created_at + timedelta(hours=REVIEW_EDIT_WINDOW_HOURS) > now
+
+
+def can_manage_offer(offer, user):
+    return bool(
+        user.is_authenticated
+        and (offer.user_id == user.id or is_admin_user(user))
+    )
+
+
+def remove_offer_with_notifications(offer, motivazione, acting_admin=None, notify_owner=False):
+    """Elimina un'offerta, avvisando i partecipanti e opzionalmente l'host."""
+    claims = Claim.query.filter_by(offer_id=offer.id).all()
+    data_evento = offer.data_ora.strftime('%d/%m/%Y alle %H:%M')
+    motivazione = motivazione.strip() or "Nessuna motivazione specificata."
+
+    for claim in claims:
+        send_email(
+            f"⚠️ Evento Annullato: {offer.nome_locale}",
+            [claim.utente.email],
+            "cancellation.html",
+            user=claim.utente,
+            offer=offer,
+            data_evento=data_evento,
+            motivazione=motivazione
+        )
+
+    if notify_owner and acting_admin and offer.autore.email:
+        send_email(
+            f"⚠️ La tua offerta è stata rimossa: {offer.nome_locale}",
+            [offer.autore.email],
+            "offer_removed_admin.html",
+            user=offer.autore,
+            offer=offer,
+            data_evento=data_evento,
+            motivazione=motivazione,
+            admin_user=acting_admin,
+        )
+
+    Review.query.filter_by(offer_id=offer.id).delete(synchronize_session=False)
+    Claim.query.filter_by(offer_id=offer.id).delete(synchronize_session=False)
+    db.session.delete(offer)
+
+
+def remove_user_with_cleanup(user, motivazione, acting_admin):
+    """Elimina un account e tutti i dati collegati, con notifiche amministrative."""
+    motivazione = motivazione.strip()
+    user_email = user.email
+    user_nome = user.nome
+    gallery_files = list(user.gallery_filenames)
+    owned_offers = Offer.query.filter_by(user_id=user.id).all()
+    owned_offer_photo_files = [
+        offer.foto_locale
+        for offer in owned_offers
+        if getattr(offer, "foto_locale", None)
+    ]
+    owned_offer_ids = [offer.id for offer in owned_offers]
+    now = local_now()
+
+    if owned_offer_ids:
+        claims_on_other_offers = Claim.query.filter(
+            Claim.user_id == user.id,
+            Claim.offer_id.notin_(owned_offer_ids),
+        ).all()
+    else:
+        claims_on_other_offers = Claim.query.filter_by(user_id=user.id).all()
+
+    for claim in claims_on_other_offers:
+        offer = claim.offerta
+        if offer:
+            offer.posti_disponibili = min(offer.posti_totali, offer.posti_disponibili + 1)
+            if offer.data_ora > now and offer.stato == "completata":
+                offer.stato = "attiva"
+            send_email(
+                f"⚠️ Partecipazione rimossa: {offer.nome_locale}",
+                [offer.autore.email],
+                "claim_removed_admin.html",
+                user=offer.autore,
+                removed_user=user,
+                offer=offer,
+                data_evento=offer.data_ora.strftime('%d/%m/%Y alle %H:%M'),
+                motivazione=motivazione,
+                admin_user=acting_admin,
+            )
+        db.session.delete(claim)
+
+    for offer in owned_offers:
+        remove_offer_with_notifications(
+            offer,
+            motivazione,
+            acting_admin=acting_admin,
+            notify_owner=False,
+        )
+
+    Review.query.filter(
+        or_(Review.reviewer_id == user.id, Review.reviewed_id == user.id)
+    ).delete(synchronize_session=False)
+
+    db.session.delete(user)
+    db.session.commit()
+    delete_upload_files(gallery_files + owned_offer_photo_files)
+
+    if user_email:
+        send_email(
+            "Il tuo account ApprofittOffro è stato rimosso",
+            [user_email],
+            "account_deleted.html",
+            user_name=user_nome,
+            motivazione=motivazione,
+            admin_user=acting_admin,
+        )
+
+
 # ===================================================================
 # API — Autenticazione & Utilità
 # ===================================================================
+
+def remove_user_self_service(user):
+    """Elimina il proprio account e pulisce le entita' collegate senza un amministratore."""
+    if not user:
+        return
+
+    gallery_files = list(user.gallery_filenames)
+    owned_offers = Offer.query.filter_by(user_id=user.id).all()
+    owned_offer_ids = [offer.id for offer in owned_offers]
+    owned_offer_photo_files = [
+        offer.foto_locale
+        for offer in owned_offers
+        if getattr(offer, "foto_locale", None)
+    ]
+    now = local_now()
+
+    if owned_offer_ids:
+        claims_on_other_offers = Claim.query.filter(
+            Claim.user_id == user.id,
+            Claim.offer_id.notin_(owned_offer_ids),
+        ).all()
+    else:
+        claims_on_other_offers = Claim.query.filter_by(user_id=user.id).all()
+
+    for claim in claims_on_other_offers:
+        offer = claim.offerta
+        if offer:
+            offer.posti_disponibili = min(
+                offer.posti_totali,
+                offer.posti_disponibili + 1,
+            )
+            if offer.data_ora > now and offer.stato == "completata":
+                offer.stato = "attiva"
+            if offer.autore and offer.autore.email:
+                send_email(
+                    f"Partecipazione annullata: {offer.nome_locale}",
+                    [offer.autore.email],
+                    "unclaim_notification.html",
+                    background=False,
+                    user=user,
+                    offer=offer,
+                    data_evento=offer.data_ora.strftime('%d/%m/%Y alle %H:%M'),
+                )
+        db.session.delete(claim)
+
+    for offer in owned_offers:
+        remove_offer_with_notifications(
+            offer,
+            "L'host ha cancellato il proprio account.",
+            acting_admin=None,
+            notify_owner=False,
+        )
+
+    Review.query.filter(
+        or_(Review.reviewer_id == user.id, Review.reviewed_id == user.id)
+    ).delete(synchronize_session=False)
+
+    db.session.delete(user)
+    db.session.commit()
+    delete_upload_files(gallery_files + owned_offer_photo_files)
+
 
 @app.route("/profile/<int:user_id>")
 @login_required
@@ -306,47 +2447,69 @@ def public_profile(user_id):
     
     # Statistiche affidabilità
     offerte_totali = Offer.query.filter_by(user_id=user.id).count()
-    recuperi_effettuati = Claim.query.filter_by(user_id=user.id).count()
+    recuperi_effettuati = Claim.query.filter_by(
+        user_id=user.id,
+        status=CLAIM_STATUS_ACCEPTED,
+    ).count()
 
     # Logica per il pulsante "Lascia Recensione" sul profilo pubblico
     # Cerchiamo l'ultimo pasto condiviso concluso (almeno 3 ore fa)
     shared_offer = None
+    editable_review = None
     pending_offer = None
     if current_user.id != user_id:
-        from datetime import timedelta
-        now = datetime.now()
+        now = local_now()
         threshold = now - timedelta(hours=3)
+        
+        def first_reviewable_offer(query):
+            for offer in query.order_by(Offer.data_ora.desc()).all():
+                existing_review = Review.query.filter_by(
+                    reviewer_id=current_user.id,
+                    reviewed_id=user_id,
+                    offer_id=offer.id,
+                ).first()
+                if not existing_review:
+                    return offer, None
+                if can_edit_review(existing_review, now):
+                    return offer, existing_review
+            return None, None
         
         # Caso A: Io ero l'ospite, lui l'host
         meal_as_guest = Offer.query.join(Claim).filter(
             Claim.user_id == current_user.id,
+            Claim.status == CLAIM_STATUS_ACCEPTED,
             Offer.user_id == user_id,
             Offer.data_ora < threshold
-        ).order_by(Offer.data_ora.desc()).first()
+        )
         
         # Caso B: Io ero l'host, lui l'ospite
         meal_as_host = Offer.query.join(Claim).filter(
             Offer.user_id == current_user.id,
             Claim.user_id == user_id,
+            Claim.status == CLAIM_STATUS_ACCEPTED,
             Offer.data_ora < threshold
-        ).order_by(Offer.data_ora.desc()).first()
+        )
         
-        shared_offer = meal_as_guest or meal_as_host
+        shared_offer, editable_review = first_reviewable_offer(meal_as_guest)
+        if not shared_offer:
+            shared_offer, editable_review = first_reviewable_offer(meal_as_host)
 
         # Se non c'è una shared_offer già conclusa, cerchiamo una "pending" (pasto appena avvenuto o in corso)
         if not shared_offer:
             pending_as_guest = Offer.query.join(Claim).filter(
                 Claim.user_id == current_user.id,
+                Claim.status == CLAIM_STATUS_ACCEPTED,
                 Offer.user_id == user_id,
                 Offer.data_ora < now,
                 Offer.data_ora >= threshold
-            ).first()
+            ).order_by(Offer.data_ora.desc()).first()
             pending_as_host = Offer.query.join(Claim).filter(
                 Offer.user_id == current_user.id,
                 Claim.user_id == user_id,
+                Claim.status == CLAIM_STATUS_ACCEPTED,
                 Offer.data_ora < now,
                 Offer.data_ora >= threshold
-            ).first()
+            ).order_by(Offer.data_ora.desc()).first()
             pending_offer = pending_as_guest or pending_as_host
     
     return render_template(
@@ -357,12 +2520,329 @@ def public_profile(user_id):
         offerte_totali=offerte_totali,
         recuperi_effettuati=recuperi_effettuati,
         shared_offer=shared_offer,
-        pending_offer=pending_offer
+        editable_review=editable_review,
+        pending_offer=pending_offer,
+        review_edit_threshold=local_now() - timedelta(hours=REVIEW_EDIT_WINDOW_HOURS),
+        is_following=UserFollow.query.filter_by(
+            follower_id=current_user.id,
+            followed_id=user_id,
+        ).first() is not None if current_user.id != user_id else False,
     )
+
+
+@app.route("/users/<int:user_id>/follow", methods=["POST"])
+@login_required
+@profile_completed_required
+def follow_user(user_id):
+    if is_admin_user(current_user):
+        return redirect(url_for("admin_dashboard"))
+
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash("Non puoi seguire te stesso.", "warning")
+        return redirect(get_safe_next_url())
+    if user.is_admin:
+        flash("Non puoi seguire un amministratore.", "warning")
+        return redirect(get_safe_next_url())
+
+    existing_follow = UserFollow.query.filter_by(
+        follower_id=current_user.id,
+        followed_id=user.id,
+    ).first()
+    if not existing_follow:
+        db.session.add(UserFollow(follower_id=current_user.id, followed_id=user.id))
+        db.session.commit()
+        flash(f"Ora segui {user.nome}. Riceverai le sue nuove offerte via email.", "success")
+
+    return redirect(get_safe_next_url())
+
+
+@app.route("/users/<int:user_id>/unfollow", methods=["POST"])
+@login_required
+@profile_completed_required
+def unfollow_user(user_id):
+    if is_admin_user(current_user):
+        return redirect(url_for("admin_dashboard"))
+
+    user = User.query.get_or_404(user_id)
+    existing_follow = UserFollow.query.filter_by(
+        follower_id=current_user.id,
+        followed_id=user.id,
+    ).first()
+    if existing_follow:
+        db.session.delete(existing_follow)
+        db.session.commit()
+        flash(f"Non segui più {user.nome}.", "success")
+
+    return redirect(get_safe_next_url())
 
 @app.errorhandler(413)
 def request_entity_too_large(error):
-    return jsonify({"success": False, "errors": ["La foto è troppo pesante (Max 64MB). Compressione fallita."]}), 413
+    return jsonify({"success": False, "errors": ["Le foto sono troppo pesanti (Max 64MB complessivi). Compressione fallita."]}), 413
+
+
+def google_places_enabled():
+    return bool(app.config.get("GOOGLE_PLACES_API_KEY"))
+
+
+GOOGLE_PLACES_ALLOWED_PRIMARY_TYPES = {
+    "restaurant",
+    "cafe",
+    "bar",
+    "bakery",
+    "meal_takeaway",
+    "pizza_restaurant",
+    "coffee_shop",
+    "fast_food_restaurant",
+    "brunch_restaurant",
+    "sandwich_shop",
+}
+
+GOOGLE_PLACES_INCLUDED_TYPE_GROUPS = (
+    (
+        "restaurant",
+        "pizza_restaurant",
+        "brunch_restaurant",
+        "fast_food_restaurant",
+    ),
+    (
+        "cafe",
+        "coffee_shop",
+        "bakery",
+        "sandwich_shop",
+    ),
+    (
+        "bar",
+        "meal_takeaway",
+    ),
+)
+
+GOOGLE_PLACES_EXCLUDED_PRIMARY_TYPES = {
+    "shopping_mall",
+    "supermarket",
+    "grocery_store",
+    "convenience_store",
+    "market",
+    "store",
+    "department_store",
+}
+
+GOOGLE_PLACES_EXCLUDED_KEYWORDS = (
+    "centro commerciale",
+    "shopping center",
+    "shopping mall",
+    "supermercato",
+    "ipermercato",
+    "minimarket",
+    "market",
+    "iper ",
+)
+
+
+def is_google_place_relevant(place_name, place_address, primary_type):
+    """Filtra solo i locali coerenti con colazione, pranzo e cena."""
+    normalized_type = (primary_type or "").strip().lower()
+    normalized_name = (place_name or "").strip().lower()
+    normalized_address = (place_address or "").strip().lower()
+    haystack = f"{normalized_name} {normalized_address}"
+
+    if normalized_type in GOOGLE_PLACES_EXCLUDED_PRIMARY_TYPES:
+        return False
+
+    if any(keyword in haystack for keyword in GOOGLE_PLACES_EXCLUDED_KEYWORDS):
+        return False
+
+    if normalized_type in GOOGLE_PLACES_ALLOWED_PRIMARY_TYPES:
+        return True
+
+    # Fallback prudente: alcuni locali buoni arrivano con type generico ma nome parlante.
+    useful_keywords = (
+        "ristor",
+        "pizzer",
+        "pizza",
+        "bar",
+        "pub",
+        "caff",
+        "cafeter",
+        "brunch",
+        "oster",
+        "trattor",
+        "bistrot",
+        "bakery",
+    )
+    return any(keyword in haystack for keyword in useful_keywords)
+
+
+def _google_places_nearby_request(latitude, longitude, radius, included_types, max_results):
+    api_key = app.config.get("GOOGLE_PLACES_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("Google Places non configurato.")
+
+    request_url = "https://places.googleapis.com/v1/places:searchNearby"
+    request_payload = {
+        "includedTypes": list(included_types),
+        "excludedTypes": [
+            "shopping_mall",
+            "supermarket",
+            "grocery_store",
+            "market",
+            "department_store",
+            "convenience_store",
+        ],
+        "maxResultCount": max(1, min(int(max_results), 20)),
+        "locationRestriction": {
+            "circle": {
+                "center": {
+                    "latitude": float(latitude),
+                    "longitude": float(longitude),
+                },
+                "radius": float(max(100, min(radius, 8000))),
+            }
+        },
+        "rankPreference": "DISTANCE",
+        "languageCode": "it",
+        "regionCode": "IT",
+    }
+    req = Request(
+        request_url,
+        data=json.dumps(request_payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": api_key,
+            "X-Goog-FieldMask": ",".join([
+                "places.id",
+                "places.displayName",
+                "places.formattedAddress",
+                "places.location",
+                "places.primaryType",
+            ]),
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(req, timeout=12) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Google Places HTTP {exc.code}: {details}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"Google Places non raggiungibile: {exc}") from exc
+
+    return payload.get("places", [])
+
+
+def search_google_nearby_places(latitude, longitude, radius=7000, max_results=36):
+    """Cerca locali vicini tramite Google Places API (New)."""
+    places_by_id = {}
+    last_error = None
+
+    for included_types in GOOGLE_PLACES_INCLUDED_TYPE_GROUPS:
+        try:
+            raw_places = _google_places_nearby_request(
+                latitude,
+                longitude,
+                radius=radius,
+                included_types=included_types,
+                max_results=max_results,
+            )
+        except Exception as exc:
+            print(f"[GOOGLE_PLACES_GROUP_ERROR] types={included_types} error={exc}")
+            last_error = exc
+            continue
+        for place in raw_places:
+            location = place.get("location") or {}
+            display_name = place.get("displayName") or {}
+            lat = location.get("latitude")
+            lon = location.get("longitude")
+            if lat is None or lon is None:
+                continue
+            place_name = display_name.get("text", "").strip()
+            place_address = (place.get("formattedAddress") or "").strip()
+            primary_type = (place.get("primaryType") or "").strip()
+            if not is_google_place_relevant(place_name, place_address, primary_type):
+                continue
+            place_id = (place.get("id") or "").strip()
+            if not place_id or place_id in places_by_id:
+                continue
+            places_by_id[place_id] = {
+                "id": place_id,
+                "name": place_name,
+                "address": place_address,
+                "latitude": float(lat),
+                "longitude": float(lon),
+                "primary_type": primary_type,
+                "_distance_km": calculate_distance(
+                    float(latitude),
+                    float(longitude),
+                    float(lat),
+                    float(lon),
+                ),
+            }
+
+    places = []
+    for place in sorted(
+        places_by_id.values(),
+        key=lambda item: (item["_distance_km"], item["name"].lower()),
+    ):
+        normalized_place = dict(place)
+        normalized_place.pop("_distance_km", None)
+        places.append(normalized_place)
+        if len(places) >= max(1, min(int(max_results), 60)):
+            break
+
+    if not places and last_error is not None:
+        raise last_error
+
+    return places
+
+
+def get_google_place_details(place_id):
+    """Recupera dettagli mirati del locale selezionato."""
+    api_key = app.config.get("GOOGLE_PLACES_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("Google Places non configurato.")
+
+    safe_place_id = quote(place_id.strip(), safe="")
+    request_url = f"https://places.googleapis.com/v1/places/{safe_place_id}"
+    req = Request(
+        request_url,
+        headers={
+            "X-Goog-Api-Key": api_key,
+            "X-Goog-FieldMask": ",".join(
+                [
+                    "id",
+                    "displayName",
+                    "formattedAddress",
+                    "location",
+                    "primaryType",
+                    "nationalPhoneNumber",
+                ]
+            ),
+        },
+        method="GET",
+    )
+
+    try:
+        with urlopen(req, timeout=12) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Google Places HTTP {exc.code}: {details}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"Google Places non raggiungibile: {exc}") from exc
+
+    location = payload.get("location") or {}
+    display_name = payload.get("displayName") or {}
+    return {
+        "id": payload.get("id", ""),
+        "name": display_name.get("text", "").strip(),
+        "address": (payload.get("formattedAddress") or "").strip(),
+        "latitude": float(location.get("latitude") or 0),
+        "longitude": float(location.get("longitude") or 0),
+        "primary_type": (payload.get("primaryType") or "").strip(),
+        "phone_number": (payload.get("nationalPhoneNumber") or "").strip(),
+    }
 
 
 @app.route("/api/geocode")
@@ -417,20 +2897,114 @@ def api_geocode():
     return jsonify({"address": "Posizione Mappa"})
 
 
+@app.route("/api/places/nearby", methods=["GET"])
+@login_required
+def api_places_nearby():
+    """Restituisce locali Google Places vicini al punto richiesto."""
+    lat = request.args.get("lat", "").strip()
+    lon = request.args.get("lon", "").strip()
+    radius = request.args.get("radius", "7000").strip()
+    max_results = request.args.get("max_results", "36").strip()
+
+    if not google_places_enabled():
+        return jsonify({
+            "success": False,
+            "error": "Google Places non configurato su questo ambiente.",
+        }), 503
+
+    try:
+        latitude = float(lat.replace(",", "."))
+        longitude = float(lon.replace(",", "."))
+        radius_m = int(float(radius.replace(",", ".")))
+        max_results_value = int(float(max_results.replace(",", ".")))
+    except ValueError:
+        return jsonify({
+            "success": False,
+            "error": "Coordinate, raggio o numero risultati non validi.",
+        }), 400
+
+    try:
+        places = search_google_nearby_places(
+            latitude,
+            longitude,
+            radius=radius_m,
+            max_results=max_results_value,
+        )
+    except Exception as exc:
+        print(f"[GOOGLE_PLACES_ERROR] {exc}")
+        return jsonify({
+            "success": False,
+            "error": "Impossibile recuperare i locali vicini in questo momento.",
+        }), 502
+
+    return jsonify({
+        "success": True,
+        "places": places,
+    })
+
+
+@app.route("/api/places/<path:place_id>", methods=["GET"])
+@login_required
+def api_place_details(place_id):
+    """Restituisce i dettagli essenziali del locale Google selezionato."""
+    if not google_places_enabled():
+        return jsonify({
+            "success": False,
+            "error": "Google Places non configurato su questo ambiente.",
+        }), 503
+
+    safe_place_id = (place_id or "").strip()
+    if not safe_place_id:
+        return jsonify({
+            "success": False,
+            "error": "Identificativo locale mancante.",
+        }), 400
+
+    try:
+        place = get_google_place_details(safe_place_id)
+    except Exception as exc:
+        print(f"[GOOGLE_PLACE_DETAILS_ERROR] {exc}")
+        return jsonify({
+            "success": False,
+            "error": str(exc),
+        }), 502
+
+    if not is_google_place_relevant(
+        place.get("name"),
+        place.get("address"),
+        place.get("primary_type"),
+    ):
+        return jsonify({
+            "success": False,
+            "error": "Seleziona solo bar, ristoranti, pizzerie o pub.",
+        }), 422
+
+    return jsonify({
+        "success": True,
+        "place": place,
+    })
+
+
 @app.route("/api/register", methods=["POST"])
 def api_register():
     """Registra un nuovo utente con verifica foto. Forza il logout di sessioni esistenti."""
     from flask_login import logout_user
     logout_user() # Assicura che la registrazione parta da un contesto pulito (Shared Device Fix)
+    photo_filenames = []
     try:
         nome = request.form.get("nome", "").strip()
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         conferma_password = request.form.get("conferma_password", "")
-        fascia_eta = request.form.get("fascia_eta", "")
+        numero_telefono_raw = request.form.get("numero_telefono", "")
+        eta_raw = request.form.get("eta", "")
+        sesso_raw = request.form.get("sesso", "non_dico")
         lat = request.form.get("latitudine")
         lon = request.form.get("longitudine")
         citta = request.form.get("citta", "").strip()
+        eta, eta_error = parse_age_value(eta_raw)
+        sesso, sesso_error = parse_gender_value(sesso_raw)
+        numero_telefono, phone_error = normalize_phone_number(numero_telefono_raw)
 
         # Validazione campi
         errors = []
@@ -438,12 +3012,16 @@ def api_register():
             errors.append("Il nome è obbligatorio.")
         if not email or "@" not in email:
             errors.append("Inserisci un'email valida.")
+        if phone_error:
+            errors.append(phone_error)
         if len(password) < 6:
             errors.append("La password deve avere almeno 6 caratteri.")
         if password != conferma_password:
             errors.append("Le due password non coincidono.")
-        if fascia_eta not in [f[0] for f in FASCE_ETA]:
-            errors.append("Seleziona una fascia d'età valida.")
+        if eta_error:
+            errors.append(eta_error)
+        if sesso_error:
+            errors.append(sesso_error)
         if not lat or not lon:
             errors.append("Seleziona la tua posizione sulla mappa.")
 
@@ -452,38 +3030,27 @@ def api_register():
             errors.append("Questa email è già registrata.")
 
         # Controlla foto
-        foto = request.files.get("foto")
-        if not foto or not foto.filename:
-            errors.append("La foto è obbligatoria.")
-        elif not allowed_file(foto.filename):
-            errors.append("Formato foto non valido. Ammessi JPG, PNG, WEBP, o scatta direttamente un selfie.")
+        foto_files = extract_uploaded_photos("foto")
+        if not foto_files:
+            errors.append("Carica almeno una foto profilo.")
 
         if errors:
             return jsonify({"success": False, "errors": errors}), 400
 
-        # Salva e processa la foto
-        foto_ext = foto.filename.rsplit(".", 1)[1].lower() if "." in foto.filename else "jpg"
-        temp_filename = f"{uuid.uuid4().hex}.{foto_ext}"
-        foto_filename = process_image(foto, temp_filename)
-        foto_path = os.path.join(app.config["UPLOAD_FOLDER"], foto_filename)
-
-        # Verifica volto
-        verifica = verifica_volto(foto_path)
-        if not verifica["valida"]:
-            if os.path.exists(foto_path):
-                os.remove(foto_path)
-            return jsonify({
-                "success": False,
-                "errors": [verifica["errore"]],
-            }), 400
+        photo_filenames, photo_errors = save_profile_gallery_files("new", foto_files, require_primary_face=True)
+        if photo_errors:
+            return jsonify({"success": False, "errors": photo_errors}), 400
 
         # Crea l'utente
         token_verifica = uuid.uuid4().hex
         user = User(
             nome=nome,
             email=email,
-            foto_filename=foto_filename,
-            fascia_eta=fascia_eta,
+            foto_filename=photo_filenames[0],
+            fascia_eta=str(eta),
+            eta=eta,
+            sesso=sesso,
+            numero_telefono=numero_telefono,
             latitudine=float(lat),
             longitudine=float(lon),
             citta=citta,
@@ -493,24 +3060,36 @@ def api_register():
         user.set_password(password)
 
         db.session.add(user)
+        db.session.flush()
+        replace_user_gallery(user, photo_filenames)
         db.session.commit()
 
-        # Invio VERA Email in background
+        # La verifica registrazione merita un invio immediato, non solo su thread.
         link_verifica = url_for('verify_email', token=token_verifica, _external=True)
-        send_email(
+        verification_sent = send_email(
             "Benvenuto su ApprofittOffro! Conferma la tua email 🍽️",
             [user.email],
             "verification.html",
+            background=False,
             user=user,
             link_verifica=link_verifica
+        )
+        if not verification_sent:
+            verification_sent = send_registration_verification_email(
+                user,
+                link_verifica,
+            )
+        print(
+            f"[REGISTER_VERIFICATION_MAIL] user={user.id} email={user.email} sent={verification_sent} provider={get_active_email_provider()}"
         )
 
         return jsonify({
             "success": True, 
-            "message": "Registrazione completata! Controlla la tua email (o il terminale) per confermare l'account prima di accedere."
+            "message": "Registrazione completata! Controlla la tua email per confermare l'account prima di accedere."
         })
     except Exception as super_err:
         db.session.rollback()
+        delete_upload_files(photo_filenames)
         return jsonify({"success": False, "errors": [f"Errore gravissimo server: {str(super_err)}"]}), 500
 
 
@@ -529,19 +3108,66 @@ def api_login():
     if not user.verificato:
         return jsonify({"success": False, "errors": ["Devi prima confermare la tua email! Controlla la posta."]}), 401
 
-    login_user(user, remember=True)
-    return jsonify({"success": True, "redirect": url_for("dashboard")})
+    session.clear()
+    login_user(user, remember=False)
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    session["last_activity_at"] = now_ts
+    session["login_at"] = now_ts
+    return jsonify({
+        "success": True,
+        "redirect": url_for("admin_dashboard") if is_admin_user(user) else url_for("dashboard"),
+    })
+
+
+@app.route("/api/auth/google", methods=["POST"])
+def api_google_login():
+    """Login mobile via Google ID token verificato lato server."""
+    data = request.get_json(silent=True) or {}
+    raw_token = str(data.get("id_token", "") or "").strip()
+
+    try:
+        identity_payload = verify_google_identity_token(raw_token)
+        user, created, admin_notification_required = resolve_google_user(identity_payload)
+    except ValueError as exc:
+        return jsonify({"success": False, "errors": [str(exc)]}), 400
+    except Exception as exc:
+        print(f"[GOOGLE_LOGIN_ERROR] {exc}")
+        return jsonify({
+            "success": False,
+            "errors": ["Non riesco a completare l'accesso Google adesso."],
+        }), 500
+
+    print(
+        f"[GOOGLE_SIGNUP_FLOW] user={getattr(user, 'id', None)} email={getattr(user, 'email', '')} "
+        f"created={created} admin_notification_required={admin_notification_required}"
+    )
+    if admin_notification_required:
+        notify_admin_for_verified_user(user, source="google")
+
+    session.clear()
+    login_user(user, remember=False)
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    session["last_activity_at"] = now_ts
+    session["login_at"] = now_ts
+
+    return jsonify({
+        "success": True,
+        "created": created,
+        "redirect": url_for("admin_dashboard") if is_admin_user(user) else url_for("dashboard"),
+    })
 
 
 @app.route("/logout", methods=["GET"])
 @login_required
 def web_logout():
     logout_user()
+    session.clear()
     return redirect(url_for('index'))
 
 @app.route("/api/logout", methods=["POST"])
 def api_logout():
     logout_user()
+    session.clear()
     return jsonify({"success": True, "redirect": url_for("index")})
 
 
@@ -549,38 +3175,58 @@ def api_logout():
 # API — Offerte
 # ===================================================================
 @app.route("/api/offers", methods=["GET"])
-@login_required
 def api_get_offers():
     """Recupera le offerte attualmente valide e visibili."""
     tipo = request.args.get("tipo", "")
-    periodo = request.args.get("periodo", "oggi_domani")
     radius_str = request.args.get("radius", "")
-    now = datetime.now()
+    limit_str = request.args.get("limit", "").strip()
+    now = local_now()
     threshold = now - timedelta(hours=3)
-    query = Offer.query.filter(
-        Offer.stato == "attiva",
-        Offer.posti_disponibili > 0,
+    query = Offer.query.options(
+        selectinload(Offer.autore).selectinload(User.photos),
+        selectinload(Offer.claims).selectinload(Claim.utente).selectinload(User.photos),
+    ).filter(
+        Offer.stato.in_(["attiva", "completata"]),
         Offer.data_ora > threshold,
     )
 
     if tipo:
         query = query.filter(Offer.tipo_pasto == tipo)
-    
-    if periodo == "oggi_domani":
-        # Fine di domani: 23:59:59 del giorno dopo
-        fine_domani = (now + timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=999999)
-        query = query.filter(Offer.data_ora <= fine_domani)
 
     offers = query.order_by(Offer.data_ora.asc()).all()
 
     # Applica filtro per Raggio se specificato
     radius_km = None
-    if radius_str and radius_str.isdigit():
-        radius_km = float(radius_str)
+    if radius_str:
+        try:
+            radius_km = float(radius_str.replace(",", "."))
+        except ValueError:
+            radius_km = None
+    elif current_user.is_authenticated:
+        try:
+            radius_km = float(current_user.raggio_azione or 15)
+        except (TypeError, ValueError):
+            radius_km = 15
 
-    # Centro di ricerca (predefinito: registrazione dell'utente)
-    search_lat = current_user.latitudine
-    search_lon = current_user.longitudine
+    if radius_km is not None and radius_km >= 999:
+        radius_km = None
+
+    limit = None
+    if limit_str:
+        try:
+            parsed_limit = int(limit_str)
+            if parsed_limit > 0:
+                limit = parsed_limit
+        except ValueError:
+            limit = None
+
+    # Centro di ricerca (predefinito: utente loggato, altrimenti Roma)
+    if current_user.is_authenticated:
+        search_lat = current_user.latitudine
+        search_lon = current_user.longitudine
+    else:
+        search_lat = 41.9
+        search_lon = 12.5
     
     req_lat = request.args.get("lat")
     req_lon = request.args.get("lon")
@@ -594,6 +3240,10 @@ def api_get_offers():
     result = []
     for o in offers:
         dist = calculate_distance(search_lat, search_lon, o.latitudine, o.longitudine)
+        booking_deadline = get_offer_booking_deadline(o)
+        booking_closed = is_offer_booking_closed(o, now)
+        has_started = o.data_ora <= now
+        author_rating = get_user_rating(o.autore.id)
         
         # Scarta l'offerta se si trova oltre il raggio specificato dal filtro
         if radius_km is not None:
@@ -601,32 +3251,94 @@ def api_get_offers():
                 continue
 
         # Controlla se l'utente corrente ha già approfittato
-        already_claimed = Claim.query.filter_by(
-            user_id=current_user.id, offer_id=o.id
-        ).first() is not None
+        current_claim = None
+        already_claimed = False
+        is_own = False
+        host_whatsapp_link = ""
+        if current_user.is_authenticated:
+            current_claim = next(
+                (claim for claim in o.claims if claim.user_id == current_user.id),
+                None,
+            )
+            already_claimed = current_claim is not None
+            is_own = o.user_id == current_user.id
+            if (
+                current_claim is not None
+                and current_claim.status == CLAIM_STATUS_ACCEPTED
+                and not is_own
+            ):
+                host_whatsapp_link = build_whatsapp_offer_link(current_user, o.autore, o)
+
+        claim_status = "open"
+        if current_claim is not None:
+            claim_status = (
+                "pending"
+                if current_claim.status == CLAIM_STATUS_PENDING
+                else "claimed"
+            )
+        elif o.stato != "attiva" or o.posti_disponibili <= 0:
+            claim_status = "full"
+        elif has_started:
+            claim_status = "started"
+        elif booking_closed:
+            claim_status = "booking_closed"
+
+        can_claim = (
+            (not is_own)
+            and current_claim is None
+            and claim_status == "open"
+        )
+
+        accepted_claims = get_offer_accepted_claims(o)
 
         result.append({
             "id": o.id,
             "tipo_pasto": o.tipo_pasto,
             "nome_locale": o.nome_locale,
             "indirizzo": o.indirizzo,
+            "telefono_locale": getattr(o, "telefono_locale", "") or "",
             "lat": o.latitudine,
             "lon": o.longitudine,
             "distance_km": round(dist, 1),
             "posti_totali": o.posti_totali,
             "posti_disponibili": o.posti_disponibili,
+            "stato": o.stato,
             "data_ora": o.data_ora.isoformat(),
+            "booking_deadline": booking_deadline.isoformat(),
+            "booking_closed": booking_closed,
+            "has_started": has_started,
             "descrizione": o.descrizione or "",
             "foto_locale": getattr(o, "foto_locale", "nessuna.jpg"),
             "autore": o.autore.nome,
             "autore_id": o.autore.id,
             "autore_foto": o.autore.foto_filename,
-            "autore_fascia_eta": o.autore.fascia_eta,
+            "autore_foto_gallery": o.autore.gallery_filenames[:2],
+            "autore_eta": o.autore.eta_display,
+            "autore_rating_average": author_rating["average"],
+            "autore_rating_count": author_rating["count"],
             "autore_cibi_preferiti": o.autore.cibi_preferiti or "",
             "autore_intolleranze": o.autore.intolleranze or "",
-            "is_own": o.user_id == current_user.id,
+            "host_whatsapp_link": host_whatsapp_link,
+            "partecipanti": [
+                {
+                    "id": claim.utente.id,
+                    "nome": claim.utente.nome,
+                    "foto": claim.utente.foto_filename,
+                    "whatsapp_link": build_whatsapp_offer_link(current_user, claim.utente, o)
+                    if current_user.is_authenticated and is_own
+                    else "",
+                }
+                for claim in accepted_claims
+                if claim.utente
+            ],
+            "is_own": is_own,
             "already_claimed": already_claimed,
+            "can_claim": can_claim,
+            "claim_status": claim_status,
         })
+
+        if limit is not None and len(result) >= limit:
+            break
 
     return jsonify({"success": True, "offers": result})
 
@@ -639,12 +3351,22 @@ def api_delete_offer(offer_id):
     if not offer:
         return jsonify({"success": False, "error": "Offerta non trovata."}), 404
     
-    if offer.user_id != current_user.id:
+    if not can_manage_offer(offer, current_user):
         return jsonify({"success": False, "error": "Non autorizzato."}), 403
     
     # Riceve la motivazione dal corpo della richiesta (JSON)
     data = request.get_json(silent=True) or {}
     motivazione = data.get("motivazione", "Nessuna motivazione specificata.").strip() or "Nessuna motivazione specificata."
+
+    remove_offer_with_notifications(
+        offer,
+        motivazione,
+        acting_admin=current_user if is_admin_user(current_user) else None,
+        notify_owner=is_admin_user(current_user) and offer.user_id != current_user.id,
+    )
+    db.session.commit()
+    
+    return jsonify({"success": True, "message": "Offerta eliminata e partecipanti notificati."})
     
     # Trova tutti i partecipanti (Claims)
     claims = Claim.query.filter_by(offer_id=offer.id).all()
@@ -677,23 +3399,38 @@ def api_delete_offer(offer_id):
 def edit_offer_page(offer_id):
     """Schermata per la modifica di un'offerta esistente."""
     offer = Offer.query.get_or_404(offer_id)
-    if offer.user_id != current_user.id:
+    if not can_manage_offer(offer, current_user):
         flash("Non puoi modificare le offerte altrui.", "error")
         return redirect(url_for("dashboard"))
-    return render_template("create_offer.html", offer=offer, tipi_pasto=TIPI_PASTO)
+    allow_admin_timing_bypass = is_admin_user(current_user) and request.args.get("from") == "admin"
+    return_url = url_for("admin_dashboard") if allow_admin_timing_bypass else url_for("dashboard")
+    return render_template(
+        "create_offer.html",
+        offer=offer,
+        tipi_pasto=TIPI_PASTO,
+        return_url=return_url,
+        allow_admin_timing_bypass=allow_admin_timing_bypass,
+    )
 
 
 @app.route("/api/offers/<int:offer_id>", methods=["PUT"])
 @login_required
 def api_edit_offer(offer_id):
     """Applica le modifiche a un'offerta pre-esistente."""
+    profile_error = require_complete_profile_json()
+    if profile_error:
+        return profile_error
+
     offer = Offer.query.get_or_404(offer_id)
-    if offer.user_id != current_user.id:
+    if not can_manage_offer(offer, current_user):
         return jsonify({"success": False, "errors": ["Non autorizzato."]}), 403
+
+    previous_state = snapshot_offer_notification_state(offer)
 
     tipo_pasto = request.form.get("tipo_pasto", "")
     nome_locale = request.form.get("nome_locale", "").strip()
     indirizzo = request.form.get("indirizzo", "").strip()
+    telefono_locale = request.form.get("telefono_locale", "").strip()
     lat = request.form.get("latitudine")
     lon = request.form.get("longitudine")
     posti = request.form.get("posti_totali")
@@ -727,25 +3464,63 @@ def api_edit_offer(offer_id):
     except (ValueError, TypeError):
         return jsonify({"success": False, "errors": ["Formato data non valido."]}), 400
 
+    conflicting_offer = get_same_day_offer_conflict(
+        offer.user_id,
+        tipo_pasto,
+        data_ora,
+        exclude_offer_id=offer.id,
+    )
+    if conflicting_offer:
+        data_conflitto = conflicting_offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+        meal_copy = get_meal_type_copy(tipo_pasto)
+        return jsonify({
+            "success": False,
+            "errors": [
+                f"Hai già pubblicato un'offerta di {meal_copy['singular']} per questa data ({data_conflitto}). Non puoi offrire due {meal_copy['plural']} nello stesso giorno."
+            ],
+        }), 400
+
+    if (not is_admin_user(current_user)) and is_new_offer_publication_too_late(tipo_pasto, data_ora):
+        return jsonify({
+            "success": False,
+            "errors": [get_offer_publication_too_late_message(tipo_pasto)],
+        }), 400
+
+    try:
+        requested_posti = int(posti)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "errors": ["Numero posti non valido."]}), 400
+
+    occupied_seats = max(0, offer.posti_totali - offer.posti_disponibili)
+    if requested_posti < occupied_seats:
+        return jsonify({
+            "success": False,
+            "errors": [
+                f"Non puoi scendere sotto {occupied_seats} posti: ci sono gia partecipanti confermati."
+            ],
+        }), 400
+
     if foto_locale and foto_locale.filename:
         ext = foto_locale.filename.rsplit(".", 1)[1].lower()
-        filename = f"offer_{current_user.id}_{int(datetime.now().timestamp())}.{ext}"
+        filename = f"offer_{offer.user_id}_{int(datetime.now().timestamp())}.{ext}"
         offer.foto_locale = process_image(foto_locale, filename)
 
     offer.tipo_pasto = tipo_pasto
     offer.nome_locale = nome_locale
     offer.indirizzo = indirizzo
+    offer.telefono_locale = telefono_locale
     offer.latitudine = float(lat)
     offer.longitudine = float(lon)
     
-    diff_posti = int(posti) - offer.posti_totali
-    offer.posti_totali = int(posti)
+    diff_posti = requested_posti - offer.posti_totali
+    offer.posti_totali = requested_posti
     offer.posti_disponibili = max(0, offer.posti_disponibili + diff_posti)
     
     offer.data_ora = data_ora
     offer.descrizione = descrizione
 
     db.session.commit()
+    notify_claimants_for_offer_update(offer, previous_state, current_user)
     return jsonify({"success": True, "message": "Offerta aggiornata con successo!", "offer_id": offer.id})
 
 
@@ -753,9 +3528,14 @@ def api_edit_offer(offer_id):
 @login_required
 def api_create_offer():
     """Crea una nuova offerta con foto del locale."""
+    profile_error = require_complete_profile_json()
+    if profile_error:
+        return profile_error
+
     tipo_pasto = request.form.get("tipo_pasto", "")
     nome_locale = request.form.get("nome_locale", "").strip()
     indirizzo = request.form.get("indirizzo", "").strip()
+    telefono_locale = request.form.get("telefono_locale", "").strip()
     lat = request.form.get("latitudine")
     lon = request.form.get("longitudine")
     posti = request.form.get("posti_totali")
@@ -790,6 +3570,27 @@ def api_create_offer():
     except (ValueError, TypeError):
         return jsonify({"success": False, "errors": ["Formato data non valido."]}), 400
 
+    conflicting_offer = get_same_day_offer_conflict(
+        current_user.id,
+        tipo_pasto,
+        data_ora,
+    )
+    if conflicting_offer:
+        data_conflitto = conflicting_offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+        meal_copy = get_meal_type_copy(tipo_pasto)
+        return jsonify({
+            "success": False,
+            "errors": [
+                f"Hai già pubblicato un'offerta di {meal_copy['singular']} per questa data ({data_conflitto}). Non puoi offrire due {meal_copy['plural']} nello stesso giorno."
+            ],
+        }), 400
+
+    if is_new_offer_publication_too_late(tipo_pasto, data_ora):
+        return jsonify({
+            "success": False,
+            "errors": [get_offer_publication_too_late_message(tipo_pasto)],
+        }), 400
+
     # Salvataggio Immagine locale (opzionale)
     filename = 'nessuna.jpg'
     if foto_locale and foto_locale.filename:
@@ -802,6 +3603,7 @@ def api_create_offer():
         tipo_pasto=tipo_pasto,
         nome_locale=nome_locale,
         indirizzo=indirizzo,
+        telefono_locale=telefono_locale,
         latitudine=float(lat),
         longitudine=float(lon),
         posti_totali=int(posti),
@@ -813,14 +3615,32 @@ def api_create_offer():
 
     db.session.add(offer)
     db.session.commit()
+    notified_users = notify_followers_for_new_offer(offer)
 
-    return jsonify({"success": True, "message": "Offerta creata con successo!", "offer_id": offer.id})
+    message = "Offerta creata con successo!"
+    if notified_users == 1:
+        message += " Abbiamo avvisato 1 persona che ti segue via email."
+    elif notified_users > 1:
+        message += f" Abbiamo avvisato {notified_users} persone che ti seguono via email."
+    elif get_followers_notification_targets(offer):
+        message += " L'offerta e' pronta, ma le email ai follower non sono attive su questo ambiente."
+
+    return jsonify({
+        "success": True,
+        "message": message,
+        "offer_id": offer.id,
+        "notified_users": notified_users,
+    })
 
 
 @app.route("/api/offers/<int:offer_id>/claim", methods=["POST"])
 @login_required
 def api_claim_offer(offer_id):
     """Approfitta di un'offerta — decrementa posti disponibili."""
+    profile_error = require_complete_profile_json()
+    if profile_error:
+        return profile_error
+
     offer = db.session.get(Offer, offer_id)
 
     if not offer:
@@ -830,51 +3650,96 @@ def api_claim_offer(offer_id):
     if offer.user_id == current_user.id:
         return jsonify({"success": False, "errors": ["Non puoi approfittare della tua stessa offerta."]}), 400
 
-    if not offer.is_disponibile:
-        return jsonify({"success": False, "errors": ["Offerta non più disponibile."]}), 400
-
-    # Controlla se ha già approfittato
+    # Controlla se ha già una richiesta o una partecipazione.
     existing = Claim.query.filter_by(user_id=current_user.id, offer_id=offer_id).first()
     if existing:
+        if existing.status == CLAIM_STATUS_PENDING:
+            return jsonify({"success": False, "errors": ["Hai già inviato una richiesta per questa offerta."]}), 400
         return jsonify({"success": False, "errors": ["Hai già approfittato di questa offerta."]}), 400
-    # Crea il claim e decrementa i posti
-    claim = Claim(user_id=current_user.id, offer_id=offer_id)
-    offer.posti_disponibili -= 1
 
-    if offer.posti_disponibili == 0:
-        offer.stato = "completata"
+    now = local_now()
+
+    if offer.stato != "attiva" or offer.posti_disponibili <= 0:
+        return jsonify({"success": False, "errors": ["Offerta non più disponibile."]}), 400
+
+    if offer.data_ora <= now:
+        return jsonify({"success": False, "errors": ["Il pasto è già iniziato o concluso."]}), 400
+
+    if is_offer_booking_closed(offer, now):
+        return jsonify({"success": False, "errors": [get_offer_booking_closed_message(offer)]}), 400
+    # Crea una richiesta pendente senza occupare ancora il posto.
+    claim = Claim(
+        user_id=current_user.id,
+        offer_id=offer_id,
+        status=CLAIM_STATUS_PENDING,
+    )
 
     db.session.add(claim)
     db.session.commit()
 
-    # ---- Invio Email di Notifica ----
-    data_formattata = offer.data_ora.strftime('%d/%m/%Y alle %H:%M')
-    
-    # Email al partecipante (claimer)
-    send_email(
-        f"🎉 Sei dentro! Hai approfittato di '{offer.nome_locale}'",
-        [current_user.email],
-        "claim_confirmed.html",
-        user=current_user,
-        offer=offer,
-        data_evento=data_formattata
-    )
-
-    # Email all'autore dell'offerta
-    send_email(
-        f"🔔 Nuova partecipazione a '{offer.nome_locale}'!",
-        [offer.autore.email],
-        "claim_notification.html",
-        user=current_user,
-        offer=offer,
-        data_evento=data_formattata
-    )
+    send_claim_request_notification_to_host(claim)
 
     return jsonify({
         "success": True,
-        "message": "Hai approfittato dell'offerta!",
+        "message": "Richiesta inviata! Attendi la conferma dell'organizzatore.",
+        "claim_status": "pending",
         "posti_disponibili": offer.posti_disponibili,
     })
+
+
+@app.route("/api/claims/<int:claim_id>/accept", methods=["POST"])
+@login_required
+def api_accept_claim_request(claim_id):
+    """Accetta una richiesta pendente su una propria offerta."""
+    claim = db.session.get(Claim, claim_id)
+    if not claim:
+        return jsonify({"success": False, "error": "Richiesta non trovata."}), 404
+
+    offer = claim.offerta
+    if not offer or offer.user_id != current_user.id:
+        return jsonify({"success": False, "error": "Non autorizzato."}), 403
+    if claim.status != CLAIM_STATUS_PENDING:
+        return jsonify({"success": False, "error": "Questa richiesta non è più pendente."}), 400
+
+    now = local_now()
+    if offer.stato != "attiva" or offer.posti_disponibili <= 0:
+        return jsonify({"success": False, "error": "Offerta non più disponibile."}), 400
+    if offer.data_ora <= now:
+        return jsonify({"success": False, "error": "Il pasto è già iniziato o concluso."}), 400
+    if is_offer_booking_closed(offer, now):
+        return jsonify({"success": False, "error": get_offer_booking_closed_message(offer)}), 400
+
+    claim.status = CLAIM_STATUS_ACCEPTED
+    offer.posti_disponibili -= 1
+    if offer.posti_disponibili <= 0:
+        offer.posti_disponibili = 0
+        offer.stato = "completata"
+
+    db.session.commit()
+    send_claim_accepted_email(claim)
+
+    return jsonify({"success": True, "message": "Richiesta accettata."})
+
+
+@app.route("/api/claims/<int:claim_id>/reject", methods=["POST"])
+@login_required
+def api_reject_claim_request(claim_id):
+    """Rifiuta una richiesta pendente su una propria offerta."""
+    claim = db.session.get(Claim, claim_id)
+    if not claim:
+        return jsonify({"success": False, "error": "Richiesta non trovata."}), 404
+
+    offer = claim.offerta
+    if not offer or offer.user_id != current_user.id:
+        return jsonify({"success": False, "error": "Non autorizzato."}), 403
+    if claim.status != CLAIM_STATUS_PENDING:
+        return jsonify({"success": False, "error": "Questa richiesta non è più pendente."}), 400
+
+    send_claim_rejected_email(claim)
+    db.session.delete(claim)
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Richiesta rifiutata."})
 
 
 @app.route("/api/claims/<int:claim_id>", methods=["DELETE"])
@@ -888,6 +3753,11 @@ def api_unclaim(claim_id):
         return jsonify({"success": False, "error": "Non autorizzato."}), 403
 
     offer = claim.offerta
+    if claim.status == CLAIM_STATUS_PENDING:
+        db.session.delete(claim)
+        db.session.commit()
+        return jsonify({"success": True, "message": "Richiesta annullata con successo."})
+
     data_formattata = offer.data_ora.strftime('%d/%m/%Y alle %H:%M')
 
     # Ripristina il posto e lo stato dell'offerta
@@ -949,102 +3819,435 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 @login_required
 def api_user_me():
     """Restituisce i dati dell'utente corrente."""
+    followed_user_ids = get_followed_user_ids(current_user.id)
+    pending_claims = (
+        Claim.query.join(Offer, Claim.offer_id == Offer.id)
+        .options(
+            selectinload(Claim.utente).selectinload(User.photos),
+            selectinload(Claim.offerta),
+        )
+        .filter(
+            Offer.user_id == current_user.id,
+            Claim.status == CLAIM_STATUS_PENDING,
+        )
+        .order_by(Claim.created_at.desc())
+        .all()
+    )
+    followers = [
+        relation.follower
+        for relation in sorted(
+            current_user.followers_rel,
+            key=lambda item: item.created_at or datetime.min,
+            reverse=True,
+        )
+        if relation.follower and not is_admin_user(relation.follower)
+    ]
+    met_users = get_met_users_for_user(current_user)
+    reviews_received = (
+        Review.query.options(
+            selectinload(Review.reviewer).selectinload(User.photos),
+            selectinload(Review.reviewed).selectinload(User.photos),
+            selectinload(Review.offerta),
+        )
+        .filter(Review.reviewed_id == current_user.id)
+        .order_by(Review.created_at.desc())
+        .all()
+    )
+    reviews_given = (
+        Review.query.options(
+            selectinload(Review.reviewer).selectinload(User.photos),
+            selectinload(Review.reviewed).selectinload(User.photos),
+            selectinload(Review.offerta),
+        )
+        .filter(Review.reviewer_id == current_user.id)
+        .order_by(Review.created_at.desc())
+        .all()
+    )
+    user_payload = serialize_user_preview(
+        current_user,
+        viewer=current_user,
+        followed_user_ids=followed_user_ids,
+        include_gallery=True,
+        include_private=True,
+    )
+    user_payload["followers"] = [
+        serialize_user_preview(follower, viewer=current_user, followed_user_ids=followed_user_ids)
+        for follower in followers
+    ]
+    user_payload["met_users"] = [
+        serialize_user_preview(
+            met_user,
+            viewer=current_user,
+            followed_user_ids=followed_user_ids,
+        )
+        for met_user in met_users
+    ]
+    user_payload["pending_claim_requests"] = [
+        payload
+        for payload in (
+            serialize_pending_claim_request(
+                claim,
+                viewer=current_user,
+                followed_user_ids=followed_user_ids,
+            )
+            for claim in pending_claims
+        )
+        if payload
+    ]
+    user_payload["pending_review_reminders"] = [
+        payload
+        for payload in (
+            serialize_pending_review_reminder(
+                reminder,
+                viewer=current_user,
+                followed_user_ids=followed_user_ids,
+            )
+            for reminder in get_pending_review_reminders(current_user)
+        )
+        if payload
+    ]
+    user_payload["reviews_received"] = [
+        serialize_review_preview(review, viewer=current_user)
+        for review in reviews_received
+    ]
+    user_payload["reviews_given"] = [
+        serialize_review_preview(review, viewer=current_user)
+        for review in reviews_given
+    ]
+    user_payload["stats"] = {
+        "offerte_totali": Offer.query.filter_by(user_id=current_user.id).count(),
+        "offerte_attive_da_gestire": Offer.query.filter(
+            Offer.user_id == current_user.id,
+            Offer.stato.in_(["attiva", "completata"]),
+            Offer.data_ora > local_now() - timedelta(hours=3),
+        ).count(),
+        "recuperi_effettuati": Claim.query.filter_by(
+            user_id=current_user.id,
+            status=CLAIM_STATUS_ACCEPTED,
+        ).count(),
+    }
+
     return jsonify({
         "success": True,
-        "user": {
-            "id": current_user.id,
-            "nome": current_user.nome,
-            "email": current_user.email,
-            "foto": current_user.foto_filename,
-            "fascia_eta": current_user.fascia_eta,
-            "lat": current_user.latitudine,
-            "lon": current_user.longitudine,
-            "citta": current_user.citta,
-            "verificato": current_user.verificato,
-            "cibi_preferiti": current_user.cibi_preferiti or "",
-            "intolleranze": current_user.intolleranze or "",
+        "user": user_payload,
+    })
+
+
+@app.route("/api/people", methods=["GET"])
+@login_required
+def api_people():
+    """Restituisce i profili community in formato JSON."""
+    if is_admin_user(current_user):
+        return jsonify({"success": False, "error": "La community non è disponibile per gli amministratori."}), 403
+
+    selected_age_range, parsed_age_range, age_range_error = parse_age_range_filter(
+        request.args.get("age_range")
+    )
+    if age_range_error:
+        return jsonify({"success": False, "error": age_range_error}), 400
+    selected_gender, gender_error = parse_community_gender_filter(
+        request.args.get("gender")
+    )
+    if gender_error:
+        return jsonify({"success": False, "error": gender_error}), 400
+    radius_str = (request.args.get("radius") or "").strip()
+    radius_km = None
+    if radius_str:
+        try:
+            radius_km = float(radius_str.replace(",", "."))
+            if radius_km < 5 or radius_km > 1500:
+                raise ValueError()
+        except Exception:
+            return jsonify({
+                "success": False,
+                "error": "La distanza community deve essere un numero tra 5 e 1500 km.",
+            }), 400
+
+    people_query = User.query.options(selectinload(User.photos)).filter(
+        User.id != current_user.id,
+        User.is_admin.is_(False),
+        User.verificato.is_(True),
+        User.bio.isnot(None),
+        User.bio != "",
+        User.cibi_preferiti.isnot(None),
+        User.cibi_preferiti != "",
+        User.intolleranze.isnot(None),
+        User.intolleranze != "",
+    )
+
+    if isinstance(parsed_age_range, tuple):
+        people_query = people_query.filter(
+            User.eta >= parsed_age_range[0],
+            User.eta <= parsed_age_range[1],
+        )
+    elif isinstance(parsed_age_range, int):
+        people_query = people_query.filter(User.eta >= parsed_age_range)
+
+    if selected_gender:
+        people_query = people_query.filter(User.sesso == selected_gender)
+
+    people = people_query.order_by(User.eta.asc(), User.nome.asc()).all()
+    if radius_km is not None:
+        search_lat = current_user.latitudine or DEFAULT_USER_LATITUDE
+        search_lon = current_user.longitudine or DEFAULT_USER_LONGITUDE
+        people = [
+            person
+            for person in people
+            if person.latitudine is not None
+            and person.longitudine is not None
+            and calculate_distance(
+                search_lat,
+                search_lon,
+                person.latitudine,
+                person.longitudine,
+            ) <= radius_km
+        ]
+    followed_user_ids = get_followed_user_ids(current_user.id)
+
+    return jsonify({
+        "success": True,
+        "selected_age_range": selected_age_range,
+        "selected_gender": selected_gender,
+        "selected_radius": radius_km,
+        "age_ranges": [{"value": value, "label": label} for value, label in FASCE_ETA],
+        "gender_filters": [{"value": value, "label": label} for value, label in COMMUNITY_GENDER_FILTERS],
+        "people": [
+            serialize_user_preview(
+                person,
+                viewer=current_user,
+                followed_user_ids=followed_user_ids,
+            )
+            for person in people
+        ],
+    })
+
+
+@app.route("/api/users/<int:user_id>", methods=["GET"])
+@login_required
+def api_public_user(user_id):
+    """Dettaglio profilo pubblico in formato JSON."""
+    if is_admin_user(current_user):
+        return jsonify({"success": False, "error": "I profili pubblici non sono disponibili per gli amministratori."}), 403
+
+    user = User.query.options(selectinload(User.photos)).filter(
+        User.id == user_id,
+        User.is_admin.is_(False),
+    ).first_or_404()
+
+    followed_user_ids = get_followed_user_ids(current_user.id)
+    followers = [
+        relation.follower
+        for relation in sorted(
+            user.followers_rel,
+            key=lambda item: item.created_at or datetime.min,
+            reverse=True,
+        )
+        if relation.follower and not is_admin_user(relation.follower)
+    ]
+    reviews = Review.query.options(
+        selectinload(Review.reviewer).selectinload(User.photos),
+        selectinload(Review.offerta),
+    ).filter_by(reviewed_id=user_id).order_by(Review.created_at.desc()).all()
+
+    return jsonify({
+        "success": True,
+        "user": serialize_user_preview(
+            user,
+            viewer=current_user,
+            followed_user_ids=followed_user_ids,
+            include_gallery=True,
+        ),
+        "stats": {
+            "offerte_totali": Offer.query.filter_by(user_id=user.id).count(),
+            "recuperi_effettuati": Claim.query.filter_by(
+                user_id=user.id,
+                status=CLAIM_STATUS_ACCEPTED,
+            ).count(),
         },
+        "reviews": [
+            serialize_review_preview(review, viewer=current_user)
+            for review in reviews
+        ],
+        "followers": [
+            serialize_user_preview(
+                follower,
+                viewer=current_user,
+                followed_user_ids=followed_user_ids,
+            )
+            for follower in followers
+        ],
+    })
+
+
+@app.route("/api/users/<int:user_id>/follow", methods=["POST"])
+@login_required
+def api_follow_user(user_id):
+    """Segue un utente da mobile/web app JSON."""
+    if is_admin_user(current_user):
+        return jsonify({"success": False, "error": "Operazione non disponibile per gli amministratori."}), 403
+
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        return jsonify({"success": False, "error": "Non puoi seguire te stesso."}), 400
+    if user.is_admin:
+        return jsonify({"success": False, "error": "Non puoi seguire un amministratore."}), 400
+
+    existing_follow = UserFollow.query.filter_by(
+        follower_id=current_user.id,
+        followed_id=user.id,
+    ).first()
+    if not existing_follow:
+        db.session.add(UserFollow(follower_id=current_user.id, followed_id=user.id))
+        db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"Ora segui {user.nome}. Riceverai le sue nuove offerte via email.",
+        "is_following": True,
+        "followers_count": user.followers_count,
+    })
+
+
+@app.route("/api/users/<int:user_id>/unfollow", methods=["POST"])
+@login_required
+def api_unfollow_user(user_id):
+    """Smette di seguire un utente da mobile/web app JSON."""
+    if is_admin_user(current_user):
+        return jsonify({"success": False, "error": "Operazione non disponibile per gli amministratori."}), 403
+
+    user = User.query.get_or_404(user_id)
+    existing_follow = UserFollow.query.filter_by(
+        follower_id=current_user.id,
+        followed_id=user.id,
+    ).first()
+    if existing_follow:
+        db.session.delete(existing_follow)
+        db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"Non segui più {user.nome}.",
+        "is_following": False,
+        "followers_count": user.followers_count,
+    })
+
+
+@app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
+@admin_required
+def api_admin_delete_user(user_id):
+    """Elimina un account utente con motivazione obbligatoria e pulizia dati correlati."""
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"success": False, "error": "Utente non trovato."}), 404
+
+    if user.id == current_user.id:
+        return jsonify({"success": False, "error": "Non puoi eliminare l'account con cui sei entrato."}), 400
+
+    if is_admin_user(user) and User.query.filter_by(is_admin=True).count() <= 1:
+        return jsonify({"success": False, "error": "Non puoi eliminare l'ultimo amministratore rimasto."}), 400
+
+    data = request.get_json(silent=True) or {}
+    motivazione = str(data.get("motivazione", "")).strip()
+    if len(motivazione) < 8:
+        return jsonify({"success": False, "error": "Inserisci una motivazione chiara da inviare all'utente."}), 400
+
+    remove_user_with_cleanup(user, motivazione, current_user)
+    return jsonify({"success": True, "message": "Account eliminato e utente avvisato via email."})
+
+
+@app.route("/api/admin/users/<int:user_id>/message", methods=["POST"])
+@admin_required
+def api_admin_message_user(user_id):
+    """Invia una comunicazione libera da parte dell'amministratore a un utente."""
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"success": False, "error": "Utente non trovato."}), 404
+
+    data = request.get_json(silent=True) or {}
+    subject = str(data.get("subject", "")).strip()
+    message = str(data.get("message", "")).strip()
+
+    errors = []
+    if len(subject) < 4:
+        errors.append("Inserisci un oggetto più chiaro per la comunicazione.")
+    if len(message) < 10:
+        errors.append("Scrivi un messaggio più dettagliato da inviare all'utente.")
+
+    if errors:
+        return jsonify({"success": False, "errors": errors}), 400
+
+    send_email(
+        subject,
+        [user.email],
+        "admin_message.html",
+        user=user,
+        admin_user=current_user,
+        subject_line=subject,
+        message_body=message,
+    )
+    return jsonify({"success": True, "message": "Comunicazione inviata con successo."})
+
+
+@app.route("/api/user/account", methods=["DELETE"])
+@login_required
+def api_delete_own_account():
+    """Permette all'utente autenticato di cancellare definitivamente il proprio account."""
+    user = db.session.get(User, current_user.id)
+    if not user:
+        logout_user()
+        session.clear()
+        return jsonify({"success": False, "error": "Account non trovato."}), 404
+
+    if is_admin_user(user) and User.query.filter_by(is_admin=True).count() <= 1:
+        return jsonify({
+            "success": False,
+            "error": "Non puoi eliminare l'ultimo amministratore rimasto.",
+        }), 400
+
+    remove_user_self_service(user)
+    logout_user()
+    session.clear()
+    return jsonify({
+        "success": True,
+        "message": "Il tuo account Ã¨ stato eliminato definitivamente dalla community.",
     })
 
 @app.route("/api/user/update", methods=["POST"])
 @login_required
 def api_user_update():
     """Aggiorna i dati anagrafici, alimentari e la foto profilo dell'utente."""
-    # Gestisce sia JSON che Form Data (necessario per upload foto)
     if request.is_json:
         data = request.get_json()
+        foto_files = []
     else:
         data = request.form
+        foto_files = extract_uploaded_photos("foto")
 
-    # 1. Dati Anagrafici (Opzionali per l'update, ma validati se presenti)
-    nome = data.get("nome", current_user.nome).strip()
-    email = data.get("email", current_user.email).strip().lower()
-    fascia_eta = data.get("fascia_eta", current_user.fascia_eta)
-    lat = data.get("latitudine")
-    lon = data.get("longitudine")
-    citta = data.get("citta", current_user.citta)
-
-    # 2. Identikit Alimentare
-    pref = data.get("cibi_preferiti", current_user.cibi_preferiti or "").strip()
-    intoll = data.get("intolleranze", current_user.intolleranze or "").strip()
-    bio = data.get("bio", current_user.bio or "").strip()
-
-    errors = []
-    if not nome:
-        errors.append("Il nome non può essere vuoto.")
-    if not email or "@" not in email:
-        errors.append("Inserisci un'email valida.")
-    if email != current_user.email and User.query.filter_by(email=email).first():
-        errors.append("Questa email è già associata a un altro account.")
-    
-    if len(pref) > 0 and len(pref) < 3:
-        errors.append("Quali sono i tuoi cibi preferiti? Scrivi qualcosa in più.")
-    if len(bio) > 0 and len(bio) < 5:
-        errors.append("Raccontaci qualcosa di più nella tua Bio.")
-
-    # 3. Gestione Foto Profilo (Opzionale nell'update)
-    foto = request.files.get("foto")
-    if foto and foto.filename:
-        if not allowed_file(foto.filename):
-            errors.append("Formato foto non valido. Usa JPG, PNG o WEBP.")
-        else:
-            foto_ext = foto.filename.rsplit(".", 1)[1].lower() if "." in foto.filename else "jpg"
-            unique_id = str(uuid.uuid4().hex)[:8]
-            temp_filename = f"user_{current_user.id}_{unique_id}.{foto_ext}"
-            foto_filename = process_image(foto, temp_filename)
-            foto_path = os.path.join(app.config["UPLOAD_FOLDER"], foto_filename)
-
-            # Verifica volto (opzionale per l'update per non essere troppo bloccanti, ma sicura)
-            verifica = verifica_volto(foto_path)
-            if not verifica["valida"]:
-                if os.path.exists(foto_path):
-                    os.remove(foto_path)
-                errors.append(f"Foto non valida: {verifica['errore']}")
-            else:
-                # Se la verifica passa, aggiorniamo il filename
-                current_user.foto_filename = foto_filename
+    payload, errors = validate_profile_update_input(
+        current_user,
+        data,
+        foto_files=foto_files,
+        require_primary_face=True,
+    )
 
     if errors:
+        delete_upload_files(payload.get("uploaded_gallery_filenames", []))
         return jsonify({"success": False, "errors": errors}), 400
 
-    # 4. Salvataggio modifiche
-    current_user.nome = nome
-    current_user.email = email
-    current_user.fascia_eta = fascia_eta
-    if lat and lon:
-        try:
-            current_user.latitudine = float(lat)
-            current_user.longitudine = float(lon)
-            current_user.citta = citta
-        except ValueError:
-            pass
-            
-    current_user.cibi_preferiti = pref
-    current_user.intolleranze = intoll
-    current_user.bio = bio
+    success, save_errors, _ = save_profile_update_for_user(current_user, payload)
+    if not success:
+        return jsonify({"success": False, "errors": save_errors}), 500
 
-    db.session.commit()
-    return jsonify({"success": True, "message": "Profilo aggiornato con successo!"})
+    return jsonify({
+        "success": True,
+        "message": "Profilo aggiornato con successo!",
+        "gallery_filenames": current_user.gallery_filenames,
+        "primary_photo_url": url_for(
+            "uploaded_file",
+            filename=current_user.gallery_filenames[0],
+            _external=False,
+        ) if current_user.gallery_filenames else "",
+    })
 
 
 # ===================================================================
@@ -1054,25 +4257,31 @@ def api_user_update():
 @app.route("/api/reviews", methods=["POST"])
 @login_required
 def api_create_review():
-    """Crea una nuova recensione (Host -> Guest o Guest -> Host)."""
-    data = request.get_json()
+    """Crea o aggiorna una recensione (Host -> Guest o Guest -> Host)."""
+    data = request.get_json(silent=True) or {}
     offer_id = data.get("offer_id")
-    reviewed_id = data.get("reviewed_id") # Nuova specifica dell'utente da recensire
+    reviewed_id = data.get("reviewed_id")
     rating = data.get("rating")
-    commento = data.get("commento", "").strip()
+    commento = str(data.get("commento", "")).strip()
 
-    if not offer_id or not rating or not reviewed_id:
+    if offer_id in (None, "") or rating in (None, "") or reviewed_id in (None, ""):
         return jsonify({"success": False, "error": "Dati mancanti (ID offerta, utente o punteggio)."}), 400
 
     try:
+        offer_id = int(offer_id)
+        reviewed_id = int(reviewed_id)
         rating = int(rating)
         if rating < 1 or rating > 5:
             raise ValueError()
     except ValueError:
-        return jsonify({"success": False, "error": "Punteggio non valido (1-5)."}), 400
+        return jsonify({"success": False, "error": "Dati recensione non validi."}), 400
 
     # 1. Verifica che l'offerta esista
-    offer = Offer.query.get(offer_id)
+    profile_error = require_complete_profile_json()
+    if profile_error:
+        return profile_error
+
+    offer = db.session.get(Offer, offer_id)
     if not offer:
         return jsonify({"success": False, "error": "Offerta non trovata."}), 404
 
@@ -1081,8 +4290,7 @@ def api_create_review():
         return jsonify({"success": False, "error": "Non puoi recensire te stesso."}), 400
 
     # 3. Verifica che l'evento sia passato (buffer 3 ore)
-    from datetime import timedelta
-    if offer.data_ora + timedelta(hours=3) > datetime.now():
+    if offer.data_ora + timedelta(hours=3) > local_now():
         return jsonify({"success": False, "error": "Puoi lasciare una recensione solo 3 ore dopo l'inizio del pasto."}), 400
 
     # 4. Validazione Ruoli (Bidirezionale)
@@ -1091,23 +4299,49 @@ def api_create_review():
     # B) Io sono Host (offer.user_id), recensisco un Ospite (reviewed_id ha un Claim)
     
     is_guest_reviewing_host = (
-        Claim.query.filter_by(user_id=current_user.id, offer_id=offer_id).first() is not None
+        Claim.query.filter_by(
+            user_id=current_user.id,
+            offer_id=offer_id,
+            status=CLAIM_STATUS_ACCEPTED,
+        ).first()
+        is not None
         and reviewed_id == offer.user_id
     )
     
     is_host_reviewing_guest = (
         offer.user_id == current_user.id
-        and Claim.query.filter_by(user_id=reviewed_id, offer_id=offer_id).first() is not None
+        and Claim.query.filter_by(
+            user_id=reviewed_id,
+            offer_id=offer_id,
+            status=CLAIM_STATUS_ACCEPTED,
+        ).first()
+        is not None
     )
 
     if not is_guest_reviewing_host and not is_host_reviewing_guest:
         return jsonify({"success": False, "error": "Non sei autorizzato a recensire questo utente per questo pasto."}), 403
 
-    # 5. Verifica che non abbia già recensito questa specifica interazione
-    from models import Review
-    existing = Review.query.filter_by(reviewer_id=current_user.id, reviewed_id=reviewed_id, offer_id=offer_id).first()
+    # 5. Se la recensione esiste già, può essere corretta solo entro una finestra limitata
+    existing = Review.query.filter_by(
+        reviewer_id=current_user.id,
+        reviewed_id=reviewed_id,
+        offer_id=offer_id,
+    ).first()
     if existing:
-        return jsonify({"success": False, "error": "Hai già lasciato una recensione per questo utente in questo pasto."}), 400
+        if not can_edit_review(existing):
+            return jsonify({
+                "success": False,
+                "error": f"Hai già lasciato una recensione per questo utente in questo pasto. Puoi modificarla solo entro {REVIEW_EDIT_WINDOW_HOURS} ore.",
+            }), 400
+
+        existing.rating = rating
+        existing.commento = commento
+        db.session.commit()
+        send_review_received_email(existing, is_update=True)
+        return jsonify({
+            "success": True,
+            "message": f"Recensione aggiornata con successo. Resta modificabile fino a {REVIEW_EDIT_WINDOW_HOURS} ore dalla prima pubblicazione.",
+        })
 
     # 6. Creazione recensione
     new_review = Review(
@@ -1120,6 +4354,7 @@ def api_create_review():
 
     db.session.add(new_review)
     db.session.commit()
+    send_review_received_email(new_review, is_update=False)
 
     return jsonify({"success": True, "message": "Grazie! La tua recensione è stata pubblicata."})
 
@@ -1129,10 +4364,28 @@ def api_create_review():
 # ===================================================================
 
 
-@app.route("/uploads/<filename>")
+@app.route("/uploads/<path:filename>")
 def uploaded_file(filename):
     from flask import send_from_directory
-    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+    if app.config["UPLOAD_STORAGE_BACKEND"] == "local":
+        response = send_from_directory(
+            app.config["UPLOAD_FOLDER"],
+            filename,
+            max_age=0,
+            conditional=False,
+        )
+    else:
+        try:
+            file_bytes, content_type = upload_storage.read(filename)
+        except StorageObjectNotFound:
+            abort(404)
+
+        response = app.response_class(file_bytes, mimetype=content_type)
+
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 # ===================================================================

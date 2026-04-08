@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Benvenuti a Tavola — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css?v=62">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -15,13 +15,12 @@
       }
     </script>
 </head>
-<body class="split-layout-body">
+<body class="split-layout-body login-page">
 
     <div class="split-layout">
         <!-- Immagine Sinistra (IA Generated Premium Food) -->
         <div class="split-image" style="background-image: url('{{ url_for('static', filename='img/hero.png') }}');">
             <div class="split-image-overlay">
-                <div class="logo-icon-large mb-3">🍽️</div>
                 <h1>Condividi un pasto<span class="text-primary">.</span></h1>
                 <p style="color: #E5E7EB; font-size: 1.25rem; max-width: 400px;">La prima community in Italia che ti permette di offrire colazioni, pranzi e cene e conoscere persone fantastiche nella tua zona.</p>
             </div>
@@ -30,8 +29,7 @@
         <!-- Form Destra -->
         <div class="split-form-container">
             <div class="auth-card">
-                <h2>Bentornato</h2>
-                <p class="text-muted mb-3">Accedi per continuare su ApprofittOffro</p>
+                <h2>Accedi</h2>
 
                 {% with messages = get_flashed_messages(with_categories=true) %}
                   {% if messages %}
@@ -56,6 +54,7 @@
                     </div>
                     
                     <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top: 16px; font-weight: 800; letter-spacing: 0.05em;">ACCEDI ORA</button>
+                    <a href="/dashboard#eventi-aperti" class="btn btn-outline btn-block btn-lg mt-2" style="font-weight: 800; letter-spacing: 0.04em;">← Eventi aperti</a>
                     
                     <p class="text-center mt-2" style="font-size: 0.95rem; color: var(--text-muted); margin-top: 32px;">
                         Non sei ancora membro? <a href="/register?v=2" style="font-weight: 800; color: var(--primary);">Registrati gratis</a>
@@ -65,7 +64,7 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=3"></script>
     <script>
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();

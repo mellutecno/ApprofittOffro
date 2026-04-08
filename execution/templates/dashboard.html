@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ApprofittOffro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=85">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -17,43 +17,216 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
-<body>
+<body class="{{ 'public-discovery' if not is_authenticated else 'member-discovery' }}">
     <!-- Titolo che sparisce con lo scroll -->
-    <div class="page-top-title" id="page-top-title">ApprofittOffro</div>
+    <div class="page-top-title" id="page-top-title" aria-label="ApprofittOffro">
+        <img class="topmark-mobile" src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
+        <img class="topmark-desktop" src="{{ url_for('static', filename='img/WhatsApp_Image_2026-03-22_at_21.54.07-removebg-preview.png') }}" alt="ApprofittOffro">
+    </div>
 
-    <nav class="navbar">
-        <a href="/dashboard" class="navbar-brand">
-            <div class="logo-icon">🍽️</div>
-            <span>ApprofittOffro</span>
-        </a>
-        <div class="nav-links">
-            <a href="/new-offer" class="btn btn-primary btn-sm">Offri</a>
-            <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
-            <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
+    <nav class="navbar {% if not is_authenticated %}guest-toast-navbar{% else %}toast-navbar{% endif %}">
+        <div class="guest-toast-menu" id="guest-toast-menu">
+            <button type="button" class="toast-menu-trigger" id="guest-toast-trigger" aria-expanded="false" aria-controls="guest-toast-links" aria-label="Apri menu" onclick="toggleGuestToastMenu()">
+                <span class="toast-menu-trigger-icon" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </span>
+            </button>
+            <div class="guest-toast-links" id="guest-toast-links" hidden>
+                {% if is_authenticated %}
+                {% if current_user.is_admin %}
+                <a href="/admin" class="btn btn-outline btn-sm">Admin</a>
+                {% endif %}
+                <a href="{{ '/new-offer' if can_participate else '/profile' }}" class="btn btn-outline btn-sm">{{ 'Offri' if can_participate else 'Completa Profilo' }}</a>
+                <a href="/people" class="btn btn-outline btn-sm">Community</a>
+                <a href="/profile" class="btn btn-outline btn-sm">Su di me</a>
+                <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
+                {% else %}
+                <a href="/login" class="btn btn-outline btn-sm">Accedi</a>
+                <a href="/register" class="btn btn-outline btn-sm">Registrati</a>
+                {% endif %}
+            </div>
         </div>
     </nav>
 
     <main class="main-content container">
-        <div class="dashboard-header" style="text-align: center; margin-bottom: 40px;">
+        <div class="dashboard-header member-dashboard-header" style="text-align: center; margin-bottom: 40px;">
             <h1 style="font-size: 2.2rem; margin-bottom: 12px;">Benvenuti a Tavola 🥘</h1>
+            {% if not is_authenticated %}
+            <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 24px;">Scopri chi sta cucinando qualcosa di buono vicino a te. Accedi o registrati per partecipare ai pasti.</p>
+            {% elif not can_participate %}
+            <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 24px;">Esplora tutte le offerte. Per partecipare o pubblicare un pasto completa prima il tuo profilo.</p>
+            {% else %}
             <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 24px;">Scopri chi sta cucinando qualcosa di buono vicino a te.</p>
-            
-            <div class="flex-center justify-center">
-                <div class="filter-bar">
-                    <button class="filter-chip" onclick="setFilter('colazione')">Colazione</button>
-                    <button class="filter-chip" onclick="setFilter('pranzo')">Pranzo</button>
-                    <button class="filter-chip" onclick="setFilter('cena')">Cena</button>
-                </div>
-            </div>
-            <div class="flex-center justify-center" style="margin-top: 12px;">
-                <div class="filter-bar" id="period-filter-bar">
-                    <button class="filter-chip active" onclick="setPeriod('oggi_domani')">Oggi e Domani</button>
-                    <button class="filter-chip" onclick="setPeriod('tutti')">Tutte le date</button>
-                </div>
-            </div>
+            {% endif %}
+
         </div>
 
-        <section class="map-section glass-card" style="padding: 24px; margin-left: auto; margin-right: auto; margin-bottom: 60px; max-width: 900px;">
+        {% if is_authenticated and pending_review_reminders %}
+        <section class="glass-card" style="padding: 24px; margin: 0 auto 28px auto; max-width: 900px; background: linear-gradient(180deg, rgba(255,248,240,0.98) 0%, rgba(255,238,220,0.98) 100%); border: 1px solid rgba(255,112,67,0.18);">
+            <div style="display: flex; flex-direction: column; gap: 18px;">
+                <div style="text-align: left;">
+                    <div style="font-size: 0.82rem; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: #C24D26; margin-bottom: 6px;">Recensioni da lasciare</div>
+                    <h2 style="margin: 0 0 8px 0; font-size: 1.55rem; color: #3B2415;">Hai {{ pending_review_reminders|length }} {{ 'feedback in attesa' if pending_review_reminders|length != 1 else 'feedback in attesa' }}</h2>
+                    <p style="margin: 0; color: #6A4330; line-height: 1.6;">Questi pasti sono gi&agrave; conclusi. Lascia il tuo feedback prima di dimenticarti com'&egrave; andata.</p>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px;">
+                    {% for reminder in pending_review_reminders %}
+                    <article style="padding: 18px; border-radius: 22px; background: rgba(255,255,255,0.78); border: 1px solid rgba(130,74,31,0.12); box-shadow: 0 12px 30px rgba(99, 53, 17, 0.08);">
+                        <div style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: rgba(255,112,67,0.14); color: #B24E26; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px;">
+                            {% if reminder.offer.tipo_pasto == 'colazione' %}☕{% elif reminder.offer.tipo_pasto == 'pranzo' %}🍝{% else %}🌙{% endif %}
+                            {{ reminder.offer.tipo_pasto }}
+                        </div>
+                        <div style="font-size: 1rem; font-weight: 900; color: #3B2415; margin-bottom: 6px;">{{ reminder.offer.nome_locale }}</div>
+                        <div style="font-size: 0.95rem; font-weight: 700; color: #6A4330; margin-bottom: 8px;">{{ format_offer_datetime_label(reminder.offer.data_ora) }}</div>
+                        <p style="margin: 0 0 14px 0; color: #7B553E; line-height: 1.5;">
+                            {% if reminder.role_label == 'host' %}
+                            Hai partecipato al pasto di <strong>{{ reminder.target_user.nome }}</strong>. Lascia la tua recensione.
+                            {% else %}
+                            <strong>{{ reminder.target_user.nome }}</strong> ha partecipato al tuo pasto. Lascia la tua recensione.
+                            {% endif %}
+                        </p>
+                        <a href="/profile/{{ reminder.target_user.id }}" class="btn btn-primary btn-sm" style="width: 100%; text-align: center;">Lascia recensione</a>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if not is_authenticated %}
+        <section class="public-hero-shell">
+            <div class="public-hero-copy">
+                <div class="public-eyebrow public-open-events-eyebrow">Nuove persone, tavoli veri</div>
+                <h2 class="public-hero-title">Non una semplice lista di offerte: una vetrina di inviti sociali pensati bene.</h2>
+                <p class="public-hero-text">ApprofittOffro prende ispirazione dalle piattaforme di social eating più curate, ma resta concreto: guardi chi propone un tavolo, capisci il tono dell’incontro e decidi se entrare in gioco.</p>
+                <div class="public-hero-metrics">
+                    <div class="public-metric-card">
+                        <span class="public-metric-value">Profili curati</span>
+                        <span class="public-metric-label">foto chiara, bio e gusti alimentari contano davvero</span>
+                    </div>
+                    <div class="public-metric-card">
+                        <span class="public-metric-value">Regole chiare</span>
+                        <span class="public-metric-label">colazioni entro 1 ora, pranzi e cene entro 6 ore</span>
+                    </div>
+                    <div class="public-metric-card">
+                        <span class="public-metric-value">Più atmosfera</span>
+                        <span class="public-metric-label">card più calde, inviti leggibili, tono più premium</span>
+                    </div>
+                </div>
+            </div>
+            <div class="public-hero-visual" style="background-image: linear-gradient(180deg, rgba(28, 16, 8, 0.12), rgba(28, 16, 8, 0.66)), url('{{ url_for('static', filename='img/hero-friends.jpg') }}');">
+                <div class="public-visual-chip public-chip-top">Cibo, persone, atmosfera</div>
+                <div class="public-floating-gallery" aria-hidden="true">
+                    <div class="public-floating-shot public-shot-lg" style="background-image:url('{{ url_for('static', filename='img/hero-friends.jpg') }}'); background-position:center 52%;"></div>
+                    <div class="public-floating-shot public-shot-sm public-shot-right" style="background-image:url('{{ url_for('static', filename='img/hero-dinner.jpg') }}'); background-position:center 38%;"></div>
+                    <div class="public-floating-shot public-shot-sm public-shot-left" style="background-image:url('{{ url_for('static', filename='img/hero-brunch.jpg') }}'); background-position:center 50%;"></div>
+                    <div class="public-floating-shot public-shot-wide" style="background-image:url('{{ url_for('static', filename='img/hero.png') }}'); background-position:center 48%;"></div>
+                </div>
+                <div class="public-visual-card public-visual-card-desktop">
+                    <div class="public-visual-card-title">Il tavolo è solo l’inizio.</div>
+                    <p>Guarda chi organizza, senti il mood dell’evento e scegli se sederti con persone che si presentano davvero.</p>
+                </div>
+                <div class="public-visual-chip public-chip-bottom">Più identità, meno improvvisazione</div>
+            </div>
+            <div class="public-visual-card public-visual-card-mobile">
+                <div class="public-visual-card-mobile-copy" aria-hidden="true">
+                    <div class="public-visual-card-title">Il tavolo e solo l'inizio.</div>
+                    <p>Guarda chi organizza, senti il mood dell'evento e scegli se sederti con persone che si presentano davvero.</p>
+                </div>
+                <div class="public-visual-card-title">Il tavolo Ã¨ solo lâ€™inizio.</div>
+                <p>Guarda chi organizza, senti il mood dellâ€™evento e scegli se sederti con persone che si presentano davvero.</p>
+            </div>
+        </section>
+
+        <section class="public-story-grid">
+            <article class="public-story-card">
+                <div class="public-story-icon">🍷</div>
+                <h3>Eventi con un contesto</h3>
+                <p>Ogni invito nasce da un locale, un orario e un numero preciso di posti. Il tavolo ha già una sua personalità.</p>
+            </article>
+            <article class="public-story-card">
+                <div class="public-story-icon">👤</div>
+                <h3>Conta anche chi invita</h3>
+                <p>Età, foto e stile del profilo aiutano a capire subito se l’energia di quella proposta è giusta per te.</p>
+            </article>
+            <article class="public-story-card">
+                <div class="public-story-icon">✨</div>
+                <h3>Una vetrina più boutique</h3>
+                <p>Vogliamo che ogni card sembri più un invito da scoprire che un annuncio freddo da scorrere in fretta.</p>
+            </article>
+        </section>
+
+        <section class="public-trust-band">
+            <div class="public-trust-copy">
+                <div class="public-eyebrow">Per partire bene</div>
+                <h2>La fiducia nasce prima dell’incontro.</h2>
+                <p>Quando ti registri, usa una foto profilo chiara dove il viso si vede bene, racconta qualcosa di te e compila gusti e intolleranze. Più il profilo è vero, più l’esperienza parte già bene.</p>
+            </div>
+            <div class="public-trust-points">
+                <div class="public-trust-point">
+                    <strong>Foto visibile</strong>
+                    <span>La prima impressione conta, soprattutto quando ci si incontra a tavola.</span>
+                </div>
+                <div class="public-trust-point">
+                    <strong>Bio e gusti reali</strong>
+                    <span>Aiutano a evitare incontri fuori tono e rendono le scelte più serene.</span>
+                </div>
+                <div class="public-trust-point">
+                    <strong>Tempi chiari</strong>
+                    <span>Le finestre di prenotazione restano nette, così gli inviti sono davvero organizzabili.</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="public-section-heading" id="eventi-aperti">
+            <div class="public-eyebrow public-open-events-eyebrow">Eventi aperti della community</div>
+            <h2>Questa è la vetrina attiva di ApprofittOffro.</h2>
+            <p>Guarda chi sta organizzando un tavolo adesso. Per partecipare basta registrarsi e completare il profilo.</p>
+        </div>
+
+        <section class="glass-card legacy-public-intro" style="padding: 28px; margin: 0 auto 42px auto; max-width: 980px; background: linear-gradient(180deg, rgba(255,248,238,0.98) 0%, rgba(246,232,210,0.98) 100%); border-color: rgba(130, 74, 31, 0.12);">
+            <div style="display: flex; flex-direction: column; gap: 18px;">
+                <div style="text-align: left;">
+                    <div style="display:inline-flex; align-items:center; gap:8px; padding: 8px 14px; border-radius: 999px; background: rgba(255,112,67,0.12); color: #B24E26; font-size: 0.8rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px;">Come funziona</div>
+                    <h2 style="margin-bottom: 10px; color: #3B2415;">ApprofittOffro ti aiuta a conoscere persone attorno a un pasto, ma la fiducia nasce da un profilo fatto bene.</h2>
+                    <p style="color: #5B3721; font-size: 1rem; line-height: 1.65; margin: 0;">Quando ti registri, usa una foto profilo chiara dove il viso si vede bene, indica la tua età reale e racconta qualcosa di te. Bio, gusti alimentari e intolleranze aiutano a evitare incontri sgradevoli e rendono ogni invito più sereno.</p>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+                    <div style="padding: 18px; border-radius: 22px; background: rgba(255,255,255,0.72); border: 1px solid rgba(130,74,31,0.1); text-align: left;">
+                        <div style="font-size: 1.35rem; margin-bottom: 8px;">📸</div>
+                        <div style="font-weight: 800; color: #3B2415; margin-bottom: 6px;">Foto visibile</div>
+                        <p style="margin: 0; color: #6A4330; font-size: 0.95rem;">Scegli una foto frontale, nitida e luminosa. È il primo elemento che trasmette fiducia.</p>
+                    </div>
+                    <div style="padding: 18px; border-radius: 22px; background: rgba(255,255,255,0.72); border: 1px solid rgba(130,74,31,0.1); text-align: left;">
+                        <div style="font-size: 1.35rem; margin-bottom: 8px;">🪪</div>
+                        <div style="font-weight: 800; color: #3B2415; margin-bottom: 6px;">Età e bio sincere</div>
+                        <p style="margin: 0; color: #6A4330; font-size: 0.95rem;">Un profilo curato aiuta gli altri a capire chi sei davvero prima di accettare un invito.</p>
+                    </div>
+                    <div style="padding: 18px; border-radius: 22px; background: rgba(255,255,255,0.72); border: 1px solid rgba(130,74,31,0.1); text-align: left;">
+                        <div style="font-size: 1.35rem; margin-bottom: 8px;">🍽️</div>
+                        <div style="font-weight: 800; color: #3B2415; margin-bottom: 6px;">Gusti e intolleranze</div>
+                        <p style="margin: 0; color: #6A4330; font-size: 0.95rem;">Più informazioni dai, più è facile creare incontri piacevoli, adatti e senza sorprese.</p>
+                    </div>
+                    <div style="padding: 18px; border-radius: 22px; background: rgba(255,255,255,0.72); border: 1px solid rgba(130,74,31,0.1); text-align: left;">
+                        <div style="font-size: 1.35rem; margin-bottom: 8px;">⏰</div>
+                        <div style="font-weight: 800; color: #3B2415; margin-bottom: 6px;">Prenota in tempo</div>
+                    <p style="margin: 0; color: #6A4330; font-size: 0.95rem;">Le colazioni si possono approfittare fino a 1 ora prima. Pranzi e cene si chiudono 6 ore prima, quindi conviene organizzarsi con anticipo.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if is_authenticated %}
+        <section class="member-map-shell" style="margin-left: auto; margin-right: auto; margin-bottom: 60px; max-width: 900px;">
+            <button id="map-toggle-btn" type="button" class="member-map-toggle" onclick="toggleMapSection()" aria-expanded="false" aria-controls="member-map-panel">
+                <span id="map-toggle-label">Offri scegliendo dalla mappa</span>
+                <span id="map-toggle-hint">Tocca per aprirla quando vuoi vedere i tavoli sulla zona.</span>
+            </button>
+
+        <section id="member-map-panel" class="map-section glass-card member-map-section" hidden style="padding: 24px; margin-left: auto; margin-right: auto; max-width: 900px;">
             <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px;">
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                     <!-- Toggle Locali Vicini -->
@@ -63,7 +236,7 @@
                 </div>
             </div>
             <!-- Legenda categorie (appare quando i locali sono attivi) -->
-            <div id="venues-legend" style="display:none; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; font-size: 0.82rem; font-weight: 800; color: var(--text-muted);">
+            <div id="venues-legend" hidden style="display:none !important; height:0; margin:0 !important; padding:0 !important; overflow:hidden; font-size: 0.82rem; font-weight: 800; color: var(--text-muted);">
                 <span>🍽️ Ristorante</span>
                 <span>☕ Bar/Cafè</span>
                 <span>🍕 Pizzeria</span>
@@ -77,27 +250,261 @@
                         <circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>
                     </svg>
                 </button>
-                <div id="map" style="height: 320px; width: 100%;"></div>
+                <div id="map" class="member-map-canvas" style="width: 100%;"></div>
             </div>
         </section>
+        </section>
+        {% endif %}
 
-        <div id="offers-panel" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 28px; margin-bottom: 60px;">
+        {% if is_authenticated %}
+        <section style="text-align: center; margin: 0 auto 26px auto; max-width: 900px;">
+            <div style="font-size: 2.2rem; line-height: 1.1; font-weight: 800; color: var(--text-main); margin-bottom: 14px;">Approfitta</div>
+            <div class="flex-center justify-center">
+                <div class="member-meal-filters-wrap">
+                    <div class="filter-bar member-meal-filters">
+                        <button class="filter-chip" type="button" data-filter="colazione" onclick="setFilter('colazione', this)">Colazioni</button>
+                        <button class="filter-chip" type="button" data-filter="pranzo" onclick="setFilter('pranzo', this)">Pranzi</button>
+                        <button class="filter-chip" type="button" data-filter="cena" onclick="setFilter('cena', this)">Cene</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <div id="offers-panel" class="{{ 'public-offers-panel' if not is_authenticated else '' }}" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 28px; margin-bottom: 60px;">
             <!-- Caricate via JS -->
         </div>
     </main>
 
     <div id="toast-container" class="toast-container"></div>
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=3"></script>
     <script>
         let map;
         let markers = [];
+        let userLocationMarker = null;
         let currentFilter = '';
-        let currentPeriod = 'oggi_domani';
-        const defaultLat = parseFloat('{{ current_user.latitudine or 41.9 }}') || 41.9;
-        const defaultLon = parseFloat('{{ current_user.longitudine or 12.5 }}') || 12.5;
+        let mapSectionOpen = false;
+        let mapInitialized = false;
+        const isAuthenticated = {{ is_authenticated|tojson }};
+        const canParticipate = {{ can_participate|tojson }};
+        const hasInitialUserLocation = {{ has_user_location|tojson }};
+        const defaultLat = parseFloat('{{ default_lat }}') || 41.9;
+        const defaultLon = parseFloat('{{ default_lon }}') || 12.5;
+        const mapEnabled = {{ is_authenticated|tojson }};
+        const DEFAULT_MAP_ZOOM = 12;
+        const GPS_BUTTON_ZOOM = 15;
         
         let searchLat = defaultLat;
         let searchLon = defaultLon;
+        let hasActiveLocation = hasInitialUserLocation;
+
+        function getCreateOfferHref() {
+            if (!isAuthenticated) return '/login';
+            if (!canParticipate) return '/profile';
+            return '/new-offer';
+        }
+
+        function getCreateOfferLabel() {
+            if (!isAuthenticated) return 'Registrati per offrire il primo pasto';
+            if (!canParticipate) return 'Completa il profilo per offrire';
+            return 'Offri tu per primo';
+        }
+
+        function getVenueOfferHref(venueUrl) {
+            if (!isAuthenticated) return '/login';
+            if (!canParticipate) return '/profile';
+            return venueUrl;
+        }
+
+        function getVenueOfferLabel() {
+            if (!isAuthenticated) return 'Accedi per offrire';
+            if (!canParticipate) return 'Completa il profilo';
+            return 'Offri qui';
+        }
+
+        function getAuthorProfileHref(offer) {
+            if (offer.is_own) return '/profile';
+            if (!isAuthenticated) return '/login';
+            if (!canParticipate) return '/profile';
+            return `/profile/${offer.autore_id}`;
+        }
+
+        function getMemberProfileHref(userId) {
+            if (!isAuthenticated) return '/login';
+            if (!canParticipate) return '/profile';
+            return Number(userId) === Number({{ current_user.id if current_user.is_authenticated else 0 }}) ? '/profile' : `/profile/${userId}`;
+        }
+
+        function getAuthorMeta(offer) {
+            if (!isAuthenticated) {
+                return `${offer.autore_eta} anni`;
+            }
+
+            const hasRating = Number(offer.autore_rating_count || 0) > 0;
+            const ratingMarkup = hasRating
+                ? `<span style="color: var(--warning); font-weight: 800;">${offer.autore_rating_average} ⭐</span>`
+                : `<span style="color: var(--text-light); font-weight: 700;">☆ Nuova/o</span>`;
+
+            return `
+                <span>${offer.autore_eta} anni</span>
+                <span style="opacity: 0.45;">•</span>
+                ${ratingMarkup}
+            `;
+        }
+
+        function getAuthorPhotosMarkup(offer) {
+            return `
+                <img
+                    src="/uploads/${offer.autore_foto}"
+                    alt="${offer.autore}"
+                    class="avatar"
+                    style="border: 2px solid white; box-shadow: var(--shadow-sm);"
+                >
+            `;
+        }
+
+        function getAuthorProfileLabelMarkup(offer) {
+            if (!isAuthenticated) return '';
+            return `
+                <div class="offer-author-actions">
+                    <a href="${getAuthorProfileHref(offer)}" class="offer-author-profile-link">Visualizza profilo</a>
+                    ${offer && offer.host_whatsapp_link ? `
+                        <div class="offer-author-whatsapp-wrap">
+                            <a href="${offer.host_whatsapp_link}" target="_blank" rel="noopener noreferrer" class="offer-host-whatsapp-btn" title="Apri WhatsApp con chi offre" aria-label="Apri WhatsApp con chi offre">
+                                ${getWhatsappIconMarkup('offer-whatsapp-icon')}
+                            </a>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function getWhatsappIconMarkup(iconClass = '') {
+            return `
+                <svg class="${iconClass}" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+                    <path fill="currentColor" d="M19.11 17.27c-.29-.15-1.69-.83-1.95-.92-.26-.1-.45-.15-.64.15-.19.29-.73.92-.89 1.11-.16.19-.32.22-.61.07-.29-.15-1.22-.45-2.32-1.44-.86-.77-1.44-1.72-1.61-2.01-.16-.29-.02-.45.12-.6.13-.13.29-.32.44-.48.15-.16.19-.29.29-.48.1-.19.05-.35-.02-.49-.07-.15-.64-1.54-.88-2.12-.23-.55-.47-.48-.64-.49l-.54-.01c-.19 0-.49.07-.75.35-.26.29-.98.96-.98 2.33s1 2.69 1.14 2.87c.15.19 1.96 3 4.86 4.09.69.3 1.23.48 1.66.61.7.22 1.34.19 1.85.12.56-.08 1.69-.69 1.93-1.35.24-.66.24-1.23.17-1.35-.07-.12-.26-.19-.55-.33z"/>
+                    <path fill="currentColor" d="M16.01 3.2c-7.05 0-12.78 5.73-12.78 12.78 0 2.25.59 4.46 1.71 6.41L3.1 28.9l6.67-1.75c1.86 1.01 3.96 1.54 6.1 1.54h.01c7.05 0 12.78-5.73 12.78-12.78 0-3.42-1.33-6.63-3.75-9.04A12.68 12.68 0 0 0 16.01 3.2zm0 23.33h-.01c-1.92 0-3.8-.52-5.43-1.5l-.39-.23-3.96 1.04 1.06-3.86-.25-.4a10.57 10.57 0 0 1-1.63-5.62c0-5.86 4.76-10.62 10.62-10.62 2.84 0 5.5 1.11 7.51 3.11a10.56 10.56 0 0 1 3.11 7.51c0 5.86-4.77 10.62-10.63 10.62z"/>
+                </svg>
+            `;
+        }
+
+        function getParticipantsMarkup(offer) {
+            if (!isAuthenticated || !Array.isArray(offer.partecipanti) || !offer.partecipanti.length) {
+                return '';
+            }
+
+            return `
+                <div class="offer-participants-block">
+                    <div class="offer-participants-label">Partecipanti</div>
+                    <div class="offer-participants-strip">
+                        ${offer.partecipanti.map((participant) => `
+                            <div class="offer-participant-card">
+                                <a href="${getMemberProfileHref(participant.id)}" class="offer-participant-link" title="Vai al profilo di ${participant.nome}">
+                                    <img src="/uploads/${participant.foto}" alt="${participant.nome}" class="offer-participant-avatar">
+                                </a>
+                                ${participant.whatsapp_link ? `
+                                    <a href="${participant.whatsapp_link}" target="_blank" rel="noopener noreferrer" class="offer-participant-whatsapp" title="Apri WhatsApp con ${participant.nome}" aria-label="Apri WhatsApp con ${participant.nome}">
+                                        ${getWhatsappIconMarkup('offer-whatsapp-icon')}
+                                    </a>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function getAddressLine(offer) {
+            if (!isAuthenticated) return `📍 ${offer.indirizzo}`;
+            return `📍 ${offer.indirizzo} <span style="color:var(--primary); margin-left:4px;">(a ${offer.distance_km} km)</span>`;
+        }
+
+        function getNavigatorMarkup(offer) {
+            if (!shouldShowNavigatorLink()) return '';
+            return `
+                <div style="margin-top: 6px;">
+                    <a href="https://www.google.com/maps/dir/?api=1&destination=${offer.lat},${offer.lon}" target="_blank" style="display:inline-flex; align-items:center; gap:4px; font-weight:800; font-size:0.8rem; color:white; background:var(--primary); padding:4px 12px; border-radius:100px; text-decoration:none; transition:opacity 0.2s;">
+                        🧭 Portami qui
+                    </a>
+                </div>
+            `;
+        }
+
+        function getParticipantsLabel(offer) {
+            if (offer.posti_disponibili <= 0) return 'Posti esauriti';
+            return offer.posti_disponibili === 1 ? 'Ancora un posto' : `Ancora ${offer.posti_disponibili} posti`;
+        }
+
+        function getParticipationHref() {
+            return isAuthenticated ? '/profile' : '/login';
+        }
+
+        function getParticipationLabel() {
+            return isAuthenticated ? 'COMPLETA IL PROFILO' : 'ACCEDI PER PARTECIPARE';
+        }
+
+        function getBookingClosedLabel() {
+            return 'NON PIÙ PRENOTABILE';
+        }
+
+        function shouldShowNavigatorLink() {
+            return isAuthenticated && hasActiveLocation;
+        }
+
+        function focusOfferCard(offerId) {
+            const card = document.getElementById(`offer-${offerId}`);
+            if (!card) return;
+
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            card.style.transition = 'box-shadow 0.2s ease, transform 0.2s ease';
+            card.style.boxShadow = '0 0 0 3px var(--primary), var(--shadow-lg)';
+            card.style.transform = 'translateY(-4px)';
+
+            window.setTimeout(() => {
+                card.style.boxShadow = '';
+                card.style.transform = '';
+            }, 1800);
+        }
+
+        function getOfferActionMarkup(offer, isPast, isFull) {
+            if (offer.is_own) {
+                return `
+                    <a href="/edit-offer/${offer.id}" class="btn btn-outline btn-sm">Modifica</a>
+                    <button onclick="deleteOffer(${offer.id})" class="btn btn-outline btn-sm" style="color:var(--error); border-color:var(--error);">Elimina</button>
+                `;
+            }
+
+            if (offer.already_claimed) {
+                return `<button class="btn btn-success btn-sm" disabled>PRENOTATO</button>`;
+            }
+
+            if (isPast) {
+                return `<button class="btn btn-outline btn-sm" disabled style="opacity: 0.7; border-color: var(--text-muted); color: var(--text-muted); pointer-events: none;">IN CORSO</button>`;
+            }
+
+            if (isFull) {
+                return `<button class="btn btn-outline btn-sm" disabled style="opacity: 0.85; border-color: var(--warning); color: var(--warning); pointer-events: none;">COMPLETA</button>`;
+            }
+
+            if (offer.booking_closed) {
+                return `<button class="btn btn-outline btn-sm" disabled style="opacity: 0.85; border-color: var(--primary); color: var(--primary); pointer-events: none;">${getBookingClosedLabel()}</button>`;
+            }
+
+            if (!isAuthenticated || !canParticipate) {
+                return `<a href="${getParticipationHref()}" class="btn btn-outline btn-sm">${getParticipationLabel()}</a>`;
+            }
+
+            return `<button class="btn btn-accent btn-sm" onclick="claimOffer(${offer.id})">APPROFITTA!</button>`;
+        }
+
+        function getPopupActionMarkup(offer) {
+
+            return `
+                <a href="#offer-${offer.id}" onclick="map.closePopup(); focusOfferCard(${offer.id}); return false;" style="display:inline-block; font-weight:900; font-size: 1rem; color: var(--primary); text-decoration: none; border: 2px solid var(--primary); padding: 6px 16px; border-radius: 100px;">
+                    ðŸ½ï¸ Prenota qui
+                </a>
+            `;
+        }
 
         // Custom Leaflet Icons basate sul CSS
         const createCustomIcon = (type) => {
@@ -115,12 +522,42 @@
             });
         };
 
+        function updateUserLocationMarker(lat, lon) {
+            if (!mapEnabled || !map) return;
+
+            if (!userLocationMarker) {
+                userLocationMarker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        className: 'user-location-pin-wrapper',
+                        html: '<div class="user-location-pin"></div>',
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 24],
+                        tooltipAnchor: [0, -24]
+                    }),
+                    keyboard: false,
+                    zIndexOffset: 1200
+                }).addTo(map);
+                userLocationMarker.bindTooltip('La tua posizione', {
+                    direction: 'top',
+                    offset: [0, -18],
+                    opacity: 0.95
+                });
+            } else {
+                userLocationMarker.setLatLng([lat, lon]);
+            }
+
+            userLocationMarker.openTooltip();
+        }
+
         function locateMeDashboard() {
+            if (!mapEnabled) return;
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(pos => {
                     searchLat = pos.coords.latitude;
                     searchLon = pos.coords.longitude;
-                    map.setView([searchLat, searchLon], 14);
+                    hasActiveLocation = true;
+                    updateUserLocationMarker(searchLat, searchLon);
+                    map.setView([searchLat, searchLon], GPS_BUTTON_ZOOM);
                     loadOffers();
                 }, err => {
                     alert("GPS negato. Usa https:// invece di http://");
@@ -128,15 +565,102 @@
             }
         }
 
-        function initMap() {
-            map = L.map('map').setView([defaultLat, defaultLon], 14);
+        function updateMapToggleUI() {
+            const btn = document.getElementById('map-toggle-btn');
+            const label = document.getElementById('map-toggle-label');
+            const hint = document.getElementById('map-toggle-hint');
+            const panel = document.getElementById('member-map-panel');
+
+            if (!btn || !label || !hint || !panel) return;
+
+            btn.classList.toggle('open', mapSectionOpen);
+            btn.setAttribute('aria-expanded', mapSectionOpen ? 'true' : 'false');
+            panel.hidden = !mapSectionOpen;
+
+            if (mapSectionOpen) {
+                label.textContent = 'Chiudi la mappa';
+                hint.textContent = 'Richiudila quando hai finito di scegliere dalla zona.';
+            } else {
+                label.textContent = 'Offri scegliendo dalla mappa';
+                hint.textContent = 'Tocca per aprirla quando vuoi vedere i tavoli sulla zona.';
+            }
+        }
+
+        function ensureMapInitialized() {
+            if (!mapEnabled || mapInitialized) return;
+
+            map = L.map('map').setView([defaultLat, defaultLon], DEFAULT_MAP_ZOOM);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap',
+                maxZoom: 19
+            }).addTo(map);
+
+            map.setView([defaultLat, defaultLon], DEFAULT_MAP_ZOOM);
+            mapInitialized = true;
+            loadOffers();
+
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    searchLat = pos.coords.latitude;
+                    searchLon = pos.coords.longitude;
+                    hasActiveLocation = true;
+                    updateUserLocationMarker(searchLat, searchLon);
+                    map.panTo([searchLat, searchLon]);
+                    loadOffers();
+                    if (venuesActive) loadVenues();
+                }, () => {
+                    /* fallback silenzioso */
+                }, { timeout: 5000 });
+            }
+
+            let moveTimer;
+            map.on('moveend', () => {
+                const center = map.getCenter();
+                searchLat = center.lat;
+                searchLon = center.lng;
+
+                clearTimeout(moveTimer);
+                moveTimer = setTimeout(() => {
+                    loadOffers();
+                    if (venuesActive) loadVenues();
+                }, 400);
+            });
+        }
+
+        function toggleMapSection(forceOpen) {
+            if (!mapEnabled) return;
+
+            mapSectionOpen = typeof forceOpen === 'boolean' ? forceOpen : !mapSectionOpen;
+            updateMapToggleUI();
+
+            if (!mapSectionOpen) return;
+
+            ensureMapInitialized();
+            loadOffers();
+            window.requestAnimationFrame(() => {
+                window.setTimeout(() => {
+                    if (map) {
+                        map.invalidateSize();
+                        if (userLocationMarker?.setZIndexOffset) userLocationMarker.setZIndexOffset(1200);
+                    }
+                }, 180);
+            });
+        }
+
+        function initMapLegacy() {
+            if (!mapEnabled) {
+                loadOffers();
+                return;
+            }
+
+            map = L.map('map').setView([defaultLat, defaultLon], DEFAULT_MAP_ZOOM);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap',
                 maxZoom: 19
             }).addTo(map);
 
             // Centra la mappa dolcemente sul punto iniziale
-            map.setView([defaultLat, defaultLon], 14);
+            map.setView([defaultLat, defaultLon], DEFAULT_MAP_ZOOM);
 
             // Caricamento Immediato delle offerte per prevenire freeze del browser (su HTTP)
             loadOffers();
@@ -146,7 +670,9 @@
                 navigator.geolocation.getCurrentPosition(pos => {
                     searchLat = pos.coords.latitude;
                     searchLon = pos.coords.longitude;
-                    map.setView([searchLat, searchLon], 14);
+                    hasActiveLocation = true;
+                    updateUserLocationMarker(searchLat, searchLon);
+                    map.panTo([searchLat, searchLon]);
                     loadOffers(); // ricarica con le coordinate precise
                     if (venuesActive) loadVenues();
                 }, () => { 
@@ -167,6 +693,12 @@
                     if (venuesActive) loadVenues();
                 }, 400); // Debounce ridotto per maggiore reattività
             });
+        }
+
+        function initMap() {
+            loadOffers();
+            if (!mapEnabled) return;
+            updateMapToggleUI();
         }
 
         // ============================================================
@@ -210,18 +742,19 @@
                 btn.style.background = 'var(--primary)';
                 btn.style.color = 'white';
                 btn.style.border = '2px solid var(--primary)';
-                legend.style.display = 'flex';
+                if (legend) legend.style.display = 'none';
                 loadVenues();
             } else {
                 btn.style.background = 'var(--bg-body)';
                 btn.style.color = 'var(--text-muted)';
                 btn.style.border = '2px solid var(--border)';
-                legend.style.display = 'none';
+                if (legend) legend.style.display = 'none';
                 clearVenueMarkers();
             }
         }
 
         async function loadVenues() {
+            if (!mapEnabled) return;
             if (!venuesActive) return;
 
             // Se l'utente è troppo lontano (es. vede l'intera regione), evitiamo query enormi
@@ -307,13 +840,15 @@
                     });
 
                     const venueUrl = `/new-offer?nome=${encodeURIComponent(name)}&lat=${lat}&lon=${lon}${fullAddress ? '&indirizzo=' + encodeURIComponent(fullAddress) : ''}`;
+                    const venueActionHref = getVenueOfferHref(venueUrl);
+                    const venueActionLabel = getVenueOfferLabel();
                     const marker = L.marker([lat, lon], { icon, zIndexOffset: -100 })
                         .addTo(map)
                         .bindPopup(`
                             <div style="text-align:center; padding: 4px;">
                                 <strong style="font-size:1.1rem; display:block; margin-bottom:4px; color: var(--text-main);">${name}</strong>
                                 <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:12px;">${fullAddress}</p>
-                                <a href="${venueUrl}" style="display:inline-block; font-weight:900; font-size: 1rem; color: var(--primary); text-decoration: none; border: 2px solid var(--primary); padding: 6px 16px; border-radius: 100px;">
+                                <a href="${venueActionHref}" style="display:inline-block; font-weight:900; font-size: 1rem; color: var(--primary); text-decoration: none; border: 2px solid var(--primary); padding: 6px 16px; border-radius: 100px;">
                                     🍽️ Offri qui
                                 </a>
                             </div>
@@ -329,41 +864,46 @@
         // Ricarica i locali quando la mappa si sposta (se attivi)
         // (aggiunto dentro initMap, dopo map.on('dragend'…))
 
-        function setPeriod(p) {
-            currentPeriod = p;
-            document.querySelectorAll('#period-filter-bar .filter-chip').forEach(el => {
-                const text = el.textContent.toLowerCase();
-                if ((p === 'oggi_domani' && text.includes('oggi')) || (p === 'tutti' && text.includes('tutte'))) {
-                    el.classList.add('active');
-                } else {
-                    el.classList.remove('active');
-                }
-            });
-            loadOffers();
+        function formatCalendarTimestamp(date) {
+            return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
         }
 
-        function downloadIcs(offer) {
-            const dateStr = offer.data_ora.replace(' ', 'T');
-            const d = new Date(dateStr);
-            const start = d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-            const end = new Date(d.getTime() + 2 * 60 * 60 * 1000).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-            
+        function escapeIcsText(value = '') {
+            return String(value)
+                .replace(/\\/g, '\\\\')
+                .replace(/\n/g, '\\n')
+                .replace(/,/g, '\\,')
+                .replace(/;/g, '\\;');
+        }
+
+        function buildCalendarPayload(offer) {
+            const startDate = new Date(offer.data_ora.replace(' ', 'T'));
+            const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
+            const summary = `${offer.tipo_pasto.toUpperCase()} presso ${offer.nome_locale}`;
+            const description = `Condividi un pasto con ${offer.autore}. Per favore arrivare puntuale.`;
+            const location = offer.indirizzo || offer.nome_locale;
+            const dates = `${formatCalendarTimestamp(startDate)}/${formatCalendarTimestamp(endDate)}`;
+            const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(summary)}&dates=${dates}&details=${encodeURIComponent(description)}&location=${encodeURIComponent(location)}`;
             const icsContent = [
                 'BEGIN:VCALENDAR',
                 'VERSION:2.0',
                 'PRODID:-//ApprofittOffro//NONSGML v1.0//EN',
                 'BEGIN:VEVENT',
                 `UID:offer-${offer.id}@approfittoffro.com`,
-                `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
-                `DTSTART:${start}`,
-                `DTEND:${end}`,
-                `SUMMARY:${offer.tipo_pasto.toUpperCase()} presso ${offer.nome_locale}`,
-                `DESCRIPTION:Condividi un pasto con ${offer.autore}. Per favore arrivare puntuale.`,
-                `LOCATION:${offer.indirizzo}`,
+                `DTSTAMP:${formatCalendarTimestamp(new Date())}`,
+                `DTSTART:${formatCalendarTimestamp(startDate)}`,
+                `DTEND:${formatCalendarTimestamp(endDate)}`,
+                `SUMMARY:${escapeIcsText(summary)}`,
+                `DESCRIPTION:${escapeIcsText(description)}`,
+                `LOCATION:${escapeIcsText(location)}`,
                 'END:VEVENT',
                 'END:VCALENDAR'
             ].join('\r\n');
 
+            return { googleUrl, icsContent };
+        }
+
+        function triggerIcsDownload(offer, icsContent) {
             const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
@@ -375,15 +915,30 @@
             URL.revokeObjectURL(url);
         }
 
-        function setFilter(type) {
-            // Logica di Toggle (Deselezione)
-            if (currentFilter === type) {
-                currentFilter = '';
-            } else {
-                currentFilter = type;
+        function downloadIcs(offer) {
+            const { googleUrl, icsContent } = buildCalendarPayload(offer);
+            const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+            if (!isIOS) {
+                const calendarWindow = window.open(googleUrl, '_blank', 'noopener');
+                if (calendarWindow) {
+                    showToast('Evento aperto nel calendario. Conferma il salvataggio.', 'success');
+                    return;
+                }
             }
 
-            document.querySelectorAll('.filter-bar:not(#period-filter-bar) .filter-chip').forEach(el => {
+            triggerIcsDownload(offer, icsContent);
+            if (isIOS) {
+                showToast('File calendario scaricato. Aprilo per aggiungerlo su Apple Calendar.', 'success');
+            } else {
+                showToast('Download calendario avviato. Apri il file per completare il salvataggio.', 'warning');
+            }
+        }
+
+        function setFilterLegacy(type) {
+            currentFilter = currentFilter === type ? '' : type;
+
+            document.querySelectorAll('.filter-bar .filter-chip').forEach(el => {
                 const text = el.textContent.toLowerCase();
                 if (currentFilter !== '' && text === currentFilter) {
                     el.classList.add('active');
@@ -391,12 +946,30 @@
                     el.classList.remove('active');
                 }
             });
+
+            loadOffers();
+        }
+
+        function setFilter(type, clickedButton) {
+            currentFilter = currentFilter === type ? '' : type;
+
+            document.querySelectorAll('.member-meal-filters .filter-chip').forEach(el => {
+                el.classList.toggle('active', currentFilter !== '' && el.dataset.filter === currentFilter);
+                el.setAttribute('aria-pressed', currentFilter !== '' && el.dataset.filter === currentFilter ? 'true' : 'false');
+            });
+
+            if (clickedButton) {
+                window.requestAnimationFrame(() => clickedButton.blur());
+            }
+            if (document.activeElement && typeof document.activeElement.blur === 'function') {
+                window.requestAnimationFrame(() => document.activeElement.blur());
+            }
             loadOffers();
         }
 
         async function loadOffers() {
             try {
-                const url = `/api/offers?tipo=${currentFilter}&periodo=${currentPeriod}&lat=${searchLat}&lon=${searchLon}`;
+                const url = `/api/offers?tipo=${currentFilter}&lat=${searchLat}&lon=${searchLon}`;
                 const res = await fetch(url);
                 const data = await res.json();
                 
@@ -404,17 +977,19 @@
                 panel.innerHTML = '';
                 
                 // Clear markers
-                markers.forEach(m => map.removeLayer(m));
+                if (mapEnabled && map) {
+                    markers.forEach(m => map.removeLayer(m));
+                }
                 markers = [];
                 
                 if (!data.success || data.offers.length === 0) {
-                    const filterName = currentFilter ? `per ${currentFilter}` : "";
+                    const filterName = currentFilter ? ` per ${currentFilter}` : "";
                     panel.innerHTML = `
                         <div style="text-align: center; padding: 60px 24px; color: var(--text-muted); background: var(--bg-card); border-radius: var(--radius-lg); border: 1px dashed var(--border);">
                             <div style="font-size: 3rem; margin-bottom: 16px;">🍽️</div>
                             <h3>Nessuna offerta</h3>
-                            <p>Non ci sono offerte disponibili ${filterName} al momento.</p>
-                            <a href="/new-offer" class="btn btn-primary mt-2">Offri tu per primo</a>
+                            <p>Non ci sono offerte disponibili${filterName} al momento.</p>
+                            <a href="${getCreateOfferHref()}" class="btn btn-primary mt-2">${getCreateOfferLabel()}</a>
                         </div>
                     `;
                     return;
@@ -424,6 +999,22 @@
                     const isColazione = offer.tipo_pasto === 'colazione';
                     const isPranzo = offer.tipo_pasto === 'pranzo';
                     const iconEmoji = isColazione ? '☕' : (isPranzo ? '🍝' : '🌙');
+                    const isPast = new Date(offer.data_ora) < new Date();
+                    const isFull = offer.posti_disponibili <= 0 || offer.stato === 'completata';
+                    const authorHeaderMarkup = `
+                        <div class="offer-card-header">
+                            <a href="${getAuthorProfileHref(offer)}" class="offer-author-main-link">
+                                <div style="display:flex; align-items:center; gap: 14px; min-width: 0;">
+                                    ${getAuthorPhotosMarkup(offer)}
+                                    <div class="info" style="min-width:0;">
+                                        <div class="name" style="color: var(--text-main); font-weight: 800; font-size: 1.1rem;">${offer.autore}</div>
+                                        <div class="meta" style="color: var(--primary); font-weight: 700; font-size: 0.85rem; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${getAuthorMeta(offer)}</div>
+                                    </div>
+                                </div>
+                            </a>
+                            ${getAuthorProfileLabelMarkup(offer)}
+                        </div>
+                    `;
                     
                     const progress = (offer.posti_disponibili / offer.posti_totali) * 100;
                     let barClass = '';
@@ -431,43 +1022,45 @@
                     else if (progress < 60) barClass = 'low';
 
                     const card = document.createElement('div');
-                    card.className = 'offer-card';
+                    card.className = isAuthenticated ? 'offer-card' : 'offer-card public-offer-card';
+                    card.id = `offer-${offer.id}`;
                     card.innerHTML = `
-                        <div class="offer-type-badge badge-${offer.tipo_pasto}" style="font-size: 1.1rem; padding: 10px 24px; margin-bottom: 20px; align-self: flex-start;">
+                        ${isAuthenticated ? authorHeaderMarkup : ''}
+
+                        <div class="offer-type-badge badge-${offer.tipo_pasto}" style="font-size: 1.1rem; padding: 10px 24px; margin: 0 auto 20px auto; align-self: center;">
                             ${iconEmoji} ${offer.tipo_pasto.toUpperCase()}
                         </div>
 
-                        ${offer.foto_locale && offer.foto_locale !== 'nessuna.jpg' ? 
-                            `<div style="margin: 0 -28px 20px -28px; height: 230px; overflow: hidden; border-radius: var(--radius-md);">
-                                <img src="/uploads/${offer.foto_locale}" alt="Foto Locale" style="width: 100%; height: 100%; object-fit: cover;">
-                            </div>` : ''}
-                        
-                        <div class="offer-card-header">
-                            <a href="${offer.is_own ? '/profile' : '/profile/' + offer.autore_id}" style="text-decoration: none; display: flex; align-items: center; gap: 14px; color: inherit;">
-                                <img src="/uploads/${offer.autore_foto}" alt="${offer.autore}" class="avatar" style="border: 2px solid white; box-shadow: var(--shadow-sm);">
-                                <div class="info">
-                                    <div class="name" style="color: var(--text-main); font-weight: 800; font-size: 1.1rem;">${offer.autore}</div>
-                                    <div class="meta" style="color: var(--primary); font-weight: 700; font-size: 0.85rem;">${offer.autore_fascia_eta} anni • ⭐ 4.9</div>
-                                </div>
-                            </a>
+                        <div class="datetime-info offer-priority-datetime offer-priority-datetime-${offer.tipo_pasto}"
+                             onclick="${(offer.already_claimed || offer.is_own) ? `event.stopPropagation(); downloadIcs(${JSON.stringify(offer).replace(/"/g, '&quot;')})` : ''}"
+                             style="${(offer.already_claimed || offer.is_own) ? 'cursor: pointer;' : ''}">
+                            <span>🕒 ${formatDate(offer.data_ora)}</span>
+                            ${(offer.already_claimed || offer.is_own) ? '<span class="offer-priority-datetime-action">🗓️ AGGIUNGI</span>' : ''}
                         </div>
 
+                        ${!isAuthenticated ? authorHeaderMarkup : ''}
+
                         <div class="offer-card-body">
-                            <h4 style="margin-bottom: 4px; font-weight: 800;">${offer.nome_locale}</h4>
+                            ${getParticipantsMarkup(offer)}
+                            <h4 style="margin-bottom: 12px; font-weight: 800;">${offer.nome_locale}</h4>
+                            ${offer.foto_locale && offer.foto_locale !== 'nessuna.jpg' ? 
+                                `<div style="margin: 0 -28px 20px -28px; height: 230px; overflow: hidden; border-radius: var(--radius-md);">
+                                    <img src="/uploads/${offer.foto_locale}" alt="Foto Locale" style="width: 100%; height: 100%; object-fit: cover;">
+                                </div>` : ''}
                             <div class="address" style="font-weight: 600; color: var(--text-muted); font-size: 0.85rem;">
                                 📍 ${offer.indirizzo} <span style="color:var(--primary); margin-left:4px;">(a ${offer.distance_km} km)</span>
-                                <div style="margin-top: 6px;">
+                                ${shouldShowNavigatorLink() ? `<div style="margin-top: 6px;">
                                     <a href="https://www.google.com/maps/dir/?api=1&destination=${offer.lat},${offer.lon}" target="_blank" style="display:inline-flex; align-items:center; gap:4px; font-weight:800; font-size:0.8rem; color:white; background:var(--primary); padding:4px 12px; border-radius:100px; text-decoration:none; transition:opacity 0.2s;">
-                                        🧭 Apri nel navigatore
+                                        🧭 Portami qui
                                     </a>
-                                </div>
+                                </div>` : ''}
                             </div>
                             
                             <div class="datetime-info" 
                                  onclick="${(offer.already_claimed || offer.is_own) ? `event.stopPropagation(); downloadIcs(${JSON.stringify(offer).replace(/"/g, '&quot;')})` : ''}"
                                  style="margin-top: 12px; background: var(--bg-body); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px dashed var(--border); ${(offer.already_claimed || offer.is_own) ? 'cursor: pointer; border: 1px solid var(--success);' : ''}">
                                 🕒 ${formatDate(offer.data_ora)}
-                                ${(offer.already_claimed || offer.is_own) ? '<span style="float:right; font-size:0.75rem; color:var(--success); font-weight:800;">🗓️ CALENDARIO</span>' : ''}
+                                ${(offer.already_claimed || offer.is_own) ? '<span style="float:right; font-size:0.75rem; color:var(--success); font-weight:800;">🗓️ AGGIUNGI</span>' : ''}
                             </div>
 
                             ${offer.descrizione ? `<p style="margin-top: 16px; font-style: italic; color: var(--text-main); line-height: 1.4;">"${offer.descrizione}"</p>` : ''}
@@ -480,22 +1073,44 @@
                                 </div>
                                 <span style="font-weight: 800;">${offer.posti_disponibili}/${offer.posti_totali}</span>
                             </div>
-                             <div style="display:flex; gap:10px;">
-                                 ${offer.is_own ? 
-                                     `<a href="/edit-offer/${offer.id}" class="btn btn-outline btn-sm">✏️</a>
-                                      <button onclick="deleteOffer(${offer.id})" class="btn btn-outline btn-sm" style="color:var(--error); border-color:var(--error);">🗑️</button>` : 
-                                     (offer.already_claimed ? 
-                                         `<button class="btn btn-success btn-sm" disabled>PRENOTATO</button>` :
-                                         (new Date(offer.data_ora) < new Date() ? 
-                                            `<button class="btn btn-outline btn-sm" disabled style="opacity: 0.7; border-color: var(--text-muted); color: var(--text-muted); pointer-events: none;">PASTO IN CORSO</button>` :
-                                            `<button class="btn btn-accent btn-sm" onclick="claimOffer(${offer.id})">APPROFITTA!</button>`
-                                         )
-                                     )
-                                 }
-                             </div>
+                            <div data-offer-actions style="display:flex; gap:10px;"></div>
                         </div>
                     `;
+                    const authorLink = card.querySelector('.offer-card-header a');
+                    const authorMeta = card.querySelector('.offer-card-header .meta');
+                    const addressEl = card.querySelector('.address');
+                    const descriptionEl = card.querySelector('.offer-card-body p');
+                    const participantsLabel = card.querySelector('.spots-indicator span');
+                    const actionSlot = card.querySelector('[data-offer-actions]');
+
+                    if (authorMeta) {
+                        authorMeta.innerHTML = getAuthorMeta(offer);
+                    }
+                    if (addressEl) {
+                        addressEl.innerHTML = `${getAddressLine(offer)}${getNavigatorMarkup(offer)}`;
+                    }
+                    if (participantsLabel) {
+                        participantsLabel.textContent = getParticipantsLabel(offer);
+                    }
+                    if (!isAuthenticated && authorLink) {
+                        authorLink.removeAttribute('href');
+                        authorLink.style.pointerEvents = 'none';
+                        authorLink.style.cursor = 'default';
+                    }
+                    if (!isAuthenticated && descriptionEl) {
+                        descriptionEl.remove();
+                    }
+                    if (actionSlot) {
+                        actionSlot.innerHTML = getOfferActionMarkup(offer, isPast, isFull);
+                    }
                     panel.appendChild(card);
+
+                    // Gli eventi restano nella lista offerte, ma non vengono più mostrati come marker in mappa.
+                    return;
+
+                    if (!(mapEnabled && map)) {
+                        return;
+                    }
 
                     // Aggiungi marker su mappa
                     const marker = L.marker([offer.lat, offer.lon], { icon: createCustomIcon(offer.tipo_pasto) });
@@ -503,15 +1118,41 @@
                         <div style="text-align:center; padding: 4px;">
                             <strong style="font-size:1.1rem; display:block; margin-bottom:4px; color: var(--text-main);">${offer.nome_locale}</strong>
                             <p style="font-size:0.9rem; font-weight: 700; color: var(--text-muted); margin-bottom:12px;">
-                                ${offer.posti_disponibili} posti disponibili<br>
+                                ${isFull ? 'Posti esauriti' : `${offer.posti_disponibili} posti disponibili`}<br>
                                 🕒 ${formatDate(offer.data_ora)}
                             </p>
-                            ${new Date(offer.data_ora) > new Date() ? `
+                            ${(!isFull && new Date(offer.data_ora) > new Date()) ? `
                             <a href="#offer-${offer.id}" onclick="map.closePopup();" style="display:inline-block; font-weight:900; font-size: 1rem; color: var(--primary); text-decoration: none; border: 2px solid var(--primary); padding: 6px 16px; border-radius: 100px;">
                                 🍽️ Prenota qui
                             </a>` : ''}
                         </div>
                     `);
+                    marker.on('popupopen', () => {
+                        const popupElement = marker.getPopup()?.getElement();
+                        if (!popupElement) return;
+
+                        popupElement.querySelectorAll('a').forEach((anchor) => anchor.remove());
+                        const popupBody = popupElement.querySelector('div');
+                        if (!popupBody) return;
+
+                        const actionLink = document.createElement('a');
+                        actionLink.href = `#offer-${offer.id}`;
+                        actionLink.textContent = "Vai all'offerta";
+                        actionLink.style.display = 'inline-block';
+                        actionLink.style.fontWeight = '900';
+                        actionLink.style.fontSize = '1rem';
+                        actionLink.style.color = 'var(--primary)';
+                        actionLink.style.textDecoration = 'none';
+                        actionLink.style.border = '2px solid var(--primary)';
+                        actionLink.style.padding = '6px 16px';
+                        actionLink.style.borderRadius = '100px';
+                        actionLink.onclick = (event) => {
+                            event.preventDefault();
+                            map.closePopup();
+                            focusOfferCard(offer.id);
+                        };
+                        popupBody.appendChild(actionLink);
+                    });
                     marker.addTo(map);
                     markers.push(marker);
                 });
@@ -548,7 +1189,7 @@
                     showToast('L\'offerta è stata eliminata e i partecipanti avvisati.', 'success');
                     loadOffers(); // ricarica la lista
                 } else {
-                    showToast(data.error || 'Impossibile eliminare l\'offerta.', 'error');
+                    showToast(data.error || data.errors?.[0] || 'Impossibile eliminare l\'offerta.', 'error');
                 }
             } catch (err) {
                 console.error(err);
@@ -564,7 +1205,7 @@
                     showToast('Hai approfittato con successo!', 'success');
                     loadOffers(); // ricarica per aggiornare UI
                 } else {
-                    showToast(data.error || 'Impossibile approfittare.', 'error');
+                    showToast(data.error || data.errors?.[0] || 'Impossibile approfittare.', 'error');
                 }
             } catch (err) {
                 showToast('Errore di connessione.', 'error');
@@ -572,6 +1213,16 @@
         }
 
         window.onload = initMap;
+
+        function toggleGuestToastMenu(forceOpen) {
+            const trigger = document.getElementById('guest-toast-trigger');
+            const menu = document.getElementById('guest-toast-links');
+            if (!trigger || !menu) return;
+
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : menu.hidden;
+            menu.hidden = !shouldOpen;
+            trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
 
         // --- Titolo che sparisce con lo scroll (solo mobile) ---
         const pageTitle = document.getElementById('page-top-title');
@@ -590,6 +1241,20 @@
         document.addEventListener('DOMContentLoaded', () => {
             const panel = document.querySelector('.offers-panel');
             if (panel) panel.addEventListener('scroll', () => handleScroll(panel.scrollTop), { passive: true });
+
+            const guestToastMenu = document.getElementById('guest-toast-menu');
+            if (guestToastMenu) {
+                document.addEventListener('click', (event) => {
+                    if (!guestToastMenu.contains(event.target)) {
+                        toggleGuestToastMenu(false);
+                    }
+                });
+                document.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') {
+                        toggleGuestToastMenu(false);
+                    }
+                });
+            }
         });
     </script>
 </body>

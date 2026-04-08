@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Crea una nuova offerta di pasto su ApprofittOffro.">
     <title>Offri un Pasto — ApprofittOffro</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css?v=62">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#FF7043">
     <script>
@@ -17,17 +17,30 @@
     </script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
-<body>
+<body class="offer-editor-page">
+    <div class="page-top-title" id="page-top-title" aria-label="ApprofittOffro">
+        <img class="topmark-mobile" src="{{ url_for('static', filename='img/approfitto.png') }}?v=2" alt="ApprofittOffro">
+        <img class="topmark-desktop" src="{{ url_for('static', filename='img/WhatsApp_Image_2026-03-22_at_21.54.07-removebg-preview.png') }}" alt="ApprofittOffro">
+    </div>
     <!-- Navbar -->
-    <nav class="navbar">
-        <a href="/dashboard" class="navbar-brand">
-            <div class="logo-icon">🍽️</div>
-            <span>ApprofittOffro</span>
-        </a>
-        <div class="nav-links">
-            <a href="/dashboard" class="btn btn-outline btn-sm">Home</a>
-            <a href="/profile" class="btn btn-outline btn-sm">Profilo</a>
-            <a href="/logout" class="btn btn-ghost btn-sm" style="color:var(--text-muted)">Esci</a>
+    <nav class="navbar toast-navbar">
+        <div class="guest-toast-menu" id="toast-nav-menu">
+            <button type="button" class="toast-menu-trigger" id="toast-nav-trigger" aria-expanded="false" aria-controls="toast-nav-links" aria-label="Apri menu" onclick="toggleToastNavMenu()">
+                <span class="toast-menu-trigger-icon" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </span>
+            </button>
+            <div class="guest-toast-links" id="toast-nav-links" hidden>
+                <a href="/dashboard" class="btn btn-outline btn-sm">Home</a>
+                {% if current_user.is_admin %}
+                <a href="/admin" class="btn btn-outline btn-sm">Admin</a>
+                {% endif %}
+                <a href="/people" class="btn btn-outline btn-sm">Community</a>
+                <a href="/profile" class="btn btn-outline btn-sm">Su di me</a>
+                <a href="/logout" class="btn btn-ghost btn-sm">Esci</a>
+            </div>
         </div>
     </nav>
 
@@ -91,7 +104,8 @@
                 <!-- Data e Ora -->
                 <div class="form-group">
                     <label for="data_ora">Data e ora</label>
-                    <input type="datetime-local" id="data_ora" name="data_ora" class="form-control" required>
+                    <input type="datetime-local" id="data_ora" name="data_ora" class="form-control" step="900" required>
+                    <div id="booking-window-hint" class="booking-window-hint" aria-live="polite"></div>
                 </div>
 
                 <!-- Descrizione -->
@@ -124,17 +138,70 @@
                 <button type="submit" class="btn btn-accent btn-block btn-lg" id="offer-btn" style="margin-top: 40px;">
                     PUBBLICA OFFERTA
                 </button>
-                <a href="/dashboard" class="btn btn-ghost btn-block mt-2">Annulla</a>
+                <a href="{{ return_url|default('/dashboard') }}" class="btn btn-ghost btn-block mt-2">Annulla</a>
             </form>
         </div>
     </div>
 
     <!-- Toast Container -->
     <div class="toast-container" id="toast-container"></div>
+    <div id="offer-error-modal" class="offer-error-modal" aria-hidden="true">
+        <div class="offer-error-backdrop" onclick="closeOfferErrorModal()"></div>
+        <div class="offer-error-dialog" role="dialog" aria-modal="true" aria-labelledby="offer-error-title">
+            <button type="button" class="offer-error-close" onclick="closeOfferErrorModal()" aria-label="Chiudi avviso">×</button>
+            <div class="offer-error-badge">Attenzione</div>
+            <h3 id="offer-error-title">Offerta non pubblicata</h3>
+            <div id="offer-error-message" class="offer-error-message"></div>
+            <button type="button" class="btn btn-accent btn-block" onclick="closeOfferErrorModal()">Ho capito</button>
+        </div>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=3"></script>
     <script>
+        function toggleToastNavMenu(forceOpen) {
+            const trigger = document.getElementById('toast-nav-trigger');
+            const menu = document.getElementById('toast-nav-links');
+            if (!trigger || !menu) return;
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : menu.hidden;
+            menu.hidden = !shouldOpen;
+            trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        }
+
+        document.addEventListener('click', (event) => {
+            const menu = document.getElementById('toast-nav-menu');
+            if (menu && !menu.contains(event.target)) {
+                toggleToastNavMenu(false);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                toggleToastNavMenu(false);
+            }
+        });
+
+        function showOfferErrorModal(messages) {
+            const modal = document.getElementById('offer-error-modal');
+            const messageBox = document.getElementById('offer-error-message');
+            const normalizedMessages = Array.isArray(messages) ? messages : [messages];
+            messageBox.innerHTML = normalizedMessages.map(msg => `<p>${msg}</p>`).join('');
+            modal.classList.add('is-visible');
+            modal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeOfferErrorModal() {
+            const modal = document.getElementById('offer-error-modal');
+            modal.classList.remove('is-visible');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeOfferErrorModal();
+            }
+        });
+
         // Auto-fill in caso di Modifica (Edit Mode)
         {% if offer %}
         const offerEditId = {{ offer.id }};
@@ -155,6 +222,7 @@
             }
             
             document.getElementById('offer-btn').innerHTML = '💾 Salva Modifiche';
+            updateBookingWindowHint();
         });
         {% endif %}
 
@@ -181,6 +249,9 @@
                 if (indirField && !indirField.value) indirField.value = indir;
             }
         })();
+
+        const returnUrl = {{ (return_url or '/dashboard')|tojson }};
+        const allowAdminTimingBypass = {{ allow_admin_timing_bypass|default(false)|tojson }};
 
         // ---- Mappa offerta ----
         let offerMap, offerMarker;
@@ -441,10 +512,92 @@
             });
         }
 
-        // Data minima = ora corrente
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        document.getElementById('data_ora').min = now.toISOString().slice(0, 16);
+        function toLocalDateTimeValue(date) {
+            const localDate = new Date(date);
+            localDate.setMinutes(localDate.getMinutes() - localDate.getTimezoneOffset());
+            return localDate.toISOString().slice(0, 16);
+        }
+
+        function roundDateUpToQuarterHour(date) {
+            const roundedDate = new Date(date);
+            roundedDate.setSeconds(0, 0);
+            const minutes = roundedDate.getMinutes();
+            const remainder = minutes % 15;
+            if (remainder !== 0) {
+                roundedDate.setMinutes(minutes + (15 - remainder));
+            }
+            return roundedDate;
+        }
+
+        function snapDateTimeFieldToQuarterHour() {
+            const dateTimeField = document.getElementById('data_ora');
+            if (!dateTimeField || !dateTimeField.value) return;
+            const selectedDate = new Date(dateTimeField.value);
+            if (Number.isNaN(selectedDate.getTime())) return;
+            dateTimeField.value = toLocalDateTimeValue(roundDateUpToQuarterHour(selectedDate));
+        }
+
+        // Data minima = ora corrente, arrotondata al quarto d'ora successivo
+        const nowIso = toLocalDateTimeValue(roundDateUpToQuarterHour(new Date()));
+        const currentFieldValue = document.getElementById('data_ora').value;
+        document.getElementById('data_ora').min = currentFieldValue && currentFieldValue < nowIso ? currentFieldValue : nowIso;
+
+        function getBookingPublicationLeadHours(mealType) {
+            return mealType === 'colazione' ? 1 : 12;
+        }
+
+        function getBookingPublicationMessage(mealType) {
+            if (mealType === 'colazione') {
+                return 'Le colazioni devono essere pubblicate almeno 1 ora prima dell’inizio.';
+            }
+        return 'Pranzi e cene devono essere pubblicati almeno 6 ore prima dell’inizio.';
+        }
+
+        function isPublicationTooLateClient(mealType, dateTimeValue) {
+            if (!mealType || !dateTimeValue) return false;
+            const selectedDate = new Date(dateTimeValue);
+            if (Number.isNaN(selectedDate.getTime())) return false;
+            const deadline = new Date(selectedDate.getTime() - getBookingPublicationLeadHours(mealType) * 60 * 60 * 1000);
+            return new Date() >= deadline;
+        }
+
+        function updateBookingWindowHint() {
+            const mealType = document.getElementById('tipo_pasto').value;
+            const dateTimeValue = document.getElementById('data_ora').value;
+            const hintBox = document.getElementById('booking-window-hint');
+            if (!mealType || !dateTimeValue) {
+                hintBox.className = 'booking-window-hint';
+                hintBox.innerHTML = '';
+                return false;
+            }
+
+            const tooLate = isPublicationTooLateClient(mealType, dateTimeValue);
+            hintBox.className = 'booking-window-hint is-visible';
+
+            if (allowAdminTimingBypass) {
+                hintBox.classList.add('is-admin');
+                hintBox.innerHTML = `<strong>Info admin</strong><span>Stai modificando un evento esistente. ${getBookingPublicationMessage(mealType)}</span>`;
+                return false;
+            }
+
+            if (tooLate) {
+                hintBox.classList.add('is-error');
+                hintBox.innerHTML = `<strong>Attenzione</strong><span>${getBookingPublicationMessage(mealType)}</span>`;
+                return true;
+            }
+
+            hintBox.classList.add('is-success');
+            hintBox.innerHTML = `<strong>Regola oraria</strong><span>${getBookingPublicationMessage(mealType)}</span>`;
+            return false;
+        }
+
+        document.getElementById('tipo_pasto').addEventListener('change', updateBookingWindowHint);
+        document.getElementById('data_ora').addEventListener('change', () => {
+            snapDateTimeFieldToQuarterHour();
+            updateBookingWindowHint();
+        });
+        document.getElementById('data_ora').addEventListener('blur', snapDateTimeFieldToQuarterHour);
+        updateBookingWindowHint();
 
         // ---- Invio offerta ----
         document.getElementById('offer-form').addEventListener('submit', async (e) => {
@@ -452,6 +605,15 @@
             const btn = document.getElementById('offer-btn');
             const errorsDiv = document.getElementById('offer-errors');
             errorsDiv.innerHTML = '';
+
+            const clientTooLate = updateBookingWindowHint();
+            if (clientTooLate) {
+                const mealType = document.getElementById('tipo_pasto').value;
+                const timingMessage = getBookingPublicationMessage(mealType);
+                errorsDiv.innerHTML = `<div class="alert alert-error">${timingMessage}</div>`;
+                showOfferErrorModal(timingMessage);
+                return;
+            }
 
             btn.disabled = true;
             const originalBtnHtml = btn.innerHTML;
@@ -492,14 +654,18 @@
                 const data = await res.json();
                 
                 if (data.success) {
-                    window.location.href = '/dashboard';
+                    window.location.href = returnUrl;
                 } else {
-                    errorsDiv.innerHTML = `<div class="alert alert-error">${data.errors.join('<br>')}</div>`;
+                    const errors = data.errors || [data.error || 'Non è stato possibile pubblicare l\'offerta.'];
+                    errorsDiv.innerHTML = `<div class="alert alert-error">${errors.join('<br>')}</div>`;
+                    showOfferErrorModal(errors);
                     btn.disabled = false;
                     btn.innerHTML = originalBtnHtml;
                 }
             } catch (err) {
-                errorsDiv.innerHTML = `<div class="alert alert-error">Errore di connessione al server.</div>`;
+                const connectionError = 'Errore di connessione al server.';
+                errorsDiv.innerHTML = `<div class="alert alert-error">${connectionError}</div>`;
+                showOfferErrorModal(connectionError);
                 btn.disabled = false;
                 btn.innerHTML = originalBtnHtml;
             }

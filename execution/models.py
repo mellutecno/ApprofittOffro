@@ -20,12 +20,21 @@ FASCE_ETA = [
     ("65+", "65+ anni"),
 ]
 
+SESSI_UTENTE = [
+    ("maschio", "Maschio"),
+    ("femmina", "Femmina"),
+    ("non_dico", "Preferisco non dirlo"),
+]
+
 # Tipi di pasto
 TIPI_PASTO = [
     ("colazione", "Colazione"),
     ("pranzo", "Pranzo"),
     ("cena", "Cena"),
 ]
+
+CLAIM_STATUS_PENDING = "pending"
+CLAIM_STATUS_ACCEPTED = "accepted"
 
 
 class User(UserMixin, db.Model):
@@ -36,8 +45,12 @@ class User(UserMixin, db.Model):
     nome = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
+    google_sub = db.Column(db.String(255), unique=True, nullable=True)
     foto_filename = db.Column(db.String(256), nullable=False)
     fascia_eta = db.Column(db.String(10), nullable=False)
+    eta = db.Column(db.Integer, nullable=True)
+    sesso = db.Column(db.String(20), nullable=True, default="non_dico")
+    numero_telefono = db.Column(db.String(32), nullable=True)
     latitudine = db.Column(db.Float, nullable=False)
     longitudine = db.Column(db.Float, nullable=False)
     citta = db.Column(db.String(200), nullable=True) # Aggiunta colonna mancante per l'indirizzo testuale
@@ -48,17 +61,62 @@ class User(UserMixin, db.Model):
 
     verificato = db.Column(db.Boolean, default=False)
     verification_token = db.Column(db.String(100), unique=True, nullable=True)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    admin_verified_notified_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     # Relazioni
     offerte = db.relationship("Offer", backref="autore", lazy=True)
     claims = db.relationship("Claim", backref="utente", lazy=True)
+    photos = db.relationship(
+        "UserPhoto",
+        backref="user",
+        lazy=True,
+        cascade="all, delete-orphan",
+        order_by="UserPhoto.position.asc()",
+    )
+    following_rel = db.relationship(
+        "UserFollow",
+        foreign_keys="UserFollow.follower_id",
+        backref="follower",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+    followers_rel = db.relationship(
+        "UserFollow",
+        foreign_keys="UserFollow.followed_id",
+        backref="followed",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    @property
+    def eta_display(self):
+        """Età leggibile con fallback ai vecchi profili a fasce."""
+        if self.eta is not None:
+            return str(self.eta)
+        return self.fascia_eta
+
+    @property
+    def gallery_filenames(self):
+        photos = [photo.filename for photo in sorted(self.photos, key=lambda item: item.position)]
+        if photos:
+            return photos
+        return [self.foto_filename] if self.foto_filename else []
+
+    @property
+    def followers_count(self):
+        return len(self.followers_rel)
+
+    @property
+    def following_count(self):
+        return len(self.following_rel)
 
     def __repr__(self):
         return f"<User {self.nome} ({self.email})>"
@@ -73,6 +131,7 @@ class Offer(db.Model):
     tipo_pasto = db.Column(db.String(20), nullable=False)  # colazione, pranzo, cena
     nome_locale = db.Column(db.String(200), nullable=False)
     indirizzo = db.Column(db.String(300), nullable=False)
+    telefono_locale = db.Column(db.String(50), nullable=True)
     latitudine = db.Column(db.Float, nullable=False)
     longitudine = db.Column(db.Float, nullable=False)
     posti_totali = db.Column(db.Integer, nullable=False)
@@ -100,6 +159,37 @@ class Offer(db.Model):
         return f"<Offer {self.tipo_pasto} @ {self.nome_locale} ({self.posti_disponibili}/{self.posti_totali})>"
 
 
+class UserPhoto(db.Model):
+    """Foto profilo dell'utente (la prima resta la foto principale)."""
+    __tablename__ = "user_photos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    filename = db.Column(db.String(256), nullable=False)
+    position = db.Column(db.Integer, default=0, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    def __repr__(self):
+        return f"<UserPhoto user={self.user_id} position={self.position}>"
+
+
+class UserFollow(db.Model):
+    """Relazione follower -> seguito fra utenti."""
+    __tablename__ = "user_follows"
+
+    id = db.Column(db.Integer, primary_key=True)
+    follower_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    followed_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    __table_args__ = (
+        db.UniqueConstraint("follower_id", "followed_id", name="unique_user_follow"),
+    )
+
+    def __repr__(self):
+        return f"<UserFollow follower={self.follower_id} followed={self.followed_id}>"
+
+
 class Claim(db.Model):
     """Registra quando un utente approfitta di un'offerta."""
     __tablename__ = "claims"
@@ -107,6 +197,7 @@ class Claim(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     offer_id = db.Column(db.Integer, db.ForeignKey("offers.id"), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default=CLAIM_STATUS_ACCEPTED)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     # Vincolo: un utente può approfittare una sola volta per offerta

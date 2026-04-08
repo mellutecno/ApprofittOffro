@@ -1,0 +1,30 @@
+<div style="font-family:sans-serif; max-width:600px; margin:0 auto; background:#fff7ed; padding:32px; border-radius:16px; border:1px solid #fdba74;">
+    <h2 style="color:#c2410c;">ApprofittOffro</h2>
+    <h3>
+        {% if is_update %}
+            {{ reviewer_user.nome }} ha aggiornato una recensione per te
+        {% else %}
+            Hai ricevuto una nuova recensione
+        {% endif %}
+    </h3>
+    <p>Ciao <b>{{ reviewed_user.nome }}</b>, {{ reviewer_user.nome }} {% if is_update %}ha aggiornato{% else %}ti ha lasciato{% endif %} una recensione dopo questo incontro:</p>
+
+    <div style="background:white; padding:20px; border-radius:12px; border-left:4px solid #f59e0b; margin:16px 0;">
+        <b style="font-size:1.15rem;">{{ offer.nome_locale }}</b><br>
+        {{ offer.indirizzo }}<br>
+        {{ data_evento }}<br>
+        {{ offer.tipo_pasto.capitalize() }}
+    </div>
+
+    <div style="background:#fff; padding:18px; border-radius:12px; border:1px solid #fed7aa;">
+        <p style="margin:0 0 8px 0;"><b>Valutazione:</b> {{ rating }}/5</p>
+        {% if commento %}
+            <p style="margin:0; color:#4b5563;"><b>Commento:</b> "{{ commento }}"</p>
+        {% else %}
+            <p style="margin:0; color:#6b7280;">Nessun commento testuale aggiunto.</p>
+        {% endif %}
+    </div>
+
+    <p style="margin-top:18px;">Apri l'app e vai nel tuo profilo per vedere tutte le recensioni.</p>
+    <p style="color:#6b7280; font-size:0.85rem;">- Il Team di ApprofittOffro</p>
+</div>

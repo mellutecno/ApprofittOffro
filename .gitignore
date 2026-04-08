@@ -11,6 +11,9 @@ token.json
 
 # File intermedi / temporanei
 .tmp/
+.test_profile/
+.test_zip2/
+deploy_staging/
 
 # Python
 __pycache__/
@@ -28,6 +31,7 @@ build/
 # IDE
 .vscode/
 .idea/
+*.iml
 *.swp
 *.swo
 *~
@@ -38,7 +42,8 @@ approfittoffro_copy.db
 *.db
 
 # Uploads
-uploads/
+uploads/*
+!uploads/
 !uploads/.gitkeep
 
 # OS
