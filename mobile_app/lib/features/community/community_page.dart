@@ -380,14 +380,14 @@ class _CommunityFilterTile extends StatelessWidget {
           height: 54,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            color: const Color(0xFFE7DBD0),
+            color: Colors.white.withValues(alpha: 0.78),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFD1BCAA)),
+            border: Border.all(color: AppTheme.cardBorder),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x12000000),
-                blurRadius: 10,
-                offset: Offset(0, 5),
+                blurRadius: 8,
+                offset: Offset(0, 4),
               ),
             ],
           ),
