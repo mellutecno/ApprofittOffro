@@ -12,6 +12,7 @@ Il job invia, una sola volta per destinatario:
 
 import argparse
 import os
+from datetime import timedelta
 
 HOME_DIR = os.path.expanduser("~")
 os.environ.setdefault("APP_ENV_FILE", os.path.join(HOME_DIR, ".env"))
