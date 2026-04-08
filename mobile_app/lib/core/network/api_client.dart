@@ -353,6 +353,14 @@ class ApiClient {
     return payload['message']?.toString() ?? 'Richiesta rifiutata.';
   }
 
+  Future<String> cancelClaim(int claimId) async {
+    final response = await _send(method: 'DELETE', path: '/api/claims/$claimId');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ??
+        'Partecipazione annullata con successo.';
+  }
+
   Future<String> createOffer({
     required String mealType,
     required String localeName,

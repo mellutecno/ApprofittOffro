@@ -42,6 +42,19 @@ class _OffersPageState extends State<OffersPage> {
     return '$valueKm km';
   }
 
+  bool _canCancelClaim(Offer offer) {
+    if (offer.isOwn || offer.claimId <= 0) {
+      return false;
+    }
+    return offer.claimStatus == 'pending' || offer.claimStatus == 'claimed';
+  }
+
+  String _cancelClaimLabel(Offer offer) {
+    return offer.claimStatus == 'pending'
+        ? 'Annulla richiesta'
+        : 'Annulla partecipazione';
+  }
+
   Future<void> _openOfferDetails(
     BuildContext context,
     Offer offer,
@@ -113,6 +126,52 @@ class _OffersPageState extends State<OffersPage> {
                               );
                             },
                     ),
+                    if (_canCancelClaim(offer)) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final confirmed = await showDialog<bool>(
+                            context: sheetContext,
+                            builder: (dialogContext) => AlertDialog(
+                              title: Text(_cancelClaimLabel(offer)),
+                              content: Text(
+                                offer.claimStatus == 'pending'
+                                    ? 'Vuoi davvero annullare la richiesta per ${offer.nomeLocale}?'
+                                    : 'Vuoi davvero annullare la partecipazione a ${offer.nomeLocale}?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(false),
+                                  child: const Text('No'),
+                                ),
+                                FilledButton(
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(true),
+                                  child: const Text('Sì'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirmed != true || !context.mounted) {
+                            return;
+                          }
+                          final navigator = Navigator.of(sheetContext);
+                          final messenger = ScaffoldMessenger.of(context);
+                          final message =
+                              await widget.offersController.cancelClaim(offer);
+                          if (!context.mounted || message == null) {
+                            return;
+                          }
+                          navigator.pop();
+                          messenger.showSnackBar(
+                            SnackBar(content: Text(message)),
+                          );
+                        },
+                        icon: const Icon(Icons.event_busy_outlined),
+                        label: Text(_cancelClaimLabel(offer)),
+                      ),
+                    ],
                   ],
                 ),
               ),

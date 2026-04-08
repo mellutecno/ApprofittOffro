@@ -259,6 +259,7 @@ class AdminOfferSummary {
       alreadyClaimed: false,
       canClaim: false,
       claimStatus: 'open',
+      claimId: 0,
     );
   }
 }

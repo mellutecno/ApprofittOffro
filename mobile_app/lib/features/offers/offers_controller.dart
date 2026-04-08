@@ -67,6 +67,21 @@ class OffersController extends ChangeNotifier {
     }
   }
 
+  Future<String?> cancelClaim(Offer offer) async {
+    if (offer.claimId <= 0) {
+      return 'Non trovo la partecipazione da annullare.';
+    }
+    try {
+      final message = await apiClient.cancelClaim(offer.claimId);
+      await loadOffers();
+      return message;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Non riesco ad annullare la partecipazione adesso.';
+    }
+  }
+
   Future<void> toggleMealType(String value) async {
     _selectedMealType = _selectedMealType == value ? '' : value;
     await loadOffers();

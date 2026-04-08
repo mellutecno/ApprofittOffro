@@ -3817,6 +3817,7 @@ def api_get_offers():
             "already_claimed": already_claimed,
             "can_claim": can_claim,
             "claim_status": claim_status,
+            "claim_id": current_claim.id if current_claim is not None else 0,
         })
 
         if limit is not None and len(result) >= limit:
@@ -4291,6 +4292,18 @@ def api_unclaim(claim_id):
         offer=offer,
         data_evento=data_formattata
     )
+    send_push_to_user(
+        offer.autore,
+        title="Partecipazione annullata",
+        body=f"{current_user.nome} non parteciperÃ  piÃ¹ a {offer.nome_locale}.",
+        target="profile",
+        extra_data={
+            "offer_id": offer.id,
+            "claim_id": claim.id,
+            "guest_name": current_user.nome,
+            "unclaim": "true",
+        },
+    )
 
     # Email di conferma al partecipante che ha disdetto
     send_email(
@@ -4300,6 +4313,17 @@ def api_unclaim(claim_id):
         user=current_user,
         offer=offer,
         data_evento=data_formattata
+    )
+    send_push_to_user(
+        current_user,
+        title="Partecipazione annullata",
+        body=f"Hai annullato la partecipazione a {offer.nome_locale}.",
+        target="offers",
+        extra_data={
+            "offer_id": offer.id,
+            "claim_id": claim.id,
+            "unclaim": "true",
+        },
     )
 
     return jsonify({"success": True, "message": "Partecipazione annullata con successo."})
@@ -4910,6 +4934,16 @@ def api_admin_message_user(user_id):
         admin_user=current_user,
         subject_line=subject,
         message_body=message,
+    )
+    send_push_to_user(
+        user,
+        title=subject,
+        body=message[:140],
+        target="profile",
+        extra_data={
+            "admin_notice": "true",
+            "subject": subject,
+        },
     )
     return jsonify({"success": True, "message": "Comunicazione inviata con successo."})
 
