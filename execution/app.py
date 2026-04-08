@@ -168,6 +168,18 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 MAX_PROFILE_PHOTOS = 5
 BREAKFAST_BOOKING_LEAD_HOURS = 1
 MEAL_BOOKING_LEAD_HOURS = 6
+PUSH_PRIMARY_EMAIL_TEMPLATES = {
+    "nearby_offer_notification.html",
+    "claim_notification.html",
+    "claim_confirmed.html",
+    "claim_rejected.html",
+    "review_received.html",
+    "offer_updated.html",
+    "cancellation.html",
+    "offer_removed_admin.html",
+    "unclaim_notification.html",
+    "unclaim_confirmation.html",
+}
 USER_SESSION_IDLE_TIMEOUT_MINUTES = 60
 ADMIN_SESSION_IDLE_TIMEOUT_MINUTES = 30
 REVIEW_EDIT_WINDOW_HOURS = 3
@@ -485,47 +497,40 @@ def notify_followers_for_new_offer(offer):
     )
     meal_label = get_meal_type_label(offer.tipo_pasto)
     spots_copy = get_spots_copy(offer.posti_disponibili)
-    email_enabled = email_delivery_enabled()
     email_count = 0
     push_users = 0
     push_title = get_followed_offer_notification_heading(offer)
     push_body = get_followed_offer_push_body(offer, data_evento=data_evento)
 
-    if not email_enabled:
-        print(
-            f"[MAIL_SKIP] Provider email non configurato: notifiche follower solo push per l'offerta {offer.id}."
-        )
-
     for follower in followers:
-        if email_enabled and follower.email:
-            send_email(
-                get_followed_offer_notification_subject(offer),
-                [follower.email],
-                "nearby_offer_notification.html",
-                user=follower,
-                offer=offer,
-                autore=offer.autore,
-                notification_heading=get_followed_offer_notification_heading(offer),
-                meal_label=meal_label,
-                data_evento=data_evento,
-                spots_copy=spots_copy,
-                booking_rule_copy=booking_rule_copy,
-            )
-            email_count += 1
-
-        push_sent = send_push_to_user(
+        delivery = send_operational_notification(
             follower,
-            title=push_title,
-            body=push_body,
+            push_title=push_title,
+            push_body=push_body,
             target="offers",
             extra_data={
                 "offer_id": offer.id,
                 "author_name": offer.autore.nome if offer.autore else "",
                 "meal_type": offer.tipo_pasto,
             },
+            email_subject=get_followed_offer_notification_subject(offer),
+            email_template="nearby_offer_notification.html",
+            email_recipients=[follower.email] if follower.email else [],
+            email_context={
+                "user": follower,
+                "offer": offer,
+                "autore": offer.autore,
+                "notification_heading": get_followed_offer_notification_heading(offer),
+                "meal_label": meal_label,
+                "data_evento": data_evento,
+                "spots_copy": spots_copy,
+                "booking_rule_copy": booking_rule_copy,
+            },
         )
-        if push_sent > 0:
+        if delivery["push_sent"] > 0:
             push_users += 1
+        if delivery["email_sent"]:
+            email_count += 1
 
     return {
         "followers": len(followers),
@@ -543,34 +548,25 @@ def send_claim_request_notification_to_host(claim):
             f"[CLAIM_MAIL_SKIP] richiesta host non inviata: claim={getattr(claim, 'id', None)} offer/guest mancanti"
         )
         return
-    if not offer.autore.email:
-        print(
-            f"[CLAIM_MAIL_SKIP] richiesta host non inviata: host senza email offer={offer.id} host={offer.user_id}"
-        )
-        return
-
     data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
-    print(
-        f"[CLAIM_MAIL_FLOW] richiesta host claim={claim.id} offer={offer.id} host_email={offer.autore.email} guest_email={guest.email or '-'} provider={get_active_email_provider()}"
-    )
-    send_email(
-        f"Nuova richiesta da approvare per '{offer.nome_locale}'",
-        [offer.autore.email],
-        "claim_notification.html",
-        background=False,
-        user=guest,
-        offer=offer,
-        data_evento=data_evento,
-    )
-    send_push_to_user(
+    send_operational_notification(
         offer.autore,
-        title="Nuova richiesta da approvare",
-        body=f"{guest.nome} vuole approfittare di {offer.nome_locale}.",
+        push_title="Nuova richiesta da approvare",
+        push_body=f"{guest.nome} vuole approfittare di {offer.nome_locale}.",
         target="pending-requests",
         extra_data={
             "offer_id": offer.id,
             "claim_id": claim.id,
             "guest_name": guest.nome,
+        },
+        email_subject=f"Nuova richiesta da approvare per '{offer.nome_locale}'",
+        email_template="claim_notification.html",
+        email_recipients=[offer.autore.email] if offer.autore.email else [],
+        email_background=False,
+        email_context={
+            "user": guest,
+            "offer": offer,
+            "data_evento": data_evento,
         },
     )
 
@@ -584,34 +580,25 @@ def send_claim_accepted_email(claim):
             f"[CLAIM_MAIL_SKIP] accettazione non inviata: claim={getattr(claim, 'id', None)} offer/guest mancanti"
         )
         return
-    if not guest.email:
-        print(
-            f"[CLAIM_MAIL_SKIP] accettazione non inviata: guest senza email claim={claim.id} guest={guest.id}"
-        )
-        return
-
     data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
-    print(
-        f"[CLAIM_MAIL_FLOW] accettazione claim={claim.id} offer={offer.id} guest_email={guest.email} host_email={offer.autore.email or '-'} provider={get_active_email_provider()}"
-    )
-    send_email(
-        f"Richiesta accettata per '{offer.nome_locale}'",
-        [guest.email],
-        "claim_confirmed.html",
-        background=False,
-        user=guest,
-        offer=offer,
-        data_evento=data_evento,
-    )
-    send_push_to_user(
+    send_operational_notification(
         guest,
-        title="Richiesta accettata",
-        body=f"{offer.autore.nome} ha accettato la tua richiesta per {offer.nome_locale}.",
+        push_title="Richiesta accettata",
+        push_body=f"{offer.autore.nome} ha accettato la tua richiesta per {offer.nome_locale}.",
         target="offers",
         extra_data={
             "offer_id": offer.id,
             "claim_id": claim.id,
             "host_name": offer.autore.nome if offer.autore else "",
+        },
+        email_subject=f"Richiesta accettata per '{offer.nome_locale}'",
+        email_template="claim_confirmed.html",
+        email_recipients=[guest.email] if guest.email else [],
+        email_background=False,
+        email_context={
+            "user": guest,
+            "offer": offer,
+            "data_evento": data_evento,
         },
     )
 
@@ -625,35 +612,26 @@ def send_claim_rejected_email(claim):
             f"[CLAIM_MAIL_SKIP] rifiuto non inviato: claim={getattr(claim, 'id', None)} offer/guest mancanti"
         )
         return
-    if not guest.email:
-        print(
-            f"[CLAIM_MAIL_SKIP] rifiuto non inviato: guest senza email claim={claim.id} guest={guest.id}"
-        )
-        return
-
     data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
-    print(
-        f"[CLAIM_MAIL_FLOW] rifiuto claim={claim.id} offer={offer.id} guest_email={guest.email} host_email={offer.autore.email or '-'} provider={get_active_email_provider()}"
-    )
-    send_email(
-        f"Richiesta non accettata per '{offer.nome_locale}'",
-        [guest.email],
-        "claim_rejected.html",
-        background=False,
-        user=guest,
-        offer=offer,
-        host=offer.autore,
-        data_evento=data_evento,
-    )
-    send_push_to_user(
+    send_operational_notification(
         guest,
-        title="Richiesta non accettata",
-        body=f"{offer.autore.nome} non ha accettato la tua richiesta per {offer.nome_locale}.",
+        push_title="Richiesta non accettata",
+        push_body=f"{offer.autore.nome} non ha accettato la tua richiesta per {offer.nome_locale}.",
         target="offers",
         extra_data={
             "offer_id": offer.id,
             "claim_id": claim.id,
             "host_name": offer.autore.nome if offer.autore else "",
+        },
+        email_subject=f"Richiesta non accettata per '{offer.nome_locale}'",
+        email_template="claim_rejected.html",
+        email_recipients=[guest.email] if guest.email else [],
+        email_background=False,
+        email_context={
+            "user": guest,
+            "offer": offer,
+            "host": offer.autore,
+            "data_evento": data_evento,
         },
     )
 
@@ -671,54 +649,43 @@ def send_review_received_email(review, *, is_update=False):
             f"[REVIEW_MAIL_SKIP] review={getattr(review, 'id', None)} offer/reviewer/reviewed mancanti"
         )
         return False
-    if not reviewed.email:
-        print(
-            f"[REVIEW_MAIL_SKIP] review={review.id} destinatario senza email reviewed={reviewed.id}"
-        )
-        return False
-
     data_evento = (
         offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
         if offer.data_ora
         else ""
     )
     action_label = "ha aggiornato" if is_update else "ti ha lasciato"
-    print(
-        f"[REVIEW_MAIL_FLOW] review={review.id} offer={offer.id} "
-        f"reviewer_email={reviewer.email or '-'} reviewed_email={reviewed.email} "
-        f"update={is_update} provider={get_active_email_provider()}"
-    )
-    sent = send_email(
-        subject=f"{reviewer.nome} {action_label} una recensione",
-        recipients=[reviewed.email],
-        template="review_received.html",
-        background=False,
-        reviewed_user=reviewed,
-        reviewer_user=reviewer,
-        offer=offer,
-        data_evento=data_evento,
-        rating=review.rating,
-        commento=review.commento or "",
-        is_update=is_update,
-    )
     push_title = "Recensione aggiornata" if is_update else "Nuova recensione ricevuta"
     push_body = (
         f"{reviewer.nome} ha aggiornato la recensione per {offer.nome_locale}."
         if is_update
         else f"{reviewer.nome} ti ha lasciato una recensione per {offer.nome_locale}."
     )
-    send_push_to_user(
+    delivery = send_operational_notification(
         reviewed,
-        title=push_title,
-        body=push_body,
+        push_title=push_title,
+        push_body=push_body,
         target="profile",
         extra_data={
             "offer_id": offer.id,
             "review_id": review.id,
             "reviewer_name": reviewer.nome,
         },
+        email_subject=f"{reviewer.nome} {action_label} una recensione",
+        email_template="review_received.html",
+        email_recipients=[reviewed.email] if reviewed.email else [],
+        email_background=False,
+        email_context={
+            "reviewed_user": reviewed,
+            "reviewer_user": reviewer,
+            "offer": offer,
+            "data_evento": data_evento,
+            "rating": review.rating,
+            "commento": review.commento or "",
+            "is_update": is_update,
+        },
     )
-    return sent
+    return delivery["email_sent"]
 
 
 def send_follow_started_push(follower, followed):
@@ -1289,6 +1256,18 @@ def send_async_resend_email(app, payload):
 def send_email(subject, recipients, template, background=True, **kwargs):
     """Renderizza e invia un'email, in background o subito secondo il flusso."""
     try:
+        allow_push_primary_fallback = bool(
+            kwargs.pop("_allow_push_primary_email_fallback", False)
+        )
+        if (
+            template in PUSH_PRIMARY_EMAIL_TEMPLATES
+            and push_delivery_enabled()
+            and not allow_push_primary_fallback
+        ):
+            print(
+                f"[MAIL_SKIP_PUSH_PRIMARY] template={template} subject={subject} recipients={recipients}"
+            )
+            return False
         html_body = render_template(f"emails/{template}", **kwargs)
         return send_email_html(
             subject,
@@ -1526,6 +1505,44 @@ def send_push_to_user(user, *, title, body, target="login", extra_data=None):
             )
 
     return success_count
+
+
+def send_operational_notification(
+    user,
+    *,
+    push_title,
+    push_body,
+    target="login",
+    extra_data=None,
+    email_subject=None,
+    email_template=None,
+    email_recipients=None,
+    email_background=False,
+    email_context=None,
+):
+    """Invia prima una push e usa la mail solo come fallback se la push non parte."""
+    push_sent = send_push_to_user(
+        user,
+        title=push_title,
+        body=push_body,
+        target=target,
+        extra_data=extra_data,
+    )
+
+    email_sent = False
+    recipients = [item for item in (email_recipients or []) if item]
+    if push_sent <= 0 and recipients and email_subject and email_template:
+        email_sent = bool(
+            send_email(
+                email_subject,
+                recipients,
+                email_template,
+                background=email_background,
+                _allow_push_primary_email_fallback=True,
+                **(email_context or {}),
+            )
+        )
+    return {"push_sent": push_sent, "email_sent": email_sent}
 
 
 def build_verification_email_html(user, link_verifica):
