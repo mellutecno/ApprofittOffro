@@ -785,7 +785,7 @@ def send_upcoming_event_reminders(
             selectinload(Offer.claims).selectinload(Claim.utente),
         )
         .filter(
-            Offer.stato == "attiva",
+            Offer.stato.in_(["attiva", "completata"]),
             Offer.data_ora > now,
             Offer.data_ora <= upper_bound,
         )
