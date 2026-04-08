@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../config/app_config.dart';
 import '../navigation/app_launch_target.dart';
@@ -17,10 +18,14 @@ class PushNotificationsService {
 
   final ApiClient _apiClient;
   final void Function(AppLaunchTarget target) _onLaunchTargetRequested;
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
   FirebaseMessaging? _messaging;
+  int _localNotificationId = 0;
 
   StreamSubscription<String>? _tokenRefreshSubscription;
   StreamSubscription<RemoteMessage>? _messageOpenedSubscription;
+  StreamSubscription<RemoteMessage>? _foregroundMessageSubscription;
   bool _initialized = false;
   bool _firebaseAvailable = false;
   bool _authenticated = false;
@@ -30,6 +35,14 @@ class PushNotificationsService {
   String? _registeredToken;
 
   bool get isAvailable => _firebaseAvailable;
+
+  static const AndroidNotificationChannel _androidChannel =
+      AndroidNotificationChannel(
+    'approfittoffro_alerts',
+    'ApprofittOffro alerts',
+    description: 'Notifiche eventi, richieste, recensioni e follower.',
+    importance: Importance.high,
+  );
 
   Future<void> initialize() async {
     if (_initialized) {
@@ -63,9 +76,13 @@ class PushNotificationsService {
       if (!_firebaseAvailable) {
         return;
       }
+      await _initializeLocalNotifications();
       _messaging = FirebaseMessaging.instance;
       _messageOpenedSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
         _handleNotificationTap,
+      );
+      _foregroundMessageSubscription = FirebaseMessaging.onMessage.listen(
+        _handleForegroundMessage,
       );
       final initialMessage = await _messaging!.getInitialMessage();
       if (initialMessage != null) {
@@ -102,6 +119,7 @@ class PushNotificationsService {
   Future<void> dispose() async {
     await _tokenRefreshSubscription?.cancel();
     await _messageOpenedSubscription?.cancel();
+    await _foregroundMessageSubscription?.cancel();
   }
 
   Future<void> prepareForLogout() async {
@@ -165,6 +183,52 @@ class PushNotificationsService {
     } finally {
       _registeredToken = null;
     }
+  }
+
+  Future<void> _initializeLocalNotifications() async {
+    const settings = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    );
+    await _localNotifications.initialize(
+      settings,
+      onDidReceiveNotificationResponse: (response) {
+        final target = _parseTarget(response.payload);
+        if (target == null) {
+          return;
+        }
+        _onLaunchTargetRequested(target);
+      },
+    );
+    final androidPlugin = _localNotifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.createNotificationChannel(_androidChannel);
+  }
+
+  Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    final notification = message.notification;
+    final title = (notification?.title ?? '').trim();
+    final body = (notification?.body ?? '').trim();
+    if (title.isEmpty && body.isEmpty) {
+      return;
+    }
+    await _localNotifications.show(
+      _localNotificationId++,
+      title.isEmpty ? 'ApprofittOffro' : title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'approfittoffro_alerts',
+          'ApprofittOffro alerts',
+          channelDescription:
+              'Notifiche eventi, richieste, recensioni e follower.',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+      ),
+      payload: message.data['target']?.toString() ?? 'login',
+    );
   }
 
   void _handleNotificationTap(RemoteMessage message) {

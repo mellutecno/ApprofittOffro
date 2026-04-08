@@ -31,6 +31,7 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
+  int _profileRefreshVersion = 0;
   late final OffersController _offersController;
   late final CommunityController _communityController;
   bool _mandatoryProfileFlowOpen = false;
@@ -141,6 +142,11 @@ class _HomeShellState extends State<HomeShell> {
       await _offersController.loadOffers();
       if (!_isAdminUser) {
         await _communityController.loadPeople();
+      }
+      if (mounted && !_isAdminUser) {
+        setState(() {
+          _profileRefreshVersion++;
+        });
       }
     } finally {
       _launchRefreshInFlight = false;
@@ -329,7 +335,10 @@ class _HomeShellState extends State<HomeShell> {
                 setState(() => _selectedIndex = 0);
               },
             ),
-            ProfilePage(authController: widget.authController),
+            ProfilePage(
+              key: ValueKey<int>(_profileRefreshVersion),
+              authController: widget.authController,
+            ),
           ];
     final selectedIndex = _selectedIndex.clamp(0, pages.length - 1);
 
