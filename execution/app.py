@@ -288,7 +288,7 @@ def get_same_day_offer_conflict(user_id, tipo_pasto, data_ora, exclude_offer_id=
     query = Offer.query.filter(
         Offer.user_id == user_id,
         Offer.tipo_pasto == tipo_pasto,
-        Offer.stato != "annullata",
+        Offer.stato.notin_(["annullata", "archiviata_admin"]),
         Offer.data_ora >= day_start,
         Offer.data_ora < next_day,
     )
@@ -2029,7 +2029,9 @@ def people_page():
 @admin_required
 def admin_dashboard():
     now = local_now()
-    all_offers = Offer.query.order_by(Offer.data_ora.desc()).all()
+    all_offers = Offer.query.filter(
+        Offer.stato != "archiviata_admin"
+    ).order_by(Offer.data_ora.desc()).all()
     upcoming_offers = [offer for offer in all_offers if offer.data_ora >= now]
     past_offers = [offer for offer in all_offers if offer.data_ora < now]
     users = User.query.options(selectinload(User.photos)).filter_by(is_admin=False).order_by(User.created_at.desc()).all()
@@ -2434,7 +2436,11 @@ def get_pending_review_reminders(user, now=None):
     ).order_by(Claim.created_at.desc()).all()
     for claim in my_claims:
         offer = claim.offerta
-        if not offer or offer.stato == "annullata" or offer.data_ora > threshold:
+        if (
+            not offer or
+            offer.stato in {"annullata", "archiviata_admin"} or
+            offer.data_ora > threshold
+        ):
             continue
 
         review_key = (offer.id, offer.user_id)
@@ -2459,7 +2465,10 @@ def get_pending_review_reminders(user, now=None):
 
     my_offers = Offer.query.filter_by(user_id=user.id).order_by(Offer.data_ora.desc()).all()
     for offer in my_offers:
-        if offer.stato == "annullata" or offer.data_ora > threshold:
+        if (
+            offer.stato in {"annullata", "archiviata_admin"} or
+            offer.data_ora > threshold
+        ):
             continue
 
         for claim in get_offer_accepted_claims(offer):
@@ -2543,14 +2552,23 @@ def can_manage_offer(offer, user):
     )
 
 
-def remove_offer_with_notifications(offer, motivazione, acting_admin=None, notify_owner=False):
+def remove_offer_with_notifications(
+    offer,
+    motivazione,
+    acting_admin=None,
+    notify_owner=False,
+    preserve_review_history=False,
+):
     """Elimina un'offerta, avvisando i partecipanti e opzionalmente l'host."""
+    now = local_now()
+    is_past_offer = offer.data_ora < now
     claims = Claim.query.filter_by(offer_id=offer.id).all()
     data_evento = offer.data_ora.strftime('%d/%m/%Y alle %H:%M')
     motivazione = motivazione.strip() or "Nessuna motivazione specificata."
 
-    for claim in claims:
-        send_email(
+    if not is_past_offer:
+        for claim in claims:
+            send_email(
             f"⚠️ Evento Annullato: {offer.nome_locale}",
             [claim.utente.email],
             "cancellation.html",
@@ -2560,7 +2578,7 @@ def remove_offer_with_notifications(offer, motivazione, acting_admin=None, notif
             motivazione=motivazione
         )
 
-    if notify_owner and acting_admin and offer.autore.email:
+    if not is_past_offer and notify_owner and acting_admin and offer.autore.email:
         send_email(
             f"⚠️ La tua offerta è stata rimossa: {offer.nome_locale}",
             [offer.autore.email],
@@ -2571,6 +2589,11 @@ def remove_offer_with_notifications(offer, motivazione, acting_admin=None, notif
             motivazione=motivazione,
             admin_user=acting_admin,
         )
+
+    if preserve_review_history and is_past_offer:
+        offer.stato = "archiviata_admin"
+        offer.posti_disponibili = 0
+        return
 
     Review.query.filter_by(offer_id=offer.id).delete(synchronize_session=False)
     Claim.query.filter_by(offer_id=offer.id).delete(synchronize_session=False)
@@ -3645,6 +3668,7 @@ def api_delete_offer(offer_id):
         motivazione,
         acting_admin=current_user if is_admin_user(current_user) else None,
         notify_owner=is_admin_user(current_user) and offer.user_id != current_user.id,
+        preserve_review_history=is_admin_user(current_user),
     )
     db.session.commit()
     
@@ -4546,6 +4570,7 @@ def api_admin_dashboard():
             selectinload(Offer.autore).selectinload(User.photos),
             selectinload(Offer.claims),
         )
+        .filter(Offer.stato != "archiviata_admin")
         .order_by(Offer.data_ora.desc())
         .all()
     )
