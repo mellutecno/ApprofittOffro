@@ -821,6 +821,19 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  bool _canCancelClaimFromProfile(Offer offer) {
+    if (offer.isOwn || offer.claimId <= 0) {
+      return false;
+    }
+    return offer.claimStatus == 'pending' || offer.claimStatus == 'claimed';
+  }
+
+  String _cancelClaimLabel(Offer offer) {
+    return offer.claimStatus == 'pending'
+        ? 'Annulla richiesta'
+        : 'Annulla partecipazione';
+  }
+
   Future<void> _openOwnOfferDetails(Offer offer) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -859,7 +872,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'La tua offerta',
+                      offer.isOwn ? 'La tua offerta' : 'Il tuo approfitto',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w900,
@@ -870,11 +883,59 @@ class _ProfilePageState extends State<ProfilePage> {
                       offer: offer,
                       apiClient: widget.authController.apiClient,
                       allowProfileOpen: false,
-                      onEditOwn: () {
-                        Navigator.of(sheetContext).pop();
-                        unawaited(_openEditOffer(offer));
-                      },
+                      onEditOwn: offer.isOwn
+                          ? () {
+                              Navigator.of(sheetContext).pop();
+                              unawaited(_openEditOffer(offer));
+                            }
+                          : null,
                     ),
+                    if (_canCancelClaimFromProfile(offer)) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final confirmed = await showDialog<bool>(
+                            context: sheetContext,
+                            builder: (dialogContext) => AlertDialog(
+                              title: Text(_cancelClaimLabel(offer)),
+                              content: Text(
+                                offer.claimStatus == 'pending'
+                                    ? 'Vuoi davvero annullare la richiesta per ${offer.nomeLocale}?'
+                                    : 'Vuoi davvero annullare la partecipazione a ${offer.nomeLocale}?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(false),
+                                  child: const Text('No'),
+                                ),
+                                FilledButton(
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(true),
+                                  child: const Text('Si'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirmed != true || !context.mounted) {
+                            return;
+                          }
+                          final message = await widget
+                              .authController.apiClient
+                              .cancelClaim(offer.claimId);
+                          if (!sheetContext.mounted) {
+                            return;
+                          }
+                          Navigator.of(sheetContext).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(message)),
+                          );
+                          await _refreshAll();
+                        },
+                        icon: const Icon(Icons.event_busy_outlined),
+                        label: Text(_cancelClaimLabel(offer)),
+                      ),
+                    ],
                   ],
                 ),
               ),

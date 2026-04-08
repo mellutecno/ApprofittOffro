@@ -43,10 +43,7 @@ class _OffersPageState extends State<OffersPage> {
   }
 
   bool _canCancelClaim(Offer offer) {
-    if (offer.isOwn || offer.claimId <= 0) {
-      return false;
-    }
-    return offer.claimStatus == 'pending' || offer.claimStatus == 'claimed';
+    return false;
   }
 
   String _cancelClaimLabel(Offer offer) {
