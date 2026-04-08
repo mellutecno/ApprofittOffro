@@ -35,6 +35,7 @@ class _HomeShellState extends State<HomeShell> {
   late final CommunityController _communityController;
   bool _mandatoryProfileFlowOpen = false;
   bool _managementAlertInFlight = false;
+  bool _launchRefreshInFlight = false;
   bool _reviewAlertVisible = false;
   String? _lastReviewsAlertSignature;
 
@@ -126,6 +127,24 @@ class _HomeShellState extends State<HomeShell> {
     }
 
     widget.onLaunchTargetHandled?.call();
+    unawaited(_refreshAfterNotificationOpen());
+  }
+
+  Future<void> _refreshAfterNotificationOpen() async {
+    if (_launchRefreshInFlight || !mounted) {
+      return;
+    }
+
+    _launchRefreshInFlight = true;
+    try {
+      await widget.authController.refreshCurrentUser();
+      await _offersController.loadOffers();
+      if (!_isAdminUser) {
+        await _communityController.loadPeople();
+      }
+    } finally {
+      _launchRefreshInFlight = false;
+    }
   }
 
   bool _hasReviewsToManage() {
