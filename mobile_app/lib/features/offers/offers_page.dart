@@ -210,6 +210,11 @@ class _OffersPageState extends State<OffersPage> {
         );
         final distanceDraft =
             _distancePreferenceDraft ?? currentActionRadius.toDouble();
+        final user = widget.authController.currentUser;
+        final hasOffersToManage = user != null &&
+            (user.pendingClaimRequests.isNotEmpty ||
+                user.manageableOffersCount > 0 ||
+                widget.offersController.hiddenOwnOffersCount > 0);
 
         return RefreshIndicator(
           onRefresh: widget.offersController.loadOffers,
@@ -318,6 +323,13 @@ class _OffersPageState extends State<OffersPage> {
                   ),
                 ),
               ),
+              if (hasOffersToManage)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 0, 20, 10),
+                    child: _ProfileOffersReminder(),
+                  ),
+                ),
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
@@ -380,6 +392,42 @@ class _OffersPageState extends State<OffersPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _ProfileOffersReminder extends StatelessWidget {
+  const _ProfileOffersReminder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: const Row(
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            color: AppTheme.orange,
+            size: 18,
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Gestisci i tuoi eventi dal profilo.',
+              style: TextStyle(
+                color: AppTheme.espresso,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

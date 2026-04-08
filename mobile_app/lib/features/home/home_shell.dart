@@ -36,7 +36,6 @@ class _HomeShellState extends State<HomeShell> {
   bool _mandatoryProfileFlowOpen = false;
   bool _managementAlertInFlight = false;
   bool _reviewAlertVisible = false;
-  String? _lastOffersAlertSignature;
   String? _lastReviewsAlertSignature;
 
   bool get _isAdminUser => widget.authController.currentUser?.isAdmin == true;
@@ -129,16 +128,6 @@ class _HomeShellState extends State<HomeShell> {
     widget.onLaunchTargetHandled?.call();
   }
 
-  bool _hasOffersToManage() {
-    final user = widget.authController.currentUser;
-    if (user == null) {
-      return false;
-    }
-    return user.pendingClaimRequests.isNotEmpty ||
-        user.manageableOffersCount > 0 ||
-        _offersController.hiddenOwnOffersCount > 0;
-  }
-
   bool _hasReviewsToManage() {
     final user = widget.authController.currentUser;
     if (user == null) {
@@ -154,18 +143,15 @@ class _HomeShellState extends State<HomeShell> {
 
     final user = widget.authController.currentUser;
     if (user == null) {
-      _lastOffersAlertSignature = null;
       _lastReviewsAlertSignature = null;
       return;
     }
 
     if (user.isAdmin) {
-      _lastOffersAlertSignature = null;
       _lastReviewsAlertSignature = null;
       return;
     }
 
-    final hasOffersToManage = _hasOffersToManage();
     final hasReviewsToManage = _hasReviewsToManage();
     final messenger = ScaffoldMessenger.maybeOf(context);
 
@@ -174,33 +160,24 @@ class _HomeShellState extends State<HomeShell> {
       _reviewAlertVisible = false;
     }
 
-    if (!hasOffersToManage) {
-      _lastOffersAlertSignature = null;
-    }
     if (!hasReviewsToManage) {
       _lastReviewsAlertSignature = null;
     }
 
-    if (!hasOffersToManage && !hasReviewsToManage) {
+    if (!hasReviewsToManage) {
       return;
     }
 
-    final offersSignature = hasOffersToManage
-        ? '${user.id}:${user.pendingClaimRequests.length}:${user.manageableOffersCount}:${_offersController.hiddenOwnOffersCount}'
-        : null;
     final reviewsSignature = hasReviewsToManage
         ? '${user.id}:${user.pendingReviewReminders.length}'
         : null;
-    final shouldShowOffers =
-        offersSignature != null && _lastOffersAlertSignature != offersSignature;
     final shouldShowReviews = reviewsSignature != null &&
         _lastReviewsAlertSignature != reviewsSignature;
 
-    if (!shouldShowOffers && !shouldShowReviews) {
+    if (!shouldShowReviews) {
       return;
     }
 
-    _lastOffersAlertSignature = offersSignature;
     _lastReviewsAlertSignature = reviewsSignature;
     if (_managementAlertInFlight) {
       return;
@@ -209,7 +186,6 @@ class _HomeShellState extends State<HomeShell> {
     _managementAlertInFlight = true;
     unawaited(
       _runManagementAlertSequence(
-        showOffersAlert: shouldShowOffers,
         showReviewAlert: shouldShowReviews,
         restoreReviewAlert: hasReviewsToManage,
         forceProfileTab: forceProfileTab,
@@ -218,7 +194,6 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Future<void> _runManagementAlertSequence({
-    required bool showOffersAlert,
     required bool showReviewAlert,
     required bool restoreReviewAlert,
     required bool forceProfileTab,
@@ -230,21 +205,6 @@ class _HomeShellState extends State<HomeShell> {
     }
 
     try {
-      if (showOffersAlert) {
-        if (_reviewAlertVisible) {
-          messenger.hideCurrentSnackBar();
-          _reviewAlertVisible = false;
-        }
-        await messenger
-            .showSnackBar(
-              const SnackBar(
-                content: Text('Hai delle offerte da gestire nel profilo.'),
-                duration: Duration(seconds: 5),
-              ),
-            )
-            .closed;
-      }
-
       if ((showReviewAlert || restoreReviewAlert) &&
           mounted &&
           _hasReviewsToManage()) {
