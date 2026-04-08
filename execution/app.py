@@ -717,6 +717,22 @@ def send_review_received_email(review, *, is_update=False):
     return sent
 
 
+def send_follow_started_push(follower, followed):
+    if not follower or not followed or follower.id == followed.id:
+        return 0
+    return send_push_to_user(
+        followed,
+        title="Nuovo follower",
+        body=f"{follower.nome} ha iniziato a seguirti.",
+        target="profile",
+        extra_data={
+            "follower_id": follower.id,
+            "follower_name": follower.nome,
+            "follow_started": "true",
+        },
+    )
+
+
 def snapshot_offer_notification_state(offer):
     """Cattura i campi dell'offerta utili per notificare modifiche ai partecipanti."""
     return {
@@ -3030,6 +3046,7 @@ def follow_user(user_id):
     if not existing_follow:
         db.session.add(UserFollow(follower_id=current_user.id, followed_id=user.id))
         db.session.commit()
+        send_follow_started_push(current_user, user)
         flash(f"Ora segui {user.nome}. Riceverai le sue nuove offerte via email.", "success")
 
     return redirect(get_safe_next_url())
@@ -4734,6 +4751,7 @@ def api_follow_user(user_id):
     if not existing_follow:
         db.session.add(UserFollow(follower_id=current_user.id, followed_id=user.id))
         db.session.commit()
+        send_follow_started_push(current_user, user)
 
     return jsonify({
         "success": True,
