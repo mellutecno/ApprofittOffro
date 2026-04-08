@@ -289,6 +289,19 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                   ],
+                  if (review.viewerCanEdit &&
+                      review.offer != null &&
+                      review.reviewed != null) ...[
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _openWrittenReviewEditor(review);
+                      },
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Modifica recensione'),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -314,6 +327,200 @@ class _ProfilePageState extends State<ProfilePage> {
       return meal;
     }
     return '$meal - $locale';
+  }
+
+  Future<void> _openWrittenReviewEditor(UserReview review) async {
+    final offer = review.offer;
+    final reviewedUser = review.reviewed;
+    if (offer == null || reviewedUser == null) {
+      return;
+    }
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final commentController = TextEditingController(text: review.comment);
+        var selectedRating = review.rating;
+        var isSubmitting = false;
+        final whenText = offer.dateTime != null
+            ? DateFormat(
+                "EEEE d MMMM 'alle' HH:mm",
+                'it_IT',
+              ).format(offer.dateTime!.toLocal())
+            : '';
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            Future<void> submit() async {
+              if (isSubmitting) {
+                return;
+              }
+              setSheetState(() => isSubmitting = true);
+              try {
+                final message = await widget.authController.apiClient.submitReview(
+                  offerId: offer.id,
+                  reviewedId: reviewedUser.id,
+                  rating: selectedRating,
+                  comment: commentController.text.trim(),
+                );
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                Navigator.of(sheetContext).pop(message);
+              } on ApiException catch (error) {
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                  SnackBar(content: Text(error.message)),
+                );
+                setSheetState(() => isSubmitting = false);
+              } catch (_) {
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Non riesco a salvare la recensione adesso.'),
+                  ),
+                );
+                setSheetState(() => isSubmitting = false);
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 18,
+                right: 18,
+                top: 18,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+              ),
+              child: Material(
+                color: AppTheme.cream,
+                borderRadius: BorderRadius.circular(28),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 44,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: AppTheme.cardBorder,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Modifica la tua recensione',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Puoi aggiornarla quando vuoi: la ritrovi sempre qui nel tuo profilo.',
+                        style: TextStyle(
+                          color: AppTheme.brown.withValues(alpha: 0.85),
+                          height: 1.35,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppTheme.paper,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppTheme.cardBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${offer.mealType} - ${offer.localeName}',
+                              style: const TextStyle(
+                                color: AppTheme.espresso,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            if (whenText.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                whenText,
+                                style: TextStyle(
+                                  color: AppTheme.brown.withValues(alpha: 0.74),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Center(
+                        child: Wrap(
+                          spacing: 8,
+                          children: List.generate(5, (index) {
+                            final rating = index + 1;
+                            return IconButton(
+                              onPressed: () =>
+                                  setSheetState(() => selectedRating = rating),
+                              icon: Icon(
+                                rating <= selectedRating
+                                    ? Icons.star_rounded
+                                    : Icons.star_outline_rounded,
+                                color: const Color(0xFFD49B00),
+                                size: 30,
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: commentController,
+                        minLines: 3,
+                        maxLines: 5,
+                        decoration: const InputDecoration(
+                          labelText: 'Commento facoltativo',
+                          alignLabelWithHint: true,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: isSubmitting ? null : submit,
+                          child: Text(
+                            isSubmitting
+                                ? 'Invio in corso...'
+                                : 'Salva modifiche',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || result == null || result.isEmpty) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result)));
+    await _refreshAll();
   }
 
   Future<void> _refreshAll() async {
@@ -381,13 +588,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 'it_IT',
               ).format(reminder.offerDateTime!.toLocal())
             : '';
-        final editableUntilText = existingReview?.editableUntil != null
-            ? DateFormat(
-                "dd/MM 'alle' HH:mm",
-                'it_IT',
-              ).format(existingReview!.editableUntil!.toLocal())
-            : '';
-
         return StatefulBuilder(
           builder: (context, setSheetState) {
             Future<void> submit() async {
@@ -529,8 +729,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             const SizedBox(height: 12),
                             Text(
                               existingReview == null
-                                  ? 'Dopo la pubblicazione potrai modificare questa recensione per 3 ore.'
-                                  : 'Puoi modificare questa recensione fino al $editableUntilText.',
+                                  ? 'Scrivila adesso: poi la ritroverai sempre nel tuo profilo.'
+                                  : 'Puoi aggiornarla quando vuoi dal tuo profilo.',
                               style: TextStyle(
                                 color: AppTheme.brown.withValues(alpha: 0.82),
                                 fontWeight: FontWeight.w700,
@@ -1013,6 +1213,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     final hasError = snapshot.hasError;
                     final reviewsReceived =
                         snapshot.data?.received ?? const <UserReview>[];
+                    final reviewsGiven =
+                        snapshot.data?.given ?? const <UserReview>[];
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1032,6 +1234,24 @@ class _ProfilePageState extends State<ProfilePage> {
                                         title: 'Recensioni ricevute',
                                         reviews: reviewsReceived,
                                         isReceived: true,
+                                      ),
+                        ),
+                        const SizedBox(height: 12),
+                        _ReviewHistorySectionCard(
+                          title: 'Recensioni scritte',
+                          icon: Icons.edit_note_rounded,
+                          count: reviewsGiven.length,
+                          isLoading: isLoading,
+                          hasError: hasError,
+                          emptyText: 'Non hai ancora recensioni scritte.',
+                          actionLabel: 'Apri recensioni',
+                          onTap:
+                              reviewsGiven.isEmpty || isLoading || hasError
+                                  ? null
+                                  : () => _openReviewHistorySheet(
+                                        title: 'Recensioni scritte',
+                                        reviews: reviewsGiven,
+                                        isReceived: false,
                                       ),
                         ),
                       ],
@@ -1442,13 +1662,6 @@ class _PendingReviewCard extends StatelessWidget {
           ).format(reminder.offerDateTime!.toLocal())
         : '';
     final existingReview = reminder.existingReview;
-    final editableUntilText = existingReview?.editableUntil != null
-        ? DateFormat(
-            "dd/MM 'alle' HH:mm",
-            'it_IT',
-          ).format(existingReview!.editableUntil!.toLocal())
-        : '';
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -1557,61 +1770,11 @@ class _PendingReviewCard extends StatelessWidget {
                 ),
               ),
             ],
-            if (existingReview != null) ...[
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppTheme.mist,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppTheme.cardBorder),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        ...List.generate(
-                          5,
-                          (index) => Icon(
-                            index < existingReview.rating
-                                ? Icons.star_rounded
-                                : Icons.star_outline_rounded,
-                            color: const Color(0xFFD49B00),
-                            size: 18,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${existingReview.rating}/5',
-                          style: const TextStyle(
-                            color: AppTheme.espresso,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (existingReview.comment.trim().isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        existingReview.comment,
-                        style: const TextStyle(
-                          color: AppTheme.espresso,
-                          fontWeight: FontWeight.w700,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
             const SizedBox(height: 16),
             Text(
               existingReview == null
-                  ? 'Dopo la pubblicazione potrai modificare questa recensione per 3 ore.'
-                  : 'Modificabile fino al $editableUntilText.',
+                  ? 'Scrivila adesso: poi la ritroverai sempre nel tuo profilo.'
+                  : 'Puoi aggiornarla quando vuoi dal tuo profilo.',
               style: TextStyle(
                 color: AppTheme.brown.withValues(alpha: 0.82),
                 fontWeight: FontWeight.w700,

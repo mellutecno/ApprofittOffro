@@ -170,6 +170,8 @@ MEAL_BOOKING_LEAD_HOURS = 6
 USER_SESSION_IDLE_TIMEOUT_MINUTES = 60
 ADMIN_SESSION_IDLE_TIMEOUT_MINUTES = 30
 REVIEW_EDIT_WINDOW_HOURS = 3
+BREAKFAST_COMMITMENT_GAP_HOURS = 3
+MEAL_COMMITMENT_GAP_HOURS = 4
 DEFAULT_USER_LATITUDE = 41.9028
 DEFAULT_USER_LONGITUDE = 12.4964
 COMMUNITY_GENDER_FILTERS = [
@@ -297,6 +299,88 @@ def get_same_day_offer_conflict(user_id, tipo_pasto, data_ora, exclude_offer_id=
         query = query.filter(Offer.id != exclude_offer_id)
 
     return query.order_by(Offer.data_ora.asc()).first()
+
+
+def get_meal_commitment_gap_hours(tipo_pasto):
+    """Restituisce il buffer minimo fra due eventi dello stesso tipo."""
+    return (
+        BREAKFAST_COMMITMENT_GAP_HOURS
+        if tipo_pasto == "colazione"
+        else MEAL_COMMITMENT_GAP_HOURS
+    )
+
+
+def get_user_meal_schedule_conflict(
+    user_id,
+    tipo_pasto,
+    data_ora,
+    *,
+    exclude_offer_id=None,
+    exclude_claim_offer_id=None,
+):
+    """Trova conflitti tra offerte e partecipazioni dello stesso utente nello stesso giorno."""
+    day_start = data_ora.replace(hour=0, minute=0, second=0, microsecond=0)
+    next_day = day_start + timedelta(days=1)
+    gap_seconds = get_meal_commitment_gap_hours(tipo_pasto) * 3600
+
+    own_offers_query = Offer.query.filter(
+        Offer.user_id == user_id,
+        Offer.tipo_pasto == tipo_pasto,
+        Offer.stato.in_(["attiva", "completata"]),
+        Offer.data_ora >= day_start,
+        Offer.data_ora < next_day,
+    )
+    if exclude_offer_id is not None:
+        own_offers_query = own_offers_query.filter(Offer.id != exclude_offer_id)
+
+    for own_offer in own_offers_query.order_by(Offer.data_ora.asc()).all():
+        delta_seconds = abs((own_offer.data_ora - data_ora).total_seconds())
+        if delta_seconds <= gap_seconds:
+            return {
+                "kind": "offer",
+                "offer": own_offer,
+            }
+
+    user_claims = (
+        Claim.query.join(Offer, Claim.offer_id == Offer.id)
+        .filter(
+            Claim.user_id == user_id,
+            Claim.status.in_([CLAIM_STATUS_PENDING, CLAIM_STATUS_ACCEPTED]),
+            Offer.tipo_pasto == tipo_pasto,
+            Offer.stato.in_(["attiva", "completata"]),
+            Offer.data_ora >= day_start,
+            Offer.data_ora < next_day,
+        )
+        .order_by(Offer.data_ora.asc())
+        .all()
+    )
+    for claim in user_claims:
+        if exclude_claim_offer_id is not None and claim.offer_id == exclude_claim_offer_id:
+            continue
+        claimed_offer = claim.offerta
+        if not claimed_offer:
+            continue
+        delta_seconds = abs((claimed_offer.data_ora - data_ora).total_seconds())
+        if delta_seconds <= gap_seconds:
+            return {
+                "kind": "claim",
+                "offer": claimed_offer,
+                "claim": claim,
+            }
+
+    return None
+
+
+def build_meal_schedule_conflict_message(tipo_pasto, conflict):
+    """Messaggio UX per conflitti di agenda tra eventi dello stesso tipo."""
+    meal_copy = get_meal_type_copy(tipo_pasto)
+    gap_hours = get_meal_commitment_gap_hours(tipo_pasto)
+    conflicting_offer = conflict["offer"]
+    conflict_time = conflicting_offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
+    return (
+        f"Hai già un'altra {meal_copy['singular']} programmata per il {conflict_time}. "
+        f"Tra due {meal_copy['plural']} devono passare più di {gap_hours} ore."
+    )
 
 
 def get_meal_type_copy(tipo_pasto):
@@ -2249,22 +2333,16 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
 def serialize_review_preview(review, *, viewer=None):
     """Serializza una recensione con reviewer essenziale e dati evento."""
     offer = review.offerta
-    editable_until = (
-        review.created_at + timedelta(hours=REVIEW_EDIT_WINDOW_HOURS)
-        if review.created_at
-        else None
-    )
     return {
         "id": review.id,
         "rating": review.rating,
         "commento": review.commento or "",
         "created_at": review.created_at.isoformat() if review.created_at else "",
-        "editable_until": editable_until.isoformat() if editable_until else "",
+        "editable_until": "",
         "viewer_can_edit": bool(
             viewer
             and getattr(viewer, "is_authenticated", False)
             and review.reviewer_id == viewer.id
-            and can_edit_review(review)
         ),
         "reviewer": serialize_user_preview(review.reviewer) if review.reviewer else None,
         "reviewed": serialize_user_preview(review.reviewed) if review.reviewed else None,
@@ -2390,12 +2468,6 @@ def serialize_pending_review_reminder(item, *, viewer=None, followed_user_ids=No
     if not offer or not target_user:
         return None
 
-    editable_until = (
-        existing_review.created_at + timedelta(hours=REVIEW_EDIT_WINDOW_HOURS)
-        if existing_review and existing_review.created_at
-        else None
-    )
-
     return {
         "offer": {
             "id": offer.id,
@@ -2415,7 +2487,7 @@ def serialize_pending_review_reminder(item, *, viewer=None, followed_user_ids=No
             "rating": existing_review.rating,
             "commento": existing_review.commento or "",
             "created_at": existing_review.created_at.isoformat() if existing_review.created_at else "",
-            "editable_until": editable_until.isoformat() if editable_until else "",
+            "editable_until": "",
         } if existing_review else None,
     }
 
@@ -2452,7 +2524,7 @@ def get_pending_review_reminders(user, now=None):
             reviewed_id=offer.user_id,
             offer_id=offer.id,
         ).first()
-        if existing_review and not can_edit_review(existing_review, now):
+        if existing_review:
             continue
 
         seen_pairs.add(review_key)
@@ -2482,7 +2554,7 @@ def get_pending_review_reminders(user, now=None):
                 reviewed_id=guest.id,
                 offer_id=offer.id,
             ).first()
-            if existing_review and not can_edit_review(existing_review, now):
+            if existing_review:
                 continue
 
             seen_pairs.add(review_key)
@@ -2538,11 +2610,8 @@ def get_met_users_for_user(user):
 
 
 def can_edit_review(review, now=None):
-    """Permette di correggere una recensione solo entro una finestra limitata."""
-    if not review:
-        return False
-    now = now or local_now()
-    return review.created_at + timedelta(hours=REVIEW_EDIT_WINDOW_HOURS) > now
+    """Le recensioni scritte possono essere corrette dall'autore in qualsiasi momento."""
+    return bool(review)
 
 
 def can_manage_offer(offer, user):
@@ -3772,20 +3841,16 @@ def api_edit_offer(offer_id):
     except (ValueError, TypeError):
         return jsonify({"success": False, "errors": ["Formato data non valido."]}), 400
 
-    conflicting_offer = get_same_day_offer_conflict(
+    scheduling_conflict = get_user_meal_schedule_conflict(
         offer.user_id,
         tipo_pasto,
         data_ora,
         exclude_offer_id=offer.id,
     )
-    if conflicting_offer:
-        data_conflitto = conflicting_offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
-        meal_copy = get_meal_type_copy(tipo_pasto)
+    if scheduling_conflict:
         return jsonify({
             "success": False,
-            "errors": [
-                f"Hai già pubblicato un'offerta di {meal_copy['singular']} per questa data ({data_conflitto}). Non puoi offrire due {meal_copy['plural']} nello stesso giorno."
-            ],
+            "errors": [build_meal_schedule_conflict_message(tipo_pasto, scheduling_conflict)],
         }), 400
 
     if (not is_admin_user(current_user)) and is_new_offer_publication_too_late(tipo_pasto, data_ora):
@@ -3878,19 +3943,15 @@ def api_create_offer():
     except (ValueError, TypeError):
         return jsonify({"success": False, "errors": ["Formato data non valido."]}), 400
 
-    conflicting_offer = get_same_day_offer_conflict(
+    scheduling_conflict = get_user_meal_schedule_conflict(
         current_user.id,
         tipo_pasto,
         data_ora,
     )
-    if conflicting_offer:
-        data_conflitto = conflicting_offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
-        meal_copy = get_meal_type_copy(tipo_pasto)
+    if scheduling_conflict:
         return jsonify({
             "success": False,
-            "errors": [
-                f"Hai già pubblicato un'offerta di {meal_copy['singular']} per questa data ({data_conflitto}). Non puoi offrire due {meal_copy['plural']} nello stesso giorno."
-            ],
+            "errors": [build_meal_schedule_conflict_message(tipo_pasto, scheduling_conflict)],
         }), 400
 
     if is_new_offer_publication_too_late(tipo_pasto, data_ora):
@@ -3975,6 +4036,18 @@ def api_claim_offer(offer_id):
 
     if is_offer_booking_closed(offer, now):
         return jsonify({"success": False, "errors": [get_offer_booking_closed_message(offer)]}), 400
+
+    scheduling_conflict = get_user_meal_schedule_conflict(
+        current_user.id,
+        offer.tipo_pasto,
+        offer.data_ora,
+        exclude_claim_offer_id=offer.id,
+    )
+    if scheduling_conflict:
+        return jsonify({
+            "success": False,
+            "errors": [build_meal_schedule_conflict_message(offer.tipo_pasto, scheduling_conflict)],
+        }), 400
     # Crea una richiesta pendente senza occupare ancora il posto.
     claim = Claim(
         user_id=current_user.id,
@@ -4016,6 +4089,18 @@ def api_accept_claim_request(claim_id):
         return jsonify({"success": False, "error": "Il pasto è già iniziato o concluso."}), 400
     if is_offer_booking_closed(offer, now):
         return jsonify({"success": False, "error": get_offer_booking_closed_message(offer)}), 400
+
+    scheduling_conflict = get_user_meal_schedule_conflict(
+        claim.user_id,
+        offer.tipo_pasto,
+        offer.data_ora,
+        exclude_claim_offer_id=offer.id,
+    )
+    if scheduling_conflict:
+        return jsonify({
+            "success": False,
+            "error": build_meal_schedule_conflict_message(offer.tipo_pasto, scheduling_conflict),
+        }), 400
 
     claim.status = CLAIM_STATUS_ACCEPTED
     offer.posti_disponibili -= 1
@@ -4841,26 +4926,20 @@ def api_create_review():
     if not is_guest_reviewing_host and not is_host_reviewing_guest:
         return jsonify({"success": False, "error": "Non sei autorizzato a recensire questo utente per questo pasto."}), 403
 
-    # 5. Se la recensione esiste già, può essere corretta solo entro una finestra limitata
+    # 5. Se la recensione esiste già, viene aggiornata senza finestra temporale.
     existing = Review.query.filter_by(
         reviewer_id=current_user.id,
         reviewed_id=reviewed_id,
         offer_id=offer_id,
     ).first()
     if existing:
-        if not can_edit_review(existing):
-            return jsonify({
-                "success": False,
-                "error": f"Hai già lasciato una recensione per questo utente in questo pasto. Puoi modificarla solo entro {REVIEW_EDIT_WINDOW_HOURS} ore.",
-            }), 400
-
         existing.rating = rating
         existing.commento = commento
         db.session.commit()
         send_review_received_email(existing, is_update=True)
         return jsonify({
             "success": True,
-            "message": f"Recensione aggiornata con successo. Resta modificabile fino a {REVIEW_EDIT_WINDOW_HOURS} ore dalla prima pubblicazione.",
+            "message": "Recensione aggiornata con successo.",
         })
 
     # 6. Creazione recensione

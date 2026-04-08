@@ -243,17 +243,8 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                       ),
                     ),
                   ],
-                  if (review.viewerCanEdit && review.editableUntil != null) ...[
+                  if (review.viewerCanEdit) ...[
                     const SizedBox(height: 14),
-                    Text(
-                      'Puoi modificarla fino al ${DateFormat("dd/MM 'alle' HH:mm", 'it_IT').format(review.editableUntil!.toLocal())}.',
-                      style: TextStyle(
-                        color: AppTheme.brown.withValues(alpha: 0.78),
-                        fontWeight: FontWeight.w700,
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
                     OutlinedButton.icon(
                       onPressed: () {
                         Navigator.of(sheetContext).pop();
@@ -343,13 +334,6 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                 'it_IT',
               ).format(offer.dateTime!.toLocal())
             : '';
-        final editableUntilText = review.editableUntil != null
-            ? DateFormat(
-                "dd/MM 'alle' HH:mm",
-                'it_IT',
-              ).format(review.editableUntil!.toLocal())
-            : '';
-
         return StatefulBuilder(
           builder: (context, setSheetState) {
             Future<void> submit() async {
@@ -424,7 +408,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Puoi correggerla fino al $editableUntilText.',
+                        'Puoi aggiornarla quando vuoi.',
                         style: TextStyle(
                           color: AppTheme.brown.withValues(alpha: 0.85),
                           height: 1.35,
