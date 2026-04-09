@@ -575,6 +575,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
           if (profile == null) {
             return const Center(child: Text('Profilo non disponibile.'));
           }
+          final totalPhotos = _galleryUrls(profile.user).length;
 
           return RefreshIndicator(
             onRefresh: _reload,
@@ -585,6 +586,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                   user: profile.user,
                   apiClient: widget.apiClient,
                   onOpenGallery: () => _openGallery(profile.user),
+                  totalPhotos: totalPhotos,
                 ),
                 const SizedBox(height: 18),
                 if (!profile.user.isSelf) ...[
@@ -594,41 +596,6 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                         _isTogglingFollow ? null : () => _toggleFollow(profile),
                     child: Text(
                         profile.user.isFollowing ? 'Non seguire piu' : 'Segui'),
-                  ),
-                ],
-                if (profile.user.galleryFilenames.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  Text(
-                    'Foto',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 148,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _galleryUrls(profile.user).length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
-                      itemBuilder: (context, index) {
-                        final url = _galleryUrls(profile.user)[index];
-                        return GestureDetector(
-                          onTap: () => _openGallery(
-                            profile.user,
-                            initialIndex: index,
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: AspectRatio(
-                              aspectRatio: 0.92,
-                              child: Image.network(
-                                url,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
                   ),
                 ],
                 if (profile.user.bio.isNotEmpty) ...[
@@ -728,17 +695,20 @@ class _ProfileHeader extends StatelessWidget {
     required this.user,
     required this.apiClient,
     required this.onOpenGallery,
+    required this.totalPhotos,
   });
 
   final UserPreview user;
   final ApiClient apiClient;
   final VoidCallback onOpenGallery;
+  final int totalPhotos;
 
   @override
   Widget build(BuildContext context) {
     final imageUrl = user.photoFilename.isNotEmpty
         ? apiClient.buildUploadUrl(user.photoFilename)
         : null;
+    final extraPhotoCount = totalPhotos > 0 ? totalPhotos - 1 : 0;
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -749,23 +719,75 @@ class _ProfileHeader extends StatelessWidget {
       child: Column(
         children: [
           GestureDetector(
-            onTap: onOpenGallery,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: CircleAvatar(
-                radius: 52,
-                backgroundImage:
-                    imageUrl != null ? NetworkImage(imageUrl) : null,
-                child: imageUrl == null
-                    ? const Icon(Icons.person, size: 44)
-                    : null,
-              ),
+            onTap: totalPhotos > 0 ? onOpenGallery : null,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: CircleAvatar(
+                    radius: 52,
+                    backgroundImage:
+                        imageUrl != null ? NetworkImage(imageUrl) : null,
+                    child: imageUrl == null
+                        ? const Icon(Icons.person, size: 44)
+                        : null,
+                  ),
+                ),
+                if (extraPhotoCount > 0)
+                  Positioned(
+                    right: -4,
+                    bottom: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.espresso,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2,
+                        ),
+                      ),
+                      child: Text(
+                        '+$extraPhotoCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
+          if (totalPhotos > 1) ...[
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.photo_library_outlined,
+                  size: 18,
+                  color: AppTheme.espresso,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Tocca la foto per vedere l’album',
+                  style: TextStyle(
+                    color: AppTheme.espresso.withValues(alpha: 0.82),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 14),
           Text(
             user.nome,
