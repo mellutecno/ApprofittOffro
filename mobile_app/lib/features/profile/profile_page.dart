@@ -1503,34 +1503,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                 ),
                 const SizedBox(height: 20),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 2),
-                          child: Icon(
-                            Icons.history_toggle_off_rounded,
-                            color: AppTheme.espresso,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Le tue offerte e i tuoi approfitti restano visibili qui per $_profileEventHistoryHours ore dopo la conclusione, poi vengono archiviati automaticamente.',
-                            style: TextStyle(
-                              color: AppTheme.espresso.withValues(alpha: 0.88),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
                 Text(
                   'Le mie offerte',
                   style: Theme.of(context).textTheme.titleLarge,
@@ -1656,13 +1628,22 @@ class _ProfilePageState extends State<ProfilePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Archivio ultimo mese',
-                          style: Theme.of(context).textTheme.titleMedium,
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.history_toggle_off_rounded,
+                              color: AppTheme.espresso,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Archivio ultimo mese',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Se vuoi recuperare eventi più vecchi, qui trovi quelli conclusi fino a $_profileArchiveLookbackDays giorni fa, finché non vengono rimossi dall’amministratore.',
+                          'Dopo $_profileEventHistoryHours ore dalla conclusione, l’evento viene archiviato automaticamente.',
                           style: TextStyle(
                             color: AppTheme.espresso.withValues(alpha: 0.82),
                             fontWeight: FontWeight.w600,
@@ -1685,7 +1666,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 claimed: true,
                               ),
                               icon: const Icon(Icons.history_edu_outlined),
-                              label: const Text('Approfitti archiviati'),
+                              label: const Text('Approfitti'),
                             ),
                           ],
                         ),
