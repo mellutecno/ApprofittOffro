@@ -28,6 +28,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   static const int _profileEventHistoryHours = 24;
+  static const int _profileArchiveLookbackDays = 30;
   late Future<List<Offer>> _myOffersFuture;
   late Future<List<Offer>> _myClaimsFuture;
   late Future<ReviewHistoryBundle> _reviewHistoryFuture;
@@ -56,8 +57,145 @@ class _ProfilePageState extends State<ProfilePage> {
     return claims..sort((a, b) => b.dataOra.compareTo(a.dataOra));
   }
 
+  Future<List<Offer>> _loadArchivedOffers({required bool claimed}) async {
+    final offers = await widget.authController.apiClient.fetchMyProfileOffers(
+      claimed: claimed,
+      archived: true,
+    );
+    return offers..sort((a, b) => b.dataOra.compareTo(a.dataOra));
+  }
+
   Future<ReviewHistoryBundle> _loadReviewHistory() {
     return widget.authController.apiClient.fetchMyReviewHistory();
+  }
+
+  Future<void> _openArchivedOffersSheet({
+    required bool claimed,
+  }) async {
+    final title = claimed ? 'Archivio approfitti' : 'Archivio offerte';
+    final emptyText = claimed
+        ? 'Non ci sono approfitti archiviati nell’ultimo mese.'
+        : 'Non ci sono offerte archiviate nell’ultimo mese.';
+
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.72,
+          minChildSize: 0.48,
+          maxChildSize: 0.92,
+          builder: (context, scrollController) {
+            return Material(
+              color: AppTheme.cream,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
+              child: FutureBuilder<List<Offer>>(
+                future: _loadArchivedOffers(claimed: claimed),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (snapshot.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Center(
+                        child: Text(
+                          'Non riesco a caricare l’archivio adesso.',
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                      ),
+                    );
+                  }
+
+                  final offers = snapshot.data ?? const <Offer>[];
+                  return Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      Container(
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardBorder,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: Theme.of(context).textTheme.headlineSmall,
+                              ),
+                            ),
+                            Text(
+                              '${offers.length}',
+                              style: TextStyle(
+                                color: AppTheme.brown.withValues(alpha: 0.78),
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                        child: Text(
+                          'Qui trovi gli eventi conclusi tra 24 ore e $_profileArchiveLookbackDays giorni fa, finché non vengono rimossi dall’amministratore.',
+                          style: TextStyle(
+                            color: AppTheme.brown.withValues(alpha: 0.76),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: offers.isEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Center(
+                                  child: Text(
+                                    emptyText,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                controller: scrollController,
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                                itemCount: offers.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  final offer = offers[index];
+                                  return _OwnOfferPreviewCard(
+                                    offer: offer,
+                                    apiClient: widget.authController.apiClient,
+                                    buttonLabel: 'Apri evento',
+                                    onOpen: () {
+                                      Navigator.of(sheetContext).pop();
+                                      _openOwnOfferDetails(offer);
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _openReviewHistorySheet({
@@ -821,6 +959,9 @@ class _ProfilePageState extends State<ProfilePage> {
     if (offer.isOwn || offer.claimId <= 0) {
       return false;
     }
+    if (offer.dataOra.toLocal().isBefore(DateTime.now())) {
+      return false;
+    }
     return offer.claimStatus == 'pending' || offer.claimStatus == 'claimed';
   }
 
@@ -1507,6 +1648,50 @@ class _ProfilePageState extends State<ProfilePage> {
                           .toList(),
                     );
                   },
+                ),
+                const SizedBox(height: 20),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Archivio ultimo mese',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Se vuoi recuperare eventi più vecchi, qui trovi quelli conclusi fino a $_profileArchiveLookbackDays giorni fa, finché non vengono rimossi dall’amministratore.',
+                          style: TextStyle(
+                            color: AppTheme.espresso.withValues(alpha: 0.82),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: () => _openArchivedOffersSheet(
+                                claimed: false,
+                              ),
+                              icon: const Icon(Icons.inventory_2_outlined),
+                              label: const Text('Offerte archiviate'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () => _openArchivedOffersSheet(
+                                claimed: true,
+                              ),
+                              icon: const Icon(Icons.history_edu_outlined),
+                              label: const Text('Approfitti archiviati'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Text(

@@ -298,10 +298,17 @@ class ApiClient {
         .toList();
   }
 
-  Future<List<Offer>> fetchMyProfileOffers({required bool claimed}) async {
+  Future<List<Offer>> fetchMyProfileOffers({
+    required bool claimed,
+    bool archived = false,
+  }) async {
     final scope = claimed ? 'claimed' : 'owned';
+    final archivedValue = archived ? '&archived=1' : '';
     final response =
-        await _send(method: 'GET', path: '/api/user/offers?scope=$scope');
+        await _send(
+          method: 'GET',
+          path: '/api/user/offers?scope=$scope$archivedValue',
+        );
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return (payload['offers'] as List<dynamic>? ?? [])

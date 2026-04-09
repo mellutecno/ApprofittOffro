@@ -186,6 +186,7 @@ REVIEW_EDIT_WINDOW_HOURS = 3
 BREAKFAST_COMMITMENT_GAP_HOURS = 3
 MEAL_COMMITMENT_GAP_HOURS = 4
 PROFILE_EVENT_HISTORY_HOURS = 24
+PROFILE_ARCHIVE_LOOKBACK_DAYS = 30
 DEFAULT_USER_LATITUDE = 41.9028
 DEFAULT_USER_LONGITUDE = 12.4964
 DEFAULT_PROFILE_PLACEHOLDER_FILENAME = "user_placeholder.png"
@@ -3175,6 +3176,32 @@ def remove_offer_with_notifications(
         )
 
     if preserve_review_history and is_past_offer:
+        accepted_claims = [claim for claim in claims if claim.status == CLAIM_STATUS_ACCEPTED]
+        for claim in accepted_claims:
+            if claim.utente:
+                send_push_to_user(
+                    claim.utente,
+                    title="Evento rimosso dallo storico",
+                    body=f"{offer.nome_locale} • {data_evento} non è più consultabile.",
+                    target="profile",
+                    extra_data={
+                        "offer_id": offer.id,
+                        "admin_removed_archive": "true",
+                    },
+                )
+
+        if notify_owner and acting_admin and offer.autore:
+            send_push_to_user(
+                offer.autore,
+                title="Evento rimosso dallo storico",
+                body=f"{offer.nome_locale} • {data_evento} non è più consultabile.",
+                target="profile",
+                extra_data={
+                    "offer_id": offer.id,
+                    "admin_removed_archive": "true",
+                },
+            )
+
         offer.stato = "archiviata_admin"
         offer.posti_disponibili = 0
         return
@@ -4239,44 +4266,49 @@ def api_get_offers():
 def api_get_user_profile_offers():
     """Restituisce offerte e approfitti visibili nel profilo per 24 ore dopo la conclusione."""
     scope = request.args.get("scope", "owned").strip().lower()
+    archived = request.args.get("archived", "").strip().lower() in {"1", "true", "yes"}
     now = local_now()
     threshold = now - timedelta(hours=PROFILE_EVENT_HISTORY_HOURS)
+    archive_start = now - timedelta(days=PROFILE_ARCHIVE_LOOKBACK_DAYS)
 
     if scope == "owned":
-        offers = (
-            Offer.query.options(
-                selectinload(Offer.autore).selectinload(User.photos),
-                selectinload(Offer.claims).selectinload(Claim.utente).selectinload(User.photos),
-            )
-            .filter(
-                Offer.user_id == current_user.id,
-                Offer.stato.in_(["attiva", "completata"]),
-                Offer.data_ora > threshold,
-            )
-            .order_by(Offer.data_ora.desc())
-            .all()
+        offers_query = Offer.query.options(
+            selectinload(Offer.autore).selectinload(User.photos),
+            selectinload(Offer.claims).selectinload(Claim.utente).selectinload(User.photos),
+        ).filter(
+            Offer.user_id == current_user.id,
+            Offer.stato.in_(["attiva", "completata"]),
         )
+        if archived:
+            offers_query = offers_query.filter(
+                Offer.data_ora <= threshold,
+                Offer.data_ora >= archive_start,
+            )
+        else:
+            offers_query = offers_query.filter(Offer.data_ora > threshold)
+        offers = offers_query.order_by(Offer.data_ora.desc()).all()
         result = [
             serialize_mobile_offer(offer, viewer=current_user, now=now)
             for offer in offers
         ]
     elif scope == "claimed":
-        claims = (
-            Claim.query.join(Offer, Claim.offer_id == Offer.id)
-            .options(
-                selectinload(Claim.utente).selectinload(User.photos),
-                selectinload(Claim.offerta).selectinload(Offer.autore).selectinload(User.photos),
-                selectinload(Claim.offerta).selectinload(Offer.claims).selectinload(Claim.utente).selectinload(User.photos),
-            )
-            .filter(
-                Claim.user_id == current_user.id,
-                Claim.status.in_([CLAIM_STATUS_PENDING, CLAIM_STATUS_ACCEPTED]),
-                Offer.stato.in_(["attiva", "completata"]),
-                Offer.data_ora > threshold,
-            )
-            .order_by(Offer.data_ora.desc())
-            .all()
+        claims_query = Claim.query.join(Offer, Claim.offer_id == Offer.id).options(
+            selectinload(Claim.utente).selectinload(User.photos),
+            selectinload(Claim.offerta).selectinload(Offer.autore).selectinload(User.photos),
+            selectinload(Claim.offerta).selectinload(Offer.claims).selectinload(Claim.utente).selectinload(User.photos),
+        ).filter(
+            Claim.user_id == current_user.id,
+            Claim.status.in_([CLAIM_STATUS_PENDING, CLAIM_STATUS_ACCEPTED]),
+            Offer.stato.in_(["attiva", "completata"]),
         )
+        if archived:
+            claims_query = claims_query.filter(
+                Offer.data_ora <= threshold,
+                Offer.data_ora >= archive_start,
+            )
+        else:
+            claims_query = claims_query.filter(Offer.data_ora > threshold)
+        claims = claims_query.order_by(Offer.data_ora.desc()).all()
         result = []
         seen_offer_ids = set()
         for claim in claims:
@@ -4299,6 +4331,8 @@ def api_get_user_profile_offers():
         {
             "success": True,
             "history_hours": PROFILE_EVENT_HISTORY_HOURS,
+            "archive_days": PROFILE_ARCHIVE_LOOKBACK_DAYS,
+            "archived": archived,
             "offers": result,
         }
     )
