@@ -160,6 +160,8 @@ class _CommunityPageState extends State<CommunityPage> {
                         _CommunityDistanceControl(
                           valueKm: distanceValue,
                           valueLabel: _distanceDisplayLabel(distanceValue),
+                          resultCount:
+                              widget.communityController.people.length,
                           isExpanded: _isDistanceCardExpanded,
                           isSaving: widget.communityController.isLoading,
                           onChanged: (value) {
@@ -180,11 +182,6 @@ class _CommunityPageState extends State<CommunityPage> {
                           constraints: const BoxConstraints(maxWidth: 360),
                           child: Column(
                             children: [
-                              _CommunityResultCount(
-                                count: widget.communityController.people.length,
-                                isLoading: widget.communityController.isLoading,
-                              ),
-                              const SizedBox(height: 12),
                               Row(
                                 children: [
                                   Expanded(
@@ -298,55 +295,6 @@ class _CommunityPageState extends State<CommunityPage> {
   }
 }
 
-class _CommunityResultCount extends StatelessWidget {
-  const _CommunityResultCount({
-    required this.count,
-    required this.isLoading,
-  });
-
-  final int count;
-  final bool isLoading;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = isLoading
-        ? 'Sto cercando utenti nella community...'
-        : (count == 1
-            ? '1 utente nella community'
-            : '$count utenti nella community');
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.74),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.cardBorder),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.groups_2_rounded,
-            color: isLoading ? AppTheme.brown : AppTheme.orange,
-            size: 18,
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.espresso,
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _CommunityFilterTile extends StatelessWidget {
   const _CommunityFilterTile({
     required this.label,
@@ -435,6 +383,7 @@ class _CommunityDistanceControl extends StatelessWidget {
   const _CommunityDistanceControl({
     required this.valueKm,
     required this.valueLabel,
+    required this.resultCount,
     required this.isExpanded,
     required this.isSaving,
     required this.onChanged,
@@ -445,12 +394,26 @@ class _CommunityDistanceControl extends StatelessWidget {
 
   final int valueKm;
   final String valueLabel;
+  final int resultCount;
   final bool isExpanded;
   final bool isSaving;
   final ValueChanged<double> onChanged;
   final VoidCallback onToggle;
   final Future<void> Function() onSave;
   final bool isDirty;
+
+  String _summaryLabel() {
+    if (isSaving) {
+      return valueLabel == 'Tutti'
+          ? 'Cerco utenti in tutta la community'
+          : 'Cerco utenti nel raggio di $valueLabel';
+    }
+
+    final countLabel = resultCount == 1 ? '1 utente' : '$resultCount utenti';
+    return valueLabel == 'Tutti'
+        ? '$countLabel in tutta la community'
+        : '$countLabel nel raggio di $valueLabel';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -480,7 +443,7 @@ class _CommunityDistanceControl extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Utenti nel raggio di $valueLabel',
+                      _summaryLabel(),
                       style: const TextStyle(
                         color: AppTheme.espresso,
                         fontWeight: FontWeight.w800,
