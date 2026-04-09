@@ -185,6 +185,7 @@ ADMIN_SESSION_IDLE_TIMEOUT_MINUTES = 30
 REVIEW_EDIT_WINDOW_HOURS = 3
 BREAKFAST_COMMITMENT_GAP_HOURS = 3
 MEAL_COMMITMENT_GAP_HOURS = 4
+PROFILE_EVENT_HISTORY_HOURS = 24
 DEFAULT_USER_LATITUDE = 41.9028
 DEFAULT_USER_LONGITUDE = 12.4964
 DEFAULT_PROFILE_PLACEHOLDER_FILENAME = "user_placeholder.png"
@@ -433,6 +434,116 @@ def get_offer_accepted_claims(offer):
 def get_offer_pending_claims(offer):
     """Restituisce solo le richieste ancora in attesa di approvazione."""
     return [claim for claim in offer.claims if claim.status == CLAIM_STATUS_PENDING]
+
+
+def serialize_mobile_offer(
+    offer,
+    *,
+    viewer=None,
+    current_claim=None,
+    now=None,
+    search_lat=None,
+    search_lon=None,
+):
+    """Serializza un evento nel formato usato dall'app mobile."""
+    now = now or local_now()
+
+    if search_lat is None or search_lon is None:
+        if viewer and getattr(viewer, "is_authenticated", False):
+            search_lat = viewer.latitudine
+            search_lon = viewer.longitudine
+        else:
+            search_lat = DEFAULT_USER_LATITUDE
+            search_lon = DEFAULT_USER_LONGITUDE
+
+    dist = calculate_distance(search_lat, search_lon, offer.latitudine, offer.longitudine)
+    booking_deadline = get_offer_booking_deadline(offer)
+    booking_closed = is_offer_booking_closed(offer, now)
+    has_started = offer.data_ora <= now
+    author_rating = get_user_rating(offer.autore.id)
+
+    already_claimed = False
+    is_own = False
+    host_whatsapp_link = ""
+
+    if viewer and getattr(viewer, "is_authenticated", False):
+        if current_claim is None:
+            current_claim = next(
+                (claim for claim in offer.claims if claim.user_id == viewer.id),
+                None,
+            )
+        already_claimed = current_claim is not None
+        is_own = offer.user_id == viewer.id
+        if (
+            current_claim is not None
+            and current_claim.status == CLAIM_STATUS_ACCEPTED
+            and not is_own
+        ):
+            host_whatsapp_link = build_whatsapp_offer_link(viewer, offer.autore, offer)
+
+    claim_status = "open"
+    if current_claim is not None:
+        claim_status = (
+            "pending"
+            if current_claim.status == CLAIM_STATUS_PENDING
+            else "claimed"
+        )
+    elif offer.stato != "attiva" or offer.posti_disponibili <= 0:
+        claim_status = "full"
+    elif has_started:
+        claim_status = "started"
+    elif booking_closed:
+        claim_status = "booking_closed"
+
+    can_claim = (not is_own) and current_claim is None and claim_status == "open"
+    accepted_claims = get_offer_accepted_claims(offer)
+
+    return {
+        "id": offer.id,
+        "tipo_pasto": offer.tipo_pasto,
+        "nome_locale": offer.nome_locale,
+        "indirizzo": offer.indirizzo,
+        "telefono_locale": getattr(offer, "telefono_locale", "") or "",
+        "lat": offer.latitudine,
+        "lon": offer.longitudine,
+        "distance_km": round(dist, 1),
+        "posti_totali": offer.posti_totali,
+        "posti_disponibili": offer.posti_disponibili,
+        "stato": offer.stato,
+        "data_ora": offer.data_ora.isoformat(),
+        "booking_deadline": booking_deadline.isoformat(),
+        "booking_closed": booking_closed,
+        "has_started": has_started,
+        "descrizione": offer.descrizione or "",
+        "foto_locale": getattr(offer, "foto_locale", "nessuna.jpg"),
+        "autore": offer.autore.nome,
+        "autore_id": offer.autore.id,
+        "autore_foto": offer.autore.foto_filename,
+        "autore_foto_gallery": offer.autore.gallery_filenames[:2],
+        "autore_eta": offer.autore.eta_display,
+        "autore_rating_average": author_rating["average"],
+        "autore_rating_count": author_rating["count"],
+        "autore_cibi_preferiti": offer.autore.cibi_preferiti or "",
+        "autore_intolleranze": offer.autore.intolleranze or "",
+        "host_whatsapp_link": host_whatsapp_link,
+        "partecipanti": [
+            {
+                "id": claim.utente.id,
+                "nome": claim.utente.nome,
+                "foto": claim.utente.foto_filename,
+                "whatsapp_link": build_whatsapp_offer_link(viewer, claim.utente, offer)
+                if viewer and getattr(viewer, "is_authenticated", False) and is_own
+                else "",
+            }
+            for claim in accepted_claims
+            if claim.utente
+        ],
+        "is_own": is_own,
+        "already_claimed": already_claimed,
+        "can_claim": can_claim,
+        "claim_status": claim_status,
+        "claim_id": current_claim.id if current_claim is not None else 0,
+    }
 
 
 def get_followed_offer_notification_subject(offer):
@@ -4121,6 +4232,76 @@ def api_get_offers():
             break
 
     return jsonify({"success": True, "offers": result})
+
+
+@app.route("/api/user/offers", methods=["GET"])
+@login_required
+def api_get_user_profile_offers():
+    """Restituisce offerte e approfitti visibili nel profilo per 24 ore dopo la conclusione."""
+    scope = request.args.get("scope", "owned").strip().lower()
+    now = local_now()
+    threshold = now - timedelta(hours=PROFILE_EVENT_HISTORY_HOURS)
+
+    if scope == "owned":
+        offers = (
+            Offer.query.options(
+                selectinload(Offer.autore).selectinload(User.photos),
+                selectinload(Offer.claims).selectinload(Claim.utente).selectinload(User.photos),
+            )
+            .filter(
+                Offer.user_id == current_user.id,
+                Offer.stato.in_(["attiva", "completata"]),
+                Offer.data_ora > threshold,
+            )
+            .order_by(Offer.data_ora.desc())
+            .all()
+        )
+        result = [
+            serialize_mobile_offer(offer, viewer=current_user, now=now)
+            for offer in offers
+        ]
+    elif scope == "claimed":
+        claims = (
+            Claim.query.join(Offer, Claim.offer_id == Offer.id)
+            .options(
+                selectinload(Claim.utente).selectinload(User.photos),
+                selectinload(Claim.offerta).selectinload(Offer.autore).selectinload(User.photos),
+                selectinload(Claim.offerta).selectinload(Offer.claims).selectinload(Claim.utente).selectinload(User.photos),
+            )
+            .filter(
+                Claim.user_id == current_user.id,
+                Claim.status.in_([CLAIM_STATUS_PENDING, CLAIM_STATUS_ACCEPTED]),
+                Offer.stato.in_(["attiva", "completata"]),
+                Offer.data_ora > threshold,
+            )
+            .order_by(Offer.data_ora.desc())
+            .all()
+        )
+        result = []
+        seen_offer_ids = set()
+        for claim in claims:
+            offer = claim.offerta
+            if not offer or offer.id in seen_offer_ids:
+                continue
+            seen_offer_ids.add(offer.id)
+            result.append(
+                serialize_mobile_offer(
+                    offer,
+                    viewer=current_user,
+                    current_claim=claim,
+                    now=now,
+                )
+            )
+    else:
+        return jsonify({"success": False, "error": "Scope non valido."}), 400
+
+    return jsonify(
+        {
+            "success": True,
+            "history_hours": PROFILE_EVENT_HISTORY_HOURS,
+            "offers": result,
+        }
+    )
 
 
 @app.route("/api/offers/<int:offer_id>", methods=["DELETE"])

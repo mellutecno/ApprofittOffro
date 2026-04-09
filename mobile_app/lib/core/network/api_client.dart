@@ -298,6 +298,18 @@ class ApiClient {
         .toList();
   }
 
+  Future<List<Offer>> fetchMyProfileOffers({required bool claimed}) async {
+    final scope = claimed ? 'claimed' : 'owned';
+    final response =
+        await _send(method: 'GET', path: '/api/user/offers?scope=$scope');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return (payload['offers'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>()
+        .map(Offer.fromJson)
+        .toList();
+  }
+
   Future<List<PlaceCandidate>> fetchNearbyPlaces({
     required double latitude,
     required double longitude,

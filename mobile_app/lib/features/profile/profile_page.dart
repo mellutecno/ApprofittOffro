@@ -27,6 +27,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  static const int _profileEventHistoryHours = 24;
   late Future<List<Offer>> _myOffersFuture;
   late Future<List<Offer>> _myClaimsFuture;
   late Future<ReviewHistoryBundle> _reviewHistoryFuture;
@@ -41,23 +42,18 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<List<Offer>> _loadMyOffers() async {
-    final offers = await widget.authController.apiClient.fetchOffers(
-      radiusKm: 999,
+    final offers = await widget.authController.apiClient.fetchMyProfileOffers(
+      claimed: false,
     );
-    final myOffers = offers.where((offer) => offer.isOwn).toList()
-      ..sort((a, b) => b.dataOra.compareTo(a.dataOra));
-    return myOffers;
+    return offers..sort((a, b) => b.dataOra.compareTo(a.dataOra));
   }
 
   Future<List<Offer>> _loadMyClaims() async {
-    final offers = await widget.authController.apiClient.fetchOffers(
-      radiusKm: 999,
+    final claims =
+        await widget.authController.apiClient.fetchMyProfileOffers(
+      claimed: true,
     );
-    final myClaims = offers
-        .where((offer) => offer.alreadyClaimed && !offer.isOwn)
-        .toList()
-      ..sort((a, b) => b.dataOra.compareTo(a.dataOra));
-    return myClaims;
+    return claims..sort((a, b) => b.dataOra.compareTo(a.dataOra));
   }
 
   Future<ReviewHistoryBundle> _loadReviewHistory() {
@@ -1364,7 +1360,35 @@ class _ProfilePageState extends State<ProfilePage> {
                         );
                       },
                     ),
+                ),
+                const SizedBox(height: 20),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 2),
+                          child: Icon(
+                            Icons.history_toggle_off_rounded,
+                            color: AppTheme.espresso,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Le tue offerte e i tuoi approfitti restano visibili qui per $_profileEventHistoryHours ore dopo la conclusione, poi vengono archiviati automaticamente.',
+                            style: TextStyle(
+                              color: AppTheme.espresso.withValues(alpha: 0.88),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                ),
                 const SizedBox(height: 20),
                 Text(
                   'Le mie offerte',
@@ -1398,11 +1422,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     final offers = snapshot.data ?? const <Offer>[];
                     if (offers.isEmpty) {
-                      return const Card(
+                      return Card(
                         child: Padding(
                           padding: EdgeInsets.all(18),
                           child: Text(
-                            'Non hai ancora offerte attive. Quando pubblichi il prossimo invito, lo trovi qui.',
+                            'Qui trovi le offerte attive e quelle concluse nelle ultime $_profileEventHistoryHours ore.',
                           ),
                         ),
                       );
@@ -1457,11 +1481,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     final claims = snapshot.data ?? const <Offer>[];
                     if (claims.isEmpty) {
-                      return const Card(
+                      return Card(
                         child: Padding(
                           padding: EdgeInsets.all(18),
                           child: Text(
-                            'Qui trovi gli eventi a cui hai approfittato o partecipato.',
+                            'Qui trovi gli eventi a cui hai approfittato o partecipato nelle ultime $_profileEventHistoryHours ore.',
                           ),
                         ),
                       );
