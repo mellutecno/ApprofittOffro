@@ -29,6 +29,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   static const int _profileEventHistoryHours = 24;
   static const int _profileArchiveLookbackDays = 30;
+  bool _archiveExpanded = false;
   late Future<List<Offer>> _myOffersFuture;
   late Future<List<Offer>> _myClaimsFuture;
   late Future<ReviewHistoryBundle> _reviewHistoryFuture;
@@ -72,10 +73,10 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _openArchivedOffersSheet({
     required bool claimed,
   }) async {
-    final title = claimed ? 'Archivio approfitti' : 'Archivio offerte';
+    final title = claimed ? 'Eventi guest' : 'Eventi host';
     final emptyText = claimed
-        ? 'Non ci sono approfitti archiviati nell’ultimo mese.'
-        : 'Non ci sono offerte archiviate nell’ultimo mese.';
+        ? 'Non ci sono eventi guest archiviati nell’ultimo mese.'
+        : 'Non ci sono eventi host archiviati nell’ultimo mese.';
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1185,6 +1186,9 @@ class _ProfilePageState extends State<ProfilePage> {
       builder: (context, _) {
         final user = widget.authController.currentUser;
         final apiClient = widget.authController.apiClient;
+        final galleryUrls = _galleryUrls();
+        final totalPhotos = galleryUrls.length;
+        final extraPhotoCount = totalPhotos > 0 ? totalPhotos - 1 : 0;
         final photoUrl = user != null && user.photoFilename.isNotEmpty
             ? apiClient.buildUploadUrl(user.photoFilename)
             : null;
@@ -1258,24 +1262,76 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Column(
                     children: [
                       GestureDetector(
-                        onTap: _openGallery,
-                        child: Container(
-                          padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.88),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: CircleAvatar(
-                            radius: 56,
-                            backgroundImage: photoUrl != null
-                                ? NetworkImage(photoUrl)
-                                : null,
-                            child: photoUrl == null
-                                ? const Icon(Icons.person, size: 48)
-                                : null,
-                          ),
+                        onTap: totalPhotos > 0 ? _openGallery : null,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.88),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: CircleAvatar(
+                                radius: 56,
+                                backgroundImage: photoUrl != null
+                                    ? NetworkImage(photoUrl)
+                                    : null,
+                                child: photoUrl == null
+                                    ? const Icon(Icons.person, size: 48)
+                                    : null,
+                              ),
+                            ),
+                            if (extraPhotoCount > 0)
+                              Positioned(
+                                right: -4,
+                                bottom: -4,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.espresso,
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '+$extraPhotoCount',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
+                      if (totalPhotos > 1) ...[
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.photo_library_outlined,
+                              size: 18,
+                              color: AppTheme.espresso,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Tocca la foto per vedere l’album',
+                              style: TextStyle(
+                                color: AppTheme.espresso.withValues(alpha: 0.82),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 18),
                       Text(
                         user.nome,
@@ -1308,38 +1364,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
                   ),
                 ),
-                if (user.galleryFilenames.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  Text(
-                    'Le tue foto',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 148,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _galleryUrls().length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
-                      itemBuilder: (context, index) {
-                        final imageUrl = _galleryUrls()[index];
-                        return GestureDetector(
-                          onTap: () => _openGallery(initialIndex: index),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: AspectRatio(
-                              aspectRatio: 0.92,
-                              child: Image.network(
-                                imageUrl,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
                 if (user.pendingClaimRequests.isNotEmpty) ...[
                   const SizedBox(height: 20),
                   Text(
@@ -1628,48 +1652,69 @@ class _ProfilePageState extends State<ProfilePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.history_toggle_off_rounded,
-                              color: AppTheme.espresso,
+                        InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: () {
+                            setState(() {
+                              _archiveExpanded = !_archiveExpanded;
+                            });
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.history_toggle_off_rounded,
+                                  color: AppTheme.espresso,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Archivio ultimo mese',
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                ),
+                                Icon(
+                                  _archiveExpanded
+                                      ? Icons.expand_less_rounded
+                                      : Icons.expand_more_rounded,
+                                  color: AppTheme.espresso,
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Archivio ultimo mese',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Dopo $_profileEventHistoryHours ore dalla conclusione, l’evento viene archiviato automaticamente.',
-                          style: TextStyle(
-                            color: AppTheme.espresso.withValues(alpha: 0.82),
-                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: () => _openArchivedOffersSheet(
-                                claimed: false,
-                              ),
-                              icon: const Icon(Icons.inventory_2_outlined),
-                              label: const Text('Offerte archiviate'),
+                        if (_archiveExpanded) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Dopo $_profileEventHistoryHours ore l’evento viene archiviato automaticamente.',
+                            style: TextStyle(
+                              color: AppTheme.espresso.withValues(alpha: 0.82),
+                              fontWeight: FontWeight.w600,
                             ),
-                            OutlinedButton.icon(
-                              onPressed: () => _openArchivedOffersSheet(
-                                claimed: true,
+                          ),
+                          const SizedBox(height: 14),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () => _openArchivedOffersSheet(
+                                  claimed: false,
+                                ),
+                                icon: const Icon(Icons.event_available_outlined),
+                                label: const Text('Eventi host'),
                               ),
-                              icon: const Icon(Icons.history_edu_outlined),
-                              label: const Text('Approfitti'),
-                            ),
-                          ],
-                        ),
+                              OutlinedButton.icon(
+                                onPressed: () => _openArchivedOffersSheet(
+                                  claimed: true,
+                                ),
+                                icon: const Icon(Icons.groups_2_outlined),
+                                label: const Text('Eventi guest'),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
