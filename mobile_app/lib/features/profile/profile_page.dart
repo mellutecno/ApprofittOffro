@@ -30,6 +30,7 @@ class _ProfilePageState extends State<ProfilePage> {
   static const int _profileEventHistoryHours = 24;
   static const int _profileArchiveLookbackDays = 30;
   bool _archiveExpanded = false;
+  int _socialTabIndex = 0;
   late Future<List<Offer>> _myOffersFuture;
   late Future<List<Offer>> _myClaimsFuture;
   late Future<ReviewHistoryBundle> _reviewHistoryFuture;
@@ -1021,6 +1022,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       offer: offer,
                       apiClient: widget.authController.apiClient,
                       allowProfileOpen: false,
+                      showAddressLeadIcon: false,
                       onEditOwn: offer.isOwn
                           ? () {
                               Navigator.of(sheetContext).pop();
@@ -1484,50 +1486,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Persone incrociate',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 10),
-                if (user.metUsers.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Text(
-                        'Qui troverai le persone che hai incontrato nei pasti offerti o partecipati.',
-                      ),
-                    ),
-                  )
-                else
-                  SizedBox(
-                    height: 206,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: user.metUsers.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (context, index) {
-                        final metUser = user.metUsers[index];
-                        final imageUrl = metUser.photoFilename.isNotEmpty
-                            ? apiClient.buildUploadUrl(metUser.photoFilename)
-                            : null;
-                        return _MetUserSummaryCard(
-                          user: metUser,
-                          imageUrl: imageUrl,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => PublicProfilePage(
-                                  apiClient: apiClient,
-                                  userId: metUser.id,
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                ),
-                const SizedBox(height: 20),
-                Text(
                   'Le mie offerte',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
@@ -1721,51 +1679,19 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Chi ti segue',
+                  'La tua community',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 10),
-                if (user.followers.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Text('Per ora non hai ancora follower.'),
-                    ),
-                  )
-                else
-                  ...user.followers.map(
-                    (follower) => Card(
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: follower.photoFilename.isNotEmpty
-                              ? NetworkImage(
-                                  apiClient.buildUploadUrl(
-                                    follower.photoFilename,
-                                  ),
-                                )
-                              : null,
-                          child: follower.photoFilename.isEmpty
-                              ? const Icon(Icons.person_outline)
-                              : null,
-                        ),
-                        title: Text(follower.nome),
-                        subtitle: Text(
-                          '${follower.etaDisplay} anni - ${follower.cityLabel}',
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => PublicProfilePage(
-                                apiClient: apiClient,
-                                userId: follower.id,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
+                _ProfileSocialTabsCard(
+                  selectedIndex: _socialTabIndex,
+                  onTabChanged: (index) {
+                    setState(() => _socialTabIndex = index);
+                  },
+                  followers: user.followers,
+                  following: user.following,
+                  apiClient: apiClient,
+                ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: () async {
@@ -2304,75 +2230,112 @@ class _ReviewHistoryTile extends StatelessWidget {
   }
 }
 
-class _MetUserSummaryCard extends StatelessWidget {
-  const _MetUserSummaryCard({
-    required this.user,
-    required this.imageUrl,
-    required this.onTap,
+class _ProfileSocialTabsCard extends StatelessWidget {
+  const _ProfileSocialTabsCard({
+    required this.selectedIndex,
+    required this.onTabChanged,
+    required this.followers,
+    required this.following,
+    required this.apiClient,
   });
 
-  final UserPreview user;
-  final String? imageUrl;
-  final VoidCallback onTap;
+  final int selectedIndex;
+  final ValueChanged<int> onTabChanged;
+  final List<UserPreview> followers;
+  final List<UserPreview> following;
+  final ApiClient apiClient;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 152,
-      child: Card(
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
+    final showingFollowers = selectedIndex == 0;
+    final people = showingFollowers ? followers : following;
+    final emptyText = showingFollowers
+        ? 'Per ora non hai ancora follower.'
+        : 'Per ora non segui ancora nessuno.';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
               children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundImage:
-                      imageUrl != null ? NetworkImage(imageUrl!) : null,
-                  child: imageUrl == null
-                      ? const Icon(Icons.person_outline)
-                      : null,
+                ChoiceChip(
+                  label: Text('Chi ti segue (${followers.length})'),
+                  selected: showingFollowers,
+                  onSelected: (_) => onTabChanged(0),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  user.nome,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.espresso,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${user.etaDisplay} anni',
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  style: TextStyle(
-                    color: AppTheme.brown.withValues(alpha: 0.78),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Flexible(
-                  child: Text(
-                    user.cityLabel.isNotEmpty ? user.cityLabel : user.city,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppTheme.brown.withValues(alpha: 0.72),
-                    ),
-                  ),
+                ChoiceChip(
+                  label: Text('I tuoi seguiti (${following.length})'),
+                  selected: !showingFollowers,
+                  onSelected: (_) => onTabChanged(1),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 14),
+            if (people.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  emptyText,
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.76),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              )
+            else
+              ...people.map(
+                (person) => _ProfileConnectionTile(
+                  person: person,
+                  apiClient: apiClient,
+                ),
+              ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _ProfileConnectionTile extends StatelessWidget {
+  const _ProfileConnectionTile({
+    required this.person,
+    required this.apiClient,
+  });
+
+  final UserPreview person;
+  final ApiClient apiClient;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundImage: person.photoFilename.isNotEmpty
+              ? NetworkImage(apiClient.buildUploadUrl(person.photoFilename))
+              : null,
+          child: person.photoFilename.isEmpty
+              ? const Icon(Icons.person_outline)
+              : null,
+        ),
+        title: Text(person.nome),
+        subtitle: Text('${person.etaDisplay} anni - ${person.cityLabel}'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => PublicProfilePage(
+                apiClient: apiClient,
+                userId: person.id,
+              ),
+            ),
+          );
+        },
       ),
     );
   }

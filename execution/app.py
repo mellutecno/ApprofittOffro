@@ -4892,6 +4892,15 @@ def api_user_me():
         )
         if relation.follower and not is_admin_user(relation.follower)
     ]
+    following = [
+        relation.followed
+        for relation in sorted(
+            current_user.following_rel,
+            key=lambda item: item.created_at or datetime.min,
+            reverse=True,
+        )
+        if relation.followed and not is_admin_user(relation.followed)
+    ]
     met_users = get_met_users_for_user(current_user)
     reviews_received = (
         Review.query.options(
@@ -4923,6 +4932,10 @@ def api_user_me():
     user_payload["followers"] = [
         serialize_user_preview(follower, viewer=current_user, followed_user_ids=followed_user_ids)
         for follower in followers
+    ]
+    user_payload["following"] = [
+        serialize_user_preview(followed, viewer=current_user, followed_user_ids=followed_user_ids)
+        for followed in following
     ]
     user_payload["met_users"] = [
         serialize_user_preview(

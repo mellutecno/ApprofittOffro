@@ -16,6 +16,7 @@ class OfferCard extends StatelessWidget {
     this.onClaim,
     this.onEditOwn,
     this.allowProfileOpen = true,
+    this.showAddressLeadIcon = true,
   });
 
   final Offer offer;
@@ -23,6 +24,7 @@ class OfferCard extends StatelessWidget {
   final Future<void> Function()? onClaim;
   final VoidCallback? onEditOwn;
   final bool allowProfileOpen;
+  final bool showAddressLeadIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -256,19 +258,21 @@ class OfferCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppTheme.peach.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(14),
+                  if (showAddressLeadIcon) ...[
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: AppTheme.peach.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        Icons.location_on_rounded,
+                        color: AppTheme.orange,
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.location_on_rounded,
-                      color: AppTheme.orange,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
+                    const SizedBox(width: 12),
+                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

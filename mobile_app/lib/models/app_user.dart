@@ -175,6 +175,7 @@ class AppUser {
     required this.ratingAverage,
     required this.ratingCount,
     required this.followers,
+    required this.following,
     required this.metUsers,
     required this.offersCount,
     required this.manageableOffersCount,
@@ -207,6 +208,7 @@ class AppUser {
   final double ratingAverage;
   final int ratingCount;
   final List<UserPreview> followers;
+  final List<UserPreview> following;
   final List<UserPreview> metUsers;
   final int offersCount;
   final int manageableOffersCount;
@@ -255,6 +257,10 @@ class AppUser {
       ratingAverage: (json['rating_average'] as num?)?.toDouble() ?? 0,
       ratingCount: json['rating_count'] as int? ?? 0,
       followers: (json['followers'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(UserPreview.fromJson)
+          .toList(),
+      following: (json['following'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>()
           .map(UserPreview.fromJson)
           .toList(),
