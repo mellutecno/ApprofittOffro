@@ -547,6 +547,20 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
     );
   }
 
+  Future<void> _openLinkedPublicProfile(int userId) async {
+    if (userId == widget.userId) {
+      return;
+    }
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => PublicProfilePage(
+          apiClient: widget.apiClient,
+          userId: userId,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -655,16 +669,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                             '${follower.etaDisplay} anni - ${follower.cityLabel}',
                           ),
                           trailing: const Icon(Icons.chevron_right_rounded),
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => PublicProfilePage(
-                                  apiClient: widget.apiClient,
-                                  userId: follower.id,
-                                ),
-                              ),
-                            );
-                          },
+                          onTap: () => _openLinkedPublicProfile(follower.id),
                         ),
                       );
                     },
