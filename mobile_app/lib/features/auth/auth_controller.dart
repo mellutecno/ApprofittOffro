@@ -6,9 +6,11 @@ import '../../core/network/api_client.dart';
 import '../../models/app_user.dart';
 
 class AuthController extends ChangeNotifier {
-  AuthController(this.apiClient);
+  AuthController(this.apiClient) {
+    apiClient.onUnauthorized = _handleUnauthorizedSession;
+  }
 
-  static const Duration _sessionTimeout = Duration(minutes: 5);
+  static const Duration _sessionTimeout = Duration(minutes: 60);
 
   final ApiClient apiClient;
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
@@ -21,11 +23,13 @@ class AuthController extends ChangeNotifier {
   String? _resolvedGoogleServerClientId;
   Future<void>? _googlePrepareFuture;
   bool _pendingProfileCompletion = false;
+  bool _requiresReauthentication = false;
 
   AppUser? get currentUser => _currentUser;
   bool get isBusy => _isBusy;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _currentUser != null;
+  bool get requiresReauthentication => _requiresReauthentication;
   bool get pendingProfileCompletion =>
       _pendingProfileCompletion ||
       (_currentUser?.needsMandatoryProfileSetup ?? false);
@@ -40,24 +44,28 @@ class AuthController extends ChangeNotifier {
     await apiClient.initialize();
     prewarmGoogleSignIn();
     if (!apiClient.hasSession) {
+      _requiresReauthentication = false;
       return;
     }
     if (await apiClient.sessionStore.isSessionExpired(_sessionTimeout)) {
-      await apiClient.logout();
-      _currentUser = null;
-      _pendingProfileCompletion = false;
-      notifyListeners();
+      await _handleUnauthorizedSession();
       return;
     }
     try {
       _currentUser = await apiClient.fetchCurrentUser();
       _pendingProfileCompletion =
           _currentUser?.needsMandatoryProfileSetup ?? false;
+      _requiresReauthentication = false;
+      _errorMessage = null;
       await apiClient.sessionStore.touch();
+    } on ApiException catch (e) {
+      if (e.statusCode == 401) {
+        await _handleUnauthorizedSession();
+      } else {
+        _errorMessage = 'Non riesco a verificare la sessione adesso.';
+      }
     } catch (_) {
-      await apiClient.logout();
-      _currentUser = null;
-      _pendingProfileCompletion = false;
+      _errorMessage = 'Non riesco a verificare la sessione adesso.';
     }
     notifyListeners();
   }
@@ -73,9 +81,14 @@ class AuthController extends ChangeNotifier {
       _currentUser = await apiClient.fetchCurrentUser();
       _pendingProfileCompletion =
           _currentUser?.needsMandatoryProfileSetup ?? false;
+      _requiresReauthentication = false;
       _errorMessage = null;
       await apiClient.sessionStore.touch();
     } on ApiException catch (e) {
+      if (e.statusCode == 401) {
+        await _handleUnauthorizedSession();
+        return;
+      }
       _errorMessage = e.message;
     } catch (_) {
       _errorMessage = 'Non riesco ad aggiornare il profilo adesso.';
@@ -94,6 +107,7 @@ class AuthController extends ChangeNotifier {
       await apiClient.login(email: email, password: password);
       _currentUser = await apiClient.fetchCurrentUser();
       _pendingProfileCompletion = false;
+      _requiresReauthentication = false;
       await apiClient.sessionStore.touch();
       notifyListeners();
       return true;
@@ -162,6 +176,7 @@ class AuthController extends ChangeNotifier {
       await apiClient.logout();
       _currentUser = null;
       _pendingProfileCompletion = false;
+      _requiresReauthentication = false;
       _errorMessage = null;
       notifyListeners();
     } finally {
@@ -188,14 +203,24 @@ class AuthController extends ChangeNotifier {
       return;
     }
     if (await apiClient.sessionStore.isSessionExpired(_sessionTimeout)) {
-      await apiClient.logout();
-      _currentUser = null;
-      _pendingProfileCompletion = false;
-      _errorMessage = null;
-      notifyListeners();
+      await _handleUnauthorizedSession();
       return;
     }
-    await apiClient.sessionStore.touch();
+    try {
+      _currentUser = await apiClient.fetchCurrentUser();
+      _pendingProfileCompletion =
+          _currentUser?.needsMandatoryProfileSetup ?? false;
+      _requiresReauthentication = false;
+      _errorMessage = null;
+      await apiClient.sessionStore.touch();
+      notifyListeners();
+    } on ApiException catch (e) {
+      if (e.statusCode == 401) {
+        await _handleUnauthorizedSession();
+      }
+    } catch (_) {
+      // Se la rete non è disponibile non butto fuori l'utente.
+    }
   }
 
   Future<void> _markAppInactive() async {
@@ -277,14 +302,15 @@ class AuthController extends ChangeNotifier {
       );
     }
 
-    final payload = await apiClient.loginWithGoogle(idToken: idToken);
-    _currentUser = await apiClient.fetchCurrentUser();
-    _pendingProfileCompletion =
-        payload['created'] == true ||
-        (_currentUser?.needsMandatoryProfileSetup ?? false);
-    await apiClient.sessionStore.touch();
-    notifyListeners();
-    return true;
+      final payload = await apiClient.loginWithGoogle(idToken: idToken);
+      _currentUser = await apiClient.fetchCurrentUser();
+      _pendingProfileCompletion =
+          payload['created'] == true ||
+          (_currentUser?.needsMandatoryProfileSetup ?? false);
+      _requiresReauthentication = false;
+      await apiClient.sessionStore.touch();
+      notifyListeners();
+      return true;
   }
 
   Future<GoogleSignInAccount?> _tryRecoverCanceledGoogleAuthentication() async {
@@ -319,6 +345,7 @@ class AuthController extends ChangeNotifier {
       }
       _currentUser = null;
       _pendingProfileCompletion = false;
+      _requiresReauthentication = false;
       notifyListeners();
       return message;
     } on ApiException catch (e) {
@@ -336,6 +363,20 @@ class AuthController extends ChangeNotifier {
 
   void _setBusy(bool value) {
     _isBusy = value;
+    notifyListeners();
+  }
+
+  Future<void> _handleUnauthorizedSession() async {
+    _currentUser = null;
+    _pendingProfileCompletion = false;
+    _requiresReauthentication = true;
+    _errorMessage = 'Sessione scaduta. Effettua di nuovo il login.';
+    _isBusy = false;
+    try {
+      await apiClient.clearLocalSession();
+    } catch (_) {
+      // La pulizia locale è già il fallback minimo necessario.
+    }
     notifyListeners();
   }
 }

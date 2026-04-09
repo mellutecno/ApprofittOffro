@@ -12,6 +12,7 @@ import 'core/theme/app_theme.dart';
 import 'core/widgets/brand_wordmark.dart';
 import 'features/auth/landing_page.dart';
 import 'features/auth/auth_controller.dart';
+import 'features/auth/login_page.dart';
 import 'features/home/home_shell.dart';
 
 class ApprofittOffroMobileApp extends StatefulWidget {
@@ -202,6 +203,9 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
                   launchTarget: _pendingLaunchTarget,
                   onLaunchTargetHandled: _consumeLaunchTarget,
                 );
+              }
+              if (_authController.requiresReauthentication) {
+                return LoginPage(authController: _authController);
               }
               return LandingPage(
                 authController: _authController,

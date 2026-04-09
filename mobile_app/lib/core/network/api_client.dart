@@ -37,6 +37,8 @@ class ApiClient {
 
   final SessionStore sessionStore;
   String? _cookieHeader;
+  Future<void> Function()? onUnauthorized;
+  bool _handlingUnauthorized = false;
 
   String get baseUrl => AppConfig.apiBaseUrl.replaceAll(RegExp(r'/$'), '');
 
@@ -673,11 +675,14 @@ class ApiClient {
       mergedHeaders['Cookie'] = _cookieHeader!;
     }
 
+    late final http.Response response;
     switch (method.toUpperCase()) {
       case 'GET':
-        return http.get(uri, headers: mergedHeaders);
+        response = await http.get(uri, headers: mergedHeaders);
+        break;
       case 'POST':
-        return http.post(uri, headers: mergedHeaders, body: body);
+        response = await http.post(uri, headers: mergedHeaders, body: body);
+        break;
       case 'DELETE':
         final request = http.Request('DELETE', uri)
           ..headers.addAll(mergedHeaders);
@@ -685,15 +690,25 @@ class ApiClient {
           request.body = body.toString();
         }
         final streamedResponse = await request.send();
-        return http.Response.fromStream(streamedResponse);
+        response = await http.Response.fromStream(streamedResponse);
+        break;
       default:
         throw UnsupportedError('Metodo HTTP non gestito: $method');
     }
+
+    if (response.statusCode == 401) {
+      await _handleUnauthorizedResponse();
+    }
+    return response;
   }
 
   Future<http.Response> _sendMultipart(http.MultipartRequest request) async {
     final streamedResponse = await request.send();
-    return http.Response.fromStream(streamedResponse);
+    final response = await http.Response.fromStream(streamedResponse);
+    if (response.statusCode == 401) {
+      await _handleUnauthorizedResponse();
+    }
+    return response;
   }
 
   Map<String, dynamic> _decodeJson(String body) {
@@ -759,5 +774,21 @@ class ApiClient {
     _cookieHeader =
         cookiePairs.entries.map((e) => '${e.key}=${e.value}').join('; ');
     sessionStore.saveCookie(_cookieHeader!);
+  }
+
+  Future<void> _handleUnauthorizedResponse() async {
+    if (_handlingUnauthorized) {
+      return;
+    }
+    _handlingUnauthorized = true;
+    try {
+      await clearLocalSession();
+      final handler = onUnauthorized;
+      if (handler != null) {
+        await handler();
+      }
+    } finally {
+      _handlingUnauthorized = false;
+    }
   }
 }
