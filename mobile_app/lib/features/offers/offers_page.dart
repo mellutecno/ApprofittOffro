@@ -52,6 +52,10 @@ class _OffersPageState extends State<OffersPage> {
         : 'Annulla partecipazione';
   }
 
+  bool _canHideRejectedOffer(Offer offer) {
+    return offer.claimStatus == 'rejected' && offer.claimId > 0;
+  }
+
   Future<void> _openOfferDetails(
     BuildContext context,
     Offer offer,
@@ -167,6 +171,52 @@ class _OffersPageState extends State<OffersPage> {
                         },
                         icon: const Icon(Icons.event_busy_outlined),
                         label: Text(_cancelClaimLabel(offer)),
+                      ),
+                    ],
+                    if (_canHideRejectedOffer(offer)) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final confirmed = await showDialog<bool>(
+                            context: sheetContext,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('Non visualizzare più'),
+                              content: Text(
+                                'Vuoi togliere ${offer.nomeLocale} dagli eventi che vedi in community?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(false),
+                                  child: const Text('No'),
+                                ),
+                                FilledButton(
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(true),
+                                  child: const Text('Sì'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirmed != true || !context.mounted) {
+                            return;
+                          }
+                          final navigator = Navigator.of(sheetContext);
+                          final messenger = ScaffoldMessenger.of(context);
+                          final message =
+                              await widget.offersController.hideRejectedOffer(
+                            offer,
+                          );
+                          if (!context.mounted || message == null) {
+                            return;
+                          }
+                          navigator.pop();
+                          messenger.showSnackBar(
+                            SnackBar(content: Text(message)),
+                          );
+                        },
+                        icon: const Icon(Icons.visibility_off_outlined),
+                        label: const Text('Non visualizzare più'),
                       ),
                     ],
                   ],
@@ -686,13 +736,7 @@ class _OfferPreviewCard extends StatelessWidget {
   }
 
   String _formatCalendarTimestamp(DateTime value) {
-    return value
-            .toIso8601String()
-            .replaceAll('-', '')
-            .replaceAll(':', '')
-            .split('.')
-            .first +
-        'Z';
+    return '${value.toIso8601String().replaceAll('-', '').replaceAll(':', '').split('.').first}Z';
   }
 }
 

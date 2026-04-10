@@ -1297,6 +1297,7 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
             ],
             "claims": [
                 ("status", "ALTER TABLE claims ADD COLUMN status VARCHAR(20) DEFAULT 'accepted'"),
+                ("hidden_by_guest", "ALTER TABLE claims ADD COLUMN hidden_by_guest INTEGER DEFAULT 0"),
             ],
         }
 
@@ -1362,6 +1363,9 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "ALTER TABLE claims ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'accepted'"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE claims ADD COLUMN IF NOT EXISTS hidden_by_guest BOOLEAN DEFAULT FALSE"
             )
     except Exception as exc:
         print(f"[SCHEMA_COMPAT_ERROR] {exc}")
@@ -4458,6 +4462,7 @@ def api_get_offers():
             if (
                 current_claim is not None
                 and current_claim.status == CLAIM_STATUS_REJECTED
+                and bool(getattr(current_claim, "hidden_by_guest", False))
             ):
                 continue
             already_claimed = (
@@ -5063,6 +5068,29 @@ def api_reject_claim_request(claim_id):
     db.session.commit()
 
     return jsonify({"success": True, "message": "Richiesta rifiutata."})
+
+
+@app.route("/api/claims/<int:claim_id>/hide-rejected", methods=["POST"])
+@login_required
+def api_hide_rejected_claim(claim_id):
+    """Permette al guest di nascondere dal feed un evento rifiutato."""
+    claim = Claim.query.get_or_404(claim_id)
+
+    if claim.user_id != current_user.id:
+        return jsonify({"success": False, "error": "Non autorizzato."}), 403
+    if claim.status != CLAIM_STATUS_REJECTED:
+        return jsonify({
+            "success": False,
+            "error": "Puoi nascondere solo eventi con richiesta non accettata.",
+        }), 400
+
+    claim.hidden_by_guest = True
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": "Evento rimosso dal tuo feed.",
+    })
 
 
 @app.route("/api/claims/<int:claim_id>", methods=["DELETE"])

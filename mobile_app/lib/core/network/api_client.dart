@@ -395,6 +395,16 @@ class ApiClient {
     return payload['message']?.toString() ?? 'Richiesta rifiutata.';
   }
 
+  Future<String> hideRejectedClaim(int claimId) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/claims/$claimId/hide-rejected',
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Evento rimosso dal feed.';
+  }
+
   Future<String> cancelClaim(int claimId) async {
     final response = await _send(method: 'DELETE', path: '/api/claims/$claimId');
     final payload = _decodeJson(response.body);

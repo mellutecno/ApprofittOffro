@@ -82,6 +82,21 @@ class OffersController extends ChangeNotifier {
     }
   }
 
+  Future<String?> hideRejectedOffer(Offer offer) async {
+    if (offer.claimId <= 0) {
+      return 'Non trovo il rifiuto da nascondere.';
+    }
+    try {
+      final message = await apiClient.hideRejectedClaim(offer.claimId);
+      await loadOffers();
+      return message;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Non riesco a rimuovere questo evento dal feed adesso.';
+    }
+  }
+
   Future<void> toggleMealType(String value) async {
     _selectedMealType = _selectedMealType == value ? '' : value;
     await loadOffers();

@@ -246,6 +246,7 @@ class Claim(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     offer_id = db.Column(db.Integer, db.ForeignKey("offers.id"), nullable=False)
     status = db.Column(db.String(20), nullable=False, default=CLAIM_STATUS_ACCEPTED)
+    hidden_by_guest = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     # Vincolo: un utente può approfittare una sola volta per offerta
