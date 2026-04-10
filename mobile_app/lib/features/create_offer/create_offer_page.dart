@@ -79,7 +79,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   List<PlaceCandidate> _nearbyPlaces = const [];
   Set<Marker> _nearbyMarkers = const <Marker>{};
   final Map<String, BitmapDescriptor> _markerIconCache = {};
-  String? _lastImmediateTimingWarning;
+  String? _confirmedShortNoticeSignature;
 
   int get _occupiedSeats {
     final initialOffer = widget.initialOffer;
@@ -101,6 +101,9 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
   String? get _publicationTimingWarning =>
       _buildPublicationTimingWarning(_mealType, _selectedDateTime);
+
+  String? get _currentShortNoticeSignature =>
+      _buildShortNoticeSignature(_mealType, _selectedDateTime);
 
   String? _buildPublicationTimingWarning(
     String? mealType,
@@ -129,26 +132,24 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     return 'Questa cena verrebbe pubblicata troppo tardi: le cene devono essere inserite almeno 6 ore prima dell\'inizio.';
   }
 
-  void _setMealType(String value) {
-    setState(() => _mealType = value);
-    _maybeShowPublicationTimingWarning();
+  String? _buildShortNoticeSignature(
+    String? mealType,
+    DateTime? selectedDateTime,
+  ) {
+    if (mealType == null ||
+        mealType.trim().isEmpty ||
+        selectedDateTime == null) {
+      return null;
+    }
+    return '$mealType|${selectedDateTime.toIso8601String()}';
   }
 
-  void _maybeShowPublicationTimingWarning() {
-    final warning = _publicationTimingWarning;
-    if (warning == null) {
-      _lastImmediateTimingWarning = null;
-      return;
-    }
-    if (_lastImmediateTimingWarning == warning) {
-      return;
-    }
-    _lastImmediateTimingWarning = warning;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
+  void _setMealType(String value) {
+    setState(() {
+      _mealType = value;
+      if (_confirmedShortNoticeSignature != _currentShortNoticeSignature) {
+        _confirmedShortNoticeSignature = null;
       }
-      _showMessage(warning);
     });
   }
 
@@ -804,16 +805,43 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
 
-    setState(() {
-      _selectedDateTime = DateTime(
-        pickedDate.year,
-        pickedDate.month,
-        pickedDate.day,
-        pickedTime.hour,
-        pickedTime.minute,
+    final selectedDateTime = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+    final warning = _buildPublicationTimingWarning(
+      _mealType,
+      selectedDateTime,
+    );
+
+    String? confirmedSignature;
+    if (warning != null) {
+      final mealLabel = (_mealType == null || _mealType!.trim().isEmpty)
+          ? 'evento'
+          : _mealType!;
+      final confirmed = await _confirmShortNoticeSubmission(
+        warning,
+        introOverride:
+            'Hai scelto un orario con poco anticipo per questo $mealLabel.',
+        confirmLabel: 'Usa questo orario',
+        cancelLabel: 'Cambia orario',
       );
+      if (confirmed != true || !mounted) {
+        return;
+      }
+      confirmedSignature = _buildShortNoticeSignature(
+        _mealType,
+        selectedDateTime,
+      );
+    }
+
+    setState(() {
+      _selectedDateTime = selectedDateTime;
+      _confirmedShortNoticeSignature = confirmedSignature;
     });
-    _maybeShowPublicationTimingWarning();
   }
 
   Future<ImageSource?> _pickImageSource() {
@@ -1420,7 +1448,12 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
     final publicationTimingWarning = _publicationTimingWarning;
-    if (publicationTimingWarning != null && !forceShortNotice) {
+    final hasConfirmedShortNotice =
+        _confirmedShortNoticeSignature != null &&
+        _confirmedShortNoticeSignature == _currentShortNoticeSignature;
+    if (publicationTimingWarning != null &&
+        !forceShortNotice &&
+        !hasConfirmedShortNotice) {
       final confirmed = await _confirmShortNoticeSubmission(
         publicationTimingWarning,
       );
@@ -1429,6 +1462,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       }
       return _submitInternal(forceShortNotice: true);
     }
+    final shouldForceShortNotice = forceShortNotice || hasConfirmedShortNotice;
 
     if (!mounted) {
       return;
@@ -1459,7 +1493,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               dateTime: _selectedDateTime!,
               description: _descriptionController.text.trim(),
               photoPath: _pickedImage?.path,
-              forceShortNotice: forceShortNotice,
+              forceShortNotice: shouldForceShortNotice,
             )
           : await widget.authController.apiClient.updateOffer(
               offerId: widget.initialOffer!.id,
@@ -1473,7 +1507,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               dateTime: _selectedDateTime!,
               description: _descriptionController.text.trim(),
               photoPath: _pickedImage?.path,
-              forceShortNotice: forceShortNotice,
+              forceShortNotice: shouldForceShortNotice,
             );
 
       if (!mounted) {
@@ -1523,14 +1557,20 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     }
   }
 
-  Future<bool?> _confirmShortNoticeSubmission(String warningText) {
+  Future<bool?> _confirmShortNoticeSubmission(
+    String warningText, {
+    String? introOverride,
+    String confirmLabel = 'Pubblica comunque',
+    String cancelLabel = 'Annulla',
+  }) {
     final isEditing = widget.initialOffer != null;
     final mealLabel = (_mealType == null || _mealType!.trim().isEmpty)
         ? 'evento'
         : _mealType!;
-    final intro = isEditing
+    final intro = introOverride ??
+        (isEditing
         ? 'Stai modificando questo $mealLabel con poco anticipo.'
-        : 'Stai pubblicando questo $mealLabel con poco anticipo.';
+        : 'Stai pubblicando questo $mealLabel con poco anticipo.');
 
     return showDialog<bool>(
       context: context,
@@ -1542,11 +1582,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Annulla'),
+            child: Text(cancelLabel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Pubblica comunque'),
+            child: Text(confirmLabel),
           ),
         ],
       ),
