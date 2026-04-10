@@ -1201,16 +1201,27 @@ def get_offer_update_changes(previous_state, offer):
     return changes
 
 
+def get_offer_notification_claims(offer, include_pending=False):
+    """Restituisce i claim da avvisare per aggiornamenti o cancellazioni evento."""
+    allowed_statuses = [CLAIM_STATUS_ACCEPTED]
+    if include_pending:
+        allowed_statuses.append(CLAIM_STATUS_PENDING)
+
+    claims = (
+        Claim.query.filter(Claim.offer_id == offer.id, Claim.status.in_(allowed_statuses))
+        .options(selectinload(Claim.utente))
+        .all()
+    )
+    return [claim for claim in claims if claim.utente]
+
+
 def notify_claimants_for_offer_update(offer, previous_state, actor):
     """Avvisa i partecipanti quando un'offerta gia' prenotata viene modificata."""
     changes = get_offer_update_changes(previous_state, offer)
     if not changes:
         return 0
 
-    claims = Claim.query.filter_by(
-        offer_id=offer.id,
-        status=CLAIM_STATUS_ACCEPTED,
-    ).all()
+    claims = get_offer_notification_claims(offer, include_pending=False)
     if not claims:
         return 0
 
@@ -3372,11 +3383,12 @@ def remove_offer_with_notifications(
     now = local_now()
     is_past_offer = offer.data_ora < now
     claims = Claim.query.filter_by(offer_id=offer.id).all()
+    notification_claims = get_offer_notification_claims(offer, include_pending=True)
     data_evento = offer.data_ora.strftime('%d/%m/%Y alle %H:%M')
     motivazione = motivazione.strip() or "Nessuna motivazione specificata."
 
     if not is_past_offer:
-        for claim in claims:
+        for claim in notification_claims:
             send_email(
             f"⚠️ Evento Annullato: {offer.nome_locale}",
             [claim.utente.email],
@@ -3400,18 +3412,17 @@ def remove_offer_with_notifications(
         )
 
     if not is_past_offer:
-        for claim in claims:
-            if claim.utente:
-                send_push_to_user(
-                    claim.utente,
-                    title="Evento annullato",
-                    body=f"{offer.nome_locale} - {data_evento} non e' piu' disponibile.",
-                    target="offers",
-                    extra_data={
-                        "offer_id": offer.id,
-                        "cancelled": "true",
-                    },
-                )
+        for claim in notification_claims:
+            send_push_to_user(
+                claim.utente,
+                title="Evento annullato",
+                body=f"{offer.nome_locale} - {data_evento} non e' piu' disponibile.",
+                target="offers",
+                extra_data={
+                    "offer_id": offer.id,
+                    "cancelled": "true",
+                },
+            )
 
     if not is_past_offer and notify_owner and acting_admin and offer.autore:
         send_push_to_user(
