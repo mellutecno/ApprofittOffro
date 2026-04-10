@@ -126,14 +126,8 @@ class _CommunityPageState extends State<CommunityPage> {
                     alignment: Alignment.center,
                   ),
                 ),
-                actions: [
-                  IconButton(
-                    onPressed: widget.authController.isBusy
-                        ? null
-                        : widget.authController.logout,
-                    icon: const Icon(Icons.logout),
-                    tooltip: 'Esci',
-                  ),
+                actions: const [
+                  SizedBox(width: kToolbarHeight),
                 ],
               ),
               SliverToBoxAdapter(

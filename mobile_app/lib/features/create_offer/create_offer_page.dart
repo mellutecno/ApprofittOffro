@@ -199,14 +199,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
           padding: EdgeInsets.only(left: 8),
           child: BrandWordmark(height: 42, alignment: Alignment.center),
         ),
-        actions: [
-          IconButton(
-            onPressed: widget.authController.isBusy
-                ? null
-                : widget.authController.logout,
-            icon: const Icon(Icons.logout),
-            tooltip: 'Esci',
-          ),
+        actions: const [
+          SizedBox(width: kToolbarHeight),
         ],
       ),
       body: Form(

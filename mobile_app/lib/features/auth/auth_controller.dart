@@ -10,7 +10,7 @@ class AuthController extends ChangeNotifier {
     apiClient.onUnauthorized = _handleUnauthorizedSession;
   }
 
-  static const Duration _sessionTimeout = Duration(minutes: 60);
+  static const Duration _sessionTimeout = Duration(days: 30);
 
   final ApiClient apiClient;
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
@@ -24,6 +24,7 @@ class AuthController extends ChangeNotifier {
   Future<void>? _googlePrepareFuture;
   bool _pendingProfileCompletion = false;
   bool _requiresReauthentication = false;
+  bool _adminBackgroundLogoutInFlight = false;
 
   AppUser? get currentUser => _currentUser;
   bool get isBusy => _isBusy;
@@ -214,11 +215,29 @@ class AuthController extends ChangeNotifier {
         await _handleAppResumed();
         break;
       case AppLifecycleState.inactive:
+        await _markAppInactive();
+        break;
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-        await _markAppInactive();
+        if (_currentUser?.isAdmin == true) {
+          await _logoutAdminOnBackground();
+        } else {
+          await _markAppInactive();
+        }
         break;
+    }
+  }
+
+  Future<void> _logoutAdminOnBackground() async {
+    if (_adminBackgroundLogoutInFlight || _currentUser?.isAdmin != true) {
+      return;
+    }
+    _adminBackgroundLogoutInFlight = true;
+    try {
+      await logout();
+    } finally {
+      _adminBackgroundLogoutInFlight = false;
     }
   }
 
