@@ -1,7 +1,7 @@
 name: approfittoffro_mobile
 description: Frontend Flutter utenti per ApprofittOffro, con backend Python/Flask e admin web separato.
 publish_to: "none"
-version: 0.1.0+2004
+version: 0.1.0+2005
 
 environment:
   sdk: ">=3.3.0 <4.0.0"

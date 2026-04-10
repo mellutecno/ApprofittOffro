@@ -105,6 +105,18 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   String? get _currentShortNoticeSignature =>
       _buildShortNoticeSignature(_mealType, _selectedDateTime);
 
+  String? get _visiblePublicationTimingWarning {
+    final warning = _publicationTimingWarning;
+    if (warning == null) {
+      return null;
+    }
+    if (_confirmedShortNoticeSignature != null &&
+        _confirmedShortNoticeSignature == _currentShortNoticeSignature) {
+      return null;
+    }
+    return warning;
+  }
+
   String? _buildPublicationTimingWarning(
     String? mealType,
     DateTime? selectedDateTime,
@@ -269,7 +281,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                     icon: const Icon(Icons.event_outlined),
                     label: Text(selectedDateText),
                   ),
-                  if (_publicationTimingWarning != null) ...[
+                  if (_visiblePublicationTimingWarning != null) ...[
                     const SizedBox(height: 12),
                     Container(
                       width: double.infinity,
@@ -293,7 +305,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              _publicationTimingWarning!,
+                              _visiblePublicationTimingWarning!,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: const Color(0xFF8A4336),
                                 fontWeight: FontWeight.w700,

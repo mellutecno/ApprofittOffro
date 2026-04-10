@@ -169,6 +169,8 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 MAX_PROFILE_PHOTOS = 5
 BREAKFAST_BOOKING_LEAD_HOURS = 1
 MEAL_BOOKING_LEAD_HOURS = 6
+SHORT_NOTICE_BREAKFAST_BOOKING_LEAD_MINUTES = 30
+SHORT_NOTICE_MEAL_BOOKING_LEAD_MINUTES = 60
 PASSWORD_RESET_TOKEN_HOURS = 2
 PUSH_PRIMARY_EMAIL_TEMPLATES = {
     "nearby_offer_notification.html",
@@ -263,9 +265,51 @@ def get_offer_booking_lead_hours(offer):
     return get_booking_lead_hours_for_meal_type(offer.tipo_pasto)
 
 
+def get_short_notice_booking_lead_minutes_for_meal_type(tipo_pasto):
+    """Restituisce l'anticipo ridotto da usare sugli eventi pubblicati in ritardo."""
+    return (
+        SHORT_NOTICE_BREAKFAST_BOOKING_LEAD_MINUTES
+        if tipo_pasto == "colazione"
+        else SHORT_NOTICE_MEAL_BOOKING_LEAD_MINUTES
+    )
+
+
+def get_offer_booking_lead_override_minutes(offer):
+    """Recupera l'eventuale finestra di prenotazione ridotta salvata sull'offerta."""
+    override_minutes = getattr(offer, "booking_lead_override_minutes", None)
+    if override_minutes is not None:
+        try:
+            parsed_override = int(override_minutes)
+        except (TypeError, ValueError):
+            parsed_override = None
+        if parsed_override and parsed_override > 0:
+            return parsed_override
+
+    created_at = getattr(offer, "created_at", None)
+    if created_at is None:
+        return None
+
+    standard_deadline = offer.data_ora - timedelta(
+        hours=get_offer_booking_lead_hours(offer)
+    )
+    if created_at >= standard_deadline:
+        return get_short_notice_booking_lead_minutes_for_meal_type(
+            offer.tipo_pasto
+        )
+    return None
+
+
+def get_offer_booking_lead_delta(offer):
+    """Restituisce il delta reale da usare per chiudere le prenotazioni."""
+    override_minutes = get_offer_booking_lead_override_minutes(offer)
+    if override_minutes is not None:
+        return timedelta(minutes=override_minutes)
+    return timedelta(hours=get_offer_booking_lead_hours(offer))
+
+
 def get_offer_booking_deadline(offer):
     """Calcola il momento oltre il quale non si puo' piu' approfittare dell'offerta."""
-    return offer.data_ora - timedelta(hours=get_offer_booking_lead_hours(offer))
+    return offer.data_ora - get_offer_booking_lead_delta(offer)
 
 
 def get_booking_deadline_for_meal_type(tipo_pasto, data_ora):
@@ -289,6 +333,17 @@ def is_new_offer_publication_too_late(tipo_pasto, data_ora, now=None):
 
 def get_offer_booking_closed_message(offer):
     """Messaggio esplicativo per la chiusura delle prenotazioni."""
+    override_minutes = get_offer_booking_lead_override_minutes(offer)
+    if override_minutes is not None:
+        if override_minutes % 60 == 0:
+            hours = override_minutes // 60
+            lead_copy = "1 ora" if hours == 1 else f"{hours} ore"
+        else:
+            lead_copy = f"{override_minutes} minuti"
+        return (
+            "Per questo evento le prenotazioni si chiudono "
+            f"{lead_copy} prima dell'inizio."
+        )
     if offer.tipo_pasto == "colazione":
         return "Le colazioni si possono approfittare solo fino a 1 ora prima dell'inizio."
     return "Pranzi e cene si possono approfittare solo fino a 6 ore prima dell'inizio."
@@ -1312,6 +1367,7 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("foto_locale", "ALTER TABLE offers ADD COLUMN foto_locale VARCHAR(256)"),
                 ("stato", "ALTER TABLE offers ADD COLUMN stato VARCHAR(20) DEFAULT 'attiva'"),
                 ("telefono_locale", "ALTER TABLE offers ADD COLUMN telefono_locale VARCHAR(50)"),
+                ("booking_lead_override_minutes", "ALTER TABLE offers ADD COLUMN booking_lead_override_minutes INTEGER"),
             ],
             "claims": [
                 ("status", "ALTER TABLE claims ADD COLUMN status VARCHAR(20) DEFAULT 'accepted'"),
@@ -1384,6 +1440,9 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "ALTER TABLE claims ADD COLUMN IF NOT EXISTS hidden_by_guest BOOLEAN DEFAULT FALSE"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS booking_lead_override_minutes INTEGER"
             )
     except Exception as exc:
         print(f"[SCHEMA_COMPAT_ERROR] {exc}")
@@ -4780,9 +4839,13 @@ def api_edit_offer(offer_id):
             "errors": [build_meal_schedule_conflict_message(tipo_pasto, scheduling_conflict)],
         }), 400
 
+    requires_short_notice_override = is_new_offer_publication_too_late(
+        tipo_pasto,
+        data_ora,
+    )
     if (
         (not is_admin_user(current_user))
-        and is_new_offer_publication_too_late(tipo_pasto, data_ora)
+        and requires_short_notice_override
         and not force_short_notice
     ):
         return jsonify({
@@ -4821,6 +4884,11 @@ def api_edit_offer(offer_id):
     offer.posti_disponibili = max(0, offer.posti_disponibili + diff_posti)
     
     offer.data_ora = data_ora
+    offer.booking_lead_override_minutes = (
+        get_short_notice_booking_lead_minutes_for_meal_type(tipo_pasto)
+        if requires_short_notice_override
+        else None
+    )
     offer.descrizione = descrizione
 
     db.session.commit()
@@ -4888,7 +4956,11 @@ def api_create_offer():
             "errors": [build_meal_schedule_conflict_message(tipo_pasto, scheduling_conflict)],
         }), 400
 
-    if is_new_offer_publication_too_late(tipo_pasto, data_ora) and not force_short_notice:
+    requires_short_notice_override = is_new_offer_publication_too_late(
+        tipo_pasto,
+        data_ora,
+    )
+    if requires_short_notice_override and not force_short_notice:
         return jsonify({
             "success": False,
             "errors": [get_offer_publication_too_late_message(tipo_pasto)],
@@ -4912,6 +4984,11 @@ def api_create_offer():
         posti_totali=int(posti),
         posti_disponibili=int(posti),
         data_ora=data_ora,
+        booking_lead_override_minutes=(
+            get_short_notice_booking_lead_minutes_for_meal_type(tipo_pasto)
+            if requires_short_notice_override
+            else None
+        ),
         descrizione=descrizione,
         foto_locale=filename
     )

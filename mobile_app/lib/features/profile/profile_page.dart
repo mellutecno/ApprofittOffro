@@ -1698,36 +1698,12 @@ class _ProfilePageState extends State<ProfilePage> {
                   label: const Text('Modifica profilo'),
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  'Impostazioni',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 10),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Resterai connesso su questo dispositivo. Usa Esci solo se vuoi scollegarti davvero e smettere di ricevere le notifiche push qui.',
-                          style: TextStyle(
-                            color: AppTheme.brown.withValues(alpha: 0.76),
-                            fontWeight: FontWeight.w600,
-                            height: 1.35,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        OutlinedButton.icon(
-                          onPressed: widget.authController.isBusy
-                              ? null
-                              : widget.authController.logout,
-                          icon: const Icon(Icons.logout_rounded),
-                          label: const Text('Esci da questo dispositivo'),
-                        ),
-                      ],
-                    ),
-                  ),
+                OutlinedButton.icon(
+                  onPressed: widget.authController.isBusy
+                      ? null
+                      : widget.authController.logout,
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('Esci da questo dispositivo'),
                 ),
                 const SizedBox(height: 10),
                 OutlinedButton.icon(

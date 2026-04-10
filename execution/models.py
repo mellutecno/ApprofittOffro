@@ -150,6 +150,7 @@ class Offer(db.Model):
     posti_totali = db.Column(db.Integer, nullable=False)
     posti_disponibili = db.Column(db.Integer, nullable=False)
     data_ora = db.Column(db.DateTime, nullable=False)
+    booking_lead_override_minutes = db.Column(db.Integer, nullable=True)
     descrizione = db.Column(db.Text, nullable=True)
     foto_locale = db.Column(db.String(256), nullable=False)
     stato = db.Column(db.String(20), default="attiva")  # attiva, completata, annullata
