@@ -1234,7 +1234,7 @@ def notify_claimants_for_offer_update(offer, previous_state, actor):
         send_push_to_user(
             claim.utente,
             title="Evento aggiornato",
-            body=f"{actor_name} ha aggiornato {offer.nome_locale} • {data_evento}.",
+            body=f"{actor_name} ha aggiornato {offer.nome_locale} - {data_evento}.",
             target="offers",
             extra_data={
                 "offer_id": offer.id,
@@ -3244,7 +3244,7 @@ def remove_offer_with_notifications(
                 send_push_to_user(
                     claim.utente,
                     title="Evento annullato",
-                    body=f"{offer.nome_locale} • {data_evento} non Ã¨ piÃ¹ disponibile.",
+                    body=f"{offer.nome_locale} - {data_evento} non e' piu' disponibile.",
                     target="offers",
                     extra_data={
                         "offer_id": offer.id,
@@ -3256,7 +3256,7 @@ def remove_offer_with_notifications(
         send_push_to_user(
             offer.autore,
             title="Offerta rimossa dall'amministratore",
-            body=f"{offer.nome_locale} • {data_evento} Ã¨ stata rimossa.",
+            body=f"{offer.nome_locale} - {data_evento} e' stata rimossa.",
             target="offers",
             extra_data={
                 "offer_id": offer.id,
@@ -3271,7 +3271,7 @@ def remove_offer_with_notifications(
                 send_push_to_user(
                     claim.utente,
                     title="Evento rimosso dallo storico",
-                    body=f"{offer.nome_locale} • {data_evento} non è più consultabile.",
+                    body=f"{offer.nome_locale} - {data_evento} non e' piu' consultabile.",
                     target="profile",
                     extra_data={
                         "offer_id": offer.id,
@@ -3283,7 +3283,7 @@ def remove_offer_with_notifications(
             send_push_to_user(
                 offer.autore,
                 title="Evento rimosso dallo storico",
-                body=f"{offer.nome_locale} • {data_evento} non è più consultabile.",
+                body=f"{offer.nome_locale} - {data_evento} non e' piu' consultabile.",
                 target="profile",
                 extra_data={
                     "offer_id": offer.id,
@@ -4909,7 +4909,7 @@ def api_unclaim(claim_id):
     send_push_to_user(
         offer.autore,
         title="Partecipazione annullata",
-        body=f"{current_user.nome} non parteciperÃ  piÃ¹ a {offer.nome_locale}.",
+        body=f"{current_user.nome} non partecipera' piu' a {offer.nome_locale}.",
         target="profile",
         extra_data={
             "offer_id": offer.id,
