@@ -378,6 +378,9 @@ class OfferCard extends StatelessWidget {
     if (offer.claimStatus == 'pending') {
       return 'Richiesta inviata';
     }
+    if (offer.claimStatus == 'rejected') {
+      return 'Richiesta non accettata';
+    }
     if (offer.claimStatus == 'started') {
       return 'In corso';
     }
@@ -493,13 +496,7 @@ class OfferCard extends StatelessWidget {
   }
 
   String _formatCalendarTimestamp(DateTime value) {
-    return value
-            .toIso8601String()
-            .replaceAll('-', '')
-            .replaceAll(':', '')
-            .split('.')
-            .first +
-        'Z';
+    return '${value.toIso8601String().replaceAll('-', '').replaceAll(':', '').split('.').first}Z';
   }
 }
 

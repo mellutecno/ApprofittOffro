@@ -54,6 +54,7 @@ from models import (
     Claim,
     CLAIM_STATUS_ACCEPTED,
     CLAIM_STATUS_PENDING,
+    CLAIM_STATUS_REJECTED,
     Review,
     TIPI_PASTO,
     FASCE_ETA,
@@ -437,6 +438,19 @@ def get_offer_pending_claims(offer):
     return [claim for claim in offer.claims if claim.status == CLAIM_STATUS_PENDING]
 
 
+def get_mobile_claim_status(current_claim):
+    """Traduce lo stato Claim nel valore atteso dall'app mobile."""
+    if current_claim is None:
+        return "open"
+    if current_claim.status == CLAIM_STATUS_PENDING:
+        return "pending"
+    if current_claim.status == CLAIM_STATUS_ACCEPTED:
+        return "claimed"
+    if current_claim.status == CLAIM_STATUS_REJECTED:
+        return "rejected"
+    return "open"
+
+
 def serialize_mobile_offer(
     offer,
     *,
@@ -473,7 +487,10 @@ def serialize_mobile_offer(
                 (claim for claim in offer.claims if claim.user_id == viewer.id),
                 None,
             )
-        already_claimed = current_claim is not None
+        already_claimed = (
+            current_claim is not None
+            and current_claim.status == CLAIM_STATUS_ACCEPTED
+        )
         is_own = offer.user_id == viewer.id
         if (
             current_claim is not None
@@ -482,18 +499,12 @@ def serialize_mobile_offer(
         ):
             host_whatsapp_link = build_whatsapp_offer_link(viewer, offer.autore, offer)
 
-    claim_status = "open"
-    if current_claim is not None:
-        claim_status = (
-            "pending"
-            if current_claim.status == CLAIM_STATUS_PENDING
-            else "claimed"
-        )
-    elif offer.stato != "attiva" or offer.posti_disponibili <= 0:
+    claim_status = get_mobile_claim_status(current_claim)
+    if current_claim is None and (offer.stato != "attiva" or offer.posti_disponibili <= 0):
         claim_status = "full"
-    elif has_started:
+    elif current_claim is None and has_started:
         claim_status = "started"
-    elif booking_closed:
+    elif current_claim is None and booking_closed:
         claim_status = "booking_closed"
 
     can_claim = (not is_own) and current_claim is None and claim_status == "open"
@@ -592,14 +603,69 @@ def get_followers_notification_targets(offer):
     ).all()
 
 
+def get_nearby_active_push_users(offer, *, radius_km=20, excluded_user_ids=None):
+    """Trova utenti con token push attivo vicini all'evento, escludendo host e follower già avvisati."""
+    excluded_ids = {offer.user_id}
+    excluded_ids.update(excluded_user_ids or [])
+
+    candidates = (
+        User.query.join(
+            DevicePushToken,
+            DevicePushToken.user_id == User.id,
+        )
+        .filter(
+            User.verificato.is_(True),
+            User.is_admin.is_(False),
+            DevicePushToken.active.is_(True),
+        )
+        .order_by(User.nome.asc())
+        .all()
+    )
+
+    nearby_users = []
+    seen_ids = set()
+    for user in candidates:
+        if user.id in excluded_ids or user.id in seen_ids:
+            continue
+        seen_ids.add(user.id)
+        if user.latitudine is None or user.longitudine is None:
+            continue
+        if calculate_distance(
+            offer.latitudine,
+            offer.longitudine,
+            user.latitudine,
+            user.longitudine,
+        ) > radius_km:
+            continue
+        nearby_users.append(user)
+
+    return nearby_users
+
+
 def notify_followers_for_new_offer(offer):
-    """Avvisa i follower quando nasce una nuova offerta, via email e push."""
+    """Avvisa follower e utenti vicini quando nasce una nuova offerta."""
     if offer.data_ora <= local_now():
-        return {"followers": 0, "emails": 0, "push_users": 0}
+        return {
+            "followers": 0,
+            "emails": 0,
+            "push_users": 0,
+            "nearby_push_users": 0,
+        }
 
     followers = get_followers_notification_targets(offer)
-    if not followers:
-        return {"followers": 0, "emails": 0, "push_users": 0}
+    follower_ids = {follower.id for follower in followers}
+    nearby_users = get_nearby_active_push_users(
+        offer,
+        radius_km=20,
+        excluded_user_ids=follower_ids,
+    )
+    if not followers and not nearby_users:
+        return {
+            "followers": 0,
+            "emails": 0,
+            "push_users": 0,
+            "nearby_push_users": 0,
+        }
 
     data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
     booking_rule_copy = (
@@ -611,6 +677,7 @@ def notify_followers_for_new_offer(offer):
     spots_copy = get_spots_copy(offer.posti_disponibili)
     email_count = 0
     push_users = 0
+    nearby_push_users = 0
     push_title = get_followed_offer_notification_heading(offer)
     push_body = get_followed_offer_push_body(offer, data_evento=data_evento)
 
@@ -644,10 +711,32 @@ def notify_followers_for_new_offer(offer):
         if delivery["email_sent"]:
             email_count += 1
 
+    nearby_push_title = "Nuovo evento vicino a te"
+    nearby_push_body = (
+        f"{offer.autore.nome} ha pubblicato {offer.tipo_pasto} da "
+        f"{offer.nome_locale} • {data_evento}"
+    )
+    for user in nearby_users:
+        push_sent = send_push_to_user(
+            user,
+            title=nearby_push_title,
+            body=nearby_push_body,
+            target="offers",
+            extra_data={
+                "offer_id": offer.id,
+                "author_name": offer.autore.nome if offer.autore else "",
+                "meal_type": offer.tipo_pasto,
+                "notification_scope": "nearby_users",
+            },
+        )
+        if push_sent > 0:
+            nearby_push_users += 1
+
     return {
         "followers": len(followers),
         "emails": email_count,
         "push_users": push_users,
+        "nearby_push_users": nearby_push_users,
     }
 
 
@@ -4177,7 +4266,10 @@ def api_get_offers():
                 (claim for claim in o.claims if claim.user_id == current_user.id),
                 None,
             )
-            already_claimed = current_claim is not None
+            already_claimed = (
+                current_claim is not None
+                and current_claim.status == CLAIM_STATUS_ACCEPTED
+            )
             is_own = o.user_id == current_user.id
             if (
                 current_claim is not None
@@ -4186,18 +4278,12 @@ def api_get_offers():
             ):
                 host_whatsapp_link = build_whatsapp_offer_link(current_user, o.autore, o)
 
-        claim_status = "open"
-        if current_claim is not None:
-            claim_status = (
-                "pending"
-                if current_claim.status == CLAIM_STATUS_PENDING
-                else "claimed"
-            )
-        elif o.stato != "attiva" or o.posti_disponibili <= 0:
+        claim_status = get_mobile_claim_status(current_claim)
+        if current_claim is None and (o.stato != "attiva" or o.posti_disponibili <= 0):
             claim_status = "full"
-        elif has_started:
+        elif current_claim is None and has_started:
             claim_status = "started"
-        elif booking_closed:
+        elif current_claim is None and booking_closed:
             claim_status = "booking_closed"
 
         can_claim = (
@@ -4609,6 +4695,7 @@ def api_create_offer():
     notified_users = notification_stats["followers"]
     email_notifications = notification_stats["emails"]
     push_notifications = notification_stats["push_users"]
+    nearby_push_notifications = notification_stats["nearby_push_users"]
 
     message = "Offerta creata con successo!"
     if notified_users == 1 and email_notifications and push_notifications:
@@ -4625,6 +4712,13 @@ def api_create_offer():
         message += f" Abbiamo avvisato {notified_users} persone che ti seguono via email."
     elif get_followers_notification_targets(offer):
         message += " L'offerta e' pronta, ma le notifiche ai follower non sono attive su questo ambiente."
+    if nearby_push_notifications == 1:
+        message += " In piu', 1 persona vicina ha ricevuto una notifica push."
+    elif nearby_push_notifications > 1:
+        message += (
+            f" In piu', {nearby_push_notifications} persone vicine hanno ricevuto "
+            "una notifica push."
+        )
 
     return jsonify({
         "success": True,
@@ -4633,6 +4727,7 @@ def api_create_offer():
         "notified_users": notified_users,
         "email_notifications": email_notifications,
         "push_notifications": push_notifications,
+        "nearby_push_notifications": nearby_push_notifications,
     })
 
 
@@ -4658,6 +4753,13 @@ def api_claim_offer(offer_id):
     if existing:
         if existing.status == CLAIM_STATUS_PENDING:
             return jsonify({"success": False, "errors": ["Hai già inviato una richiesta per questa offerta."]}), 400
+        if existing.status == CLAIM_STATUS_REJECTED:
+            return jsonify({
+                "success": False,
+                "errors": [
+                    "Questa richiesta non è stata accettata. Non puoi approfittare di nuovo lo stesso evento.",
+                ],
+            }), 400
         return jsonify({"success": False, "errors": ["Hai già approfittato di questa offerta."]}), 400
 
     now = local_now()
@@ -4763,7 +4865,7 @@ def api_reject_claim_request(claim_id):
         return jsonify({"success": False, "error": "Questa richiesta non è più pendente."}), 400
 
     send_claim_rejected_email(claim)
-    db.session.delete(claim)
+    claim.status = CLAIM_STATUS_REJECTED
     db.session.commit()
 
     return jsonify({"success": True, "message": "Richiesta rifiutata."})

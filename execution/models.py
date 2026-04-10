@@ -35,6 +35,7 @@ TIPI_PASTO = [
 
 CLAIM_STATUS_PENDING = "pending"
 CLAIM_STATUS_ACCEPTED = "accepted"
+CLAIM_STATUS_REJECTED = "rejected"
 
 
 class User(UserMixin, db.Model):
