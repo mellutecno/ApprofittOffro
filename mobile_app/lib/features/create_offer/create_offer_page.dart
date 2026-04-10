@@ -171,6 +171,9 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     final initialOffer = widget.initialOffer;
     if (initialOffer != null) {
       _prefillFromOffer(initialOffer);
+      if (_publicationTimingWarning != null) {
+        _confirmedShortNoticeSignature = _currentShortNoticeSignature;
+      }
       if (AppConfig.googleMapsEnabled) {
         _initialMapReady = true;
         _initialLocationRequested = true;
