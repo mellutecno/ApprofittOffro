@@ -69,6 +69,21 @@ class ApiClient {
     return payload;
   }
 
+  Future<String> requestPasswordReset({
+    required String email,
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/password/forgot',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ??
+        'Se l\'account puo\' essere recuperato via password, ti abbiamo inviato un link.';
+  }
+
   Future<Map<String, dynamic>> loginWithGoogle({
     required String idToken,
   }) async {
@@ -594,6 +609,9 @@ class ApiClient {
     required String preferredFoods,
     required String intolerances,
     required String bio,
+    String currentPassword = '',
+    String newPassword = '',
+    String confirmNewPassword = '',
     List<String> existingGalleryFilenames = const [],
     List<String> photoPaths = const [],
   }) async {
@@ -620,6 +638,16 @@ class ApiClient {
       'bio': bio,
       'existing_gallery_filenames': jsonEncode(existingGalleryFilenames),
     });
+
+    if (currentPassword.isNotEmpty ||
+        newPassword.isNotEmpty ||
+        confirmNewPassword.isNotEmpty) {
+      request.fields.addAll({
+        'current_password': currentPassword,
+        'new_password': newPassword,
+        'confirm_new_password': confirmNewPassword,
+      });
+    }
 
     for (final photoPath in photoPaths) {
       request.files.add(

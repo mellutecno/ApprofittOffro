@@ -62,6 +62,8 @@ class User(UserMixin, db.Model):
 
     verificato = db.Column(db.Boolean, default=False)
     verification_token = db.Column(db.String(100), unique=True, nullable=True)
+    password_reset_token = db.Column(db.String(100), unique=True, nullable=True)
+    password_reset_sent_at = db.Column(db.DateTime, nullable=True)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     admin_verified_notified_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
@@ -102,6 +104,10 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    @property
+    def uses_google_auth(self):
+        return bool(self.google_sub)
 
     @property
     def eta_display(self):

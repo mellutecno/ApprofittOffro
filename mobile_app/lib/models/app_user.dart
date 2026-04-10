@@ -157,6 +157,8 @@ class AppUser {
     required this.nome,
     required this.email,
     required this.isAdmin,
+    required this.usesGoogleAuth,
+    required this.canChangePassword,
     required this.photoFilename,
     required this.galleryFilenames,
     required this.etaDisplay,
@@ -190,6 +192,8 @@ class AppUser {
   final String nome;
   final String email;
   final bool isAdmin;
+  final bool usesGoogleAuth;
+  final bool canChangePassword;
   final String photoFilename;
   final List<String> galleryFilenames;
   final String etaDisplay;
@@ -237,6 +241,8 @@ class AppUser {
       nome: (json['nome'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
       isAdmin: json['is_admin'] == true,
+      usesGoogleAuth: json['uses_google_auth'] == true,
+      canChangePassword: json['can_change_password'] == true,
       photoFilename: (json['foto'] ?? '').toString(),
       galleryFilenames: (json['gallery_filenames'] as List<dynamic>? ?? [])
           .map((item) => item.toString())

@@ -124,6 +124,30 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  Future<String?> requestPasswordReset({
+    required String email,
+  }) async {
+    _setBusy(true);
+    _errorMessage = null;
+
+    try {
+      final message = await apiClient.requestPasswordReset(email: email);
+      _errorMessage = null;
+      notifyListeners();
+      return message;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      return null;
+    } catch (_) {
+      _errorMessage = 'Non riesco a inviare il recupero password adesso.';
+      notifyListeners();
+      return null;
+    } finally {
+      _setBusy(false);
+    }
+  }
+
   Future<bool> loginWithGoogle() async {
     _setBusy(true);
     _errorMessage = null;

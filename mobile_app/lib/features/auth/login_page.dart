@@ -74,6 +74,70 @@ class _LoginPageState extends State<LoginPage> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _openForgotPasswordDialog() async {
+    final emailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+
+    final email = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Recupera password'),
+          content: TextField(
+            controller: emailController,
+            keyboardType: TextInputType.emailAddress,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Email',
+              hintText: 'nome@email.it',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Annulla'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(emailController.text.trim()),
+              child: const Text('Invia link'),
+            ),
+          ],
+        );
+      },
+    );
+
+    emailController.dispose();
+
+    if (!mounted || email == null) {
+      return;
+    }
+    if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inserisci un\'email valida.')),
+      );
+      return;
+    }
+
+    final message =
+        await widget.authController.requestPasswordReset(email: email);
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message ??
+              widget.authController.errorMessage ??
+              'Non riesco a inviare il link di recupero adesso.',
+        ),
+      ),
+    );
+  }
+
   void _completeAuthAndClose() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
@@ -149,6 +213,14 @@ class _LoginPageState extends State<LoginPage> {
                                       }
                                       return null;
                                     },
+                                  ),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed:
+                                          busy ? null : _openForgotPasswordDialog,
+                                      child: const Text('Password dimenticata?'),
+                                    ),
                                   ),
                                   const SizedBox(height: 20),
                                   FilledButton(

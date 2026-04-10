@@ -169,6 +169,7 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 MAX_PROFILE_PHOTOS = 5
 BREAKFAST_BOOKING_LEAD_HOURS = 1
 MEAL_BOOKING_LEAD_HOURS = 6
+PASSWORD_RESET_TOKEN_HOURS = 2
 PUSH_PRIMARY_EMAIL_TEMPLATES = {
     "nearby_offer_notification.html",
     "claim_notification.html",
@@ -1284,6 +1285,8 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("raggio_azione", "ALTER TABLE users ADD COLUMN raggio_azione INTEGER DEFAULT 10"),
                 ("verificato", "ALTER TABLE users ADD COLUMN verificato INTEGER DEFAULT 0"),
                 ("verification_token", "ALTER TABLE users ADD COLUMN verification_token VARCHAR(100)"),
+                ("password_reset_token", "ALTER TABLE users ADD COLUMN password_reset_token VARCHAR(100)"),
+                ("password_reset_sent_at", "ALTER TABLE users ADD COLUMN password_reset_sent_at DATETIME"),
                 ("is_admin", "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"),
                 ("admin_verified_notified_at", "ALTER TABLE users ADD COLUMN admin_verified_notified_at DATETIME"),
             ],
@@ -1346,7 +1349,16 @@ def ensure_database_schema_compatibility():
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_verified_notified_at DATETIME"
             )
             conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token VARCHAR(100)"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_sent_at DATETIME"
+            )
+            conn.exec_driver_sql(
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)"
+            )
+            conn.exec_driver_sql(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_password_reset_token ON users (password_reset_token)"
             )
             conn.exec_driver_sql(
                 "ALTER TABLE claims ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'accepted'"
@@ -1775,6 +1787,89 @@ def send_registration_verification_email(user, link_verifica):
                 </a>
               </p>
               <p style="font-size:13px;color:#6B7280;">Se non hai richiesto tu l'iscrizione, ignora semplicemente questa email.</p>
+            </div>
+          </body>
+        </html>
+        """
+
+    return send_email_html(
+        subject,
+        [user.email],
+        html_body,
+        background=False,
+    )
+
+
+def user_can_change_password(user):
+    return bool(user) and not bool(getattr(user, "google_sub", None))
+
+
+def build_password_reset_link(token):
+    return url_for("password_reset_page", token=token, _external=True)
+
+
+def get_password_reset_deadline(sent_at):
+    if not sent_at:
+        return None
+    return sent_at + timedelta(hours=PASSWORD_RESET_TOKEN_HOURS)
+
+
+def get_user_by_valid_password_reset_token(token):
+    raw_token = str(token or "").strip()
+    if not raw_token:
+        return None
+    user = User.query.filter_by(password_reset_token=raw_token).first()
+    if not user:
+        return None
+    deadline = get_password_reset_deadline(user.password_reset_sent_at)
+    if not deadline or deadline < local_now():
+        return None
+    return user
+
+
+def clear_password_reset_state(user):
+    if not user:
+        return
+    user.password_reset_token = None
+    user.password_reset_sent_at = None
+
+
+def build_password_reset_email_html(user, link_reset, valid_for_hours):
+    return render_template(
+        "emails/password_reset.html",
+        user=user,
+        link_reset=link_reset,
+        valid_for_hours=valid_for_hours,
+    )
+
+
+def send_password_reset_email(user):
+    if not user or not user.email:
+        return False
+
+    link_reset = build_password_reset_link(user.password_reset_token)
+    subject = "ApprofittOffro - Reimposta la tua password"
+
+    try:
+        html_body = build_password_reset_email_html(
+            user,
+            link_reset,
+            PASSWORD_RESET_TOKEN_HOURS,
+        )
+    except Exception as exc:
+        print(f"[MAIL_ERROR] Template password_reset.html non renderizzabile: {exc}")
+        html_body = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif; background:#F2EEEC; padding:24px; color:#2B2D42;">
+            <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:18px;padding:32px;border:1px solid #E5E0DC;">
+              <h1 style="margin-top:0;">Reimposta la tua password</h1>
+              <p>Ciao {escape(user.nome)}, abbiamo ricevuto una richiesta di recupero password per ApprofittOffro.</p>
+              <p>
+                <a href="{escape(link_reset)}" style="display:inline-block;background:#0EA5E9;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:bold;">
+                  Scegli una nuova password
+                </a>
+              </p>
+              <p style="font-size:13px;color:#6B7280;">Il link resta valido per {PASSWORD_RESET_TOKEN_HOURS} ore. Se non hai richiesto tu il reset, puoi ignorare questa email.</p>
             </div>
           </body>
         </html>
@@ -2271,6 +2366,9 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
     pref = str(source.get("cibi_preferiti", user.cibi_preferiti or "") or "").strip()
     intoll = str(source.get("intolleranze", user.intolleranze or "") or "").strip()
     bio = str(source.get("bio", user.bio or "") or "").strip()
+    current_password = str(source.get("current_password", "") or "")
+    new_password = str(source.get("new_password", "") or "")
+    confirm_new_password = str(source.get("confirm_new_password", "") or "")
     existing_gallery_raw = source.get("existing_gallery_filenames")
 
     if isinstance(existing_gallery_raw, str) and existing_gallery_raw.strip():
@@ -2327,6 +2425,25 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
     if len(bio) > 0 and len(bio) < 5:
         errors.append("Raccontaci qualcosa di più nella Bio.")
 
+    password_change_requested = bool(
+        current_password or new_password or confirm_new_password
+    )
+    if password_change_requested:
+        if not user_can_change_password(user):
+            errors.append("Questo account usa Google: la password non si modifica da qui.")
+        else:
+            if not current_password:
+                errors.append("Inserisci la password attuale per cambiarla.")
+            elif not user.check_password(current_password):
+                errors.append("La password attuale non è corretta.")
+
+            if len(new_password) < 6:
+                errors.append("La nuova password deve avere almeno 6 caratteri.")
+            if new_password != confirm_new_password:
+                errors.append("Le due nuove password non coincidono.")
+            if current_password and new_password and current_password == new_password:
+                errors.append("La nuova password deve essere diversa da quella attuale.")
+
     latitudine = None
     longitudine = None
     if lat_raw or lon_raw:
@@ -2366,6 +2483,7 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
         "cibi_preferiti": pref,
         "intolleranze": intoll,
         "bio": bio,
+        "new_password": new_password if password_change_requested else "",
         "final_gallery_filenames": final_gallery_filenames,
         "uploaded_gallery_filenames": uploaded_gallery_filenames,
     }
@@ -2393,6 +2511,9 @@ def save_profile_update_for_user(user, payload, *, verified=None):
     user.cibi_preferiti = payload["cibi_preferiti"]
     user.intolleranze = payload["intolleranze"]
     user.bio = payload["bio"]
+    if payload.get("new_password"):
+        user.set_password(payload["new_password"])
+        clear_password_reset_state(user)
 
     if verified is not None:
         user.verificato = bool(verified)
@@ -2782,6 +2903,40 @@ def verify_email(token):
     flash("Email verificata con successo! Ora puoi accedere.", "success")
     return redirect(url_for("login_page"))
 
+
+@app.route("/reset-password/<token>", methods=["GET", "POST"])
+def password_reset_page(token):
+    user = get_user_by_valid_password_reset_token(token)
+    error_message = ""
+    success_message = ""
+
+    if request.method == "POST":
+        if not user:
+            error_message = "Il link non e' valido o e' scaduto. Richiedi un nuovo recupero password dall'app."
+        else:
+            password = request.form.get("password", "")
+            confirm_password = request.form.get("confirm_password", "")
+
+            if len(password) < 6:
+                error_message = "La nuova password deve avere almeno 6 caratteri."
+            elif password != confirm_password:
+                error_message = "Le due password non coincidono."
+            else:
+                user.set_password(password)
+                clear_password_reset_state(user)
+                db.session.commit()
+                success_message = "Password aggiornata con successo. Ora puoi tornare nell'app ed entrare di nuovo."
+
+    return render_template(
+        "password_reset.html",
+        token=token,
+        token_is_valid=user is not None,
+        error_message=error_message,
+        success_message=success_message,
+        password_reset_hours=PASSWORD_RESET_TOKEN_HOURS,
+        play_store_url=os.getenv("PLAY_STORE_URL", "").strip(),
+    )
+
 @app.route("/new-offer")
 @login_required
 @profile_completed_required
@@ -2899,6 +3054,8 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
         "lon": user.longitudine if include_private else None,
         "verificato": bool(user.verificato),
         "is_admin": bool(user.is_admin),
+        "uses_google_auth": bool(user.google_sub) if include_private else False,
+        "can_change_password": user_can_change_password(user) if include_private else False,
         "followers_count": user.followers_count,
         "following_count": user.following_count,
         "rating_average": rating_info["average"],
@@ -4122,6 +4279,38 @@ def api_login():
     return jsonify({
         "success": True,
         "redirect": url_for("admin_dashboard") if is_admin_user(user) else url_for("dashboard"),
+    })
+
+
+@app.route("/api/password/forgot", methods=["POST"])
+def api_password_forgot():
+    """Invia un link di recupero password agli account registrati via email."""
+    data = request.get_json(silent=True) or request.form or {}
+    email = str(data.get("email", "") or "").strip().lower()
+
+    if not email or "@" not in email:
+        return jsonify({
+            "success": False,
+            "errors": ["Inserisci un'email valida per recuperare la password."],
+        }), 400
+
+    user = User.query.filter_by(email=email).first()
+    reset_requested = False
+
+    if user and user_can_change_password(user) and user.verificato:
+        user.password_reset_token = uuid.uuid4().hex
+        user.password_reset_sent_at = local_now()
+        db.session.commit()
+        reset_requested = send_password_reset_email(user)
+        print(
+            f"[PASSWORD_RESET_REQUEST] user={user.id} email={user.email} sent={reset_requested}"
+        )
+
+    return jsonify({
+        "success": True,
+        "message": (
+            "Se l'account puo' essere recuperato via password, ti abbiamo inviato un link per sceglierne una nuova."
+        ),
     })
 
 

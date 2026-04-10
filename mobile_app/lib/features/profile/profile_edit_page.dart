@@ -52,6 +52,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   late final TextEditingController _bioController;
   late final TextEditingController _preferitiController;
   late final TextEditingController _intolleranzeController;
+  late final TextEditingController _currentPasswordController;
+  late final TextEditingController _newPasswordController;
+  late final TextEditingController _confirmNewPasswordController;
 
   List<String> _existingGalleryFilenames = const [];
   List<XFile> _selectedPhotos = const [];
@@ -85,6 +88,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     _bioController = TextEditingController(text: user.bio);
     _preferitiController = TextEditingController(text: user.preferredFoods);
     _intolleranzeController = TextEditingController(text: user.intolerances);
+    _currentPasswordController = TextEditingController();
+    _newPasswordController = TextEditingController();
+    _confirmNewPasswordController = TextEditingController();
     _existingGalleryFilenames = List<String>.from(user.galleryFilenames);
     _latitude = user.latitude;
     _longitude = user.longitude;
@@ -121,6 +127,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     _bioController.dispose();
     _preferitiController.dispose();
     _intolleranzeController.dispose();
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmNewPasswordController.dispose();
     _mapController?.dispose();
     super.dispose();
   }
@@ -447,6 +456,14 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   int get _totalPhotoCount =>
       _existingGalleryFilenames.length + _selectedPhotos.length;
 
+  bool get _canChangePassword =>
+      widget.authController.currentUser?.canChangePassword ?? false;
+
+  bool get _passwordChangeRequested =>
+      _currentPasswordController.text.isNotEmpty ||
+      _newPasswordController.text.isNotEmpty ||
+      _confirmNewPasswordController.text.isNotEmpty;
+
   Widget _buildExistingPhotoCard(String filename, int index) {
     return Container(
       width: 100,
@@ -584,6 +601,26 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       _showMessage('Inserisci i tuoi cibi preferiti prima di continuare.');
       return;
     }
+    if (_passwordChangeRequested) {
+      if (!_canChangePassword) {
+        _showMessage(
+          'Questo account usa Google: la password non si modifica da qui.',
+        );
+        return;
+      }
+      if (_currentPasswordController.text.isEmpty) {
+        _showMessage('Inserisci la password attuale.');
+        return;
+      }
+      if (_newPasswordController.text.length < 6) {
+        _showMessage('La nuova password deve avere almeno 6 caratteri.');
+        return;
+      }
+      if (_newPasswordController.text != _confirmNewPasswordController.text) {
+        _showMessage('Le due nuove password non coincidono.');
+        return;
+      }
+    }
 
     setState(() => _isSaving = true);
     try {
@@ -600,6 +637,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         preferredFoods: _preferitiController.text.trim(),
         intolerances: _intolleranzeController.text.trim(),
         bio: _bioController.text.trim(),
+        currentPassword: _currentPasswordController.text,
+        newPassword: _newPasswordController.text,
+        confirmNewPassword: _confirmNewPasswordController.text,
         existingGalleryFilenames: _existingGalleryFilenames,
         photoPaths: _selectedPhotos.map((photo) => photo.path).toList(),
       );
@@ -822,6 +862,73 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 ),
                 const SizedBox(height: 16),
                 _SectionCard(
+                  title: 'Password',
+                  child: _canChangePassword
+                      ? Column(
+                          children: [
+                            Text(
+                              'Se vuoi, puoi cambiare la password del tuo account email direttamente da qui.',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color:
+                                        AppTheme.brown.withValues(alpha: 0.74),
+                                    height: 1.45,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _currentPasswordController,
+                              obscureText: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Password attuale',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _newPasswordController,
+                              obscureText: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Nuova password',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _confirmNewPasswordController,
+                              obscureText: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Conferma nuova password',
+                              ),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Hai creato questo account con Google. La password non si modifica da qui.',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color:
+                                        AppTheme.brown.withValues(alpha: 0.74),
+                                    height: 1.45,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
+                            const TextField(
+                              enabled: false,
+                              decoration: InputDecoration(
+                                labelText: 'Password non modificabile',
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+                const SizedBox(height: 16),
+                _SectionCard(
                   title: 'Foto profilo',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -939,7 +1046,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
               rotateGesturesEnabled: true,
               tiltGesturesEnabled: true,
               onTap: (target) => unawaited(_setSelectedLocation(target)),
-              gestureRecognizers: {
+              gestureRecognizers: const {
                 Factory<OneSequenceGestureRecognizer>(
                   EagerGestureRecognizer.new,
                 ),
