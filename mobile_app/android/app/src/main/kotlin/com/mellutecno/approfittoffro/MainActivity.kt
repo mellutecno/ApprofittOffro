@@ -1,4 +1,4 @@
-package com.example.approfittoffro_mobile
+package com.mellutecno.approfittoffro
 
 import io.flutter.embedding.android.FlutterActivity
 
