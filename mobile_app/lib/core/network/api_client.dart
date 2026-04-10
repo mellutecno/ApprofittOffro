@@ -227,6 +227,8 @@ class ApiClient {
     String ageRange = '',
     String gender = '',
     int? radiusKm,
+    double? latitude,
+    double? longitude,
   }) async {
     final query = <String, String>{};
     if (ageRange.isNotEmpty) {
@@ -237,6 +239,10 @@ class ApiClient {
     }
     if (radiusKm != null) {
       query['radius'] = radiusKm.toString();
+    }
+    if (latitude != null && longitude != null) {
+      query['lat'] = latitude.toString();
+      query['lon'] = longitude.toString();
     }
     final path = query.isEmpty
         ? '/api/people'

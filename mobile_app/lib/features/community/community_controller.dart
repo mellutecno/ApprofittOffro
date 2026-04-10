@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../core/network/api_client.dart';
 import '../../models/user_preview.dart';
@@ -30,16 +31,50 @@ class CommunityController extends ChangeNotifier {
     _selectedRadiusKm = value.clamp(minRadiusKm, maxRadiusKm);
   }
 
+  Future<Position?> _getLiveSearchPosition() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return await Geolocator.getLastKnownPosition();
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return await Geolocator.getLastKnownPosition();
+      }
+
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+    } catch (_) {
+      try {
+        return await Geolocator.getLastKnownPosition();
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
   Future<void> loadPeople() async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
+      final livePosition = await _getLiveSearchPosition();
       _people = await apiClient.fetchPeople(
         ageRange: _selectedAgeRange,
         gender: _selectedGender,
         radiusKm: _selectedRadiusKm,
+        latitude: livePosition?.latitude,
+        longitude: livePosition?.longitude,
       );
     } on ApiException catch (e) {
       _errorMessage = e.message;

@@ -5123,6 +5123,20 @@ def api_people():
                 "error": "La distanza community deve essere un numero tra 5 e 1500 km.",
             }), 400
 
+    req_lat = (request.args.get("lat") or "").strip()
+    req_lon = (request.args.get("lon") or "").strip()
+    search_lat = current_user.latitudine or DEFAULT_USER_LATITUDE
+    search_lon = current_user.longitudine or DEFAULT_USER_LONGITUDE
+    if req_lat and req_lon:
+        try:
+            search_lat = float(req_lat.replace(",", "."))
+            search_lon = float(req_lon.replace(",", "."))
+        except ValueError:
+            return jsonify({
+                "success": False,
+                "error": "Le coordinate community non sono valide.",
+            }), 400
+
     people_query = User.query.options(selectinload(User.photos)).filter(
         User.id != current_user.id,
         User.is_admin.is_(False),
@@ -5148,8 +5162,6 @@ def api_people():
 
     people = people_query.order_by(User.eta.asc(), User.nome.asc()).all()
     if radius_km is not None:
-        search_lat = current_user.latitudine or DEFAULT_USER_LATITUDE
-        search_lon = current_user.longitudine or DEFAULT_USER_LONGITUDE
         people = [
             person
             for person in people
