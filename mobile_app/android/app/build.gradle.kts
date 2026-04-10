@@ -26,6 +26,9 @@ val hasReleaseSigning =
     listOf("storeFile", "storePassword", "keyAlias", "keyPassword").all {
         !keystoreProperties.getProperty(it).isNullOrBlank()
     }
+val isPlayBuild = gradle.startParameter.taskNames.any { taskName ->
+    taskName.contains("Play", ignoreCase = true)
+}
 
 val googleMapsApiKey =
     System.getenv("GOOGLE_MAPS_ANDROID_API_KEY")
@@ -43,8 +46,6 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.mellutecno.approfittoffro"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 34
@@ -52,6 +53,18 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders["googleMapsApiKey"] = googleMapsApiKey
+    }
+
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("preview") {
+            dimension = "distribution"
+            applicationId = "com.example.approfittoffro_mobile"
+        }
+        create("play") {
+            dimension = "distribution"
+            applicationId = "com.mellutecno.approfittoffro"
+        }
     }
 
     lint {
@@ -72,7 +85,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (hasReleaseSigning) {
+            signingConfig = if (hasReleaseSigning && isPlayBuild) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")
