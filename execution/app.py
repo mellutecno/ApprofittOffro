@@ -303,6 +303,13 @@ def get_offer_publication_too_late_message(tipo_pasto):
     return "Questa cena verrebbe pubblicata troppo tardi: le cene devono essere inserite almeno 6 ore prima dell'inizio."
 
 
+def parse_force_short_notice_flag(raw_value):
+    """Interpreta il flag che consente di forzare un evento con poco anticipo."""
+    if raw_value is None:
+        return False
+    return str(raw_value).strip().lower() in {"1", "true", "yes", "on", "si"}
+
+
 def get_same_day_offer_conflict(user_id, tipo_pasto, data_ora, exclude_offer_id=None):
     """Trova un'altra offerta dello stesso utente, stesso pasto e stessa data."""
     day_start = data_ora.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -4731,6 +4738,9 @@ def api_edit_offer(offer_id):
     data_ora_str = request.form.get("data_ora", "")
     descrizione = request.form.get("descrizione", "").strip()
     foto_locale = request.files.get("foto_locale")
+    force_short_notice = parse_force_short_notice_flag(
+        request.form.get("force_short_notice")
+    )
 
     errors = []
     if tipo_pasto not in [t[0] for t in TIPI_PASTO]:
@@ -4770,11 +4780,15 @@ def api_edit_offer(offer_id):
             "errors": [build_meal_schedule_conflict_message(tipo_pasto, scheduling_conflict)],
         }), 400
 
-    if (not is_admin_user(current_user)) and is_new_offer_publication_too_late(tipo_pasto, data_ora):
+    if (
+        (not is_admin_user(current_user))
+        and is_new_offer_publication_too_late(tipo_pasto, data_ora)
+        and not force_short_notice
+    ):
         return jsonify({
             "success": False,
             "errors": [get_offer_publication_too_late_message(tipo_pasto)],
-        }), 400
+        }), 409
 
     try:
         requested_posti = int(posti)
@@ -4832,6 +4846,9 @@ def api_create_offer():
     data_ora_str = request.form.get("data_ora", "")
     descrizione = request.form.get("descrizione", "").strip()
     foto_locale = request.files.get("foto_locale")
+    force_short_notice = parse_force_short_notice_flag(
+        request.form.get("force_short_notice")
+    )
 
     # Validazione
     errors = []
@@ -4871,11 +4888,11 @@ def api_create_offer():
             "errors": [build_meal_schedule_conflict_message(tipo_pasto, scheduling_conflict)],
         }), 400
 
-    if is_new_offer_publication_too_late(tipo_pasto, data_ora):
+    if is_new_offer_publication_too_late(tipo_pasto, data_ora) and not force_short_notice:
         return jsonify({
             "success": False,
             "errors": [get_offer_publication_too_late_message(tipo_pasto)],
-        }), 400
+        }), 409
 
     # Salvataggio Immagine locale (opzionale)
     filename = 'nessuna.jpg'

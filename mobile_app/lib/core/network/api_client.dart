@@ -424,6 +424,7 @@ class ApiClient {
     required DateTime dateTime,
     required String description,
     String? photoPath,
+    bool forceShortNotice = false,
   }) async {
     final request = http.MultipartRequest(
       'POST',
@@ -443,6 +444,7 @@ class ApiClient {
       'posti_totali': totalSeats.toString(),
       'data_ora': dateTime.toIso8601String(),
       'descrizione': description,
+      'force_short_notice': forceShortNotice ? 'true' : 'false',
     });
 
     if (photoPath != null && photoPath.isNotEmpty) {
@@ -474,6 +476,7 @@ class ApiClient {
     required DateTime dateTime,
     required String description,
     String? photoPath,
+    bool forceShortNotice = false,
   }) async {
     final request = http.MultipartRequest(
       'PUT',
@@ -493,6 +496,7 @@ class ApiClient {
       'posti_totali': totalSeats.toString(),
       'data_ora': dateTime.toIso8601String(),
       'descrizione': description,
+      'force_short_notice': forceShortNotice ? 'true' : 'false',
     });
 
     if (photoPath != null && photoPath.isNotEmpty) {

@@ -1404,6 +1404,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   }
 
   Future<void> _submit() async {
+    await _submitInternal();
+  }
+
+  Future<void> _submitInternal({bool forceShortNotice = false}) async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -1422,8 +1426,17 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
     final publicationTimingWarning = _publicationTimingWarning;
-    if (publicationTimingWarning != null) {
-      _showMessage(publicationTimingWarning);
+    if (publicationTimingWarning != null && !forceShortNotice) {
+      final confirmed = await _confirmShortNoticeSubmission(
+        publicationTimingWarning,
+      );
+      if (confirmed != true) {
+        return;
+      }
+      return _submitInternal(forceShortNotice: true);
+    }
+
+    if (!mounted) {
       return;
     }
 
@@ -1452,6 +1465,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               dateTime: _selectedDateTime!,
               description: _descriptionController.text.trim(),
               photoPath: _pickedImage?.path,
+              forceShortNotice: forceShortNotice,
             )
           : await widget.authController.apiClient.updateOffer(
               offerId: widget.initialOffer!.id,
@@ -1465,6 +1479,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               dateTime: _selectedDateTime!,
               description: _descriptionController.text.trim(),
               photoPath: _pickedImage?.path,
+              forceShortNotice: forceShortNotice,
             );
 
       if (!mounted) {
@@ -1512,6 +1527,36 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         setState(() => _submitting = false);
       }
     }
+  }
+
+  Future<bool?> _confirmShortNoticeSubmission(String warningText) {
+    final isEditing = widget.initialOffer != null;
+    final mealLabel = (_mealType == null || _mealType!.trim().isEmpty)
+        ? 'evento'
+        : _mealType!;
+    final intro = isEditing
+        ? 'Stai modificando questo $mealLabel con poco anticipo.'
+        : 'Stai pubblicando questo $mealLabel con poco anticipo.';
+
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Poco anticipo'),
+        content: Text(
+          '$intro Gli utenti potrebbero avere meno tempo per organizzarsi.\n\n$warningText\n\nVuoi procedere lo stesso?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Pubblica comunque'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _deleteOffer() async {
