@@ -4455,6 +4455,11 @@ def api_get_offers():
                 (claim for claim in o.claims if claim.user_id == current_user.id),
                 None,
             )
+            if (
+                current_claim is not None
+                and current_claim.status == CLAIM_STATUS_REJECTED
+            ):
+                continue
             already_claimed = (
                 current_claim is not None
                 and current_claim.status == CLAIM_STATUS_ACCEPTED
