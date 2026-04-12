@@ -4641,12 +4641,9 @@ def api_get_user_profile_offers():
             Offer.user_id == current_user.id,
         )
         if archived:
-            from sqlalchemy import or_
             offers_query = offers_query.filter(
-                or_(
-                    Offer.stato == "archiviata",
-                    Offer.data_ora <= threshold,
-                ),
+                Offer.stato.in_(["attiva", "completata", "archiviata"]),
+                Offer.data_ora <= threshold,
                 Offer.data_ora >= archive_start,
             )
         else:
@@ -4667,7 +4664,8 @@ def api_get_user_profile_offers():
         ).filter(
             Claim.user_id == current_user.id,
             Claim.status.in_([CLAIM_STATUS_PENDING, CLAIM_STATUS_ACCEPTED]),
-            Offer.stato.in_(["attiva", "completata"]),
+            Offer.stato.in_(["attiva", "completata", "archiviata"]),
+            Offer.data_ora > threshold,
         )
         if archived:
             from sqlalchemy import or_
