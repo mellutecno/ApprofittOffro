@@ -1654,7 +1654,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    'Archivio',
+                                    'Archivio eventi',
                                     style:
                                         Theme.of(context).textTheme.titleMedium,
                                     textAlign: TextAlign.center,
@@ -1682,14 +1682,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                                 icon:
                                     const Icon(Icons.event_available_outlined),
-                                label: const Text('Eventi host'),
+                                label: const Text('Host'),
                               ),
                               OutlinedButton.icon(
                                 onPressed: () => _openArchivedOffersSheet(
                                   claimed: true,
                                 ),
                                 icon: const Icon(Icons.groups_2_outlined),
-                                label: const Text('Eventi guest'),
+                                label: const Text('Guest'),
                               ),
                             ],
                           ),
