@@ -109,6 +109,25 @@ class _OffersPageState extends State<OffersPage> {
                       apiClient: widget.authController.apiClient,
                       allowProfileOpen: true,
                       onEditOwn: null,
+                      onArchive: offer.isOwn
+                          ? () async {
+                              final navigator = Navigator.of(sheetContext);
+                              final messenger = ScaffoldMessenger.of(context);
+                              try {
+                                await widget.authController.apiClient
+                                    .archiveOffer(offer.id);
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Offerta archiviata')),
+                                );
+                                navigator.pop();
+                              } catch (e) {
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text('Errore: $e')),
+                                );
+                              }
+                            }
+                          : null,
                       onClaim: offer.isOwn || !offer.canClaim
                           ? null
                           : () async {

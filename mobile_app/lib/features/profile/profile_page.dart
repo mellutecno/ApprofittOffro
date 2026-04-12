@@ -52,8 +52,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<List<Offer>> _loadMyClaims() async {
-    final claims =
-        await widget.authController.apiClient.fetchMyProfileOffers(
+    final claims = await widget.authController.apiClient.fetchMyProfileOffers(
       claimed: true,
     );
     return claims..sort((a, b) => b.dataOra.compareTo(a.dataOra));
@@ -134,7 +133,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             Expanded(
                               child: Text(
                                 title,
-                                style: Theme.of(context).textTheme.headlineSmall,
+                                style:
+                                    Theme.of(context).textTheme.headlineSmall,
                               ),
                             ),
                             Text(
@@ -496,7 +496,8 @@ class _ProfilePageState extends State<ProfilePage> {
               }
               setSheetState(() => isSubmitting = true);
               try {
-                final message = await widget.authController.apiClient.submitReview(
+                final message =
+                    await widget.authController.apiClient.submitReview(
                   offerId: offer.id,
                   reviewedId: reviewedUser.id,
                   rating: selectedRating,
@@ -1029,6 +1030,26 @@ class _ProfilePageState extends State<ProfilePage> {
                               unawaited(_openEditOffer(offer));
                             }
                           : null,
+                      onArchive: offer.isOwn
+                          ? () async {
+                              try {
+                                await widget.authController.apiClient
+                                    .archiveOffer(offer.id);
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Offerta archiviata')),
+                                );
+                                Navigator.of(sheetContext).pop();
+                                await _refreshAll();
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Errore: $e')),
+                                );
+                              }
+                            }
+                          : null,
                     ),
                     if (_canCancelClaimFromProfile(offer)) ...[
                       const SizedBox(height: 12),
@@ -1060,8 +1081,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           if (confirmed != true || !context.mounted) {
                             return;
                           }
-                          final message = await widget
-                              .authController.apiClient
+                          final message = await widget.authController.apiClient
                               .cancelClaim(offer.claimId);
                           if (!sheetContext.mounted) {
                             return;
@@ -1315,7 +1335,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             Text(
                               'Tocca la foto per vedere l’album',
                               style: TextStyle(
-                                color: AppTheme.espresso.withValues(alpha: 0.82),
+                                color:
+                                    AppTheme.espresso.withValues(alpha: 0.82),
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -1459,14 +1480,13 @@ class _ProfilePageState extends State<ProfilePage> {
                           emptyText:
                               'Qui troverai le recensioni che lasci agli altri utenti.',
                           actionLabel: 'Apri recensioni',
-                          onTap:
-                              reviewsGiven.isEmpty || isLoading || hasError
-                                  ? null
-                                  : () => _openReviewHistorySheet(
-                                        title: 'Cosa dici degli altri',
-                                        reviews: reviewsGiven,
-                                        isReceived: false,
-                                      ),
+                          onTap: reviewsGiven.isEmpty || isLoading || hasError
+                              ? null
+                              : () => _openReviewHistorySheet(
+                                    title: 'Cosa dici degli altri',
+                                    reviews: reviewsGiven,
+                                    isReceived: false,
+                                  ),
                         ),
                       ],
                     );
@@ -1617,7 +1637,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                 Expanded(
                                   child: Text(
                                     'Archivio ultimo mese',
-                                    style: Theme.of(context).textTheme.titleMedium,
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium,
                                   ),
                                 ),
                                 Icon(
@@ -1648,7 +1669,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                 onPressed: () => _openArchivedOffersSheet(
                                   claimed: false,
                                 ),
-                                icon: const Icon(Icons.event_available_outlined),
+                                icon:
+                                    const Icon(Icons.event_available_outlined),
                                 label: const Text('Eventi host'),
                               ),
                               OutlinedButton.icon(

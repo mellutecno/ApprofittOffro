@@ -4896,6 +4896,23 @@ def api_edit_offer(offer_id):
     return jsonify({"success": True, "message": "Offerta aggiornata con successo!", "offer_id": offer.id})
 
 
+@app.route("/api/offers/<int:offer_id>/archive", methods=["POST"])
+@login_required
+def api_archive_offer(offer_id):
+    """Archivia un'offerta passata da parte dell'host."""
+    offer = Offer.query.get_or_404(offer_id)
+    if not can_manage_offer(offer, current_user):
+        return jsonify({"success": False, "error": "Non autorizzato."}), 403
+    
+    if offer.stato == "archiviata":
+        return jsonify({"success": False, "error": "Offerta già archiviata."}), 400
+    
+    offer.stato = "archiviata"
+    offer.posti_disponibili = 0
+    db.session.commit()
+    return jsonify({"success": True, "message": "Offerta archiviata.", "offer_id": offer.id})
+
+
 @app.route("/api/offers", methods=["POST"])
 @login_required
 def api_create_offer():

@@ -327,11 +327,10 @@ class ApiClient {
   }) async {
     final scope = claimed ? 'claimed' : 'owned';
     final archivedValue = archived ? '&archived=1' : '';
-    final response =
-        await _send(
-          method: 'GET',
-          path: '/api/user/offers?scope=$scope$archivedValue',
-        );
+    final response = await _send(
+      method: 'GET',
+      path: '/api/user/offers?scope=$scope$archivedValue',
+    );
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return (payload['offers'] as List<dynamic>? ?? [])
@@ -406,7 +405,8 @@ class ApiClient {
   }
 
   Future<String> cancelClaim(int claimId) async {
-    final response = await _send(method: 'DELETE', path: '/api/claims/$claimId');
+    final response =
+        await _send(method: 'DELETE', path: '/api/claims/$claimId');
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return payload['message']?.toString() ??
@@ -529,6 +529,16 @@ class ApiClient {
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return payload['message']?.toString() ?? 'Offerta eliminata con successo.';
+  }
+
+  Future<String> archiveOffer(int offerId) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/offers/$offerId/archive',
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Offerta archiviata.';
   }
 
   Future<String> deleteAdminUser(
@@ -763,11 +773,15 @@ class ApiClient {
     if (body.isEmpty) {
       return <String, dynamic>{};
     }
-    final decoded = jsonDecode(body);
-    if (decoded is Map<String, dynamic>) {
-      return decoded;
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      throw ApiException('Risposta server non valida.');
+    } on FormatException {
+      throw ApiException('Errore di comunicazione con il server.');
     }
-    throw ApiException('Risposta server non valida.');
   }
 
   void _ensureSuccess(Map<String, dynamic> payload, int statusCode) {

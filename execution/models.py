@@ -153,7 +153,7 @@ class Offer(db.Model):
     booking_lead_override_minutes = db.Column(db.Integer, nullable=True)
     descrizione = db.Column(db.Text, nullable=True)
     foto_locale = db.Column(db.String(256), nullable=False)
-    stato = db.Column(db.String(20), default="attiva")  # attiva, completata, annullata
+    stato = db.Column(db.String(20), default="attiva")  # attiva, completata, annullata, archiviata
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     # Relazioni

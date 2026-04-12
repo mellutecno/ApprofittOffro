@@ -15,6 +15,7 @@ class OfferCard extends StatelessWidget {
     required this.apiClient,
     this.onClaim,
     this.onEditOwn,
+    this.onArchive,
     this.allowProfileOpen = true,
     this.showAddressLeadIcon = true,
   });
@@ -23,8 +24,17 @@ class OfferCard extends StatelessWidget {
   final ApiClient apiClient;
   final Future<void> Function()? onClaim;
   final VoidCallback? onEditOwn;
+  final Future<void> Function()? onArchive;
   final bool allowProfileOpen;
   final bool showAddressLeadIcon;
+
+  bool get _isPast => offer.dataOra.toLocal().isBefore(DateTime.now());
+
+  bool get _canArchive =>
+      offer.isOwn &&
+      offer.dataOra
+          .toLocal()
+          .isBefore(DateTime.now().subtract(const Duration(hours: 3)));
 
   @override
   Widget build(BuildContext context) {
@@ -337,7 +347,12 @@ class OfferCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 18),
-            if (offer.isOwn && offer.telefonoLocale.trim().isNotEmpty)
+            if (_canArchive && onArchive != null)
+              FilledButton(
+                onPressed: () => onArchive?.call(),
+                child: const Text('Archivia'),
+              )
+            else if (offer.isOwn && offer.telefonoLocale.trim().isNotEmpty)
               Row(
                 children: [
                   Expanded(
@@ -372,6 +387,9 @@ class OfferCard extends StatelessWidget {
   }
 
   String _ctaLabel() {
+    if (_canArchive) {
+      return 'Archivia';
+    }
     if (offer.isOwn) {
       return 'Modifica la tua offerta';
     }
