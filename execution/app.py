@@ -4643,11 +4643,14 @@ def api_get_user_profile_offers():
         )
         if archived:
             offers_query = offers_query.filter(
-                Offer.data_ora <= threshold,
+                Offer.stato.in_(["attiva", "completata", "archiviata"]),
                 Offer.data_ora >= archive_start,
             )
         else:
-            offers_query = offers_query.filter(Offer.data_ora > threshold)
+            offers_query = offers_query.filter(
+                Offer.stato.in_(["attiva", "completata"]),
+                Offer.data_ora > threshold,
+            )
         offers = offers_query.order_by(Offer.data_ora.desc()).all()
         result = [
             serialize_mobile_offer(offer, viewer=current_user, now=now)
@@ -4665,11 +4668,14 @@ def api_get_user_profile_offers():
         )
         if archived:
             claims_query = claims_query.filter(
-                Offer.data_ora <= threshold,
+                Offer.stato.in_(["attiva", "completata", "archiviata"]),
                 Offer.data_ora >= archive_start,
             )
         else:
-            claims_query = claims_query.filter(Offer.data_ora > threshold)
+            claims_query = claims_query.filter(
+                Offer.stato.in_(["attiva", "completata"]),
+                Offer.data_ora > threshold,
+            )
         claims = claims_query.order_by(Offer.data_ora.desc()).all()
         result = []
         seen_offer_ids = set()
