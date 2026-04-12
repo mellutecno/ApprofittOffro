@@ -1654,9 +1654,10 @@ class _ProfilePageState extends State<ProfilePage> {
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    'Archivio ultimo mese',
+                                    'Archivio',
                                     style:
                                         Theme.of(context).textTheme.titleMedium,
+                                    textAlign: TextAlign.center,
                                   ),
                                 ),
                                 Icon(
@@ -1670,14 +1671,6 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ),
                         if (_archiveExpanded) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Dopo $_profileEventHistoryHours ore l’evento viene archiviato automaticamente.',
-                            style: TextStyle(
-                              color: AppTheme.espresso.withValues(alpha: 0.82),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
                           const SizedBox(height: 14),
                           Wrap(
                             spacing: 10,
@@ -1709,6 +1702,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 Text(
                   'La tua community',
                   style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 10),
                 _ProfileSocialTabsCard(
@@ -2149,13 +2143,20 @@ class _ReviewHistorySectionCard extends StatelessWidget {
                               fontSize: 18,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Text(
-                            actionLabel,
+                            'recensioni',
                             style: TextStyle(
-                              color: AppTheme.orange,
-                              fontWeight: FontWeight.w700,
+                              color: AppTheme.brown.withValues(alpha: 0.76),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
                             ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: AppTheme.orange,
+                            size: 24,
                           ),
                         ],
                       ),

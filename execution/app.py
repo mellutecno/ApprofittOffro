@@ -4639,18 +4639,15 @@ def api_get_user_profile_offers():
             selectinload(Offer.claims).selectinload(Claim.utente).selectinload(User.photos),
         ).filter(
             Offer.user_id == current_user.id,
+            Offer.stato.in_(["attiva", "completata", "archiviata"]),
         )
         if archived:
             offers_query = offers_query.filter(
-                Offer.stato.in_(["attiva", "completata", "archiviata"]),
                 Offer.data_ora <= threshold,
                 Offer.data_ora >= archive_start,
             )
         else:
-            offers_query = offers_query.filter(
-                Offer.stato.in_(["attiva", "completata", "archiviata"]),
-                Offer.data_ora > threshold,
-            )
+            offers_query = offers_query.filter(Offer.data_ora > threshold)
         offers = offers_query.order_by(Offer.data_ora.desc()).all()
         result = [
             serialize_mobile_offer(offer, viewer=current_user, now=now)
@@ -4664,21 +4661,15 @@ def api_get_user_profile_offers():
         ).filter(
             Claim.user_id == current_user.id,
             Claim.status.in_([CLAIM_STATUS_PENDING, CLAIM_STATUS_ACCEPTED]),
+            Offer.stato.in_(["attiva", "completata"]),
         )
         if archived:
-            from sqlalchemy import or_
             claims_query = claims_query.filter(
-                or_(
-                    Offer.stato == "archiviata",
-                    Offer.data_ora <= threshold,
-                ),
+                Offer.data_ora <= threshold,
                 Offer.data_ora >= archive_start,
             )
         else:
-            claims_query = claims_query.filter(
-                Offer.stato.in_(["attiva", "completata", "archiviata"]),
-                Offer.data_ora > threshold,
-            )
+            claims_query = claims_query.filter(Offer.data_ora > threshold)
         claims = claims_query.order_by(Offer.data_ora.desc()).all()
         result = []
         seen_offer_ids = set()
@@ -4905,22 +4896,20 @@ def api_edit_offer(offer_id):
     return jsonify({"success": True, "message": "Offerta aggiornata con successo!", "offer_id": offer.id})
 
 
+
+
 @app.route("/api/offers/<int:offer_id>/archive", methods=["POST"])
 @login_required
 def api_archive_offer(offer_id):
-    """Archivia un'offerta passata da parte dell'host."""
     offer = Offer.query.get_or_404(offer_id)
     if not can_manage_offer(offer, current_user):
         return jsonify({"success": False, "error": "Non autorizzato."}), 403
-    
     if offer.stato == "archiviata":
         return jsonify({"success": False, "error": "Offerta già archiviata."}), 400
-    
     offer.stato = "archiviata"
     offer.posti_disponibili = 0
     db.session.commit()
     return jsonify({"success": True, "message": "Offerta archiviata.", "offer_id": offer.id})
-
 
 @app.route("/api/offers", methods=["POST"])
 @login_required
