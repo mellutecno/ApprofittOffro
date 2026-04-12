@@ -2462,10 +2462,40 @@ class _OwnOfferPreviewCard extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: 14),
-          OutlinedButton(
-            onPressed: onOpen,
-            child: Text(buttonLabel),
-          ),
+          if (offer.stato == 'archiviata')
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: const Text(
+                'Evento archiviato',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppTheme.espresso,
+                  fontWeight: FontWeight.w600,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            )
+          else if (offer.isOwn &&
+              offer.dataOra.isBefore(DateTime.now()) &&
+              offer.dataOra
+                  .isAfter(DateTime.now().subtract(const Duration(hours: 3))))
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: const Text(
+                'In corso',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF3D8B5A),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            )
+          else
+            OutlinedButton(
+              onPressed: onOpen,
+              child: Text(buttonLabel),
+            ),
         ],
       ),
     );

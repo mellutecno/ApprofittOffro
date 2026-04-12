@@ -30,6 +30,12 @@ class OfferCard extends StatelessWidget {
 
   bool get _isPast => offer.dataOra.toLocal().isBefore(DateTime.now());
 
+  bool get _isOngoing =>
+      _isPast &&
+      offer.dataOra
+          .toLocal()
+          .isAfter(DateTime.now().subtract(const Duration(hours: 3)));
+
   bool get _canArchive =>
       offer.isOwn &&
       offer.dataOra
@@ -347,7 +353,33 @@ class OfferCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 18),
-            if (_canArchive && onArchive != null)
+            if (offer.stato == 'archiviata')
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: const Text(
+                  'Evento archiviato',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppTheme.espresso,
+                    fontWeight: FontWeight.w600,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              )
+            else if (_isOngoing && offer.isOwn)
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: const Text(
+                  'In corso',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF3D8B5A),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+              )
+            else if (_canArchive && onArchive != null)
               FilledButton(
                 onPressed: () => onArchive?.call(),
                 child: const Text('Archivia'),
@@ -387,6 +419,12 @@ class OfferCard extends StatelessWidget {
   }
 
   String _ctaLabel() {
+    if (offer.stato == 'archiviata') {
+      return 'Evento archiviato';
+    }
+    if (_isOngoing && offer.isOwn) {
+      return 'In corso';
+    }
     if (_canArchive) {
       return 'Archivia';
     }
