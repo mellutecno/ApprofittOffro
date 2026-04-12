@@ -4639,7 +4639,6 @@ def api_get_user_profile_offers():
             selectinload(Offer.claims).selectinload(Claim.utente).selectinload(User.photos),
         ).filter(
             Offer.user_id == current_user.id,
-            Offer.stato.in_(["attiva", "completata"]),
         )
         if archived:
             from sqlalchemy import or_
@@ -4652,7 +4651,7 @@ def api_get_user_profile_offers():
             )
         else:
             offers_query = offers_query.filter(
-                Offer.stato.in_(["attiva", "completata"]),
+                Offer.stato.in_(["attiva", "completata", "archiviata"]),
                 Offer.data_ora > threshold,
             )
         offers = offers_query.order_by(Offer.data_ora.desc()).all()

@@ -1449,11 +1449,19 @@ class _ProfilePageState extends State<ProfilePage> {
                     final reviewsGiven =
                         snapshot.data?.given ?? const <UserReview>[];
                     return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         const SizedBox(height: 20),
+                        const Text(
+                          'Cosa dicono di te',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         _ReviewHistorySectionCard(
-                          title: 'Cosa dicono di te',
+                          title: '',
                           icon: Icons.reviews_rounded,
                           count: reviewsReceived.length,
                           isLoading: isLoading,
@@ -1470,9 +1478,17 @@ class _ProfilePageState extends State<ProfilePage> {
                                         isReceived: true,
                                       ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Cosa dici degli altri',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         _ReviewHistorySectionCard(
-                          title: 'Cosa dici degli altri',
+                          title: '',
                           icon: Icons.edit_note_rounded,
                           count: reviewsGiven.length,
                           isLoading: isLoading,
@@ -1496,6 +1512,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 Text(
                   'Le mie offerte',
                   style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 10),
                 FutureBuilder<List<Offer>>(
@@ -1555,6 +1572,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 Text(
                   'I miei approfitti',
                   style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 10),
                 FutureBuilder<List<Offer>>(
@@ -2087,13 +2105,16 @@ class _ReviewHistorySectionCard extends StatelessWidget {
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(title, style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 4),
+                    if (title.isNotEmpty) ...[
+                      Text(title,
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                    ],
                     if (isLoading)
                       Text(
-                        'Sto caricando le recensioni...',
+                        'Sto caricando...',
                         style: TextStyle(
                           color: AppTheme.brown.withValues(alpha: 0.76),
                           fontWeight: FontWeight.w600,
@@ -2114,38 +2135,33 @@ class _ReviewHistorySectionCard extends StatelessWidget {
                           color: AppTheme.brown.withValues(alpha: 0.76),
                           fontWeight: FontWeight.w600,
                         ),
+                        textAlign: TextAlign.center,
                       )
                     else
-                      Text(
-                        '$count recensioni',
-                        style: TextStyle(
-                          color: AppTheme.brown.withValues(alpha: 0.76),
-                          fontWeight: FontWeight.w700,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$count',
+                            style: TextStyle(
+                              color: AppTheme.brown.withValues(alpha: 0.76),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            actionLabel,
+                            style: TextStyle(
+                              color: AppTheme.orange,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                   ],
                 ),
               ),
-              if (isLoading)
-                const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2.2),
-                )
-              else if (count > 0 && !hasError) ...[
-                Text(
-                  actionLabel,
-                  style: TextStyle(
-                    color: AppTheme.orange,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppTheme.orange,
-                ),
-              ],
             ],
           ),
         ),
@@ -2465,14 +2481,27 @@ class _OwnOfferPreviewCard extends StatelessWidget {
           if (offer.stato == 'archiviata')
             Container(
               padding: const EdgeInsets.symmetric(vertical: 10),
-              child: const Text(
-                'Evento archiviato',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppTheme.espresso,
-                  fontWeight: FontWeight.w600,
-                  fontStyle: FontStyle.italic,
-                ),
+              child: Column(
+                children: [
+                  const Text(
+                    'Evento archiviato',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppTheme.espresso,
+                      fontWeight: FontWeight.w600,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Nell\'archivio tra 24 ore',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppTheme.brown.withValues(alpha: 0.6),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             )
           else if (offer.isOwn &&
