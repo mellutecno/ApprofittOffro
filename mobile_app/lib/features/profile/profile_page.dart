@@ -2652,60 +2652,81 @@ class _OwnOfferPreviewCard extends StatelessWidget {
                       fontStyle: FontStyle.italic,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.people,
-                          size: 18,
-                          color: AppTheme.brown.withValues(alpha: 0.7)),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$occupiedSeats/${offer.postiTotali}',
-                        style: TextStyle(
-                          color: AppTheme.brown.withValues(alpha: 0.7),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (offer.reviewsReceivedCount > 0) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                  if (offer.participants.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 6,
+                      runSpacing: 6,
                       children: [
-                        Icon(Icons.star,
-                            size: 16,
-                            color: AppTheme.brown.withValues(alpha: 0.7)),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${offer.reviewsReceivedCount} recensione/i',
-                          style: TextStyle(
-                            color: AppTheme.brown.withValues(alpha: 0.7),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                        ...offer.participants.map((p) {
+                          final hasPhoto = p.photoFilename.isNotEmpty;
+                          return Tooltip(
+                            message: p.name,
+                            child: CircleAvatar(
+                              radius: 18,
+                              backgroundColor: AppTheme.sand,
+                              backgroundImage: hasPhoto
+                                  ? NetworkImage(
+                                      apiClient.buildUploadUrl(p.photoFilename))
+                                  : null,
+                              child: hasPhoto
+                                  ? null
+                                  : Text(
+                                      p.name.isNotEmpty
+                                          ? p.name[0].toUpperCase()
+                                          : '?',
+                                      style: const TextStyle(
+                                        color: AppTheme.brown,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                            ),
+                          );
+                        }),
+                        if (offer.postiTotali - offer.participants.length > 0)
+                          CircleAvatar(
+                            radius: 18,
+                            backgroundColor:
+                                AppTheme.brown.withValues(alpha: 0.15),
+                            child: Text(
+                              '+${offer.postiTotali - offer.participants.length}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppTheme.brown.withValues(alpha: 0.7),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ],
                   if (offer.isOwn && !offer.userHasReviewed) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.rate_review,
-                            size: 16, color: Colors.orange.shade700),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Non hai ancora recensito',
-                          style: TextStyle(
-                            color: Colors.orange.shade700,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.rate_review,
+                              size: 16, color: Colors.orange.shade700),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Da recensire',
+                            style: TextStyle(
+                              color: Colors.orange.shade700,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ],
