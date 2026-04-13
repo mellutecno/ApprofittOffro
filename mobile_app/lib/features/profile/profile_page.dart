@@ -2643,15 +2643,6 @@ class _OwnOfferPreviewCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Column(
                 children: [
-                  const Text(
-                    'Evento archiviato',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppTheme.espresso,
-                      fontWeight: FontWeight.w600,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
                   if (offer.participants.isNotEmpty) ...[
                     const SizedBox(height: 10),
                     Wrap(
