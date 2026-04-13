@@ -2669,6 +2669,45 @@ class _OwnOfferPreviewCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (offer.reviewsReceivedCount > 0) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.star,
+                            size: 16,
+                            color: AppTheme.brown.withValues(alpha: 0.7)),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${offer.reviewsReceivedCount} recensione/i',
+                          style: TextStyle(
+                            color: AppTheme.brown.withValues(alpha: 0.7),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (offer.isOwn && !offer.userHasReviewed) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.rate_review,
+                            size: 16, color: Colors.orange.shade700),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Non hai ancora recensito',
+                          style: TextStyle(
+                            color: Colors.orange.shade700,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             )

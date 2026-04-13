@@ -573,6 +573,18 @@ def serialize_mobile_offer(
     can_claim = (not is_own) and current_claim is None and claim_status == "open"
     accepted_claims = get_offer_accepted_claims(offer)
 
+    user_has_reviewed = False
+    reviews_received_count = 0
+    if viewer and getattr(viewer, "is_authenticated", False):
+        from models import Review
+        user_has_reviewed = Review.query.filter_by(
+            offer_id=offer.id,
+            reviewer_id=viewer.id
+        ).first() is not None
+        reviews_received_count = Review.query.filter_by(
+            offer_id=offer.id
+        ).count()
+
     return {
         "id": offer.id,
         "tipo_pasto": offer.tipo_pasto,
@@ -618,6 +630,8 @@ def serialize_mobile_offer(
         "can_claim": can_claim,
         "claim_status": claim_status,
         "claim_id": current_claim.id if current_claim is not None else 0,
+        "user_has_reviewed": user_has_reviewed,
+        "reviews_received_count": reviews_received_count,
     }
 
 

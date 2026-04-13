@@ -260,6 +260,8 @@ class AdminOfferSummary {
       canClaim: false,
       claimStatus: 'open',
       claimId: 0,
+      userHasReviewed: false,
+      reviewsReceivedCount: 0,
     );
   }
 }

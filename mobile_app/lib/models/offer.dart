@@ -52,6 +52,8 @@ class Offer {
     required this.canClaim,
     required this.claimStatus,
     required this.claimId,
+    required this.userHasReviewed,
+    required this.reviewsReceivedCount,
   });
 
   final int id;
@@ -83,6 +85,8 @@ class Offer {
   final bool canClaim;
   final String claimStatus;
   final int claimId;
+  final bool userHasReviewed;
+  final int reviewsReceivedCount;
 
   factory Offer.fromJson(Map<String, dynamic> json) {
     final stato = (json['stato'] ?? '').toString();
@@ -148,6 +152,8 @@ class Offer {
       canClaim: canClaim,
       claimStatus: claimStatus,
       claimId: json['claim_id'] as int? ?? 0,
+      userHasReviewed: json['user_has_reviewed'] == true,
+      reviewsReceivedCount: json['reviews_received_count'] as int? ?? 0,
     );
   }
 }
