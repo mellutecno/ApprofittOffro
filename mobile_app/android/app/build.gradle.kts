@@ -64,7 +64,7 @@ android {
         create("play") {
             dimension = "distribution"
             applicationId = "com.mellutecno.approfittoffro"
-            versionCode = 3001
+            versionCode = 3002
         }
     }
 

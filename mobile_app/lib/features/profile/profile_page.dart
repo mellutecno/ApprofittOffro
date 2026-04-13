@@ -30,7 +30,9 @@ class _ProfilePageState extends State<ProfilePage> {
   static const int _profileEventHistoryHours = 24;
   static const int _profileArchiveLookbackDays = 30;
   bool _archiveExpanded = false;
+  bool _communityExpanded = false;
   int _socialTabIndex = 0;
+  bool _showCommunityList = false;
   late Future<List<Offer>> _myOffersFuture;
   late Future<List<Offer>> _myClaimsFuture;
   late Future<ReviewHistoryBundle> _reviewHistoryFuture;
@@ -1672,9 +1674,8 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         if (_archiveExpanded) ...[
                           const SizedBox(height: 14),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               OutlinedButton.icon(
                                 onPressed: () => _openArchivedOffersSheet(
@@ -1684,6 +1685,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     const Icon(Icons.event_available_outlined),
                                 label: const Text('Host'),
                               ),
+                              const SizedBox(width: 12),
                               OutlinedButton.icon(
                                 onPressed: () => _openArchivedOffersSheet(
                                   claimed: true,
@@ -1699,21 +1701,74 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  'La tua community',
-                  style: Theme.of(context).textTheme.titleLarge,
-                  textAlign: TextAlign.center,
+                Card(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () {
+                      setState(() {
+                        _communityExpanded = !_communityExpanded;
+                      });
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.people_outline_rounded,
+                            color: AppTheme.espresso,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'La tua community',
+                              style: Theme.of(context).textTheme.titleMedium,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          Icon(
+                            _communityExpanded
+                                ? Icons.expand_less_rounded
+                                : Icons.expand_more_rounded,
+                            color: AppTheme.espresso,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 10),
-                _ProfileSocialTabsCard(
-                  selectedIndex: _socialTabIndex,
-                  onTabChanged: (index) {
-                    setState(() => _socialTabIndex = index);
-                  },
-                  followers: user.followers,
-                  following: user.following,
-                  apiClient: apiClient,
-                ),
+                if (_showCommunityList) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ChoiceChip(
+                          label: Text(_socialTabIndex == 0
+                              ? 'Chi ti segue'
+                              : 'I tuoi seguiti'),
+                          selected: true,
+                          onSelected: (_) {},
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _showCommunityList = false;
+                          });
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  _ProfileSocialTabsCard(
+                    selectedIndex: _socialTabIndex,
+                    onTabChanged: (index) {
+                      setState(() => _socialTabIndex = index);
+                    },
+                    followers: user.followers,
+                    following: user.following,
+                    apiClient: apiClient,
+                  ),
+                ],
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: () async {
@@ -2596,6 +2651,128 @@ class _CompactInfoChip extends StatelessWidget {
           fontSize: 12.5,
         ),
       ),
+    );
+  }
+}
+
+class _CommunityPage extends StatefulWidget {
+  final List<UserPreview> followers;
+  final List<UserPreview> following;
+  final ApiClient apiClient;
+
+  const _CommunityPage({
+    required this.followers,
+    required this.following,
+    required this.apiClient,
+  });
+
+  @override
+  State<_CommunityPage> createState() => _CommunityPageState();
+}
+
+class _CommunityPageState extends State<_CommunityPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('La tua community'),
+        centerTitle: true,
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: [
+            Tab(text: 'Chi ti segue (${widget.followers.length})'),
+            Tab(text: 'I tuoi seguiti (${widget.following.length})'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildUserList(widget.followers, 'Per ora non hai ancora follower.'),
+          _buildUserList(widget.following, 'Per ora non segui ancora nessuno.'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserList(List<UserPreview> users, String emptyText) {
+    if (users.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text(
+            emptyText,
+            style: TextStyle(
+              color: AppTheme.brown.withValues(alpha: 0.76),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: users.length,
+      itemBuilder: (context, index) {
+        final person = users[index];
+        return _UserListTile(
+          person: person,
+          apiClient: widget.apiClient,
+        );
+      },
+    );
+  }
+}
+
+class _UserListTile extends StatelessWidget {
+  final UserPreview person;
+  final ApiClient apiClient;
+
+  const _UserListTile({
+    required this.person,
+    required this.apiClient,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundImage: person.photoFilename.isNotEmpty
+            ? NetworkImage(apiClient.buildUploadUrl(person.photoFilename))
+            : null,
+        child: person.photoFilename.isEmpty
+            ? const Icon(Icons.person_outline)
+            : null,
+      ),
+      title: Text(person.nome),
+      subtitle: Text('${person.etaDisplay} anni - ${person.cityLabel}'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => PublicProfilePage(
+              apiClient: apiClient,
+              userId: person.id,
+            ),
+          ),
+        );
+      },
     );
   }
 }
