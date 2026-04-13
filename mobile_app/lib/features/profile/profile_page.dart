@@ -2663,24 +2663,37 @@ class _OwnOfferPreviewCard extends StatelessWidget {
                           final hasPhoto = p.photoFilename.isNotEmpty;
                           return Tooltip(
                             message: p.name,
-                            child: CircleAvatar(
-                              radius: 18,
-                              backgroundColor: AppTheme.sand,
-                              backgroundImage: hasPhoto
-                                  ? NetworkImage(
-                                      apiClient.buildUploadUrl(p.photoFilename))
-                                  : null,
-                              child: hasPhoto
-                                  ? null
-                                  : Text(
-                                      p.name.isNotEmpty
-                                          ? p.name[0].toUpperCase()
-                                          : '?',
-                                      style: const TextStyle(
-                                        color: AppTheme.brown,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                            child: InkWell(
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => PublicProfilePage(
+                                      apiClient: apiClient,
+                                      userId: p.id,
                                     ),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(18),
+                              child: CircleAvatar(
+                                radius: 18,
+                                backgroundColor: AppTheme.sand,
+                                backgroundImage: hasPhoto
+                                    ? NetworkImage(apiClient
+                                        .buildUploadUrl(p.photoFilename))
+                                    : null,
+                                child: hasPhoto
+                                    ? null
+                                    : Text(
+                                        p.name.isNotEmpty
+                                            ? p.name[0].toUpperCase()
+                                            : '?',
+                                        style: const TextStyle(
+                                          color: AppTheme.brown,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                              ),
                             ),
                           );
                         }),
