@@ -259,7 +259,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                         child: Text(
-                          'Qui trovi gli eventi conclusi tra 24 ore e $_profileArchiveLookbackDays giorni fa, finché non vengono rimossi dall’amministratore.',
+                          'Qui trovi gli eventi archiviati nell\'ultimo mese.',
                           style: TextStyle(
                             color: AppTheme.brown.withValues(alpha: 0.76),
                             fontWeight: FontWeight.w600,
@@ -1655,7 +1655,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         child: Padding(
                           padding: EdgeInsets.all(18),
                           child: Text(
-                            'Qui trovi le offerte attive e quelle concluse nelle ultime $_profileEventHistoryHours ore.',
+                            'Qui trovi le offerte attive e quelle concluse nelle ultime ore.',
                           ),
                         ),
                       );
@@ -1715,7 +1715,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         child: Padding(
                           padding: EdgeInsets.all(18),
                           child: Text(
-                            'Qui trovi gli eventi a cui hai approfittato o partecipato nelle ultime $_profileEventHistoryHours ore.',
+                            'Qui trovi gli eventi a cui hai approfittato o partecipato nelle ultime ore.',
                           ),
                         ),
                       );
@@ -2652,14 +2652,22 @@ class _OwnOfferPreviewCard extends StatelessWidget {
                       fontStyle: FontStyle.italic,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Nell\'archivio tra 24 ore',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppTheme.brown.withValues(alpha: 0.6),
-                      fontSize: 12,
-                    ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.people,
+                          size: 18,
+                          color: AppTheme.brown.withValues(alpha: 0.7)),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$occupiedSeats/${offer.postiTotali}',
+                        style: TextStyle(
+                          color: AppTheme.brown.withValues(alpha: 0.7),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
