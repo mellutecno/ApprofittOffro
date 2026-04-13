@@ -8,15 +8,21 @@
     <meta name="theme-color" content="#ffffff">
     <style>
         :root {
-            --bg: linear-gradient(180deg, #fff8ff 0%, #f8f4ff 28%, #eef7ff 100%);
-            --card: rgba(255, 255, 255, 0.92);
-            --card-border: rgba(122, 75, 185, 0.14);
-            --text: #3f245f;
-            --muted: #6f6183;
-            --pink: #f23f97;
-            --purple: #7a4bb9;
-            --blue: #22b8ff;
-            --shadow: 0 24px 60px rgba(100, 79, 150, 0.14);
+            --cream: #F0E0FF;
+            --paper: #FFF8FF;
+            --sand: #D8B8FF;
+            --orange: #D040E0;
+            --brown: #2A0840;
+            --espresso: #140828;
+            --bg: var(--cream);
+            --card: var(--paper);
+            --card-border: #D0A0F0;
+            --text: var(--brown);
+            --muted: #5A4868;
+            --pink: #FF88BB;
+            --purple: var(--orange);
+            --blue: #88CCFF;
+            --shadow: 0 24px 60px rgba(122, 75, 185, 0.14);
         }
 
         * { box-sizing: border-box; }
@@ -72,7 +78,7 @@
             gap: 8px;
             padding: 9px 14px;
             border-radius: 999px;
-            background: linear-gradient(135deg, rgba(242, 63, 151, 0.12), rgba(34, 184, 255, 0.12));
+            background: linear-gradient(135deg, rgba(255, 136, 187, 0.12), rgba(136, 204, 255, 0.12));
             color: var(--purple);
             font-size: 0.8rem;
             font-weight: 900;
@@ -114,15 +120,15 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, var(--pink), var(--blue));
+            background: linear-gradient(135deg, var(--orange), var(--sand));
             color: #fff;
-            box-shadow: 0 16px 28px rgba(111, 74, 186, 0.22);
+            box-shadow: 0 16px 28px rgba(208, 64, 224, 0.22);
         }
 
         .btn-secondary {
-            background: #fff;
-            color: var(--purple);
-            border: 1px solid rgba(122, 75, 185, 0.18);
+            background: var(--paper);
+            color: var(--orange);
+            border: 1px solid var(--card-border);
         }
 
         .hero-visual {
@@ -131,8 +137,8 @@
             flex-direction: column;
             justify-content: space-between;
             background:
-                linear-gradient(160deg, rgba(242, 63, 151, 0.12), rgba(34, 184, 255, 0.12)),
-                #ffffff;
+                linear-gradient(160deg, rgba(255, 136, 187, 0.12), rgba(136, 204, 255, 0.12)),
+                var(--paper);
         }
 
         .hero-visual img {
@@ -148,7 +154,7 @@
             padding: 16px 18px;
             border-radius: 22px;
             background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(246, 241, 255, 0.92));
-            border: 1px solid rgba(122, 75, 185, 0.12);
+            border: 1px solid var(--card-border);
             color: var(--muted);
             line-height: 1.65;
         }
@@ -180,7 +186,7 @@
             margin-bottom: 12px;
             padding: 8px 12px;
             border-radius: 999px;
-            background: rgba(122, 75, 185, 0.09);
+            background: rgba(208, 64, 224, 0.09);
             color: var(--purple);
             font-size: 0.78rem;
             font-weight: 900;
@@ -209,8 +215,8 @@
         .launch-box {
             padding: 22px;
             border-radius: 24px;
-            background: linear-gradient(135deg, rgba(242, 63, 151, 0.08), rgba(34, 184, 255, 0.08));
-            border: 1px solid rgba(122, 75, 185, 0.14);
+            background: linear-gradient(135deg, rgba(255, 136, 187, 0.08), rgba(136, 204, 255, 0.08));
+            border: 1px solid var(--card-border);
         }
 
         .launch-box strong {
