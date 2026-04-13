@@ -784,21 +784,8 @@ class _ProfilePageState extends State<ProfilePage> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: List.generate(
-                      5,
-                      (index) => Icon(
-                        index < review.rating
-                            ? Icons.star_rounded
-                            : Icons.star_border_rounded,
-                        color: AppTheme.gold,
-                        size: 22,
-                      ),
-                    ),
-                  ),
                   if (offer != null) ...[
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 16),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
@@ -815,6 +802,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             style: const TextStyle(
                               color: AppTheme.espresso,
                               fontWeight: FontWeight.w800,
+                              fontSize: 18,
                             ),
                           ),
                           if (eventDateText.isNotEmpty) ...[
@@ -831,6 +819,19 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 16),
+                  Row(
+                    children: List.generate(
+                      5,
+                      (index) => Icon(
+                        index < review.rating
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded,
+                        color: AppTheme.gold,
+                        size: 26,
+                      ),
+                    ),
+                  ),
                   if (review.comment.trim().isNotEmpty) ...[
                     const SizedBox(height: 18),
                     Text(
@@ -838,6 +839,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       style: const TextStyle(
                         color: AppTheme.espresso,
                         fontWeight: FontWeight.w700,
+                        fontSize: 18,
                         height: 1.4,
                       ),
                     ),
@@ -878,7 +880,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (offer == null) {
       return 'Evento';
     }
-    final meal = offer.mealType.trim();
+    final meal = offer.mealType.trim().toUpperCase();
     final locale = offer.localeName.trim();
     if (meal.isEmpty && locale.isEmpty) {
       return 'Evento';
