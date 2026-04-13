@@ -72,6 +72,113 @@ class _ProfilePageState extends State<ProfilePage> {
     return widget.authController.apiClient.fetchMyReviewHistory();
   }
 
+  Future<void> _openCommunitySheet({required bool followers}) async {
+    final user = widget.authController.currentUser;
+    if (user == null) return;
+
+    final title = followers ? 'Chi ti segue' : 'I tuoi seguiti';
+    final users = followers ? user.followers : user.following;
+    final emptyText =
+        followers ? 'Non hai ancora follower.' : 'Non segui ancora nessuno.';
+    final apiClient = widget.authController.apiClient;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.72,
+          minChildSize: 0.48,
+          maxChildSize: 0.92,
+          builder: (context, scrollController) {
+            return Material(
+              color: AppTheme.cream,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppTheme.brown.withValues(alpha: 0.26),
+                      borderRadius: BorderRadius.circular(2.5),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                    child: Text(
+                      title,
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.espresso,
+                              ),
+                    ),
+                  ),
+                  Expanded(
+                    child: users.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Text(
+                                emptyText,
+                                style: TextStyle(
+                                  color: AppTheme.brown.withValues(alpha: 0.76),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: scrollController,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            itemCount: users.length,
+                            itemBuilder: (context, index) {
+                              final person = users[index];
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundImage: person
+                                          .photoFilename.isNotEmpty
+                                      ? NetworkImage(apiClient
+                                          .buildUploadUrl(person.photoFilename))
+                                      : null,
+                                  child: person.photoFilename.isEmpty
+                                      ? const Icon(Icons.person_outline)
+                                      : null,
+                                ),
+                                title: Text(person.nome),
+                                subtitle: Text(
+                                    '${person.etaDisplay} anni - ${person.cityLabel}'),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => PublicProfilePage(
+                                        apiClient: apiClient,
+                                        userId: person.id,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _openArchivedOffersSheet({
     required bool claimed,
   }) async {
@@ -1702,74 +1809,70 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const SizedBox(height: 20),
                 Card(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    onTap: () {
-                      setState(() {
-                        _showCommunityList = !_showCommunityList;
-                        _communityExpanded = _showCommunityList;
-                      });
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.people_outline_rounded,
-                            color: AppTheme.espresso,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'La tua community',
-                              style: Theme.of(context).textTheme.titleMedium,
-                              textAlign: TextAlign.center,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: () {
+                            setState(() {
+                              _communityExpanded = !_communityExpanded;
+                            });
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.people_outline_rounded,
+                                  color: AppTheme.espresso,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'La tua community',
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                Icon(
+                                  _communityExpanded
+                                      ? Icons.expand_less_rounded
+                                      : Icons.expand_more_rounded,
+                                  color: AppTheme.espresso,
+                                ),
+                              ],
                             ),
                           ),
-                          Icon(
-                            _communityExpanded
-                                ? Icons.expand_less_rounded
-                                : Icons.expand_more_rounded,
-                            color: AppTheme.espresso,
+                        ),
+                        if (_communityExpanded) ...[
+                          const SizedBox(height: 14),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    _openCommunitySheet(followers: true),
+                                icon: const Icon(Icons.person_add_outlined),
+                                label: const Text('Chi ti segue'),
+                              ),
+                              const SizedBox(width: 12),
+                              OutlinedButton.icon(
+                                onPressed: () =>
+                                    _openCommunitySheet(followers: false),
+                                icon: const Icon(Icons.person_remove_outlined),
+                                label: const Text('I tuoi seguiti'),
+                              ),
+                            ],
                           ),
                         ],
-                      ),
+                      ],
                     ),
                   ),
                 ),
-                if (_showCommunityList) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ChoiceChip(
-                          label: Text(_socialTabIndex == 0
-                              ? 'Chi ti segue'
-                              : 'I tuoi seguiti'),
-                          selected: true,
-                          onSelected: (_) {},
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _showCommunityList = false;
-                          });
-                        },
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                  _ProfileSocialTabsCard(
-                    selectedIndex: _socialTabIndex,
-                    onTabChanged: (index) {
-                      setState(() => _socialTabIndex = index);
-                    },
-                    followers: user.followers,
-                    following: user.following,
-                    apiClient: apiClient,
-                  ),
-                ],
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: () async {

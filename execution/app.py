@@ -4639,15 +4639,21 @@ def api_get_user_profile_offers():
             selectinload(Offer.claims).selectinload(Claim.utente).selectinload(User.photos),
         ).filter(
             Offer.user_id == current_user.id,
-            Offer.stato.in_(["attiva", "completata", "archiviata"]),
         )
         if archived:
+            from sqlalchemy import or_, and_
             offers_query = offers_query.filter(
-                Offer.data_ora <= threshold,
+                or_(
+                    Offer.stato == "archiviata",
+                    Offer.data_ora <= threshold,
+                ),
                 Offer.data_ora >= archive_start,
             )
         else:
-            offers_query = offers_query.filter(Offer.data_ora > threshold)
+            offers_query = offers_query.filter(
+                Offer.stato != "archiviata",
+                Offer.data_ora > threshold,
+            )
         offers = offers_query.order_by(Offer.data_ora.desc()).all()
         result = [
             serialize_mobile_offer(offer, viewer=current_user, now=now)
@@ -4663,7 +4669,7 @@ def api_get_user_profile_offers():
             Claim.status.in_([CLAIM_STATUS_PENDING, CLAIM_STATUS_ACCEPTED]),
         )
         if archived:
-            from sqlalchemy import or_
+            from sqlalchemy import or_, and_
             claims_query = claims_query.filter(
                 or_(
                     Offer.stato == "archiviata",
@@ -4673,7 +4679,7 @@ def api_get_user_profile_offers():
             )
         else:
             claims_query = claims_query.filter(
-                Offer.stato.in_(["attiva", "completata", "archiviata"]),
+                Offer.stato != "archiviata",
                 Offer.data_ora > threshold,
             )
         claims = claims_query.order_by(Offer.data_ora.desc()).all()
