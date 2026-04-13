@@ -72,6 +72,322 @@ class _ProfilePageState extends State<ProfilePage> {
     return widget.authController.apiClient.fetchMyReviewHistory();
   }
 
+  Future<void> _showReviewParticipantsSheet(Offer offer) async {
+    final participants = offer.participants;
+    if (participants.isEmpty) {
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.5,
+          minChildSize: 0.3,
+          maxChildSize: 0.85,
+          builder: (context, scrollController) {
+            return Material(
+              color: AppTheme.cream,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppTheme.brown.withValues(alpha: 0.26),
+                      borderRadius: BorderRadius.circular(2.5),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                    child: Text(
+                      'Chi vuoi recensire?',
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.espresso,
+                              ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    child: Text(
+                      'Scegli un partecipante per lasciare una recensione.',
+                      style: TextStyle(
+                        color: AppTheme.brown.withValues(alpha: 0.76),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: participants.length,
+                      itemBuilder: (context, index) {
+                        final participant = participants[index];
+                        final photoUrl = participant.photoFilename.isNotEmpty
+                            ? widget.authController.apiClient
+                                .buildUploadUrl(participant.photoFilename)
+                            : null;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            radius: 24,
+                            backgroundImage: photoUrl != null
+                                ? NetworkImage(photoUrl)
+                                : null,
+                            child: photoUrl == null
+                                ? const Icon(Icons.person_outline)
+                                : null,
+                          ),
+                          title: Text(
+                            participant.name,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          trailing: const Icon(Icons.rate_review_outlined),
+                          onTap: () {
+                            Navigator.of(sheetContext).pop();
+                            _openReviewComposerForArchivedEvent(
+                              offer: offer,
+                              participant: participant,
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openReviewComposerForArchivedEvent({
+    required Offer offer,
+    required Participant participant,
+  }) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final commentController = TextEditingController();
+        var selectedRating = 5;
+        var isSubmitting = false;
+        final offerLabel = '${offer.tipoPasto} - ${offer.nomeLocale}';
+        final whenText = offer.dataOra != null
+            ? DateFormat(
+                "EEEE d MMMM 'alle' HH:mm",
+                'it_IT',
+              ).format(offer.dataOra.toLocal())
+            : '';
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            Future<void> submit() async {
+              if (isSubmitting) {
+                return;
+              }
+              setSheetState(() => isSubmitting = true);
+              try {
+                final message =
+                    await widget.authController.apiClient.submitReview(
+                  offerId: offer.id,
+                  reviewedId: participant.id,
+                  rating: selectedRating,
+                  comment: commentController.text.trim(),
+                );
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                Navigator.of(sheetContext).pop(message);
+              } on ApiException catch (error) {
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                  SnackBar(content: Text(error.message)),
+                );
+                setSheetState(() => isSubmitting = false);
+              } catch (_) {
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Non riesco a salvare la recensione adesso.',
+                    ),
+                  ),
+                );
+                setSheetState(() => isSubmitting = false);
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 18,
+                right: 18,
+                top: 18,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+              ),
+              child: Material(
+                color: AppTheme.cream,
+                borderRadius: BorderRadius.circular(28),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 44,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: AppTheme.cardBorder,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Lascia una recensione',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Come ti sei trovato con ${participant.name}?',
+                        style: TextStyle(
+                          color: AppTheme.brown.withValues(alpha: 0.85),
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppTheme.paper,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppTheme.cardBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              offerLabel,
+                              style: const TextStyle(
+                                color: AppTheme.espresso,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            if (offer.indirizzo.trim().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                offer.indirizzo,
+                                style: TextStyle(
+                                  color: AppTheme.brown.withValues(alpha: 0.82),
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                            if (whenText.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                whenText,
+                                style: TextStyle(
+                                  color: AppTheme.brown.withValues(alpha: 0.74),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Scrivila adesso: poi la ritroverai sempre nel tuo profilo.',
+                        style: TextStyle(
+                          color: AppTheme.brown.withValues(alpha: 0.82),
+                          fontWeight: FontWeight.w700,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Center(
+                        child: Wrap(
+                          spacing: 8,
+                          children: List.generate(5, (index) {
+                            final rating = index + 1;
+                            return IconButton(
+                              onPressed: () => setSheetState(
+                                () => selectedRating = rating,
+                              ),
+                              icon: Icon(
+                                rating <= selectedRating
+                                    ? Icons.star_rounded
+                                    : Icons.star_outline_rounded,
+                                color: const Color(0xFFD49B00),
+                                size: 30,
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: commentController,
+                        minLines: 3,
+                        maxLines: 5,
+                        decoration: const InputDecoration(
+                          labelText: 'Commento facoltativo',
+                          alignLabelWithHint: true,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: isSubmitting ? null : submit,
+                          child: Text(
+                            isSubmitting
+                                ? 'Invio in corso...'
+                                : 'Pubblica recensione',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || result == null) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(result)),
+    );
+    await _refreshAll();
+  }
+
   Future<void> _openCommunitySheet({required bool followers}) async {
     final user = widget.authController.currentUser;
     if (user == null) return;
@@ -294,6 +610,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                       Navigator.of(sheetContext).pop();
                                       _openOwnOfferDetails(offer);
                                     },
+                                    onReviewTapped: () =>
+                                        _showReviewParticipantsSheet(offer),
                                   );
                                 },
                               ),
@@ -1670,6 +1988,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                 offer: offer,
                                 apiClient: apiClient,
                                 onOpen: () => _openOwnOfferDetails(offer),
+                                onReviewTapped: () =>
+                                    _showReviewParticipantsSheet(offer),
                               ),
                             ),
                           )
@@ -2541,12 +2861,14 @@ class _OwnOfferPreviewCard extends StatelessWidget {
     required this.apiClient,
     required this.onOpen,
     this.buttonLabel = 'Apri offerta',
+    this.onReviewTapped,
   });
 
   final Offer offer;
   final ApiClient apiClient;
   final VoidCallback onOpen;
   final String buttonLabel;
+  final VoidCallback? onReviewTapped;
 
   @override
   Widget build(BuildContext context) {
@@ -2707,29 +3029,36 @@ class _OwnOfferPreviewCard extends StatelessWidget {
                   ],
                   if (offer.isOwn && !offer.userHasReviewed) ...[
                     const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.orange.shade200),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.rate_review,
-                              size: 16, color: Colors.orange.shade700),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Da recensire',
-                            style: TextStyle(
-                              color: Colors.orange.shade700,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                    InkWell(
+                      onTap: onReviewTapped,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.shade200),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.rate_review,
+                                size: 16, color: Colors.orange.shade700),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Da recensire',
+                              style: TextStyle(
+                                color: Colors.orange.shade700,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Icon(Icons.chevron_right,
+                                size: 16, color: Colors.orange.shade700),
+                          ],
+                        ),
                       ),
                     ),
                   ],
