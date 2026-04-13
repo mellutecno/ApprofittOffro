@@ -1706,7 +1706,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     borderRadius: BorderRadius.circular(18),
                     onTap: () {
                       setState(() {
-                        _communityExpanded = !_communityExpanded;
+                        _showCommunityList = !_showCommunityList;
+                        _communityExpanded = _showCommunityList;
                       });
                     },
                     child: Padding(
