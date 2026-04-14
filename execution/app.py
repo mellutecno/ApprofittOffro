@@ -2853,6 +2853,7 @@ def get_safe_next_url(default_endpoint="people_page"):
 
 
 def extract_city_label(address_text):
+    import re
     raw_address = str(address_text or "").strip()
     if not raw_address:
         return ""
@@ -2863,9 +2864,19 @@ def extract_city_label(address_text):
         # Skip country names
         if last in ("italy", "italia", "italie"):
             if len(parts) >= 3:
-                return parts[-3]
-            return parts[-2] if len(parts) >= 2 else raw_address
-        return parts[-1]
+                candidate = parts[-3]
+            elif len(parts) >= 2:
+                candidate = parts[-2]
+            else:
+                return raw_address
+        else:
+            candidate = parts[-1]
+        
+        # Remove postal code (5 digits at start)
+        candidate = re.sub(r'^\d{5}\s*', '', candidate)
+        # Remove province (2-3 uppercase letters at end, preceded by space or dash)
+        candidate = re.sub(r'[\s-][A-Z]{2,3}$', '', candidate)
+        return candidate.strip()
     return raw_address
 
 
