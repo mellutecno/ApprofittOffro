@@ -4614,6 +4614,7 @@ def api_get_offers():
             "tipo_pasto": o.tipo_pasto,
             "nome_locale": o.nome_locale,
             "indirizzo": o.indirizzo,
+            "city_label": extract_city_label(o.indirizzo),
             "telefono_locale": getattr(o, "telefono_locale", "") or "",
             "lat": o.latitudine,
             "lon": o.longitudine,
