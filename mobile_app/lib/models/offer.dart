@@ -27,6 +27,7 @@ class Offer {
     required this.tipoPasto,
     required this.nomeLocale,
     required this.indirizzo,
+    required this.cityLabel,
     required this.telefonoLocale,
     required this.latitude,
     required this.longitude,
@@ -60,6 +61,7 @@ class Offer {
   final String tipoPasto;
   final String nomeLocale;
   final String indirizzo;
+  final String cityLabel;
   final String telefonoLocale;
   final double latitude;
   final double longitude;
@@ -121,6 +123,7 @@ class Offer {
       tipoPasto: (json['tipo_pasto'] ?? '').toString(),
       nomeLocale: (json['nome_locale'] ?? '').toString(),
       indirizzo: (json['indirizzo'] ?? '').toString(),
+      cityLabel: (json['city_label'] ?? '').toString(),
       telefonoLocale: (json['telefono_locale'] ?? '').toString(),
       latitude: (json['lat'] as num?)?.toDouble() ?? 0,
       longitude: (json['lon'] as num?)?.toDouble() ?? 0,

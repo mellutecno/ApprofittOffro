@@ -235,6 +235,7 @@ class AdminOfferSummary {
       tipoPasto: mealType,
       nomeLocale: localeName,
       indirizzo: address,
+      cityLabel: '',
       telefonoLocale: localePhone,
       latitude: latitude,
       longitude: longitude,

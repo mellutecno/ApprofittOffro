@@ -623,6 +623,18 @@ class _OfferPreviewCard extends StatelessWidget {
                               color: AppTheme.brown,
                             ),
                       ),
+                      if (offer.cityLabel.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          offer.cityLabel,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                color: AppTheme.brown.withValues(alpha: 0.7),
+                              ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

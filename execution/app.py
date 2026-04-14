@@ -590,6 +590,7 @@ def serialize_mobile_offer(
         "tipo_pasto": offer.tipo_pasto,
         "nome_locale": offer.nome_locale,
         "indirizzo": offer.indirizzo,
+        "city_label": extract_city_label(offer.indirizzo),
         "telefono_locale": getattr(offer, "telefono_locale", "") or "",
         "lat": offer.latitudine,
         "lon": offer.longitudine,
