@@ -2859,6 +2859,12 @@ def extract_city_label(address_text):
 
     parts = [part.strip() for part in raw_address.split(",") if part.strip()]
     if len(parts) >= 2:
+        last = parts[-1].lower()
+        # Skip country names
+        if last in ("italy", "italia", "italie"):
+            if len(parts) >= 3:
+                return parts[-3]
+            return parts[-2] if len(parts) >= 2 else raw_address
         return parts[-1]
     return raw_address
 
