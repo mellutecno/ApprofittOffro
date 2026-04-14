@@ -1222,9 +1222,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       _selectedPlaceId = confirmedPlace.id;
       _selectedLatitude = confirmedPlace.latitude;
       _selectedLongitude = confirmedPlace.longitude;
-      _selectedPrimaryType =
-          _isManualAddressPlaceId(confirmedPlace.id) ? '' : confirmedPlace.primaryType;
-      _currentMapCenter = LatLng(confirmedPlace.latitude, confirmedPlace.longitude);
+      _selectedPrimaryType = _isManualAddressPlaceId(confirmedPlace.id)
+          ? ''
+          : confirmedPlace.primaryType;
+      _currentMapCenter =
+          LatLng(confirmedPlace.latitude, confirmedPlace.longitude);
       _mapDraftSelection = null;
     });
     _refreshMapPicker();
@@ -1463,8 +1465,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
     final publicationTimingWarning = _publicationTimingWarning;
-    final hasConfirmedShortNotice =
-        _confirmedShortNoticeSignature != null &&
+    final hasConfirmedShortNotice = _confirmedShortNoticeSignature != null &&
         _confirmedShortNoticeSignature == _currentShortNoticeSignature;
     if (publicationTimingWarning != null &&
         !forceShortNotice &&
@@ -1584,8 +1585,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         : _mealType!;
     final intro = introOverride ??
         (isEditing
-        ? 'Stai modificando questo $mealLabel con poco anticipo.'
-        : 'Stai pubblicando questo $mealLabel con poco anticipo.');
+            ? 'Stai modificando questo $mealLabel con poco anticipo.'
+            : 'Stai pubblicando questo $mealLabel con poco anticipo.');
 
     return showDialog<bool>(
       context: context,
@@ -1727,6 +1728,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     primaryLine = primaryLine.replaceAll(RegExp(r'\s+'), ' ').trim();
 
     if (primaryLine.isNotEmpty && primaryLine != 'Unnamed Road') {
+      if (locality.isNotEmpty &&
+          !primaryLine.toLowerCase().contains(locality.toLowerCase())) {
+        return '$primaryLine, $locality';
+      }
       return primaryLine;
     }
     if (locality.isNotEmpty) {
