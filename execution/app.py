@@ -2872,11 +2872,18 @@ def extract_city_label(address_text):
         else:
             candidate = parts[-1]
         
-        # Remove postal code (5 digits at start)
-        candidate = re.sub(r'^\d{5}\s*', '', candidate)
-        # Remove province (2-3 uppercase letters at end, preceded by space or dash)
-        candidate = re.sub(r'[\s-][A-Z]{2,3}$', '', candidate)
+        # Remove postal code (5 digits at start, possibly with space after)
+        candidate = re.sub(r'^\d{5}[\s\-]*', '', candidate)
+        # Remove province (2 uppercase letters at end, preceded by space or dash, optionally with trailing space)
+        candidate = re.sub(r'[\s\-][A-Z]{2}$', '', candidate)
         return candidate.strip()
+    
+    # No comma - try to extract city from single part (format: "City Name, Italy")
+    if "," in raw_address:
+        parts = [p.strip() for p in raw_address.split(",")]
+        if len(parts) >= 2 and parts[-1].lower() in ("italy", "italia"):
+            return parts[0].strip()
+    
     return raw_address
 
 
