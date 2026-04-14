@@ -2857,34 +2857,36 @@ def extract_city_label(address_text):
     raw_address = str(address_text or "").strip()
     if not raw_address:
         return ""
-
-    parts = [part.strip() for part in raw_address.split(",") if part.strip()]
-    if len(parts) >= 2:
-        last = parts[-1].lower()
-        # Skip country names
-        if last in ("italy", "italia", "italie"):
-            if len(parts) >= 3:
-                candidate = parts[-3]
-            elif len(parts) >= 2:
-                candidate = parts[-2]
-            else:
-                return raw_address
-        else:
-            candidate = parts[-1]
-        
-        # Remove postal code (5 digits at start, possibly with space after)
-        candidate = re.sub(r'^\d{5}[\s\-]*', '', candidate)
-        # Remove province (2 uppercase letters at end, preceded by space or dash, optionally with trailing space)
-        candidate = re.sub(r'[\s\-][A-Z]{2}$', '', candidate)
-        return candidate.strip()
     
-    # No comma - try to extract city from single part (format: "City Name, Italy")
-    if "," in raw_address:
-        parts = [p.strip() for p in raw_address.split(",")]
-        if len(parts) >= 2 and parts[-1].lower() in ("italy", "italia"):
-            return parts[0].strip()
+    # Split by comma
+    parts = [p.strip() for p in raw_address.split(",")]
     
-    return raw_address
+    # Find country index
+    country_idx = -1
+    for i, part in enumerate(parts):
+        if part.lower() in ("italy", "italia", "italie"):
+            country_idx = i
+            break
+    
+    if country_idx > 0:
+        # Get the part before country
+        city_part = parts[country_idx - 1]
+        # Remove CAP (5 digits at start)
+        city_part = re.sub(r'^\d{5}\s*', '', city_part)
+        # Remove province (2 uppercase letters at end)
+        city_part = re.sub(r'\s+[A-Z]{2}$', '', city_part).strip()
+        if city_part:
+            return city_part
+    
+    # Fallback: return last part that's not just numbers
+    for part in reversed(parts):
+        if re.search(r'[a-zA-Z]', part):
+            cleaned = re.sub(r'^\d+\s*', '', part)
+            cleaned = re.sub(r'\s+[A-Z]{2}$', '', cleaned).strip()
+            if cleaned:
+                return cleaned
+    
+    return parts[0] if parts else raw_address
 
 
 def render_public_landing():
