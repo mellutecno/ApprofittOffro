@@ -158,7 +158,8 @@ class _HomeShellState extends State<HomeShell> {
     if (user == null) {
       return false;
     }
-    return user.pendingReviewReminders.isNotEmpty;
+    return user.pendingReviewReminders.isNotEmpty ||
+        user.pendingClaimRequests.isNotEmpty;
   }
 
   void _maybeShowProfileManagementAlert({bool forceProfileTab = false}) {
@@ -193,17 +194,19 @@ class _HomeShellState extends State<HomeShell> {
       return;
     }
 
-    final reviewsSignature = hasReviewsToManage
-        ? '${user.id}:${user.pendingReviewReminders.length}'
+    final hasPendingClaims = user.pendingClaimRequests.isNotEmpty;
+    final hasPendingReviews = user.pendingReviewReminders.isNotEmpty;
+    final signature = hasReviewsToManage
+        ? '${user.id}:${user.pendingReviewReminders.length}:${user.pendingClaimRequests.length}'
         : null;
-    final shouldShowReviews = reviewsSignature != null &&
-        _lastReviewsAlertSignature != reviewsSignature;
+    final shouldShowReviews =
+        signature != null && _lastReviewsAlertSignature != signature;
 
     if (!shouldShowReviews) {
       return;
     }
 
-    _lastReviewsAlertSignature = reviewsSignature;
+    _lastReviewsAlertSignature = signature;
     if (_managementAlertInFlight) {
       return;
     }
@@ -214,6 +217,8 @@ class _HomeShellState extends State<HomeShell> {
         showReviewAlert: shouldShowReviews,
         restoreReviewAlert: hasReviewsToManage,
         forceProfileTab: forceProfileTab,
+        hasPendingClaims: hasPendingClaims,
+        hasPendingReviews: hasPendingReviews,
       ),
     );
   }
@@ -222,6 +227,8 @@ class _HomeShellState extends State<HomeShell> {
     required bool showReviewAlert,
     required bool restoreReviewAlert,
     required bool forceProfileTab,
+    required bool hasPendingClaims,
+    required bool hasPendingReviews,
   }) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) {
@@ -235,13 +242,18 @@ class _HomeShellState extends State<HomeShell> {
           _hasReviewsToManage()) {
         messenger.hideCurrentSnackBar();
         _reviewAlertVisible = true;
+        final claimWord = hasPendingClaims ? 'richieste da gestire' : '';
+        final reviewWord = hasPendingReviews ? 'recensioni da gestire' : '';
+        final parts =
+            [claimWord, reviewWord].where((p) => p.isNotEmpty).toList();
+        final message = parts.length == 2
+            ? 'Hai ${parts[0]} e ${parts[1]} nel profilo.'
+            : 'Hai ${parts.first} nel profilo.';
         unawaited(
           messenger
               .showSnackBar(
                 SnackBar(
-                  content: const Text(
-                    'Hai delle recensioni da gestire nel profilo.',
-                  ),
+                  content: Text(message),
                   duration: const Duration(days: 1),
                   action: SnackBarAction(
                     label: 'Apri',
