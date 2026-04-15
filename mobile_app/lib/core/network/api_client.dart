@@ -298,6 +298,8 @@ class ApiClient {
     String mealType = '',
     int? radiusKm,
     int? limit,
+    double? latitude,
+    double? longitude,
   }) async {
     final query = <String, String>{};
     if (mealType.isNotEmpty) {
@@ -308,6 +310,10 @@ class ApiClient {
     }
     if (limit != null && limit > 0) {
       query['limit'] = limit.toString();
+    }
+    if (latitude != null && longitude != null) {
+      query['lat'] = latitude.toString();
+      query['lon'] = longitude.toString();
     }
     final path = query.isEmpty
         ? '/api/offers'

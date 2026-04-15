@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../core/network/api_client.dart';
 import '../../models/offer.dart';
@@ -30,15 +31,45 @@ class OffersController extends ChangeNotifier {
     _selectedRadiusKm = value.clamp(minRadiusKm, maxRadiusKm);
   }
 
+  Future<Position?> _getCurrentPosition() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return null;
+      }
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          return null;
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        return null;
+      }
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> loadOffers() async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
+      final position = await _getCurrentPosition();
       final fetchedOffers = await apiClient.fetchOffers(
         mealType: _selectedMealType,
         radiusKm: _selectedRadiusKm,
+        latitude: position?.latitude,
+        longitude: position?.longitude,
       );
       _hiddenOwnOffersCount =
           fetchedOffers.where((offer) => offer.isOwn).length;
