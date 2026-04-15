@@ -17,10 +17,12 @@ class OffersPage extends StatefulWidget {
     super.key,
     required this.authController,
     required this.offersController,
+    required this.onGoToProfile,
   });
 
   final AuthController authController;
   final OffersController offersController;
+  final VoidCallback onGoToProfile;
 
   @override
   State<OffersPage> createState() => _OffersPageState();
@@ -411,6 +413,15 @@ class _OffersPageState extends State<OffersPage> {
                           ],
                         ),
                         const SizedBox(height: 10),
+                        _MealChip(
+                          label: 'APE',
+                          value: 'ape',
+                          selected:
+                              widget.offersController.selectedMealType == 'ape',
+                          onTap: widget.offersController.toggleMealType,
+                          flex: 3,
+                        ),
+                        const SizedBox(height: 10),
                         _DistancePreferenceControl(
                           valueKm: _normalizeDistanceForUi(
                             distanceDraft.round(),
@@ -443,10 +454,10 @@ class _OffersPageState extends State<OffersPage> {
                 ),
               ),
               if (hasOffersToManage)
-                const SliverToBoxAdapter(
+                SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, 0, 20, 10),
-                    child: _ProfileOffersReminder(),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                    child: _ProfileOffersReminder(onTap: widget.onGoToProfile),
                   ),
                 ),
               const SliverToBoxAdapter(
@@ -516,36 +527,50 @@ class _OffersPageState extends State<OffersPage> {
 }
 
 class _ProfileOffersReminder extends StatelessWidget {
-  const _ProfileOffersReminder();
+  const _ProfileOffersReminder({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.88),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.cardBorder),
-      ),
-      child: const Row(
-        children: [
-          Icon(
-            Icons.info_outline_rounded,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
             color: AppTheme.orange,
-            size: 18,
+            borderRadius: BorderRadius.circular(18),
           ),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Gestisci i tuoi eventi dal profilo.',
-              style: TextStyle(
-                color: AppTheme.espresso,
-                fontWeight: FontWeight.w700,
+          child: Row(
+            children: [
+              const Icon(
+                Icons.event_note_rounded,
+                color: Colors.white,
+                size: 22,
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Gestisci i tuoi eventi dal profilo.',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -838,16 +863,18 @@ class _MealChip extends StatelessWidget {
     required this.value,
     required this.selected,
     required this.onTap,
+    this.flex = 1,
   });
 
   final String label;
   final String value;
   final bool selected;
   final Future<void> Function(String) onTap;
+  final int flex;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    final chip = SizedBox(
       height: 48,
       child: FilterChip(
         selected: selected,
@@ -866,6 +893,15 @@ class _MealChip extends StatelessWidget {
         labelPadding: const EdgeInsets.symmetric(horizontal: 4),
       ),
     );
+
+    if (flex == 1) {
+      return chip;
+    }
+
+    return Expanded(
+      flex: flex,
+      child: chip,
+    );
   }
 
   Color _colorForValue(String input) {
@@ -876,6 +912,8 @@ class _MealChip extends StatelessWidget {
         return const Color(0xFF3D8B5A);
       case 'cena':
         return const Color(0xFF7A4EC7);
+      case 'ape':
+        return const Color(0xFFE05533);
       default:
         return Colors.grey;
     }

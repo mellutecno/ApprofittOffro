@@ -253,10 +253,22 @@ class _HomeShellState extends State<HomeShell> {
           messenger
               .showSnackBar(
                 SnackBar(
-                  content: Text(message),
+                  content: Row(
+                    children: [
+                      const Icon(Icons.notifications_active,
+                          color: Colors.white, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          child: Text(message,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700))),
+                    ],
+                  ),
+                  backgroundColor: const Color(0xFFE07800),
                   duration: const Duration(days: 1),
                   action: SnackBarAction(
                     label: 'Apri',
+                    textColor: Colors.white,
                     onPressed: () {
                       if (!mounted) {
                         return;
@@ -332,6 +344,7 @@ class _HomeShellState extends State<HomeShell> {
             OffersPage(
               authController: widget.authController,
               offersController: _offersController,
+              onGoToProfile: () => setState(() => _selectedIndex = 3),
             ),
             CommunityPage(
               authController: widget.authController,

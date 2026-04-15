@@ -461,6 +461,8 @@ class OfferCard extends StatelessWidget {
         return const Color(0xFF3D8B5A);
       case 'cena':
         return const Color(0xFF7A4EC7);
+      case 'ape':
+        return const Color(0xFFE05533);
       default:
         return const Color(0xFFE86E35);
     }

@@ -141,6 +141,9 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     if (mealType == 'pranzo') {
       return 'Questo pranzo verrebbe pubblicato troppo tardi: i pranzi devono essere inseriti almeno 6 ore prima dell\'inizio.';
     }
+    if (mealType == 'ape') {
+      return 'Questo APE verrebbe pubblicato troppo tardi: deve essere inserito almeno 6 ore prima dell\'inizio.';
+    }
     return 'Questa cena verrebbe pubblicata troppo tardi: le cene devono essere inserite almeno 6 ore prima dell\'inizio.';
   }
 
@@ -277,6 +280,13 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 10),
+                  _MealChoiceChip(
+                    label: 'APE',
+                    value: 'ape',
+                    currentValue: _mealType,
+                    onSelected: _submitting ? null : _setMealType,
                   ),
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
@@ -2146,6 +2156,7 @@ class _MealChoiceChip extends StatelessWidget {
       'colazione' => const Color(0xFFD49B00),
       'pranzo' => const Color(0xFF3D8B5A),
       'cena' => const Color(0xFF7A4EC7),
+      'ape' => const Color(0xFFE05533),
       _ => AppTheme.orange,
     };
 

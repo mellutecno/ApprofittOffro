@@ -31,6 +31,7 @@ TIPI_PASTO = [
     ("colazione", "Colazione"),
     ("pranzo", "Pranzo"),
     ("cena", "Cena"),
+    ("ape", "APE"),
 ]
 
 CLAIM_STATUS_PENDING = "pending"

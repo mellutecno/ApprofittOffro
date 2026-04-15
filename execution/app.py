@@ -355,6 +355,8 @@ def get_offer_publication_too_late_message(tipo_pasto):
         return "Questa colazione verrebbe pubblicata troppo tardi: deve essere inserita almeno 1 ora prima dell'inizio."
     if tipo_pasto == "pranzo":
         return "Questo pranzo verrebbe pubblicato troppo tardi: i pranzi devono essere inseriti almeno 6 ore prima dell'inizio."
+    if tipo_pasto == "ape":
+        return "Questo APE verrebbe pubblicato troppo tardi: deve essere inserito almeno 6 ore prima dell'inizio."
     return "Questa cena verrebbe pubblicata troppo tardi: le cene devono essere inserite almeno 6 ore prima dell'inizio."
 
 
@@ -472,6 +474,7 @@ def get_meal_type_copy(tipo_pasto):
         "colazione": {"singular": "colazione", "plural": "colazioni"},
         "pranzo": {"singular": "pranzo", "plural": "pranzi"},
         "cena": {"singular": "cena", "plural": "cene"},
+        "ape": {"singular": "APE", "plural": "APE"},
     }
     return labels.get(tipo_pasto, {"singular": tipo_pasto, "plural": tipo_pasto})
 

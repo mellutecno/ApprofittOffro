@@ -873,7 +873,9 @@ class _AdminPageState extends State<AdminPage> {
                       ? const Color(0xFFDD4B82)
                       : offer.mealType == 'pranzo'
                           ? const Color(0xFF7640C8)
-                          : const Color(0xFF2E8AD1),
+                          : offer.mealType == 'ape'
+                              ? const Color(0xFFE05533)
+                              : const Color(0xFF2E8AD1),
                 ),
                 _StatusPill(
                   label: offer.status,

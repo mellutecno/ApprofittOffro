@@ -154,8 +154,7 @@ class _CommunityPageState extends State<CommunityPage> {
                         _CommunityDistanceControl(
                           valueKm: distanceValue,
                           valueLabel: _distanceDisplayLabel(distanceValue),
-                          resultCount:
-                              widget.communityController.people.length,
+                          resultCount: widget.communityController.people.length,
                           isExpanded: _isDistanceCardExpanded,
                           isSaving: widget.communityController.isLoading,
                           onChanged: (value) {
@@ -269,7 +268,6 @@ class _CommunityPageState extends State<CommunityPage> {
                       onToggleFollow: () async {
                         final message = await widget.communityController
                             .toggleFollow(person);
-                        await widget.authController.refreshCurrentUser();
                         if (!context.mounted || message == null) {
                           return;
                         }
@@ -548,9 +546,6 @@ class _CommunityUserCard extends StatelessWidget {
               ),
             ),
           );
-          if (context.mounted) {
-            await authController.refreshCurrentUser();
-          }
         },
         child: Padding(
           padding: const EdgeInsets.all(18),
@@ -631,9 +626,6 @@ class _CommunityUserCard extends StatelessWidget {
                             ),
                           ),
                         );
-                        if (context.mounted) {
-                          await authController.refreshCurrentUser();
-                        }
                       },
                       child: const Text('Vedi profilo'),
                     ),
