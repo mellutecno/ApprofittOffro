@@ -20,14 +20,9 @@ import 'profile_gallery_viewer_page.dart';
 import 'public_profile_page.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({
-    super.key,
-    required this.authController,
-    this.showChatRequestAlert = false,
-  });
+  const ProfilePage({super.key, required this.authController});
 
   final AuthController authController;
-  final bool showChatRequestAlert;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -53,43 +48,6 @@ class _ProfilePageState extends State<ProfilePage> {
     _myClaimsFuture = _loadMyClaims();
     _reviewHistoryFuture = _loadReviewHistory();
     unawaited(widget.authController.refreshCurrentUser());
-    if (widget.showChatRequestAlert) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showChatRequestAlert();
-      });
-    }
-  }
-
-  void _showChatRequestAlert() {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.chat_bubble_outline, color: Colors.white),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Qualcuno vuole chattare con te! Attiva la chat WhatsApp nelle impostazioni.',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF25D366),
-        duration: const Duration(seconds: 8),
-        action: SnackBarAction(
-          label: 'Impostazioni',
-          textColor: Colors.white,
-          onPressed: () {
-            setState(() {
-              _settingsExpanded = true;
-            });
-          },
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   Future<List<Offer>> _loadMyOffers() async {

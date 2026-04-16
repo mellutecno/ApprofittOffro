@@ -623,6 +623,7 @@ def serialize_mobile_offer(
                 "id": claim.utente.id,
                 "nome": claim.utente.nome,
                 "foto": claim.utente.foto_filename,
+                "chat_enabled": bool(claim.utente.chat_enabled),
                 "whatsapp_link": build_whatsapp_offer_link(viewer, claim.utente, offer)
                 if viewer and getattr(viewer, "is_authenticated", False) and is_own
                 else "",
@@ -4651,6 +4652,7 @@ def api_get_offers():
                     "id": claim.utente.id,
                     "nome": claim.utente.nome,
                     "foto": claim.utente.foto_filename,
+                    "chat_enabled": bool(claim.utente.chat_enabled),
                     "whatsapp_link": build_whatsapp_offer_link(current_user, claim.utente, o)
                     if current_user.is_authenticated and is_own
                     else "",
@@ -6063,29 +6065,46 @@ def api_user_chat_settings():
 @app.route("/api/chat/request-notification", methods=["POST"])
 @login_required
 def api_chat_request_notification():
-    """Invia una notifica push all'host per avvisarlo che un utente vuole chattare."""
+    """Invia una notifica push a un utente per avvisarlo che qualcuno vuole chattare."""
     data = request.get_json(silent=True) or {}
     offer_id = data.get("offer_id")
+    to_user_id = data.get("to_user_id")
 
-    if not offer_id:
-        return jsonify({"success": False, "error": "ID offerta mancante."}), 400
+    if not offer_id and not to_user_id:
+        return jsonify({"success": False, "error": "ID offerta o utente mancante."}), 400
 
-    try:
-        offer_id = int(offer_id)
-    except (TypeError, ValueError):
-        return jsonify({"success": False, "error": "ID offerta non valido."}), 400
+    target_user = None
 
-    offer = Offer.query.filter_by(id=offer_id).first()
-    if not offer:
-        return jsonify({"success": False, "error": "Offerta non trovata."}), 404
+    if to_user_id:
+        try:
+            to_user_id = int(to_user_id)
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "ID utente non valido."}), 400
 
-    host = offer.autore
-    if not host or host.id == current_user.id:
-        return jsonify({"success": False, "error": "Host non valido."}), 400
+        if to_user_id == current_user.id:
+            return jsonify({"success": False, "error": "Non puoi notificare te stesso."}), 400
 
-    locale_name = offer.nome_locale or "Evento"
+        target_user = db.session.get(User, to_user_id)
+
+    elif offer_id:
+        try:
+            offer_id = int(offer_id)
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "ID offerta non valido."}), 400
+
+        offer = Offer.query.filter_by(id=offer_id).first()
+        if not offer:
+            return jsonify({"success": False, "error": "Offerta non trovata."}), 404
+
+        target_user = offer.autore
+        if not target_user or target_user.id == current_user.id:
+            return jsonify({"success": False, "error": "Utente non valido."}), 400
+
+    if not target_user:
+        return jsonify({"success": False, "error": "Utente non trovato."}), 404
+
     result = send_push_to_user(
-        host,
+        target_user,
         title="Qualcuno vuole chattare!",
         body=f"{current_user.nome} vorrebbe chattare con te su WhatsApp. Attiva la chat nelle impostazioni per ricevere il suo messaggio.",
         target="chat_request",

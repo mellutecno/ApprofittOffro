@@ -227,8 +227,9 @@ class OfferCard extends StatelessWidget {
                               if (participant.whatsAppLink.isNotEmpty) ...[
                                 const SizedBox(height: 6),
                                 _WhatsAppAction(
-                                  onTap: () => _openExternalLink(
-                                    participant.whatsAppLink,
+                                  onTap: () => _handleParticipantWhatsAppTap(
+                                    context,
+                                    participant,
                                   ),
                                 ),
                               ],
@@ -503,9 +504,90 @@ class OfferCard extends StatelessWidget {
   }
 
   Future<void> _handleWhatsAppTap(BuildContext context) async {
+    final isOwn = offer.isOwn;
+
     if (!offer.hostChatEnabled) {
+      if (!isOwn) {
+        try {
+          await apiClient.requestChatNotification(offerId: offer.id);
+        } catch (_) {}
+      }
+
+      if (!context.mounted) return;
+
+      await showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (bottomContext) => Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: AppTheme.cream,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.cardBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 48,
+                color: Color(0xFF25D366),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Chat non attiva',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.espresso,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                isOwn
+                    ? 'Devi attivare la chat WhatsApp nelle impostazioni del tuo profilo per permettere agli altri di chattare con te.'
+                    : '${offer.autoreNome} non ha ancora attivato la chat WhatsApp. Abbiamo inviato una notifica per avvisarlo.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppTheme.brown,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.of(bottomContext).pop(),
+                  child: const Text('Chiudi'),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      );
+    } else {
+      await _openExternalLink(offer.hostWhatsAppLink);
+    }
+  }
+
+  Future<void> _handleParticipantWhatsAppTap(
+    BuildContext context,
+    Participant participant,
+  ) async {
+    if (!participant.chatEnabled) {
       try {
-        await apiClient.requestChatNotification(offer.id);
+        await apiClient.requestChatNotification(toUserId: participant.id);
       } catch (_) {}
 
       if (!context.mounted) return;
@@ -549,7 +631,7 @@ class OfferCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                '${offer.autoreNome} non ha ancora attivato la chat WhatsApp. Abbiamo inviato una notifica per avvisarlo.',
+                '${participant.name} non ha ancora attivato la chat WhatsApp. Abbiamo inviato una notifica per avvisarlo.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: AppTheme.brown,
@@ -570,7 +652,7 @@ class OfferCard extends StatelessWidget {
         ),
       );
     } else {
-      await _openExternalLink(offer.hostWhatsAppLink);
+      await _openExternalLink(participant.whatsAppLink);
     }
   }
 

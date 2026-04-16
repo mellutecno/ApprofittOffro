@@ -4,12 +4,14 @@ class Participant {
     required this.name,
     required this.photoFilename,
     required this.whatsAppLink,
+    required this.chatEnabled,
   });
 
   final int id;
   final String name;
   final String photoFilename;
   final String whatsAppLink;
+  final bool chatEnabled;
 
   factory Participant.fromJson(Map<String, dynamic> json) {
     return Participant(
@@ -17,6 +19,7 @@ class Participant {
       name: (json['nome'] ?? '').toString(),
       photoFilename: (json['foto'] ?? '').toString(),
       whatsAppLink: (json['whatsapp_link'] ?? '').toString(),
+      chatEnabled: json['chat_enabled'] == true,
     );
   }
 }

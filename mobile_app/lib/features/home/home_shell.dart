@@ -123,6 +123,11 @@ class _HomeShellState extends State<HomeShell> {
         if (_selectedIndex != _profileTabIndex) {
           setState(() => _selectedIndex = _profileTabIndex);
         }
+        if (target == AppLaunchTarget.chatRequest) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showChatRequestAlert();
+          });
+        }
       } else if (target == AppLaunchTarget.offers && _selectedIndex != 0) {
         setState(() => _selectedIndex = 0);
       }
@@ -130,6 +135,29 @@ class _HomeShellState extends State<HomeShell> {
 
     widget.onLaunchTargetHandled?.call();
     unawaited(_refreshAfterNotificationOpen());
+  }
+
+  void _showChatRequestAlert() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.chat_bubble_outline, color: Colors.white),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Qualcuno vuole chattare con te! Attiva la chat WhatsApp nelle impostazioni.',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF25D366),
+        duration: const Duration(seconds: 8),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _refreshAfterNotificationOpen() async {
@@ -364,8 +392,6 @@ class _HomeShellState extends State<HomeShell> {
             ProfilePage(
               key: ValueKey<int>(_profileRefreshVersion),
               authController: widget.authController,
-              showChatRequestAlert:
-                  widget.launchTarget == AppLaunchTarget.chatRequest,
             ),
           ];
     final selectedIndex = _selectedIndex.clamp(0, pages.length - 1);
