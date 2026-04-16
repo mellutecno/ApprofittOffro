@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/auth/biometric_auth_service.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
@@ -1535,6 +1536,42 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _openSettings() async {
+    final biometricService = BiometricAuthService();
+    final isAvailable = await biometricService.isBiometricAvailable();
+    final isEnabled = await biometricService.isBiometricEnabled();
+
+    if (!context.mounted) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.paper,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => _SettingsBottomSheet(
+        isBiometricAvailable: isAvailable,
+        isBiometricEnabled: isEnabled,
+        onBiometricToggle: (enabled) async {
+          if (enabled) {
+            final authenticated = await biometricService.authenticate(
+              reason: 'Autenticati per attivare l\'impronta digitale',
+            );
+            if (authenticated) {
+              await biometricService.setBiometricEnabled(true);
+            }
+          } else {
+            await biometricService.setBiometricEnabled(false);
+          }
+          if (context.mounted) {
+            Navigator.of(context).pop();
+          }
+        },
+      ),
+    );
+  }
+
   Future<void> _confirmDeleteAccount() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -2219,6 +2256,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       : widget.authController.logout,
                   icon: const Icon(Icons.logout_rounded),
                   label: const Text('Esci da questo dispositivo'),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _openSettings,
+                  icon: const Icon(Icons.settings_rounded),
+                  label: const Text('Impostazioni'),
                 ),
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
@@ -3291,6 +3334,87 @@ class _UserListTile extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _SettingsBottomSheet extends StatelessWidget {
+  const _SettingsBottomSheet({
+    required this.isBiometricAvailable,
+    required this.isBiometricEnabled,
+    required this.onBiometricToggle,
+  });
+
+  final bool isBiometricAvailable;
+  final bool isBiometricEnabled;
+  final Future<void> Function(bool) onBiometricToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.cardBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Impostazioni',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.espresso,
+              ),
+            ),
+            const SizedBox(height: 24),
+            if (isBiometricAvailable)
+              SwitchListTile(
+                title: const Text(
+                  'Sicurezza con impronta',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: const Text(
+                  'Richiedi l\'impronta digitale per aprire l\'app',
+                ),
+                value: isBiometricEnabled,
+                activeColor: AppTheme.orange,
+                onChanged: onBiometricToggle,
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.sand.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: AppTheme.brown),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Il tuo dispositivo non supporta l\'autenticazione biometrica.',
+                        style: TextStyle(color: AppTheme.brown),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
     );
   }
 }

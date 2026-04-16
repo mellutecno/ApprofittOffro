@@ -251,6 +251,13 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                   'Decidi il tipo di pasto, data e ora complete e quanti posti vuoi aprire.',
               child: Column(
                 children: [
+                  _MealChoiceChip(
+                    label: 'APERITIVO',
+                    value: 'ape',
+                    currentValue: _mealType,
+                    onSelected: _submitting ? null : _setMealType,
+                  ),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
@@ -280,13 +287,6 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 10),
-                  _MealChoiceChip(
-                    label: 'APE',
-                    value: 'ape',
-                    currentValue: _mealType,
-                    onSelected: _submitting ? null : _setMealType,
                   ),
                   const SizedBox(height: 16),
                   OutlinedButton.icon(

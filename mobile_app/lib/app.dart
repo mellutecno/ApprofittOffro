@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'core/auth/biometric_auth_service.dart';
 import 'core/navigation/app_launch_target.dart';
 import 'core/network/api_client.dart';
 import 'core/network/session_store.dart';
@@ -32,6 +33,10 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
   StreamSubscription<Uri?>? _linkSubscription;
   AppLaunchTarget? _pendingLaunchTarget;
   bool _initialLinkResolved = false;
+  bool _biometricRequired = false;
+  bool _biometricAuthenticated = false;
+  bool _biometricChecked = false;
+  final BiometricAuthService _biometricService = BiometricAuthService();
 
   @override
   void initState() {
@@ -44,7 +49,8 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
       onLaunchTargetRequested: _handlePushLaunchTarget,
     );
     _pushNotificationsService = pushNotificationsService;
-    _authController.beforeLogoutHook = pushNotificationsService.prepareForLogout;
+    _authController.beforeLogoutHook =
+        pushNotificationsService.prepareForLogout;
     _authController.addListener(_handleAuthStateChanged);
     _appLinks = AppLinks();
     _bootstrapFuture = _bootstrap();
@@ -76,8 +82,27 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
     }
     await _authController.initialize();
     if (pushNotificationsService != null) {
-      await pushNotificationsService.syncWithAuth(_authController.isAuthenticated);
+      await pushNotificationsService
+          .syncWithAuth(_authController.isAuthenticated);
     }
+
+    _biometricChecked = true;
+    if (_authController.isAuthenticated) {
+      final biometricEnabled = await _biometricService.isBiometricEnabled();
+      if (biometricEnabled) {
+        setState(() {
+          _biometricRequired = true;
+        });
+        final authenticated = await _biometricService.authenticate();
+        if (authenticated) {
+          setState(() {
+            _biometricAuthenticated = true;
+            _biometricRequired = false;
+          });
+        }
+      }
+    }
+
     await _resolveInitialLink();
   }
 
@@ -192,6 +217,20 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const _SplashScreen();
+          }
+
+          if (_biometricRequired && !_biometricAuthenticated) {
+            return _BiometricLockScreen(
+              onAuthenticate: () async {
+                final authenticated = await _biometricService.authenticate();
+                if (authenticated && mounted) {
+                  setState(() {
+                    _biometricAuthenticated = true;
+                    _biometricRequired = false;
+                  });
+                }
+              },
+            );
           }
 
           return AnimatedBuilder(
@@ -336,6 +375,76 @@ class _SplashOrb extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+}
+
+class _BiometricLockScreen extends StatelessWidget {
+  const _BiometricLockScreen({required this.onAuthenticate});
+
+  final VoidCallback onAuthenticate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.cream,
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const BrandWordmark(height: 80),
+              const SizedBox(height: 48),
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 20,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.fingerprint,
+                  size: 80,
+                  color: AppTheme.orange,
+                ),
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                'Autenticazione richiesta',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.espresso,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 48),
+                child: Text(
+                  'Usa l\'impronta digitale per accedere',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: AppTheme.brown,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 48),
+              FilledButton.icon(
+                onPressed: onAuthenticate,
+                icon: const Icon(Icons.fingerprint),
+                label: const Text('Autenticati'),
+              ),
+            ],
+          ),
         ),
       ),
     );

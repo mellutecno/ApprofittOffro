@@ -376,6 +376,15 @@ class _OffersPageState extends State<OffersPage> {
                     footer: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
+                        _MealChip(
+                          label: 'APERITIVI',
+                          value: 'ape',
+                          selected:
+                              widget.offersController.selectedMealType == 'ape',
+                          onTap: widget.offersController.toggleMealType,
+                          flex: 3,
+                        ),
+                        const SizedBox(height: 10),
                         Row(
                           children: [
                             Expanded(
@@ -411,15 +420,6 @@ class _OffersPageState extends State<OffersPage> {
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 10),
-                        _MealChip(
-                          label: 'APE',
-                          value: 'ape',
-                          selected:
-                              widget.offersController.selectedMealType == 'ape',
-                          onTap: widget.offersController.toggleMealType,
-                          flex: 3,
                         ),
                         const SizedBox(height: 10),
                         _DistancePreferenceControl(

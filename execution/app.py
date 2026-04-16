@@ -474,7 +474,7 @@ def get_meal_type_copy(tipo_pasto):
         "colazione": {"singular": "colazione", "plural": "colazioni"},
         "pranzo": {"singular": "pranzo", "plural": "pranzi"},
         "cena": {"singular": "cena", "plural": "cene"},
-        "ape": {"singular": "APE", "plural": "APE"},
+        "ape": {"singular": "APERITIVO", "plural": "APERITIVI"},
     }
     return labels.get(tipo_pasto, {"singular": tipo_pasto, "plural": tipo_pasto})
 
