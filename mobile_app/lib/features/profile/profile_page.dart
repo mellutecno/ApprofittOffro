@@ -32,6 +32,8 @@ class _ProfilePageState extends State<ProfilePage> {
   static const int _profileArchiveLookbackDays = 30;
   bool _archiveExpanded = false;
   bool _communityExpanded = false;
+  bool _reviewsExpanded = false;
+  bool _settingsExpanded = false;
   int _socialTabIndex = 0;
   bool _showCommunityList = false;
   late Future<List<Offer>> _myOffersFuture;
@@ -1916,61 +1918,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         snapshot.data?.given ?? const <UserReview>[];
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Cosa dicono di te',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _ReviewHistorySectionCard(
-                          title: '',
-                          icon: Icons.reviews_rounded,
-                          count: reviewsReceived.length,
-                          isLoading: isLoading,
-                          hasError: hasError,
-                          emptyText:
-                              'Qui troverai cosa scrive la community di te.',
-                          actionLabel: 'Apri recensioni',
-                          onTap:
-                              reviewsReceived.isEmpty || isLoading || hasError
-                                  ? null
-                                  : () => _openReviewHistorySheet(
-                                        title: 'Cosa dicono di te',
-                                        reviews: reviewsReceived,
-                                        isReceived: true,
-                                      ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Cosa dici degli altri',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _ReviewHistorySectionCard(
-                          title: '',
-                          icon: Icons.edit_note_rounded,
-                          count: reviewsGiven.length,
-                          isLoading: isLoading,
-                          hasError: hasError,
-                          emptyText:
-                              'Qui troverai le recensioni che lasci agli altri utenti.',
-                          actionLabel: 'Apri recensioni',
-                          onTap: reviewsGiven.isEmpty || isLoading || hasError
-                              ? null
-                              : () => _openReviewHistorySheet(
-                                    title: 'Cosa dici degli altri',
-                                    reviews: reviewsGiven,
-                                    isReceived: false,
-                                  ),
-                        ),
-                      ],
+                      children: [],
                     );
                   },
                 ),
@@ -2098,6 +2046,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   },
                 ),
                 const SizedBox(height: 20),
+                _ReviewsSection(
+                  future: _reviewHistoryFuture,
+                  onOpenReviewHistory: _openReviewHistorySheet,
+                ),
+                const SizedBox(height: 20),
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -2117,7 +2070,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               children: [
                                 const Icon(
                                   Icons.history_toggle_off_rounded,
-                                  color: AppTheme.espresso,
+                                  color: Color(0xFFD49B00),
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
@@ -2147,8 +2100,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                 onPressed: () => _openArchivedOffersSheet(
                                   claimed: false,
                                 ),
-                                icon:
-                                    const Icon(Icons.event_available_outlined),
+                                icon: const Icon(Icons.event_available_outlined,
+                                    color: Color(0xFFD49B00)),
                                 label: const Text('Host'),
                               ),
                               const SizedBox(width: 12),
@@ -2156,7 +2109,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                 onPressed: () => _openArchivedOffersSheet(
                                   claimed: true,
                                 ),
-                                icon: const Icon(Icons.groups_2_outlined),
+                                icon: const Icon(Icons.groups_2_outlined,
+                                    color: Color(0xFFD49B00)),
                                 label: const Text('Guest'),
                               ),
                             ],
@@ -2186,7 +2140,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               children: [
                                 const Icon(
                                   Icons.people_outline_rounded,
-                                  color: AppTheme.espresso,
+                                  color: Color(0xFF3D8B5A),
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
@@ -2215,14 +2169,16 @@ class _ProfilePageState extends State<ProfilePage> {
                               OutlinedButton.icon(
                                 onPressed: () =>
                                     _openCommunitySheet(followers: true),
-                                icon: const Icon(Icons.person_add_outlined),
+                                icon: const Icon(Icons.person_add_outlined,
+                                    color: Color(0xFF3D8B5A)),
                                 label: const Text('Chi ti segue'),
                               ),
                               const SizedBox(width: 12),
                               OutlinedButton.icon(
                                 onPressed: () =>
                                     _openCommunitySheet(followers: false),
-                                icon: const Icon(Icons.person_remove_outlined),
+                                icon: const Icon(Icons.person_remove_outlined,
+                                    color: Color(0xFF3D8B5A)),
                                 label: const Text('I tuoi seguiti'),
                               ),
                             ],
@@ -2233,47 +2189,107 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final updated = await Navigator.of(context).push<bool>(
-                      MaterialPageRoute<bool>(
-                        builder: (_) => ProfileEditPage(
-                          authController: widget.authController,
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: () {
+                            setState(() {
+                              _settingsExpanded = !_settingsExpanded;
+                            });
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.settings_rounded,
+                                  color: Color(0xFFE07800),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Impostazioni',
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                Icon(
+                                  _settingsExpanded
+                                      ? Icons.expand_less_rounded
+                                      : Icons.expand_more_rounded,
+                                  color: AppTheme.espresso,
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-                    );
-                    if (updated == true) {
-                      await _refreshAll();
-                    }
-                  },
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Modifica profilo'),
+                        if (_settingsExpanded) ...[
+                          const SizedBox(height: 14),
+                          Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final updated =
+                                        await Navigator.of(context).push<bool>(
+                                      MaterialPageRoute<bool>(
+                                        builder: (_) => ProfileEditPage(
+                                          authController: widget.authController,
+                                        ),
+                                      ),
+                                    );
+                                    if (updated == true) {
+                                      await _refreshAll();
+                                    }
+                                  },
+                                  icon: const Icon(Icons.edit_outlined,
+                                      color: Color(0xFFE07800)),
+                                  label: const Text('Modifica profilo'),
+                                ),
+                                const SizedBox(height: 10),
+                                OutlinedButton.icon(
+                                  onPressed: _openSettings,
+                                  icon: const Icon(Icons.fingerprint,
+                                      color: Color(0xFFE07800)),
+                                  label: const Text('Sicurezza con impronta'),
+                                ),
+                                const SizedBox(height: 10),
+                                OutlinedButton.icon(
+                                  onPressed: widget.authController.isBusy
+                                      ? null
+                                      : _confirmDeleteAccount,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF8A4336),
+                                    side: const BorderSide(
+                                        color: Color(0xFFD7B4AC)),
+                                  ),
+                                  icon: const Icon(Icons.delete_outline_rounded,
+                                      color: Color(0xFF8A4336)),
+                                  label: const Text('Cancella il tuo profilo'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
                   onPressed: widget.authController.isBusy
                       ? null
                       : widget.authController.logout,
-                  icon: const Icon(Icons.logout_rounded),
+                  icon: const Icon(Icons.logout_rounded,
+                      color: Color(0xFF8A4336)),
                   label: const Text('Esci da questo dispositivo'),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: _openSettings,
-                  icon: const Icon(Icons.settings_rounded),
-                  label: const Text('Impostazioni'),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: widget.authController.isBusy
-                      ? null
-                      : _confirmDeleteAccount,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF8A4336),
-                    side: const BorderSide(color: Color(0xFFD7B4AC)),
-                  ),
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  label: const Text('Cancella il tuo account'),
                 ),
                 const SizedBox(height: 24),
               ],
@@ -2389,20 +2405,25 @@ class _PendingClaimCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
+                  child: OutlinedButton.icon(
                     onPressed: onReject,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF8A4336),
                       side: const BorderSide(color: Color(0xFFD7B4AC)),
                     ),
-                    child: const Text('Rifiuta'),
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('Rifiuta'),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: FilledButton(
+                  child: FilledButton.icon(
                     onPressed: onAccept,
-                    child: const Text('Accetta'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF3D8B5A),
+                    ),
+                    icon: const Icon(Icons.check_rounded),
+                    label: const Text('Accetta'),
                   ),
                 ),
               ],
@@ -2564,6 +2585,9 @@ class _PendingReviewCard extends StatelessWidget {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: onReview,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF7A4EC7),
+                ),
                 icon: const Icon(Icons.rate_review_rounded),
                 label: Text(
                   existingReview == null
@@ -3412,6 +3436,120 @@ class _SettingsBottomSheet extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewsSection extends StatefulWidget {
+  const _ReviewsSection({
+    required this.future,
+    required this.onOpenReviewHistory,
+  });
+
+  final Future<ReviewHistoryBundle> future;
+  final void Function({
+    required String title,
+    required List<UserReview> reviews,
+    required bool isReceived,
+  }) onOpenReviewHistory;
+
+  @override
+  State<_ReviewsSection> createState() => _ReviewsSectionState();
+}
+
+class _ReviewsSectionState extends State<_ReviewsSection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () {
+                setState(() {
+                  _expanded = !_expanded;
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.rate_review_outlined,
+                      color: Color(0xFF7A4EC7),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Recensioni',
+                        style: Theme.of(context).textTheme.titleMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    Icon(
+                      _expanded
+                          ? Icons.expand_less_rounded
+                          : Icons.expand_more_rounded,
+                      color: AppTheme.espresso,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_expanded) ...[
+              const SizedBox(height: 14),
+              FutureBuilder<ReviewHistoryBundle>(
+                future: widget.future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (snapshot.hasError) {
+                    return const Text('Errore nel caricamento');
+                  }
+
+                  final bundle = snapshot.data;
+                  final received = bundle?.received ?? [];
+                  final given = bundle?.given ?? [];
+
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => widget.onOpenReviewHistory(
+                          title: 'Ricevute',
+                          reviews: received,
+                          isReceived: true,
+                        ),
+                        icon: const Icon(Icons.inbox_rounded,
+                            color: Color(0xFF7A4EC7)),
+                        label: Text('Ricevute (${received.length})'),
+                      ),
+                      const SizedBox(width: 12),
+                      OutlinedButton.icon(
+                        onPressed: () => widget.onOpenReviewHistory(
+                          title: 'Effettuate',
+                          reviews: given,
+                          isReceived: false,
+                        ),
+                        icon: const Icon(Icons.edit_note_rounded,
+                            color: Color(0xFF7A4EC7)),
+                        label: Text('Effettuate (${given.length})'),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
           ],
         ),
       ),

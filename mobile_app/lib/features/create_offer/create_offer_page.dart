@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/brand_hero_card.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../../models/offer.dart';
 import '../../models/place_candidate.dart';
@@ -226,30 +227,18 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         key: _formKey,
         child: ListView(
           controller: _scrollController,
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
           children: [
-            Text(
-              isEditing ? 'Modifica la tua offerta' : 'Pubblica un invito vero',
-              style: theme.textTheme.headlineMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              isEditing
-                  ? 'Aggiorna momento, locale e dettagli del tuo invito senza perdere lo stile del tavolo che hai gia creato.'
-                  : 'Prima scegli il momento, poi apri la mappa solo quando ti serve e completa l’invito in pochi passaggi.',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: AppTheme.brown.withValues(alpha: 0.74),
-                height: 1.45,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            _SectionCard(
-              title: null,
-              subtitle:
-                  'Decidi il tipo di pasto, data e ora complete e quanti posti vuoi aprire.',
-              child: Column(
+            BrandHeroCard(
+              eyebrow: isEditing ? 'MODIFICA' : 'OFFRI',
+              title: isEditing
+                  ? 'Modifica la tua offerta'
+                  : 'Pubblica un invito vero',
+              subtitle: isEditing
+                  ? 'Aggiorna momento, locale e dettagli senza perdere lo stile del tavolo.'
+                  : 'Scegli il momento, poi apri la mappa e completa in pochi passaggi.',
+              centered: true,
+              footer: Column(
                 children: [
                   _MealChoiceChip(
                     label: 'APERITIVO',
