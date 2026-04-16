@@ -18,7 +18,6 @@ class OfferCard extends StatelessWidget {
     this.onArchive,
     this.allowProfileOpen = true,
     this.showAddressLeadIcon = true,
-    this.userChatEnabled = false,
   });
 
   final Offer offer;
@@ -28,7 +27,6 @@ class OfferCard extends StatelessWidget {
   final Future<void> Function()? onArchive;
   final bool allowProfileOpen;
   final bool showAddressLeadIcon;
-  final bool userChatEnabled;
 
   bool get _isPast => offer.dataOra.toLocal().isBefore(DateTime.now());
 
@@ -505,8 +503,14 @@ class OfferCard extends StatelessWidget {
   }
 
   Future<void> _handleWhatsAppTap(BuildContext context) async {
-    if (!userChatEnabled) {
-      final confirmed = await showModalBottomSheet<bool>(
+    if (!offer.hostChatEnabled) {
+      try {
+        await apiClient.requestChatNotification(offer.id);
+      } catch (_) {}
+
+      if (!context.mounted) return;
+
+      await showModalBottomSheet<void>(
         context: context,
         backgroundColor: Colors.transparent,
         builder: (bottomContext) => Container(
@@ -536,7 +540,7 @@ class OfferCard extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Attiva la chat',
+                'Chat non attiva',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
@@ -545,40 +549,19 @@ class OfferCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'Per chattare con ${offer.autoreNome} devi prima attivare la chat WhatsApp nelle impostazioni del tuo profilo.',
+                '${offer.autoreNome} non ha ancora attivato la chat WhatsApp. Abbiamo inviato una notifica per avvisarlo.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: AppTheme.brown,
                   height: 1.4,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Invieremo una notifica a ${offer.autoreNome} per avvisarlo che vuoi chattare.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppTheme.brown.withValues(alpha: 0.8),
-                  fontSize: 13,
-                  height: 1.4,
-                ),
-              ),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton(
-                  onPressed: () => Navigator.of(bottomContext).pop(true),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF25D366),
-                  ),
-                  child: const Text('Attiva chat'),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
                 child: TextButton(
-                  onPressed: () => Navigator.of(bottomContext).pop(false),
-                  child: const Text('Annulla'),
+                  onPressed: () => Navigator.of(bottomContext).pop(),
+                  child: const Text('Chiudi'),
                 ),
               ),
               const SizedBox(height: 8),
@@ -586,28 +569,6 @@ class OfferCard extends StatelessWidget {
           ),
         ),
       );
-      if (confirmed == true && context.mounted) {
-        try {
-          await apiClient.requestChatNotification(offer.id);
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                    'Notifica inviata a ${offer.autoreNome}. Attiva la chat nelle impostazioni.'),
-                backgroundColor: const Color(0xFF25D366),
-              ),
-            );
-          }
-        } catch (_) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Errore nell\'invio della notifica.'),
-              ),
-            );
-          }
-        }
-      }
     } else {
       await _openExternalLink(offer.hostWhatsAppLink);
     }

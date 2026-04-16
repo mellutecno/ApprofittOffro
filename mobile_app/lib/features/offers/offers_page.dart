@@ -110,9 +110,6 @@ class _OffersPageState extends State<OffersPage> {
                       offer: offer,
                       apiClient: widget.authController.apiClient,
                       allowProfileOpen: true,
-                      userChatEnabled:
-                          widget.authController.currentUser?.chatEnabled ??
-                              false,
                       onEditOwn: null,
                       onArchive: offer.isOwn
                           ? () async {

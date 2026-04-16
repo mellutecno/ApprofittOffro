@@ -6083,23 +6083,17 @@ def api_chat_request_notification():
     if not host or host.id == current_user.id:
         return jsonify({"success": False, "error": "Host non valido."}), 400
 
-    already_claimed = db.session.query(Claim).filter(
-        Claim.offer_id == offer_id,
-        Claim.user_id == current_user.id,
-        Claim.status.in_(["pending", "claimed"])
-    ).first() is not None
-
-    if not already_claimed:
-        return jsonify({"success": False, "error": "Non sei partecipante a questa offerta."}), 403
-
     locale_name = offer.nome_locale or "Evento"
-    send_push_to_user(
+    result = send_push_to_user(
         host,
         title="Qualcuno vuole chattare!",
         body=f"{current_user.nome} vorrebbe chattare con te su WhatsApp. Attiva la chat nelle impostazioni per ricevere il suo messaggio.",
         target="profile",
         extra_data={"type": "chat_request", "from_user_id": str(current_user.id)}
     )
+
+    if result == 0:
+        return jsonify({"success": True, "message": "Utente non raggiungibile al momento."})
 
     return jsonify({"success": True, "message": "Notifica inviata."})
 
