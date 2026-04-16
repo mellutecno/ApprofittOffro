@@ -255,6 +255,7 @@ class AdminOfferSummary {
       autoreRatingAverage: 0,
       autoreRatingCount: 0,
       hostWhatsAppLink: '',
+      hostChatEnabled: false,
       participants: const <Participant>[],
       isOwn: true,
       alreadyClaimed: false,
