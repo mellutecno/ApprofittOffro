@@ -18,7 +18,7 @@ class OfferCard extends StatelessWidget {
     this.onArchive,
     this.allowProfileOpen = true,
     this.showAddressLeadIcon = true,
-    this.userChatEnabled = true,
+    this.userChatEnabled = false,
   });
 
   final Offer offer;

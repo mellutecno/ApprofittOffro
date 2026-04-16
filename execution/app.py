@@ -4721,7 +4721,7 @@ def api_get_user_profile_offers():
             )
         else:
             claims_query = claims_query.filter(
-                Offer.stato == "attiva",
+                Offer.stato.in_(["attiva", "completata"]),
                 Offer.data_ora > threshold,
             )
         claims = claims_query.order_by(Offer.data_ora.desc()).all()

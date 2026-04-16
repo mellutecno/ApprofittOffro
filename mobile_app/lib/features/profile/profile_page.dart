@@ -1457,6 +1457,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       apiClient: widget.authController.apiClient,
                       allowProfileOpen: false,
                       showAddressLeadIcon: false,
+                      userChatEnabled:
+                          widget.authController.currentUser?.chatEnabled ??
+                              false,
                       onEditOwn: offer.isOwn
                           ? () {
                               Navigator.of(sheetContext).pop();
