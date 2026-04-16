@@ -6088,7 +6088,7 @@ def api_chat_request_notification():
         host,
         title="Qualcuno vuole chattare!",
         body=f"{current_user.nome} vorrebbe chattare con te su WhatsApp. Attiva la chat nelle impostazioni per ricevere il suo messaggio.",
-        target="profile",
+        target="chat_request",
         extra_data={"type": "chat_request", "from_user_id": str(current_user.id)}
     )
 

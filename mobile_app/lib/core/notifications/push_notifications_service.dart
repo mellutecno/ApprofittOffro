@@ -147,7 +147,7 @@ class PushNotificationsService {
     );
     final authorized =
         settings.authorizationStatus == AuthorizationStatus.authorized ||
-        settings.authorizationStatus == AuthorizationStatus.provisional;
+            settings.authorizationStatus == AuthorizationStatus.provisional;
     if (!authorized) {
       return;
     }
@@ -199,8 +199,8 @@ class PushNotificationsService {
         _onLaunchTargetRequested(target);
       },
     );
-    final androidPlugin = _localNotifications
-        .resolvePlatformSpecificImplementation<
+    final androidPlugin =
+        _localNotifications.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.createNotificationChannel(_androidChannel);
   }
@@ -250,6 +250,8 @@ class PushNotificationsService {
         return AppLaunchTarget.offers;
       case 'login':
         return AppLaunchTarget.login;
+      case 'chat_request':
+        return AppLaunchTarget.chatRequest;
       default:
         return null;
     }

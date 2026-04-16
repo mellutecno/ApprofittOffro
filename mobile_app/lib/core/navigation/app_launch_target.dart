@@ -3,4 +3,5 @@ enum AppLaunchTarget {
   offers,
   profile,
   pendingRequests,
+  chatRequest,
 }

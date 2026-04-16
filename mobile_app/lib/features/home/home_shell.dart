@@ -118,7 +118,8 @@ class _HomeShellState extends State<HomeShell> {
 
     if (!_isAdminUser) {
       if (target == AppLaunchTarget.pendingRequests ||
-          target == AppLaunchTarget.profile) {
+          target == AppLaunchTarget.profile ||
+          target == AppLaunchTarget.chatRequest) {
         if (_selectedIndex != _profileTabIndex) {
           setState(() => _selectedIndex = _profileTabIndex);
         }
@@ -363,6 +364,8 @@ class _HomeShellState extends State<HomeShell> {
             ProfilePage(
               key: ValueKey<int>(_profileRefreshVersion),
               authController: widget.authController,
+              showChatRequestAlert:
+                  widget.launchTarget == AppLaunchTarget.chatRequest,
             ),
           ];
     final selectedIndex = _selectedIndex.clamp(0, pages.length - 1);
