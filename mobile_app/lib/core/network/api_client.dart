@@ -705,6 +705,18 @@ class ApiClient {
         'Il tuo account è stato eliminato definitivamente.';
   }
 
+  Future<bool> setChatEnabled(bool enabled) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/user/settings/chat',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'chat_enabled': enabled}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['chat_enabled'] == true;
+  }
+
   Future<String> submitReview({
     required int offerId,
     required int reviewedId,

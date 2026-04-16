@@ -68,6 +68,7 @@ class User(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     admin_verified_notified_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
+    chat_enabled = db.Column(db.Boolean, default=False, nullable=False)
 
     # Relazioni
     offerte = db.relationship("Offer", backref="autore", lazy=True)

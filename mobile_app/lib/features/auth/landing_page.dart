@@ -15,10 +15,12 @@ class LandingPage extends StatefulWidget {
     super.key,
     required this.authController,
     this.autoOpenLogin = false,
+    this.showLoginButton = true,
   });
 
   final AuthController authController;
   final bool autoOpenLogin;
+  final bool showLoginButton;
 
   @override
   State<LandingPage> createState() => _LandingPageState();
@@ -125,25 +127,13 @@ class _LandingPageState extends State<LandingPage> {
                         ),
                         const SizedBox(height: 18),
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.42),
                             borderRadius: BorderRadius.circular(26),
                             border: Border.all(
                               color: Colors.white.withValues(alpha: 0.55),
-                            ),
-                          ),
-                          child: Center(
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton(
-                                onPressed: _openLogin,
-                                style: OutlinedButton.styleFrom(
-                                  backgroundColor:
-                                      Colors.white.withValues(alpha: 0.82),
-                                ),
-                                child: const Text('Accedi / Iscriviti'),
-                              ),
                             ),
                           ),
                         ),
@@ -175,67 +165,69 @@ class _LandingPageState extends State<LandingPage> {
                           body:
                               'Se un evento ti piace, crei il tuo account, entri nella community e poi approfitti davvero.',
                         ),
-                        const SizedBox(height: 24),
-                        const _LandingSectionHeading(
-                          eyebrow: 'EVENTI APERTI',
-                          title: 'Eventi aperti della community',
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Cosa aspetti, approfitta.',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 14),
-                        FutureBuilder<List<Offer>>(
-                          future: _offersFuture,
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState !=
-                                ConnectionState.done) {
-                              return const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 20),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
+                        if (widget.showLoginButton) ...[
+                          const SizedBox(height: 24),
+                          const _LandingSectionHeading(
+                            eyebrow: 'EVENTI APERTI',
+                            title: 'Eventi aperti della community',
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Cosa aspetti, approfitta.',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 14),
+                          FutureBuilder<List<Offer>>(
+                            future: _offersFuture,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState !=
+                                  ConnectionState.done) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 20),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                );
+                              }
 
-                            if (snapshot.hasError) {
-                              return const _LandingNoticeCard(
-                                message:
-                                    'Non riesco a caricare gli eventi aperti in questo momento.',
-                              );
-                            }
+                              if (snapshot.hasError) {
+                                return const _LandingNoticeCard(
+                                  message:
+                                      'Non riesco a caricare gli eventi aperti in questo momento.',
+                                );
+                              }
 
-                            final offers = (snapshot.data ?? const <Offer>[])
-                                .where(
-                                  (offer) =>
-                                      offer.claimStatus == 'open' &&
-                                      offer.canClaim,
-                                )
-                                .take(4)
-                                .toList();
-                            if (offers.isEmpty) {
-                              return const _LandingNoticeCard(
-                                message:
-                                    'Per ora non vedo ancora eventi pubblici aperti.',
-                              );
-                            }
-
-                            return Column(
-                              children: offers
-                                  .map(
-                                    (offer) => _PublicOfferCard(
-                                      offer: offer,
-                                      apiClient:
-                                          widget.authController.apiClient,
-                                      onTap: _openLogin,
-                                    ),
+                              final offers = (snapshot.data ?? const <Offer>[])
+                                  .where(
+                                    (offer) =>
+                                        offer.claimStatus == 'open' &&
+                                        offer.canClaim,
                                   )
-                                  .toList(),
-                            );
-                          },
-                        ),
+                                  .take(4)
+                                  .toList();
+                              if (offers.isEmpty) {
+                                return const _LandingNoticeCard(
+                                  message:
+                                      'Per ora non vedo ancora eventi pubblici aperti.',
+                                );
+                              }
+
+                              return Column(
+                                children: offers
+                                    .map(
+                                      (offer) => _PublicOfferCard(
+                                        offer: offer,
+                                        apiClient:
+                                            widget.authController.apiClient,
+                                        onTap: _openLogin,
+                                      ),
+                                    )
+                                    .toList(),
+                              );
+                            },
+                          ),
+                        ],
                         const SizedBox(height: 24),
                         const _LandingSectionHeading(
                           eyebrow: 'VISIONE',
@@ -252,6 +244,31 @@ class _LandingPageState extends State<LandingPage> {
                           body:
                               'Segui le persone che ti piacciono, guarda i loro profili e tieni vivi i contatti migliori.',
                         ),
+                        if (widget.showLoginButton) ...[
+                          const SizedBox(height: 32),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 18),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                onPressed: _openLogin,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppTheme.orange,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
+                                ),
+                                child: const Text(
+                                  'Accedi / Iscriviti',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 40),
+                        ],
                       ],
                     ),
                   ),

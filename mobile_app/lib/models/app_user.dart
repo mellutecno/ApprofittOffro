@@ -186,6 +186,7 @@ class AppUser {
     required this.pendingReviewReminders,
     required this.reviewsReceived,
     required this.reviewsGiven,
+    required this.chatEnabled,
   });
 
   final int id;
@@ -221,6 +222,7 @@ class AppUser {
   final List<PendingReviewReminder> pendingReviewReminders;
   final List<UserReview> reviewsReceived;
   final List<UserReview> reviewsGiven;
+  final bool chatEnabled;
 
   bool get hasAnyProfilePhoto =>
       photoFilename.trim().isNotEmpty ||
@@ -295,6 +297,7 @@ class AppUser {
           .cast<Map<String, dynamic>>()
           .map(UserReview.fromJson)
           .toList(),
+      chatEnabled: json['chat_enabled'] == true,
     );
   }
 }

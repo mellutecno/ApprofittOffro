@@ -3187,6 +3187,7 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
         "rating_count": rating_info["count"],
         "is_following": is_following,
         "is_self": is_self,
+        "chat_enabled": bool(user.chat_enabled) if include_private else False,
     }
     return payload
 
@@ -6041,6 +6042,17 @@ def api_user_update():
             _external=False,
         ) if current_user.gallery_filenames else "",
     })
+
+
+@app.route("/api/user/settings/chat", methods=["POST"])
+@login_required
+def api_user_chat_settings():
+    """Attiva/disattiva la chat WhatsApp."""
+    data = request.get_json(silent=True) or {}
+    chat_enabled = bool(data.get("chat_enabled", False))
+    current_user.chat_enabled = chat_enabled
+    db.session.commit()
+    return jsonify({"success": True, "chat_enabled": chat_enabled})
 
 
 # ===================================================================

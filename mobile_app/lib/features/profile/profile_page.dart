@@ -12,6 +12,7 @@ import '../../models/offer.dart';
 import '../../models/public_profile.dart';
 import '../../models/user_preview.dart';
 import '../auth/auth_controller.dart';
+import '../auth/landing_page.dart';
 import '../create_offer/create_offer_page.dart';
 import '../offers/offer_card.dart';
 import 'profile_edit_page.dart';
@@ -1574,6 +1575,93 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _openChatSettings() async {
+    final user = widget.authController.currentUser;
+    final isEnabled = user?.chatEnabled ?? false;
+
+    if (!context.mounted) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.paper,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (bottomContext) => StatefulBuilder(
+        builder: (bottomContext, setBottomState) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppTheme.cardBorder,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Chat WhatsApp',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.espresso,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Attivando la chat, gli altri utenti potranno contattarti via WhatsApp dopo essere stati accettati a un tuo evento.',
+                    style: TextStyle(
+                      color: AppTheme.brown,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SwitchListTile(
+                    title: const Text(
+                      'Attiva chat',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: const Text(
+                      'Consenti la chat via WhatsApp',
+                    ),
+                    value: isEnabled,
+                    activeColor: const Color(0xFF25D366),
+                    onChanged: (enabled) async {
+                      try {
+                        await widget.authController.apiClient
+                            .setChatEnabled(enabled);
+                        await widget.authController.refreshCurrentUser();
+                        if (bottomContext.mounted) {
+                          Navigator.of(bottomContext).pop();
+                        }
+                      } catch (_) {
+                        if (bottomContext.mounted) {
+                          ScaffoldMessenger.of(bottomContext).showSnackBar(
+                            const SnackBar(content: Text('Errore nel salvare')),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _confirmDeleteAccount() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -2259,6 +2347,30 @@ class _ProfilePageState extends State<ProfilePage> {
                                   icon: const Icon(Icons.fingerprint,
                                       color: Color(0xFFE07800)),
                                   label: const Text('Sicurezza con impronta'),
+                                ),
+                                const SizedBox(height: 10),
+                                OutlinedButton.icon(
+                                  onPressed: _openChatSettings,
+                                  icon: const Icon(
+                                      Icons.chat_bubble_outline_rounded,
+                                      color: Color(0xFF25D366)),
+                                  label: const Text('Attiva chat WhatsApp'),
+                                ),
+                                const SizedBox(height: 10),
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => LandingPage(
+                                          authController: widget.authController,
+                                          showLoginButton: false,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.info_outline_rounded,
+                                      color: Color(0xFFE07800)),
+                                  label: const Text('Info app'),
                                 ),
                                 const SizedBox(height: 10),
                                 OutlinedButton.icon(
