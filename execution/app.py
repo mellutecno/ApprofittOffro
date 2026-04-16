@@ -4935,6 +4935,9 @@ def api_edit_offer(offer_id):
     offer.posti_totali = requested_posti
     offer.posti_disponibili = max(0, offer.posti_disponibili + diff_posti)
     
+    if offer.stato == "completata" and offer.posti_disponibili > 0:
+        offer.stato = "attiva"
+    
     offer.data_ora = data_ora
     offer.booking_lead_override_minutes = (
         get_short_notice_booking_lead_minutes_for_meal_type(tipo_pasto)
