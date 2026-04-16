@@ -1003,9 +1003,8 @@ class _DistancePreferenceControl extends StatelessWidget {
               child: Slider(
                 min: OffersController.minRadiusKm.toDouble(),
                 max: OffersController.maxRadiusKm.toDouble(),
-                divisions: ((OffersController.maxRadiusKm -
-                        OffersController.minRadiusKm) ~/
-                    5),
+                divisions: (OffersController.maxRadiusKm -
+                    OffersController.minRadiusKm),
                 value: valueKm
                     .clamp(
                       OffersController.minRadiusKm,

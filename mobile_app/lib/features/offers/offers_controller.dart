@@ -8,7 +8,7 @@ class OffersController extends ChangeNotifier {
   OffersController(this.apiClient);
 
   static const int minRadiusKm = 5;
-  static const int maxRadiusKm = 500;
+  static const int maxRadiusKm = 100;
   static const int defaultRadiusKm = 50;
 
   final ApiClient apiClient;

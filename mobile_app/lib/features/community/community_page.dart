@@ -469,9 +469,8 @@ class _CommunityDistanceControl extends StatelessWidget {
               child: Slider(
                 min: CommunityController.minRadiusKm.toDouble(),
                 max: CommunityController.maxRadiusKm.toDouble(),
-                divisions: ((CommunityController.maxRadiusKm -
-                        CommunityController.minRadiusKm) ~/
-                    5),
+                divisions: (CommunityController.maxRadiusKm -
+                    CommunityController.minRadiusKm),
                 value: valueKm
                     .clamp(
                       CommunityController.minRadiusKm,
