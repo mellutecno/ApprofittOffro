@@ -562,6 +562,8 @@ def serialize_mobile_offer(
             current_claim is not None
             and current_claim.status == CLAIM_STATUS_ACCEPTED
             and not is_own
+            and getattr(viewer, 'chat_enabled', False)
+            and offer.autore.chat_enabled
         ):
             host_whatsapp_link = build_whatsapp_offer_link(viewer, offer.autore, offer)
 
@@ -4597,6 +4599,8 @@ def api_get_offers():
                 current_claim is not None
                 and current_claim.status == CLAIM_STATUS_ACCEPTED
                 and not is_own
+                and current_user.chat_enabled
+                and o.autore.chat_enabled
             ):
                 host_whatsapp_link = build_whatsapp_offer_link(current_user, o.autore, o)
 
