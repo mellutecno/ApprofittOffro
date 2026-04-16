@@ -617,6 +617,7 @@ def serialize_mobile_offer(
         "autore_cibi_preferiti": offer.autore.cibi_preferiti or "",
         "autore_intolleranze": offer.autore.intolleranze or "",
         "host_whatsapp_link": host_whatsapp_link,
+        "host_chat_enabled": bool(offer.autore.chat_enabled) if already_claimed else False,
         "partecipanti": [
             {
                 "id": claim.utente.id,
@@ -4644,6 +4645,7 @@ def api_get_offers():
             "autore_cibi_preferiti": o.autore.cibi_preferiti or "",
             "autore_intolleranze": o.autore.intolleranze or "",
             "host_whatsapp_link": host_whatsapp_link,
+            "host_chat_enabled": bool(o.autore.chat_enabled) if already_claimed else False,
             "partecipanti": [
                 {
                     "id": claim.utente.id,

@@ -129,14 +129,40 @@ class OfferCard extends StatelessWidget {
                             ),
                           if (offer.hostWhatsAppLink.isNotEmpty) ...[
                             const SizedBox(height: 10),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: _WhatsAppAction(
-                                compact: true,
-                                onTap: () =>
-                                    _openExternalLink(offer.hostWhatsAppLink),
+                            if (offer.hostChatEnabled)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: _WhatsAppAction(
+                                  compact: true,
+                                  onTap: () =>
+                                      _openExternalLink(offer.hostWhatsAppLink),
+                                ),
+                              )
+                            else
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.info_outline,
+                                        size: 16, color: Colors.orange),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Chat disattivata',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.orange,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
                           ],
                         ],
                       ),

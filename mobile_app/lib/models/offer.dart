@@ -47,6 +47,7 @@ class Offer {
     required this.autoreRatingAverage,
     required this.autoreRatingCount,
     required this.hostWhatsAppLink,
+    required this.hostChatEnabled,
     required this.participants,
     required this.isOwn,
     required this.alreadyClaimed,
@@ -81,6 +82,7 @@ class Offer {
   final double autoreRatingAverage;
   final int autoreRatingCount;
   final String hostWhatsAppLink;
+  final bool hostChatEnabled;
   final List<Participant> participants;
   final bool isOwn;
   final bool alreadyClaimed;
@@ -146,6 +148,7 @@ class Offer {
           (json['autore_rating_average'] as num?)?.toDouble() ?? 0,
       autoreRatingCount: json['autore_rating_count'] as int? ?? 0,
       hostWhatsAppLink: (json['host_whatsapp_link'] ?? '').toString(),
+      hostChatEnabled: json['host_chat_enabled'] == true,
       participants: (json['partecipanti'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>()
           .map(Participant.fromJson)
