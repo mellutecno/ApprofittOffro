@@ -2134,6 +2134,45 @@ class _ProfilePageState extends State<ProfilePage> {
                   },
                 ),
                 const SizedBox(height: 20),
+                _SettingsCard(
+                  isExpanded: _settingsExpanded,
+                  onToggle: () {
+                    setState(() {
+                      _settingsExpanded = !_settingsExpanded;
+                    });
+                  },
+                  onEditProfile: () async {
+                    final updated = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute<bool>(
+                        builder: (_) => ProfileEditPage(
+                          authController: widget.authController,
+                        ),
+                      ),
+                    );
+                    if (updated == true) {
+                      await _refreshAll();
+                    }
+                  },
+                  onSecurity: _openSettings,
+                  onChat: _openChatSettings,
+                  onInfoApp: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => LandingPage(
+                          authController: widget.authController,
+                          showLoginButton: false,
+                        ),
+                      ),
+                    );
+                  },
+                  onDeleteAccount: widget.authController.isBusy
+                      ? null
+                      : _confirmDeleteAccount,
+                  onLogout: widget.authController.isBusy
+                      ? null
+                      : widget.authController.logout,
+                ),
+                const SizedBox(height: 20),
                 _ReviewsSection(
                   future: _reviewHistoryFuture,
                   onOpenReviewHistory: _openReviewHistorySheet,
@@ -2275,133 +2314,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        InkWell(
-                          borderRadius: BorderRadius.circular(18),
-                          onTap: () {
-                            setState(() {
-                              _settingsExpanded = !_settingsExpanded;
-                            });
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.settings_rounded,
-                                  color: Color(0xFFE07800),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    'Impostazioni',
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                                Icon(
-                                  _settingsExpanded
-                                      ? Icons.expand_less_rounded
-                                      : Icons.expand_more_rounded,
-                                  color: AppTheme.espresso,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        if (_settingsExpanded) ...[
-                          const SizedBox(height: 14),
-                          Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                OutlinedButton.icon(
-                                  onPressed: () async {
-                                    final updated =
-                                        await Navigator.of(context).push<bool>(
-                                      MaterialPageRoute<bool>(
-                                        builder: (_) => ProfileEditPage(
-                                          authController: widget.authController,
-                                        ),
-                                      ),
-                                    );
-                                    if (updated == true) {
-                                      await _refreshAll();
-                                    }
-                                  },
-                                  icon: const Icon(Icons.edit_outlined,
-                                      color: Color(0xFFE07800)),
-                                  label: const Text('Modifica profilo'),
-                                ),
-                                const SizedBox(height: 10),
-                                OutlinedButton.icon(
-                                  onPressed: _openSettings,
-                                  icon: const Icon(Icons.fingerprint,
-                                      color: Color(0xFFE07800)),
-                                  label: const Text('Sicurezza con impronta'),
-                                ),
-                                const SizedBox(height: 10),
-                                OutlinedButton.icon(
-                                  onPressed: _openChatSettings,
-                                  icon: const Icon(
-                                      Icons.chat_bubble_outline_rounded,
-                                      color: Color(0xFF25D366)),
-                                  label: const Text('Attiva chat WhatsApp'),
-                                ),
-                                const SizedBox(height: 10),
-                                OutlinedButton.icon(
-                                  onPressed: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) => LandingPage(
-                                          authController: widget.authController,
-                                          showLoginButton: false,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.info_outline_rounded,
-                                      color: Color(0xFFE07800)),
-                                  label: const Text('Info app'),
-                                ),
-                                const SizedBox(height: 10),
-                                OutlinedButton.icon(
-                                  onPressed: widget.authController.isBusy
-                                      ? null
-                                      : _confirmDeleteAccount,
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFF8A4336),
-                                    side: const BorderSide(
-                                        color: Color(0xFFD7B4AC)),
-                                  ),
-                                  icon: const Icon(Icons.delete_outline_rounded,
-                                      color: Color(0xFF8A4336)),
-                                  label: const Text('Cancella il tuo profilo'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: widget.authController.isBusy
-                      ? null
-                      : widget.authController.logout,
-                  icon: const Icon(Icons.logout_rounded,
-                      color: Color(0xFF8A4336)),
-                  label: const Text('Esci da questo dispositivo'),
                 ),
                 const SizedBox(height: 24),
               ],
@@ -3470,6 +3382,128 @@ class _UserListTile extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({
+    required this.isExpanded,
+    required this.onToggle,
+    required this.onEditProfile,
+    required this.onSecurity,
+    required this.onChat,
+    required this.onInfoApp,
+    required this.onDeleteAccount,
+    required this.onLogout,
+  });
+
+  final bool isExpanded;
+  final VoidCallback onToggle;
+  final VoidCallback onEditProfile;
+  final VoidCallback onSecurity;
+  final VoidCallback onChat;
+  final VoidCallback onInfoApp;
+  final VoidCallback? onDeleteAccount;
+  final VoidCallback? onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: onToggle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.settings_rounded,
+                      color: Color(0xFFE07800),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Impostazioni',
+                        style: Theme.of(context).textTheme.titleMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    Icon(
+                      isExpanded
+                          ? Icons.expand_less_rounded
+                          : Icons.expand_more_rounded,
+                      color: AppTheme.espresso,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (isExpanded) ...[
+              const SizedBox(height: 14),
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: onInfoApp,
+                      icon: const Icon(Icons.info_outline_rounded,
+                          color: Color(0xFFE07800)),
+                      label: const Text('Info app'),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: onEditProfile,
+                      icon: const Icon(Icons.edit_outlined,
+                          color: Color(0xFFE07800)),
+                      label: const Text('Modifica profilo'),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: onSecurity,
+                      icon: const Icon(Icons.fingerprint,
+                          color: Color(0xFFE07800)),
+                      label: const Text('Sicurezza con impronta'),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: onChat,
+                      icon: const Icon(Icons.chat_bubble_outline_rounded,
+                          color: Color(0xFF25D366)),
+                      label: const Text('Attiva chat WhatsApp'),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: onDeleteAccount,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF8A4336),
+                        side: const BorderSide(color: Color(0xFFD7B4AC)),
+                      ),
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          color: Color(0xFF8A4336)),
+                      label: const Text('Cancella il tuo profilo'),
+                    ),
+                    const SizedBox(height: 14),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: onLogout,
+                      icon: const Icon(Icons.logout_rounded,
+                          color: Color(0xFF8A4336)),
+                      label: const Text('Esci da questo dispositivo'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

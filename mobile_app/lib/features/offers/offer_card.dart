@@ -18,6 +18,7 @@ class OfferCard extends StatelessWidget {
     this.onArchive,
     this.allowProfileOpen = true,
     this.showAddressLeadIcon = true,
+    this.userChatEnabled = true,
   });
 
   final Offer offer;
@@ -27,6 +28,7 @@ class OfferCard extends StatelessWidget {
   final Future<void> Function()? onArchive;
   final bool allowProfileOpen;
   final bool showAddressLeadIcon;
+  final bool userChatEnabled;
 
   bool get _isPast => offer.dataOra.toLocal().isBefore(DateTime.now());
 
@@ -129,40 +131,13 @@ class OfferCard extends StatelessWidget {
                             ),
                           if (offer.hostWhatsAppLink.isNotEmpty) ...[
                             const SizedBox(height: 10),
-                            if (offer.hostChatEnabled)
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: _WhatsAppAction(
-                                  compact: true,
-                                  onTap: () =>
-                                      _openExternalLink(offer.hostWhatsAppLink),
-                                ),
-                              )
-                            else
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.info_outline,
-                                        size: 16, color: Colors.orange),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Chat disattivata',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.orange,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: _WhatsAppAction(
+                                compact: true,
+                                onTap: () => _handleWhatsAppTap(context),
                               ),
+                            ),
                           ],
                         ],
                       ),
@@ -527,6 +502,115 @@ class OfferCard extends StatelessWidget {
       return;
     }
     await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _handleWhatsAppTap(BuildContext context) async {
+    if (!userChatEnabled) {
+      final confirmed = await showModalBottomSheet<bool>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (bottomContext) => Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: AppTheme.cream,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.cardBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 48,
+                color: Color(0xFF25D366),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Attiva la chat',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.espresso,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Per chattare con ${offer.autoreNome} devi prima attivare la chat WhatsApp nelle impostazioni del tuo profilo.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppTheme.brown,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Invieremo una notifica a ${offer.autoreNome} per avvisarlo che vuoi chattare.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.8),
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(bottomContext).pop(true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366),
+                  ),
+                  child: const Text('Attiva chat'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.of(bottomContext).pop(false),
+                  child: const Text('Annulla'),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      );
+      if (confirmed == true && context.mounted) {
+        try {
+          await apiClient.requestChatNotification(offer.id);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                    'Notifica inviata a ${offer.autoreNome}. Attiva la chat nelle impostazioni.'),
+                backgroundColor: const Color(0xFF25D366),
+              ),
+            );
+          }
+        } catch (_) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Errore nell\'invio della notifica.'),
+              ),
+            );
+          }
+        }
+      }
+    } else {
+      await _openExternalLink(offer.hostWhatsAppLink);
+    }
   }
 
   Future<void> _callLocalPhone() async {

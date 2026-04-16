@@ -6064,6 +6064,50 @@ def api_user_chat_settings():
     return jsonify({"success": True, "chat_enabled": chat_enabled})
 
 
+@app.route("/api/chat/request-notification", methods=["POST"])
+@login_required
+def api_chat_request_notification():
+    """Invia una notifica push all'host per avvisarlo che un utente vuole chattare."""
+    data = request.get_json(silent=True) or {}
+    offer_id = data.get("offer_id")
+
+    if not offer_id:
+        return jsonify({"success": False, "error": "ID offerta mancante."}), 400
+
+    try:
+        offer_id = int(offer_id)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "ID offerta non valido."}), 400
+
+    offer = Offer.query.filter_by(id=offer_id).first()
+    if not offer:
+        return jsonify({"success": False, "error": "Offerta non trovata."}), 404
+
+    host = offer.autore
+    if not host or host.id == current_user.id:
+        return jsonify({"success": False, "error": "Host non valido."}), 400
+
+    already_claimed = db.session.query(Claim).filter(
+        Claim.offer_id == offer_id,
+        Claim.user_id == current_user.id,
+        Claim.status.in_(["pending", "claimed"])
+    ).first() is not None
+
+    if not already_claimed:
+        return jsonify({"success": False, "error": "Non sei partecipante a questa offerta."}), 403
+
+    locale_name = offer.nome_locale or "Evento"
+    send_push_to_user(
+        host,
+        title="Qualcuno vuole chattare!",
+        body=f"{current_user.nome} vorrebbe chattare con te su WhatsApp. Attiva la chat nelle impostazioni per ricevere il suo messaggio.",
+        target="profile",
+        extra_data={"type": "chat_request", "from_user_id": str(current_user.id)}
+    )
+
+    return jsonify({"success": True, "message": "Notifica inviata."})
+
+
 # ===================================================================
 # API — Recensioni
 # ===================================================================

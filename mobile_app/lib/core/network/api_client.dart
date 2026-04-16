@@ -717,6 +717,17 @@ class ApiClient {
     return payload['chat_enabled'] == true;
   }
 
+  Future<void> requestChatNotification(int offerId) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/chat/request-notification',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'offer_id': offerId}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+  }
+
   Future<String> submitReview({
     required int offerId,
     required int reviewedId,
