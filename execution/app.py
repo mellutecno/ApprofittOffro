@@ -99,6 +99,7 @@ SQLITE_PATH = os.path.abspath(
 UPLOAD_FOLDER = os.path.abspath(
     os.getenv("APP_UPLOAD_FOLDER", os.path.join(DATA_ROOT, "uploads"))
 )
+LEGACY_UPLOADS_BASE_URL = os.getenv("LEGACY_UPLOADS_BASE_URL", "").strip().rstrip("/")
 APP_TIMEZONE_NAME = os.getenv("APP_TIMEZONE", "Europe/Rome")
 
 try:
@@ -6228,7 +6229,16 @@ def api_create_review():
 @app.route("/uploads/<path:filename>")
 def uploaded_file(filename):
     from flask import send_from_directory
+
+    def legacy_upload_redirect():
+        if not LEGACY_UPLOADS_BASE_URL:
+            abort(404)
+        return redirect(f"{LEGACY_UPLOADS_BASE_URL}/{quote(filename)}", code=302)
+
     if app.config["UPLOAD_STORAGE_BACKEND"] == "local":
+        file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        if not os.path.exists(file_path):
+            return legacy_upload_redirect()
         response = send_from_directory(
             app.config["UPLOAD_FOLDER"],
             filename,
@@ -6239,7 +6249,7 @@ def uploaded_file(filename):
         try:
             file_bytes, content_type = upload_storage.read(filename)
         except StorageObjectNotFound:
-            abort(404)
+            return legacy_upload_redirect()
 
         response = app.response_class(file_bytes, mimetype=content_type)
 

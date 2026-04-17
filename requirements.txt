@@ -11,3 +11,4 @@ boto3>=1.37,<2
 gunicorn>=23,<24
 psycopg[binary]>=3.2,<4
 google-auth>=2.39,<3
+requests>=2.32,<3
