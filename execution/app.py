@@ -204,7 +204,7 @@ PUSH_PLATFORM_ANDROID = "android"
 PUSH_DEEP_LINK_BASE = "approfittoffro://"
 FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 PUSH_CHANNEL_ID = "approfittoffro_alerts"
-UPCOMING_EVENT_REMINDER_HOURS = 2
+UPCOMING_EVENT_REMINDER_HOURS = 0.5  # 30 minuti
 REVIEW_REMINDER_DELAY_HOURS = 3
 REVIEW_REMINDER_LOOKBACK_HOURS = 72
 
