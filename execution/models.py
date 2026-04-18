@@ -66,6 +66,7 @@ class User(UserMixin, db.Model):
     password_reset_token = db.Column(db.String(100), unique=True, nullable=True)
     password_reset_sent_at = db.Column(db.DateTime, nullable=True)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    alias = db.Column(db.String(80), unique=True, nullable=True)
     admin_verified_notified_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     chat_enabled = db.Column(db.Boolean, default=False, nullable=False)

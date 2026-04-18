@@ -186,16 +186,13 @@ class _LoginPageState extends State<LoginPage> {
                                     controller: _emailController,
                                     keyboardType: TextInputType.emailAddress,
                                     decoration: const InputDecoration(
-                                      labelText: 'Email',
-                                      hintText: 'nome@email.it',
+                                      labelText: 'Email o alias',
+                                      hintText: 'nome@email.it o admin',
                                     ),
                                     validator: (value) {
                                       if (value == null ||
                                           value.trim().isEmpty) {
-                                        return 'Inserisci la tua email.';
-                                      }
-                                      if (!value.contains('@')) {
-                                        return 'Email non valida.';
+                                        return 'Inserisci la tua email o alias.';
                                       }
                                       return null;
                                     },

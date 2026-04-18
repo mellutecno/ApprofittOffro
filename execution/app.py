@@ -4389,10 +4389,13 @@ def api_register():
 def api_login():
     """Login utente."""
     data = request.get_json() if request.is_json else request.form
-    email = data.get("email", "").strip().lower()
+    login_input = data.get("email", "").strip()
     password = data.get("password", "")
 
-    user = User.query.filter_by(email=email).first()
+    # Cerca per email oppure per alias (utile per admin)
+    user = User.query.filter(
+        (User.email == login_input.lower()) | (User.alias == login_input)
+    ).first()
 
     if not user or not user.check_password(password):
         return jsonify({"success": False, "errors": ["Email o password non corretti."]}), 401

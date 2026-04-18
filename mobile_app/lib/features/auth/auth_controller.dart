@@ -221,15 +221,9 @@ class AuthController extends ChangeNotifier {
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-        if (_currentUser?.isAdmin == true) {
-          if (_adminBackgroundLogoutHoldCount > 0) {
-            await _markAppInactive();
-          } else {
-            await _logoutAdminOnBackground();
-          }
-        } else {
-          await _markAppInactive();
-        }
+        // Admin e utenti normali restano attivi quando l'app va in background.
+        // Il logout per inattività è gestito dal server-side session timeout.
+        await _markAppInactive();
         break;
     }
   }
