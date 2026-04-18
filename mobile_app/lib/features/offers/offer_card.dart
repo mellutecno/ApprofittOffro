@@ -47,7 +47,7 @@ class OfferCard extends StatelessWidget {
     final mealColor = _mealColor(offer.tipoPasto);
     final canNavigateToOffer = offer.isOwn || offer.claimStatus == 'claimed';
     final canAddToCalendar =
-        offer.alreadyClaimed || offer.claimStatus == 'claimed';
+        offer.isOwn || offer.alreadyClaimed || offer.claimStatus == 'claimed';
     final occupiedSeats = (offer.postiTotali - offer.postiDisponibili)
         .clamp(0, offer.postiTotali);
     final localeImageUrl =

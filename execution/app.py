@@ -4708,6 +4708,7 @@ def api_set_offer_reminders(offer_id):
     
     # Pulizia vecchi reminder
     UserReminder.query.filter_by(user_id=current_user.id, offer_id=offer_id).delete()
+    db.session.flush() # Forza la cancellazione prima di inserire
     
     # Inserimento nuovi
     for m in minutes:
