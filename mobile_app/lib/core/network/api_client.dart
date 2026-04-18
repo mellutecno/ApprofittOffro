@@ -579,28 +579,44 @@ class ApiClient {
     required String intolerances,
     required String bio,
     List<String> existingGalleryFilenames = const [],
+    List<String> photoPaths = const [],
   }) async {
-    final response = await _send(
-      method: 'POST',
-      path: '/api/admin/users/$userId',
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'nome': nome,
-        'email': email,
-        'eta': eta,
-        'sesso': gender,
-        'verificato': verified,
-        'raggio_azione': actionRadiusKm,
-        'numero_telefono': numeroTelefono,
-        'citta': citta,
-        'latitudine': latitude,
-        'longitudine': longitude,
-        'cibi_preferiti': preferredFoods,
-        'intolleranze': intolerances,
-        'bio': bio,
-        'existing_gallery_filenames': existingGalleryFilenames,
-      }),
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/admin/users/$userId'),
     );
+    if ((_cookieHeader ?? '').isNotEmpty) {
+      request.headers['Cookie'] = _cookieHeader!;
+    }
+
+    request.fields.addAll({
+      'nome': nome,
+      'email': email,
+      'eta': eta,
+      'sesso': gender,
+      'verificato': verified.toString(),
+      'raggio_azione': actionRadiusKm.toString(),
+      'numero_telefono': numeroTelefono,
+      'citta': citta,
+      'latitudine': latitude?.toString() ?? '',
+      'longitudine': longitude?.toString() ?? '',
+      'cibi_preferiti': preferredFoods,
+      'intolleranze': intolerances,
+      'bio': bio,
+      'existing_gallery_filenames': jsonEncode(existingGalleryFilenames),
+    });
+
+    for (final photoPath in photoPaths) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'foto',
+          photoPath,
+          filename: File(photoPath).uri.pathSegments.last,
+        ),
+      );
+    }
+
+    final response = await _sendMultipart(request);
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return payload['message']?.toString() ?? 'Utente aggiornato con successo.';

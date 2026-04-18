@@ -5903,7 +5903,13 @@ def api_admin_user_detail(user_id):
             "user": serialize_admin_user_detail(user),
         })
 
-    data = request.get_json(silent=True) or {}
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+        foto_files = []
+    else:
+        data = request.form
+        foto_files = extract_uploaded_photos("foto")
+
     payload, errors = validate_profile_update_input(
         user,
         {
@@ -5924,14 +5930,19 @@ def api_admin_user_detail(user_id):
                 list(user.gallery_filenames),
             ),
         },
-        foto_files=[],
+        foto_files=foto_files,
         require_primary_face=False,
     )
     if errors:
         delete_upload_files(payload.get("uploaded_gallery_filenames", []))
         return jsonify({"success": False, "errors": errors}), 400
 
-    verified_value = bool(data.get("verificato", user.verificato))
+    verified_value = str(data.get("verificato", user.verificato)).lower() in {
+        "1",
+        "true",
+        "on",
+        "yes",
+    }
     success, save_errors, _ = save_profile_update_for_user(
         user,
         payload,
