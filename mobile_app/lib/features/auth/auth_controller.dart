@@ -25,6 +25,7 @@ class AuthController extends ChangeNotifier {
   bool _pendingProfileCompletion = false;
   bool _requiresReauthentication = false;
   bool _adminBackgroundLogoutInFlight = false;
+  int _adminBackgroundLogoutHoldCount = 0;
 
   AppUser? get currentUser => _currentUser;
   bool get isBusy => _isBusy;
@@ -221,11 +222,28 @@ class AuthController extends ChangeNotifier {
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
         if (_currentUser?.isAdmin == true) {
-          await _logoutAdminOnBackground();
+          if (_adminBackgroundLogoutHoldCount > 0) {
+            await _markAppInactive();
+          } else {
+            await _logoutAdminOnBackground();
+          }
         } else {
           await _markAppInactive();
         }
         break;
+    }
+  }
+
+  Future<T> runWithAdminBackgroundLogoutSuspended<T>(
+    Future<T> Function() action,
+  ) async {
+    _adminBackgroundLogoutHoldCount += 1;
+    try {
+      return await action();
+    } finally {
+      if (_adminBackgroundLogoutHoldCount > 0) {
+        _adminBackgroundLogoutHoldCount -= 1;
+      }
     }
   }
 
@@ -345,15 +363,14 @@ class AuthController extends ChangeNotifier {
       );
     }
 
-      final payload = await apiClient.loginWithGoogle(idToken: idToken);
-      _currentUser = await apiClient.fetchCurrentUser();
-      _pendingProfileCompletion =
-          payload['created'] == true ||
-          (_currentUser?.needsMandatoryProfileSetup ?? false);
-      _requiresReauthentication = false;
-      await apiClient.sessionStore.touch();
-      notifyListeners();
-      return true;
+    final payload = await apiClient.loginWithGoogle(idToken: idToken);
+    _currentUser = await apiClient.fetchCurrentUser();
+    _pendingProfileCompletion = payload['created'] == true ||
+        (_currentUser?.needsMandatoryProfileSetup ?? false);
+    _requiresReauthentication = false;
+    await apiClient.sessionStore.touch();
+    notifyListeners();
+    return true;
   }
 
   Future<GoogleSignInAccount?> _tryRecoverCanceledGoogleAuthentication() async {

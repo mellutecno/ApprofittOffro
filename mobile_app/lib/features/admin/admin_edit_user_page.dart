@@ -196,18 +196,24 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
         return;
       }
 
-      final photo = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 86,
-        maxWidth: 1800,
+      final photo =
+          await widget.authController.runWithAdminBackgroundLogoutSuspended(
+        () => _picker.pickImage(
+          source: ImageSource.camera,
+          imageQuality: 86,
+          maxWidth: 1800,
+        ),
       );
       if (!mounted || photo == null) {
         return;
       }
 
-      final croppedPhoto = await ProfilePhotoCropper.cropPickedPhoto(
-        photo,
-        title: 'Ritaglia foto profilo',
+      final croppedPhoto =
+          await widget.authController.runWithAdminBackgroundLogoutSuspended(
+        () => ProfilePhotoCropper.cropPickedPhoto(
+          photo,
+          title: 'Ritaglia foto profilo',
+        ),
       );
       if (!mounted || croppedPhoto == null) {
         return;
@@ -219,14 +225,20 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
       return;
     }
 
-    final photos = await _picker.pickMultiImage(imageQuality: 86);
+    final photos =
+        await widget.authController.runWithAdminBackgroundLogoutSuspended(
+      () => _picker.pickMultiImage(imageQuality: 86),
+    );
     if (!mounted || photos.isEmpty) {
       return;
     }
 
-    final croppedPhotos = await ProfilePhotoCropper.cropPickedPhotos(
-      photos,
-      titlePrefix: 'Ritaglia foto profilo',
+    final croppedPhotos =
+        await widget.authController.runWithAdminBackgroundLogoutSuspended(
+      () => ProfilePhotoCropper.cropPickedPhotos(
+        photos,
+        titlePrefix: 'Ritaglia foto profilo',
+      ),
     );
     if (!mounted || croppedPhotos.isEmpty) {
       return;
@@ -272,11 +284,14 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
 
     try {
       final filename = _existingGalleryFilenames[index];
-      final croppedPhoto = await ProfilePhotoCropper.cropExistingPhotoFromUrl(
-        widget.authController.apiClient.buildUploadUrl(filename),
-        title: index == 0
-            ? 'Ritaglia foto principale'
-            : 'Ritaglia foto ${index + 1}',
+      final croppedPhoto =
+          await widget.authController.runWithAdminBackgroundLogoutSuspended(
+        () => ProfilePhotoCropper.cropExistingPhotoFromUrl(
+          widget.authController.apiClient.buildUploadUrl(filename),
+          title: index == 0
+              ? 'Ritaglia foto principale'
+              : 'Ritaglia foto ${index + 1}',
+        ),
       );
       if (!mounted || croppedPhoto == null) {
         return;
@@ -303,11 +318,14 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
     }
 
     final effectiveIndex = _existingGalleryFilenames.length + index;
-    final croppedPhoto = await ProfilePhotoCropper.cropPickedPhoto(
-      _selectedPhotos[index],
-      title: effectiveIndex == 0
-          ? 'Ritaglia foto principale'
-          : 'Ritaglia foto ${effectiveIndex + 1}',
+    final croppedPhoto =
+        await widget.authController.runWithAdminBackgroundLogoutSuspended(
+      () => ProfilePhotoCropper.cropPickedPhoto(
+        _selectedPhotos[index],
+        title: effectiveIndex == 0
+            ? 'Ritaglia foto principale'
+            : 'Ritaglia foto ${effectiveIndex + 1}',
+      ),
     );
     if (!mounted || croppedPhoto == null) {
       return;
