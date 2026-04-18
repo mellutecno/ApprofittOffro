@@ -802,6 +802,11 @@ class ApiClient {
       mergedHeaders['Cookie'] = _cookieHeader!;
     }
 
+    // Default JSON requests to the content type expected by Flask routes.
+    if (body != null && mergedHeaders['Content-Type'] == null) {
+      mergedHeaders['Content-Type'] = 'application/json';
+    }
+
     late final http.Response response;
     switch (method.toUpperCase()) {
       case 'GET':

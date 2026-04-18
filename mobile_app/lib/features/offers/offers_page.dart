@@ -590,13 +590,14 @@ class _OfferPreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mealColor = _mealColor(offer.tipoPasto);
+    final isUpcoming = offer.dataOra.toLocal().isAfter(DateTime.now());
     final authorPhotoUrl = offer.autoreFoto.isNotEmpty
         ? apiClient.buildUploadUrl(offer.autoreFoto)
         : null;
     final occupiedSeats = (offer.postiTotali - offer.postiDisponibili)
         .clamp(0, offer.postiTotali);
-    final canAddToCalendar =
-        offer.alreadyClaimed || offer.claimStatus == 'claimed';
+    final canManageReminders = isUpcoming &&
+        (offer.isOwn || offer.alreadyClaimed || offer.claimStatus == 'claimed');
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
@@ -686,7 +687,7 @@ class _OfferPreviewCard extends StatelessWidget {
                           foregroundColor: AppTheme.brown,
                         ),
                       ),
-                      if (canAddToCalendar) ...[
+                      if (canManageReminders) ...[
                         const SizedBox(width: 6),
                         _CompactReminderButton(
                           offer: offer,
@@ -1005,10 +1006,6 @@ class _ReminderDialogState extends State<_ReminderDialog> {
         ],
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop([]),
-          child: const Text('Rimuovi tutti'),
-        ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_selectedMinutes),
           child: const Text('Salva'),

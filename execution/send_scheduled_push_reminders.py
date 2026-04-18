@@ -14,11 +14,20 @@ import argparse
 import os
 from datetime import timedelta
 
+EXECUTION_DIR = os.path.dirname(os.path.abspath(__file__))
 HOME_DIR = os.path.expanduser("~")
-os.environ.setdefault("APP_ENV_FILE", os.path.join(HOME_DIR, ".env"))
+
+default_env_file = os.path.join(EXECUTION_DIR, ".env")
+if os.path.exists(default_env_file):
+    os.environ.setdefault("APP_ENV_FILE", default_env_file)
+else:
+    os.environ.setdefault("APP_ENV_FILE", os.path.join(HOME_DIR, ".env"))
+
 if os.name != "nt" and "APP_DATA_DIR" not in os.environ:
-    # Su PythonAnywhere il database live e gli upload stanno nella home utente.
-    os.environ["APP_DATA_DIR"] = HOME_DIR
+    # Se esiste un database vicino allo script (deploy Hetzner), usiamo quello.
+    # Altrimenti teniamo il fallback storico per PythonAnywhere.
+    execution_db_path = os.path.join(EXECUTION_DIR, "approfittoffro.db")
+    os.environ["APP_DATA_DIR"] = EXECUTION_DIR if os.path.exists(execution_db_path) else HOME_DIR
 
 from app import (
     SQLITE_PATH,
