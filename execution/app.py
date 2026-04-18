@@ -63,6 +63,7 @@ from models import (
     UserFollow,
     DevicePushToken,
     NotificationDeliveryLog,
+    UserReminder,
 )
 from verify_photo import verifica_volto
 from upload_storage import create_upload_storage, StorageObjectNotFound
@@ -1031,6 +1032,12 @@ def send_upcoming_event_reminders(
     sent = {"host": 0, "participants": 0}
     skipped = {"already_sent": 0, "missing_token": 0}
 
+    # Prendiamo tutti i reminder attivi che scadono entro la finestra
+    # Un reminder è attivo se: now >= (evento - minuti_prima) E non è ancora stato inviato
+    # Per semplicità, il cron job gira ogni 5 minuti. Controlliamo se ci sono eventi che iniziano
+    # entro la finestra e se l'utente ha un reminder compatibile.
+    
+    # Per ottimizzare, prendiamo tutti gli eventi nella finestra
     offers = (
         Offer.query.options(
             selectinload(Offer.autore),
@@ -1046,75 +1053,86 @@ def send_upcoming_event_reminders(
     )
 
     for offer in offers:
-        data_evento = format_offer_datetime_label(offer.data_ora, now=now)
-        host_key = build_notification_dedupe_key(
-            "event_imminent_host",
-            offer_id=offer.id,
-            user_id=offer.user_id,
-        )
-        if notification_delivery_exists(host_key):
-            skipped["already_sent"] += 1
-        elif dry_run:
-            sent["host"] += 1
-        else:
-            push_sent = send_push_to_user(
-                offer.autore,
-                title="Evento tra poco",
-                body=f"Il tuo {offer.tipo_pasto} da {offer.nome_locale} inizia {data_evento}.",
-                target="profile",
-                extra_data={
-                    "offer_id": offer.id,
-                    "event_reminder": "true",
-                    "role": "host",
-                },
-            )
-            if push_sent > 0:
-                record_notification_delivery(
-                    user_id=offer.user_id,
+        # Calcola i minuti mancanti all'evento
+        delta_minutes = (offer.data_ora - now).total_seconds() / 60.0
+        
+        # 1. Host Reminder
+        # L'host ha sempre un reminder "default" se non ne ha impostati di specifici?
+        # Per ora mandiamo a tutti gli host come prima, poi raffineremo.
+        # Meglio: controlliamo se l'host ha impostato un reminder vicino a delta_minutes
+        host_reminders = UserReminder.query.filter_by(user_id=offer.user_id, offer_id=offer.id).all()
+        
+        for reminder in host_reminders:
+            # Se il reminder scade in questa finestra (es. mancano 30 min e l'utente ha chiesto 30 min)
+            # Tolleranza di 5 minuti per il cron job
+            if abs(delta_minutes - reminder.minutes_before) <= 5:
+                host_key = build_notification_dedupe_key(
+                    f"reminder_{reminder.minutes_before}_host",
                     offer_id=offer.id,
-                    reminder_type="event_imminent_host",
-                    dedupe_key=host_key,
+                    user_id=offer.user_id,
                 )
-                sent["host"] += 1
-            else:
-                skipped["missing_token"] += 1
+                if notification_delivery_exists(host_key):
+                    skipped["already_sent"] += 1
+                elif dry_run:
+                    sent["host"] += 1
+                else:
+                    data_evento = format_offer_datetime_label(offer.data_ora, now=now)
+                    push_sent = send_push_to_user(
+                        offer.autore,
+                        title=f"Promemoria: {reminder.minutes_before} min",
+                        body=f"Il tuo {offer.tipo_pasto} da {offer.nome_locale} inizia {data_evento}.",
+                        target="profile",
+                        extra_data={"offer_id": offer.id, "event_reminder": "true"},
+                    )
+                    if push_sent > 0:
+                        record_notification_delivery(
+                            user_id=offer.user_id, offer_id=offer.id,
+                            reminder_type=f"reminder_{reminder.minutes_before}_host",
+                            dedupe_key=host_key,
+                        )
+                        sent["host"] += 1
+                    else:
+                        skipped["missing_token"] += 1
 
+        # 2. Guest Reminder
         for claim in get_offer_accepted_claims(offer):
             participant = claim.utente
             if not participant:
                 continue
-            participant_key = build_notification_dedupe_key(
-                "event_imminent_guest",
-                offer_id=offer.id,
-                user_id=participant.id,
-            )
-            if notification_delivery_exists(participant_key):
-                skipped["already_sent"] += 1
-                continue
-            if dry_run:
-                sent["participants"] += 1
-                continue
-            push_sent = send_push_to_user(
-                participant,
-                title="Evento tra poco",
-                body=f"Il tuo {offer.tipo_pasto} da {offer.nome_locale} inizia {data_evento}.",
-                target="profile",
-                extra_data={
-                    "offer_id": offer.id,
-                    "event_reminder": "true",
-                    "role": "guest",
-                },
-            )
-            if push_sent > 0:
-                record_notification_delivery(
-                    user_id=participant.id,
-                    offer_id=offer.id,
-                    reminder_type="event_imminent_guest",
-                    dedupe_key=participant_key,
-                )
-                sent["participants"] += 1
-            else:
-                skipped["missing_token"] += 1
+            
+            guest_reminders = UserReminder.query.filter_by(user_id=participant.id, offer_id=offer.id).all()
+            
+            for reminder in guest_reminders:
+                if abs(delta_minutes - reminder.minutes_before) <= 5:
+                    participant_key = build_notification_dedupe_key(
+                        f"reminder_{reminder.minutes_before}_guest",
+                        offer_id=offer.id,
+                        user_id=participant.id,
+                    )
+                    if notification_delivery_exists(participant_key):
+                        skipped["already_sent"] += 1
+                        continue
+                    if dry_run:
+                        sent["participants"] += 1
+                        continue
+                    
+                    data_evento = format_offer_datetime_label(offer.data_ora, now=now)
+                    push_sent = send_push_to_user(
+                        participant,
+                        title=f"Promemoria: {reminder.minutes_before} min",
+                        body=f"Il tuo {offer.tipo_pasto} da {offer.nome_locale} inizia {data_evento}.",
+                        target="profile",
+                        extra_data={"offer_id": offer.id, "event_reminder": "true"},
+                    )
+                    if push_sent > 0:
+                        record_notification_delivery(
+                            user_id=participant.id, offer_id=offer.id,
+                            reminder_type=f"reminder_{reminder.minutes_before}_guest",
+                            dedupe_key=participant_key,
+                        )
+                        sent["participants"] += 1
+                    else:
+                        skipped["missing_token"] += 1
 
     return {
         "offers_considered": len(offers),
@@ -4675,6 +4693,41 @@ def api_get_offers():
             break
 
     return jsonify({"success": True, "offers": result})
+
+
+@app.route("/api/offers/<int:offer_id>/reminders", methods=["POST"])
+@login_required
+def api_set_offer_reminders(offer_id):
+    """Imposta i minuti di promemoria per un evento."""
+    data = request.get_json() or {}
+    minutes = data.get("minutes", [])
+    
+    # Validazione base
+    if not isinstance(minutes, list):
+        return jsonify({"success": False, "error": "Formato non valido."}), 400
+    
+    # Pulizia vecchi reminder
+    UserReminder.query.filter_by(user_id=current_user.id, offer_id=offer_id).delete()
+    
+    # Inserimento nuovi
+    for m in minutes:
+        try:
+            m_int = int(m)
+            if m_int > 0:
+                db.session.add(UserReminder(user_id=current_user.id, offer_id=offer_id, minutes_before=m_int))
+        except (ValueError, TypeError):
+            pass
+            
+    db.session.commit()
+    return jsonify({"success": True, "count": len(minutes)})
+
+
+@app.route("/api/offers/<int:offer_id>/reminders", methods=["GET"])
+@login_required
+def api_get_offer_reminders(offer_id):
+    """Ottiene i minuti di promemoria salvati per un evento."""
+    reminders = UserReminder.query.filter_by(user_id=current_user.id, offer_id=offer_id).all()
+    return jsonify({"success": True, "minutes": [r.minutes_before for r in reminders]})
 
 
 @app.route("/api/user/offers", methods=["GET"])

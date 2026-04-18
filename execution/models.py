@@ -207,6 +207,24 @@ class UserFollow(db.Model):
         return f"<UserFollow follower={self.follower_id} followed={self.followed_id}>"
 
 
+class UserReminder(db.Model):
+    """Promemoria impostati dall'utente per un evento specifico."""
+    __tablename__ = "user_reminders"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    offer_id = db.Column(db.Integer, db.ForeignKey("offers.id"), nullable=False)
+    minutes_before = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "offer_id", "minutes_before", name="unique_user_reminder"),
+    )
+
+    def __repr__(self):
+        return f"<UserReminder user={self.user_id} offer={self.offer_id} min={self.minutes_before}>"
+
+
 class DevicePushToken(db.Model):
     """Token push registrato da un dispositivo mobile."""
     __tablename__ = "device_push_tokens"

@@ -165,8 +165,9 @@ class OfferCard extends StatelessWidget {
                 ),
                 if (canAddToCalendar) ...[
                   const SizedBox(width: 10),
-                  _CalendarActionButton(
-                    onTap: _openCalendar,
+                  _ReminderButton(
+                    offer: offer,
+                    apiClient: apiClient,
                   ),
                 ],
               ],
@@ -786,35 +787,195 @@ class _WhatsAppAction extends StatelessWidget {
   }
 }
 
-class _CalendarActionButton extends StatelessWidget {
-  const _CalendarActionButton({
-    required this.onTap,
+class _ReminderButton extends StatefulWidget {
+  const _ReminderButton({
+    required this.offer,
+    required this.apiClient,
   });
 
-  final Future<void> Function() onTap;
+  final Offer offer;
+  final ApiClient apiClient;
+
+  @override
+  State<_ReminderButton> createState() => _ReminderButtonState();
+}
+
+class _ReminderButtonState extends State<_ReminderButton> {
+  List<int> _reminderMinutes = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReminders();
+  }
+
+  Future<void> _loadReminders() async {
+    try {
+      final minutes = await widget.apiClient.fetchOfferReminders(widget.offer.id);
+      if (mounted) {
+        setState(() {
+          _reminderMinutes = minutes;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _saveReminders(List<int> minutes) async {
+    try {
+      await widget.apiClient.saveOfferReminders(widget.offer.id, minutes);
+      if (mounted) {
+        setState(() => _reminderMinutes = minutes);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Errore nel salvataggio dei promemoria.')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final hasReminders = _reminderMinutes.isNotEmpty;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
+        onTap: () => _openReminderDialog(context),
         child: Ink(
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: AppTheme.peach.withValues(alpha: 0.72),
+            color: hasReminders
+                ? const Color(0xFFFFD54F).withValues(alpha: 0.85)
+                : AppTheme.peach.withValues(alpha: 0.72),
             borderRadius: BorderRadius.circular(999),
             border: Border.all(color: AppTheme.cardBorder),
           ),
-          child: const Icon(
-            Icons.event_available_rounded,
-            color: AppTheme.orange,
+          child: Icon(
+            hasReminders
+                ? Icons.notifications_active
+                : Icons.notifications_none,
+            color: hasReminders ? const Color(0xFF8D6E00) : AppTheme.orange,
             size: 20,
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _openReminderDialog(BuildContext context) async {
+    final result = await showDialog<List<int>>(
+      context: context,
+      builder: (context) => _ReminderDialog(
+        offer: widget.offer,
+        currentReminders: _reminderMinutes,
+      ),
+    );
+    if (result != null) {
+      await _saveReminders(result);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.isEmpty
+                  ? 'Promemoria disattivati'
+                  : 'Promemoria impostati a ${result.join(', ')} min prima',
+            ),
+          ),
+        );
+      }
+    }
+  }
+}
+
+class _ReminderDialog extends StatefulWidget {
+  const _ReminderDialog({
+    required this.offer,
+    required this.currentReminders,
+  });
+
+  final Offer offer;
+  final List<int> currentReminders;
+
+  @override
+  State<_ReminderDialog> createState() => _ReminderDialogState();
+}
+
+class _ReminderDialogState extends State<_ReminderDialog> {
+  late List<int> _selectedMinutes;
+
+  final List<int> _options = [15, 30, 60, 120, 180];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMinutes = List.from(widget.currentReminders);
+  }
+
+  void _toggleOption(int minutes) {
+    setState(() {
+      if (_selectedMinutes.contains(minutes)) {
+        _selectedMinutes.remove(minutes);
+      } else if (_selectedMinutes.length < 2) {
+        _selectedMinutes.add(minutes);
+        _selectedMinutes.sort();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Imposta promemoria'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Scegli fino a 2 promemoria per "${widget.offer.nomeLocale}":',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _options.map((minutes) {
+              final isSelected = _selectedMinutes.contains(minutes);
+              return FilterChip(
+                label: Text('$minutes min'),
+                selected: isSelected,
+                onSelected: (_) => _toggleOption(minutes),
+                selectedColor: const Color(0xFFFFD54F),
+              );
+            }).toList(),
+          ),
+          if (_selectedMinutes.length >= 2) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Massimo 2 promemoria selezionati.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.orange,
+                  ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop([]),
+          child: const Text('Rimuovi tutti'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_selectedMinutes),
+          child: const Text('Salva'),
+        ),
+      ],
     );
   }
 }

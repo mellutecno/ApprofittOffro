@@ -107,6 +107,23 @@ class ApiClient {
     return payload;
   }
 
+  Future<List<int>> fetchOfferReminders(int offerId) async {
+    final response = await _send(method: 'GET', path: '/api/offers/$offerId/reminders');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return List<int>.from(payload['minutes'] ?? []);
+  }
+
+  Future<void> saveOfferReminders(int offerId, List<int> minutes) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/offers/$offerId/reminders',
+      body: jsonEncode({'minutes': minutes}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+  }
+
   Future<String> registerUser({
     required String nome,
     required String email,
