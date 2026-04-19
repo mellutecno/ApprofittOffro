@@ -51,6 +51,7 @@ from models import (
     db,
     User,
     Offer,
+    OfferPhoto,
     Claim,
     CLAIM_STATUS_ACCEPTED,
     CLAIM_STATUS_PENDING,
@@ -169,6 +170,7 @@ upload_storage = create_upload_storage(app.config)
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 MAX_PROFILE_PHOTOS = 5
+MAX_OFFER_PHOTOS = 3
 BREAKFAST_BOOKING_LEAD_HOURS = 1
 MEAL_BOOKING_LEAD_HOURS = 6
 SHORT_NOTICE_BREAKFAST_BOOKING_LEAD_MINUTES = 30
@@ -577,6 +579,16 @@ def serialize_mobile_offer(
 
     can_claim = (not is_own) and current_claim is None and claim_status == "open"
     accepted_claims = get_offer_accepted_claims(offer)
+    offer_gallery = [
+        filename
+        for filename in list(getattr(offer, "gallery_filenames", []))
+        if filename and filename != "nessuna.jpg"
+    ]
+    primary_offer_photo = (
+        offer_gallery[0]
+        if offer_gallery
+        else getattr(offer, "foto_locale", "nessuna.jpg")
+    )
 
     user_has_reviewed = False
     reviews_received_count = 0
@@ -608,7 +620,9 @@ def serialize_mobile_offer(
         "booking_closed": booking_closed,
         "has_started": has_started,
         "descrizione": offer.descrizione or "",
-        "foto_locale": getattr(offer, "foto_locale", "nessuna.jpg"),
+        "foto_locale": primary_offer_photo,
+        "foto_locale_gallery": offer_gallery,
+        "foto_locale_count": len(offer_gallery),
         "autore": offer.autore.nome,
         "autore_id": offer.autore.id,
         "autore_foto": offer.autore.foto_filename,
@@ -1429,6 +1443,17 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 )
             """)
 
+        if not table_exists("offer_photos"):
+            cur.execute("""
+                CREATE TABLE offer_photos (
+                    id INTEGER PRIMARY KEY,
+                    offer_id INTEGER NOT NULL,
+                    filename VARCHAR(256) NOT NULL,
+                    position INTEGER NOT NULL DEFAULT 0,
+                    created_at DATETIME
+                )
+            """)
+
         if not table_exists("user_follows"):
             cur.execute("""
                 CREATE TABLE user_follows (
@@ -1482,6 +1507,17 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "ALTER TABLE offers ADD COLUMN IF NOT EXISTS booking_lead_override_minutes INTEGER"
+            )
+            conn.exec_driver_sql(
+                """
+                CREATE TABLE IF NOT EXISTS offer_photos (
+                    id SERIAL PRIMARY KEY,
+                    offer_id INTEGER NOT NULL REFERENCES offers(id) ON DELETE CASCADE,
+                    filename VARCHAR(256) NOT NULL,
+                    position INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP
+                )
+                """
             )
     except Exception as exc:
         print(f"[SCHEMA_COMPAT_ERROR] {exc}")
@@ -2313,6 +2349,57 @@ def replace_user_gallery(user, filenames):
     user.foto_filename = filenames[0]
     db.session.flush()
     db.session.expire(user, ["photos"])
+    return [filename for filename in old_filenames if filename not in filenames]
+
+
+def save_offer_gallery_files(user_key, photos):
+    """Salva fino a MAX_OFFER_PHOTOS immagini evento, restituendo i filename finali."""
+    if not photos:
+        return [], []
+
+    errors = []
+    if len(photos) > MAX_OFFER_PHOTOS:
+        errors.append(f"Puoi caricare al massimo {MAX_OFFER_PHOTOS} foto evento.")
+
+    for photo in photos:
+        if not allowed_file(photo.filename):
+            errors.append("Formato foto evento non valido. Usa JPG, PNG o WEBP.")
+            break
+
+    if errors:
+        return [], errors
+
+    saved_filenames = []
+    for photo in photos:
+        ext = photo.filename.rsplit(".", 1)[1].lower() if "." in photo.filename else "jpg"
+        image_payload = process_image(
+            photo,
+            f"offer_{user_key}_{uuid.uuid4().hex[:10]}.{ext}",
+            return_payload=True,
+        )
+        upload_storage.save_bytes(
+            image_payload["filename"],
+            image_payload["bytes"],
+            image_payload.get("content_type"),
+        )
+        saved_filenames.append(image_payload["filename"])
+
+    return saved_filenames, []
+
+
+def replace_offer_gallery(offer, filenames):
+    """Sostituisce la galleria evento mantenendo la prima foto come principale."""
+    old_filenames = list(offer.gallery_filenames)
+    for photo in list(offer.photos):
+        db.session.delete(photo)
+    db.session.flush()
+
+    for position, filename in enumerate(filenames):
+        db.session.add(OfferPhoto(offer_id=offer.id, filename=filename, position=position))
+
+    offer.foto_locale = filenames[0] if filenames else "nessuna.jpg"
+    db.session.flush()
+    db.session.expire(offer, ["photos"])
     return [filename for filename in old_filenames if filename not in filenames]
 
 
@@ -3612,9 +3699,10 @@ def remove_user_with_cleanup(user, motivazione, acting_admin):
     gallery_files = list(user.gallery_filenames)
     owned_offers = Offer.query.filter_by(user_id=user.id).all()
     owned_offer_photo_files = [
-        offer.foto_locale
+        filename
         for offer in owned_offers
-        if getattr(offer, "foto_locale", None)
+        for filename in list(getattr(offer, "gallery_filenames", []))
+        if filename and filename != "nessuna.jpg"
     ]
     owned_offer_ids = [offer.id for offer in owned_offers]
     now = local_now()
@@ -3686,9 +3774,10 @@ def remove_user_self_service(user):
     owned_offers = Offer.query.filter_by(user_id=user.id).all()
     owned_offer_ids = [offer.id for offer in owned_offers]
     owned_offer_photo_files = [
-        offer.foto_locale
+        filename
         for offer in owned_offers
-        if getattr(offer, "foto_locale", None)
+        for filename in list(getattr(offer, "gallery_filenames", []))
+        if filename and filename != "nessuna.jpg"
     ]
     now = local_now()
 
@@ -4529,6 +4618,7 @@ def api_get_offers():
     threshold = now - timedelta(hours=3)
     query = Offer.query.options(
         selectinload(Offer.autore).selectinload(User.photos),
+        selectinload(Offer.photos),
         selectinload(Offer.claims).selectinload(Claim.utente).selectinload(User.photos),
     ).filter(
         Offer.stato.in_(["attiva", "completata"]),
@@ -4638,6 +4728,16 @@ def api_get_offers():
         )
 
         accepted_claims = get_offer_accepted_claims(o)
+        offer_gallery = [
+            filename
+            for filename in list(getattr(o, "gallery_filenames", []))
+            if filename and filename != "nessuna.jpg"
+        ]
+        primary_offer_photo = (
+            offer_gallery[0]
+            if offer_gallery
+            else getattr(o, "foto_locale", "nessuna.jpg")
+        )
 
         result.append({
             "id": o.id,
@@ -4657,7 +4757,9 @@ def api_get_offers():
             "booking_closed": booking_closed,
             "has_started": has_started,
             "descrizione": o.descrizione or "",
-            "foto_locale": getattr(o, "foto_locale", "nessuna.jpg"),
+            "foto_locale": primary_offer_photo,
+            "foto_locale_gallery": offer_gallery,
+            "foto_locale_count": len(offer_gallery),
             "autore": o.autore.nome,
             "autore_id": o.autore.id,
             "autore_foto": o.autore.foto_filename,
@@ -4828,6 +4930,11 @@ def api_delete_offer(offer_id):
     # Riceve la motivazione dal corpo della richiesta (JSON)
     data = request.get_json(silent=True) or {}
     motivazione = data.get("motivazione", "Nessuna motivazione specificata.").strip() or "Nessuna motivazione specificata."
+    gallery_files = [
+        filename
+        for filename in list(getattr(offer, "gallery_filenames", []))
+        if filename and filename != "nessuna.jpg"
+    ]
 
     remove_offer_with_notifications(
         offer,
@@ -4837,6 +4944,8 @@ def api_delete_offer(offer_id):
         preserve_review_history=is_admin_user(current_user),
     )
     db.session.commit()
+    if offer.stato != "archiviata_admin":
+        delete_upload_files(gallery_files)
     
     return jsonify({"success": True, "message": "Offerta eliminata e partecipanti notificati."})
     
@@ -4910,7 +5019,19 @@ def api_edit_offer(offer_id):
     posti = request.form.get("posti_totali")
     data_ora_str = request.form.get("data_ora", "")
     descrizione = request.form.get("descrizione", "").strip()
-    foto_locale = request.files.get("foto_locale")
+    foto_files = extract_uploaded_photos("foto_locale")
+    existing_photo_filenames_raw = request.form.get("existing_photo_filenames", "").strip()
+    if existing_photo_filenames_raw:
+        try:
+            existing_photo_filenames = [
+                str(filename).strip()
+                for filename in (json.loads(existing_photo_filenames_raw) or [])
+                if str(filename).strip()
+            ]
+        except (TypeError, ValueError, json.JSONDecodeError):
+            existing_photo_filenames = []
+    else:
+        existing_photo_filenames = []
     force_short_notice = parse_force_short_notice_flag(
         request.form.get("force_short_notice")
     )
@@ -4928,10 +5049,22 @@ def api_edit_offer(offer_id):
         errors.append("Seleziona data e ora.")
     if not descrizione or len(descrizione) < 30:
         errors.append("La descrizione è obbligatoria e deve contenere almeno 30 caratteri.")
-
-    if foto_locale and foto_locale.filename:
+    current_gallery = [
+        filename
+        for filename in list(getattr(offer, "gallery_filenames", []))
+        if filename and filename != "nessuna.jpg"
+    ]
+    invalid_existing_filenames = [
+        filename for filename in existing_photo_filenames if filename not in current_gallery
+    ]
+    if invalid_existing_filenames:
+        errors.append("Alcune foto evento selezionate non sono più disponibili.")
+    for foto_locale in foto_files:
         if not allowed_file(foto_locale.filename):
-            errors.append("Formato foto non valido (usa JPG, PNG o WEBP).")
+            errors.append("Formato foto evento non valido (usa JPG, PNG o WEBP).")
+            break
+    if len(existing_photo_filenames) + len(foto_files) > MAX_OFFER_PHOTOS:
+        errors.append(f"Puoi salvare al massimo {MAX_OFFER_PHOTOS} foto evento.")
 
     if errors:
         return jsonify({"success": False, "errors": errors}), 400
@@ -4980,11 +5113,13 @@ def api_edit_offer(offer_id):
                 f"Non puoi scendere sotto {occupied_seats} posti: ci sono gia partecipanti confermati."
             ],
         }), 400
-
-    if foto_locale and foto_locale.filename:
-        ext = foto_locale.filename.rsplit(".", 1)[1].lower()
-        filename = f"offer_{offer.user_id}_{int(datetime.now().timestamp())}.{ext}"
-        offer.foto_locale = process_image(foto_locale, filename)
+    uploaded_photo_filenames, photo_errors = save_offer_gallery_files(
+        offer.user_id,
+        foto_files,
+    )
+    if photo_errors:
+        return jsonify({"success": False, "errors": photo_errors}), 400
+    final_gallery_filenames = existing_photo_filenames + uploaded_photo_filenames
 
     offer.tipo_pasto = tipo_pasto
     offer.nome_locale = nome_locale
@@ -5007,8 +5142,18 @@ def api_edit_offer(offer_id):
         else None
     )
     offer.descrizione = descrizione
+    old_gallery_filenames = []
+    if final_gallery_filenames != current_gallery:
+        old_gallery_filenames = replace_offer_gallery(offer, final_gallery_filenames)
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        delete_upload_files(uploaded_photo_filenames)
+        return jsonify({"success": False, "errors": [f"Errore nel salvataggio dell'offerta: {exc}"]}), 500
+
+    delete_upload_files(old_gallery_filenames)
     notify_claimants_for_offer_update(offer, previous_state, current_user)
     return jsonify({"success": True, "message": "Offerta aggiornata con successo!", "offer_id": offer.id})
 
@@ -5045,7 +5190,7 @@ def api_create_offer():
     posti = request.form.get("posti_totali")
     data_ora_str = request.form.get("data_ora", "")
     descrizione = request.form.get("descrizione", "").strip()
-    foto_locale = request.files.get("foto_locale")
+    foto_files = extract_uploaded_photos("foto_locale")
     force_short_notice = parse_force_short_notice_flag(
         request.form.get("force_short_notice")
     )
@@ -5064,9 +5209,12 @@ def api_create_offer():
         errors.append("Seleziona data e ora.")
     if not descrizione or len(descrizione) < 30:
         errors.append("La descrizione è obbligatoria e deve contenere almeno 30 caratteri.")
-    if foto_locale and foto_locale.filename:
+    for foto_locale in foto_files:
         if not allowed_file(foto_locale.filename):
-            errors.append("Formato foto non valido (usa JPG, PNG o WEBP).")
+            errors.append("Formato foto evento non valido (usa JPG, PNG o WEBP).")
+            break
+    if len(foto_files) > MAX_OFFER_PHOTOS:
+        errors.append(f"Puoi caricare al massimo {MAX_OFFER_PHOTOS} foto evento.")
 
     if errors:
         return jsonify({"success": False, "errors": errors}), 400
@@ -5098,12 +5246,13 @@ def api_create_offer():
             "errors": [get_offer_publication_too_late_message(tipo_pasto)],
         }), 409
 
-    # Salvataggio Immagine locale (opzionale)
-    filename = 'nessuna.jpg'
-    if foto_locale and foto_locale.filename:
-        ext = foto_locale.filename.rsplit(".", 1)[1].lower()
-        temp_filename = f"offer_{current_user.id}_{int(datetime.now().timestamp())}.{ext}"
-        filename = process_image(foto_locale, temp_filename)
+    uploaded_photo_filenames, photo_errors = save_offer_gallery_files(
+        current_user.id,
+        foto_files,
+    )
+    if photo_errors:
+        return jsonify({"success": False, "errors": photo_errors}), 400
+    filename = uploaded_photo_filenames[0] if uploaded_photo_filenames else 'nessuna.jpg'
 
     offer = Offer(
         user_id=current_user.id,
@@ -5126,7 +5275,15 @@ def api_create_offer():
     )
 
     db.session.add(offer)
-    db.session.commit()
+    try:
+        db.session.flush()
+        if uploaded_photo_filenames:
+            replace_offer_gallery(offer, uploaded_photo_filenames)
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        delete_upload_files(uploaded_photo_filenames)
+        return jsonify({"success": False, "errors": [f"Errore nel salvataggio dell'offerta: {exc}"]}), 500
     notification_stats = notify_followers_for_new_offer(offer)
     notified_users = notification_stats["followers"]
     email_notifications = notification_stats["emails"]

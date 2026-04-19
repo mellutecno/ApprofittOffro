@@ -42,6 +42,8 @@ class Offer {
     required this.bookingClosed,
     required this.descrizione,
     required this.fotoLocale,
+    required this.fotoLocaleGallery,
+    required this.fotoLocaleCount,
     required this.autoreNome,
     required this.autoreId,
     required this.autoreFoto,
@@ -77,6 +79,8 @@ class Offer {
   final bool bookingClosed;
   final String descrizione;
   final String fotoLocale;
+  final List<String> fotoLocaleGallery;
+  final int fotoLocaleCount;
   final String autoreNome;
   final int autoreId;
   final String autoreFoto;
@@ -140,6 +144,11 @@ class Offer {
       bookingClosed: bookingClosed,
       descrizione: (json['descrizione'] ?? '').toString(),
       fotoLocale: (json['foto_locale'] ?? '').toString(),
+      fotoLocaleGallery: (json['foto_locale_gallery'] as List<dynamic>? ?? [])
+          .map((item) => item.toString())
+          .toList(),
+      fotoLocaleCount: json['foto_locale_count'] as int? ??
+          ((json['foto_locale_gallery'] as List<dynamic>?)?.length ?? 0),
       autoreNome: (json['autore'] ?? '').toString(),
       autoreId: json['autore_id'] as int? ?? 0,
       autoreFoto: (json['autore_foto'] ?? '').toString(),

@@ -247,6 +247,8 @@ class AdminOfferSummary {
       bookingClosed: false,
       descrizione: description,
       fotoLocale: photoFilename,
+      fotoLocaleGallery: photoFilename.isEmpty ? const <String>[] : <String>[photoFilename],
+      fotoLocaleCount: photoFilename.isEmpty ? 0 : 1,
       autoreNome: author.name,
       autoreId: author.id,
       autoreFoto: author.photoFilename,

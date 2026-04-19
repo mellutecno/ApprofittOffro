@@ -446,7 +446,7 @@ class ApiClient {
     required int totalSeats,
     required DateTime dateTime,
     required String description,
-    String? photoPath,
+    List<String> photoPaths = const <String>[],
     bool forceShortNotice = false,
   }) async {
     final request = http.MultipartRequest(
@@ -470,7 +470,10 @@ class ApiClient {
       'force_short_notice': forceShortNotice ? 'true' : 'false',
     });
 
-    if (photoPath != null && photoPath.isNotEmpty) {
+    for (final photoPath in photoPaths) {
+      if (photoPath.trim().isEmpty) {
+        continue;
+      }
       request.files.add(
         await http.MultipartFile.fromPath(
           'foto_locale',
@@ -498,7 +501,8 @@ class ApiClient {
     required int totalSeats,
     required DateTime dateTime,
     required String description,
-    String? photoPath,
+    List<String> photoPaths = const <String>[],
+    List<String> existingPhotoFilenames = const <String>[],
     bool forceShortNotice = false,
   }) async {
     final request = http.MultipartRequest(
@@ -521,8 +525,16 @@ class ApiClient {
       'descrizione': description,
       'force_short_notice': forceShortNotice ? 'true' : 'false',
     });
+    request.fields['existing_photo_filenames'] = jsonEncode(
+      existingPhotoFilenames
+          .where((filename) => filename.trim().isNotEmpty)
+          .toList(),
+    );
 
-    if (photoPath != null && photoPath.isNotEmpty) {
+    for (final photoPath in photoPaths) {
+      if (photoPath.trim().isEmpty) {
+        continue;
+      }
       request.files.add(
         await http.MultipartFile.fromPath(
           'foto_locale',

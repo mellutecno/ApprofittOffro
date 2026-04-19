@@ -7,6 +7,7 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/offer.dart';
 import '../profile/public_profile_page.dart';
+import '../profile/profile_gallery_viewer_page.dart';
 
 class OfferCard extends StatelessWidget {
   const OfferCard({
@@ -42,6 +43,21 @@ class OfferCard extends StatelessWidget {
           .toLocal()
           .isBefore(DateTime.now().subtract(const Duration(hours: 3)));
 
+  List<String> _offerGalleryUrls() {
+    final filenames = <String>[];
+    if (offer.fotoLocale.isNotEmpty && offer.fotoLocale != 'nessuna.jpg') {
+      filenames.add(offer.fotoLocale);
+    }
+    for (final filename in offer.fotoLocaleGallery) {
+      if (filename.isNotEmpty &&
+          filename != 'nessuna.jpg' &&
+          !filenames.contains(filename)) {
+        filenames.add(filename);
+      }
+    }
+    return filenames.map(apiClient.buildUploadUrl).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final mealColor = _mealColor(offer.tipoPasto);
@@ -51,31 +67,34 @@ class OfferCard extends StatelessWidget {
         (offer.isOwn || offer.alreadyClaimed || offer.claimStatus == 'claimed');
     final occupiedSeats = (offer.postiTotali - offer.postiDisponibili)
         .clamp(0, offer.postiTotali);
-    final localeImageUrl =
-        offer.fotoLocale.isNotEmpty && offer.fotoLocale != 'nessuna.jpg'
-            ? apiClient.buildUploadUrl(offer.fotoLocale)
-            : null;
+    final offerGalleryUrls = _offerGalleryUrls();
+    final localeImageUrl = offerGalleryUrls.isNotEmpty ? offerGalleryUrls.first : null;
     final authorPhotoUrl = offer.autoreFoto.isNotEmpty
         ? apiClient.buildUploadUrl(offer.autoreFoto)
         : null;
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.surfaceGradient,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppTheme.paper,
+                gradient: AppTheme.softAccentGradient,
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(color: AppTheme.cardBorder),
                 boxShadow: const [
                   BoxShadow(
-                    color: Color(0x12000000),
-                    blurRadius: 20,
-                    offset: Offset(0, 10),
+                    color: AppTheme.shadow,
+                    blurRadius: 24,
+                    offset: Offset(0, 12),
                   ),
                 ],
               ),
@@ -184,8 +203,22 @@ class OfferCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFFBF5),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFF8EEE3), Color(0xFFF1E2D4)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: AppTheme.cardBorder.withValues(alpha: 0.7),
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: AppTheme.shadow,
+                    blurRadius: 8,
+                    offset: Offset(0, 4),
+                  ),
+                ],
               ),
               child: offer.participants.isEmpty
                   ? const Text(
@@ -249,48 +282,85 @@ class OfferCard extends StatelessWidget {
             ),
             if (localeImageUrl != null) ...[
               const SizedBox(height: 14),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(18),
-                child: AspectRatio(
-                  aspectRatio: 16 / 10,
-                  child: Image.network(
-                    localeImageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, _, __) => Container(
-                      color: const Color(0xFFF6EEE2),
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.image_not_supported_outlined),
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: offerGalleryUrls.isEmpty
+                            ? null
+                            : () => Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => ProfileGalleryViewerPage(
+                                      imageUrls: offerGalleryUrls,
+                                      title: offer.nomeLocale,
+                                    ),
+                                  ),
+                                ),
+                        child: AspectRatio(
+                          aspectRatio: 16 / 10,
+                          child: Image.network(
+                            localeImageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, _, __) => Container(
+                              color: AppTheme.mist,
+                              alignment: Alignment.center,
+                              child: const Icon(Icons.image_not_supported_outlined),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  if (offerGalleryUrls.length > 1)
+                    Positioned(
+                      right: 12,
+                      top: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.62),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '+${offerGalleryUrls.length - 1}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ],
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppTheme.paper,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFFBF7), Color(0xFFF2E5D9)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: AppTheme.cardBorder),
+                boxShadow: const [
+                  BoxShadow(
+                    color: AppTheme.shadow,
+                    blurRadius: 10,
+                    offset: Offset(0, 5),
+                  ),
+                ],
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (showAddressLeadIcon) ...[
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppTheme.peach.withValues(alpha: 0.55),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(
-                        Icons.location_on_rounded,
-                        color: AppTheme.orange,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -416,6 +486,7 @@ class OfferCard extends StatelessWidget {
               ),
           ],
         ),
+      ),
       ),
     );
   }

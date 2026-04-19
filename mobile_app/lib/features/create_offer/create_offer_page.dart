@@ -19,6 +19,7 @@ import '../../core/widgets/brand_wordmark.dart';
 import '../../models/offer.dart';
 import '../../models/place_candidate.dart';
 import '../auth/auth_controller.dart';
+import '../profile/profile_gallery_viewer_page.dart';
 
 class CreateOfferPage extends StatefulWidget {
   const CreateOfferPage({
@@ -45,6 +46,7 @@ class CreateOfferPageResult {
 
 class _CreateOfferPageState extends State<CreateOfferPage> {
   static const LatLng _fallbackMapTarget = LatLng(45.070339, 7.686864);
+  static const int _maxOfferPhotos = 3;
 
   final _formKey = GlobalKey<FormState>();
   final _localeController = TextEditingController();
@@ -60,7 +62,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   String? _mealType;
   int _totalSeats = 1;
   DateTime? _selectedDateTime;
-  XFile? _pickedImage;
+  List<XFile> _pickedImages = const <XFile>[];
+  List<String> _existingGalleryFilenames = const <String>[];
   bool _submitting = false;
   bool _deleting = false;
   bool _isLocating = false;
@@ -105,6 +108,13 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
   String? get _currentShortNoticeSignature =>
       _buildShortNoticeSignature(_mealType, _selectedDateTime);
+
+  int get _remainingPhotoSlots =>
+      _maxOfferPhotos - _existingGalleryFilenames.length - _pickedImages.length;
+
+  List<String> get _existingGalleryUrls => _existingGalleryFilenames
+      .map(widget.authController.apiClient.buildUploadUrl)
+      .toList();
 
   String? get _visiblePublicationTimingWarning {
     final warning = _publicationTimingWarning;
@@ -509,39 +519,56 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                   ),
                   const SizedBox(height: 14),
                   OutlinedButton.icon(
-                    onPressed: _submitting ? null : _pickImage,
+                    onPressed: _submitting ? null : _pickEventPhotos,
                     icon: const Icon(Icons.photo_camera_back_outlined),
                     label: Text(
-                      _pickedImage == null
-                          ? 'Aggiungi foto locale (opzionale)'
-                          : 'Cambia foto del locale',
+                      (_existingGalleryFilenames.isEmpty && _pickedImages.isEmpty)
+                          ? 'Aggiungi fino a 3 foto evento'
+                          : 'Gestisci foto evento',
                     ),
                   ),
-                  if (_pickedImage != null) ...[
-                    const SizedBox(height: 14),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(22),
-                      child: Container(
-                        color: AppTheme.paper,
-                        child: AspectRatio(
-                          aspectRatio: 16 / 10,
-                          child: Padding(
-                            padding: const EdgeInsets.all(10),
-                            child: Image.file(
-                              File(_pickedImage!.path),
-                              fit: BoxFit.contain,
-                              alignment: Alignment.center,
-                            ),
-                          ),
-                        ),
-                      ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Puoi mostrare locale, piatti o atmosfera. Massimo $_maxOfferPhotos foto.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppTheme.brown.withValues(alpha: 0.72),
+                      fontWeight: FontWeight.w700,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _pickedImage!.name,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.brown.withValues(alpha: 0.7),
-                      ),
+                  ),
+                  if (_existingGalleryFilenames.isNotEmpty ||
+                      _pickedImages.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    _OfferPhotoComposerGrid(
+                      existingImageUrls: _existingGalleryUrls,
+                      pickedImages: _pickedImages,
+                      maxPhotos: _maxOfferPhotos,
+                      onOpenExistingGallery: _existingGalleryUrls.isEmpty
+                          ? null
+                          : () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => ProfileGalleryViewerPage(
+                                    imageUrls: _existingGalleryUrls,
+                                    title: 'Foto evento',
+                                  ),
+                                ),
+                              ),
+                      onRemoveExisting: _submitting
+                          ? null
+                          : (index) {
+                              setState(() {
+                                _existingGalleryFilenames = List<String>.from(
+                                  _existingGalleryFilenames,
+                                )..removeAt(index);
+                              });
+                            },
+                      onRemovePicked: _submitting
+                          ? null
+                          : (index) {
+                              setState(() {
+                                _pickedImages = List<XFile>.from(_pickedImages)
+                                  ..removeAt(index);
+                              });
+                            },
                     ),
                   ],
                 ],
@@ -882,9 +909,39 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     );
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickEventPhotos() async {
+    if (_remainingPhotoSlots <= 0) {
+      _showMessage('Puoi caricare al massimo $_maxOfferPhotos foto evento.');
+      return;
+    }
+
     final source = await _pickImageSource();
     if (!mounted || source == null) {
+      return;
+    }
+
+    if (source == ImageSource.gallery) {
+      final images = await _picker.pickMultiImage(
+        imageQuality: 88,
+        maxWidth: 1800,
+      );
+      if (!mounted || images.isEmpty) {
+        return;
+      }
+      final availableSlots = _remainingPhotoSlots;
+      final selectedImages = images.take(availableSlots).toList();
+      if (selectedImages.isEmpty) {
+        _showMessage('Hai già raggiunto il limite di $_maxOfferPhotos foto.');
+        return;
+      }
+      setState(() {
+        _pickedImages = List<XFile>.from(_pickedImages)..addAll(selectedImages);
+      });
+      if (images.length > availableSlots) {
+        _showMessage(
+          'Ho aggiunto solo le prime $availableSlots foto: il massimo è $_maxOfferPhotos.',
+        );
+      }
       return;
     }
 
@@ -896,7 +953,9 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     if (image == null || !mounted) {
       return;
     }
-    setState(() => _pickedImage = image);
+    setState(() {
+      _pickedImages = List<XFile>.from(_pickedImages)..add(image);
+    });
   }
 
   Future<void> _useCurrentLocation({bool silent = false}) async {
@@ -1507,7 +1566,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               totalSeats: _totalSeats,
               dateTime: _selectedDateTime!,
               description: _descriptionController.text.trim(),
-              photoPath: _pickedImage?.path,
+              photoPaths: _pickedImages.map((image) => image.path).toList(),
               forceShortNotice: shouldForceShortNotice,
             )
           : await widget.authController.apiClient.updateOffer(
@@ -1521,7 +1580,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
               totalSeats: _totalSeats,
               dateTime: _selectedDateTime!,
               description: _descriptionController.text.trim(),
-              photoPath: _pickedImage?.path,
+              photoPaths: _pickedImages.map((image) => image.path).toList(),
+              existingPhotoFilenames: _existingGalleryFilenames,
               forceShortNotice: shouldForceShortNotice,
             );
 
@@ -1545,15 +1605,16 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       if (widget.onOfferCreated != null) {
         await widget.onOfferCreated!.call();
       }
-      _localeController.clear();
-      _addressController.clear();
-      _phoneController.clear();
-      _descriptionController.clear();
+        _localeController.clear();
+        _addressController.clear();
+        _phoneController.clear();
+        _descriptionController.clear();
       setState(() {
         _mealType = null;
         _totalSeats = 1;
         _selectedDateTime = null;
-        _pickedImage = null;
+        _pickedImages = const <XFile>[];
+        _existingGalleryFilenames = const <String>[];
         _nearbyPlacesLoaded = false;
         _selectedPlaceId = null;
         _selectedLatitude = null;
@@ -1753,6 +1814,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     _addressController.text = offer.indirizzo;
     _phoneController.text = offer.telefonoLocale;
     _descriptionController.text = offer.descrizione;
+    _existingGalleryFilenames = offer.fotoLocaleGallery.isNotEmpty
+        ? List<String>.from(offer.fotoLocaleGallery)
+        : (offer.fotoLocale.isNotEmpty && offer.fotoLocale != 'nessuna.jpg'
+            ? <String>[offer.fotoLocale]
+            : const <String>[]);
     _selectedLatitude = offer.latitude;
     _selectedLongitude = offer.longitude;
     _selectedPlaceId = 'offer_${offer.id}';
@@ -1773,6 +1839,150 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       duration: const Duration(milliseconds: 360),
       curve: Curves.easeOutCubic,
       alignment: 0.1,
+    );
+  }
+}
+
+class _OfferPhotoComposerGrid extends StatelessWidget {
+  const _OfferPhotoComposerGrid({
+    required this.existingImageUrls,
+    required this.pickedImages,
+    required this.maxPhotos,
+    this.onOpenExistingGallery,
+    this.onRemoveExisting,
+    this.onRemovePicked,
+  });
+
+  final List<String> existingImageUrls;
+  final List<XFile> pickedImages;
+  final int maxPhotos;
+  final VoidCallback? onOpenExistingGallery;
+  final void Function(int index)? onRemoveExisting;
+  final void Function(int index)? onRemovePicked;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalPhotos = existingImageUrls.length + pickedImages.length;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: AppTheme.surfaceGradient,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Foto evento',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppTheme.espresso,
+                    ),
+              ),
+              const Spacer(),
+              Text(
+                '$totalPhotos / $maxPhotos',
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.72),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (var index = 0; index < existingImageUrls.length; index++)
+                _OfferPhotoTile(
+                  onTap: onOpenExistingGallery,
+                  onRemove: onRemoveExisting == null
+                      ? null
+                      : () => onRemoveExisting!(index),
+                  child: Image.network(
+                    existingImageUrls[index],
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              for (var index = 0; index < pickedImages.length; index++)
+                _OfferPhotoTile(
+                  onRemove: onRemovePicked == null
+                      ? null
+                      : () => onRemovePicked!(index),
+                  child: Image.file(
+                    File(pickedImages[index].path),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OfferPhotoTile extends StatelessWidget {
+  const _OfferPhotoTile({
+    required this.child,
+    this.onTap,
+    this.onRemove,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(18),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                width: 92,
+                height: 92,
+                color: AppTheme.paper,
+                child: child,
+              ),
+            ),
+          ),
+        ),
+        if (onRemove != null)
+          Positioned(
+            top: -6,
+            right: -6,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onRemove,
+                borderRadius: BorderRadius.circular(999),
+                child: Ink(
+                  width: 28,
+                  height: 28,
+                  decoration: const BoxDecoration(
+                    color: AppTheme.orange,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

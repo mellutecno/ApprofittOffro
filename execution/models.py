@@ -161,6 +161,13 @@ class Offer(db.Model):
 
     # Relazioni
     claims = db.relationship("Claim", backref="offerta", lazy=True)
+    photos = db.relationship(
+        "OfferPhoto",
+        backref="offer",
+        lazy=True,
+        cascade="all, delete-orphan",
+        order_by="OfferPhoto.position.asc()",
+    )
 
     @property
     def is_disponibile(self):
@@ -172,8 +179,32 @@ class Offer(db.Model):
             and self.data_ora > now
         )
 
+    @property
+    def gallery_filenames(self):
+        photos = [
+            photo.filename
+            for photo in sorted(self.photos, key=lambda item: item.position)
+        ]
+        if photos:
+            return photos
+        return [self.foto_locale] if self.foto_locale else []
+
     def __repr__(self):
         return f"<Offer {self.tipo_pasto} @ {self.nome_locale} ({self.posti_disponibili}/{self.posti_totali})>"
+
+
+class OfferPhoto(db.Model):
+    """Foto evento/locale dell'offerta (la prima resta la foto principale)."""
+    __tablename__ = "offer_photos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    offer_id = db.Column(db.Integer, db.ForeignKey("offers.id"), nullable=False)
+    filename = db.Column(db.String(256), nullable=False)
+    position = db.Column(db.Integer, default=0, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    def __repr__(self):
+        return f"<OfferPhoto offer={self.offer_id} position={self.position}>"
 
 
 class UserPhoto(db.Model):
