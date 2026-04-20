@@ -20,6 +20,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from functools import wraps
 
 from dotenv import load_dotenv
+from google.auth import crypt as google_auth_crypt
+from google.auth import jwt as google_auth_jwt
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2 import id_token as google_id_token
 from google.oauth2 import service_account
@@ -62,6 +64,7 @@ from models import (
     SESSI_UTENTE,
     UserPhoto,
     UserFollow,
+    UserBlock,
     DevicePushToken,
     NotificationDeliveryLog,
     UserReminder,
@@ -210,6 +213,9 @@ PUSH_CHANNEL_ID = "approfittoffro_alerts"
 UPCOMING_EVENT_REMINDER_HOURS = 0.5  # 30 minuti
 REVIEW_REMINDER_DELAY_HOURS = 3
 REVIEW_REMINDER_LOOKBACK_HOURS = 72
+FIREBASE_CUSTOM_TOKEN_AUDIENCE = (
+    "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit"
+)
 
 
 def get_google_oauth_client_ids():
@@ -633,13 +639,13 @@ def serialize_mobile_offer(
         "autore_cibi_preferiti": offer.autore.cibi_preferiti or "",
         "autore_intolleranze": offer.autore.intolleranze or "",
         "host_whatsapp_link": host_whatsapp_link,
-        "host_chat_enabled": bool(offer.autore.chat_enabled) if already_claimed else False,
+        "host_chat_enabled": already_claimed,
         "partecipanti": [
             {
                 "id": claim.utente.id,
                 "nome": claim.utente.nome,
                 "foto": claim.utente.foto_filename,
-                "chat_enabled": bool(claim.utente.chat_enabled),
+                "chat_enabled": True,
                 "whatsapp_link": build_whatsapp_offer_link(viewer, claim.utente, offer)
                 if viewer and getattr(viewer, "is_authenticated", False) and is_own
                 else "",
@@ -1755,6 +1761,37 @@ def get_firebase_access_token():
         return ""
 
 
+def create_firebase_custom_token(user):
+    """Firma un custom token Firebase per proteggere Firestore con l'utente Flask."""
+    info = _load_firebase_service_account_info() or {}
+    client_email = str(info.get("client_email", "") or "").strip()
+    if not client_email or not info.get("private_key"):
+        return "", "Credenziali Firebase incomplete."
+
+    try:
+        signer = google_auth_crypt.RSASigner.from_service_account_info(info)
+        now = int(datetime.now(timezone.utc).timestamp())
+        payload = {
+            "iss": client_email,
+            "sub": client_email,
+            "aud": FIREBASE_CUSTOM_TOKEN_AUDIENCE,
+            "iat": now,
+            "exp": now + 3600,
+            "uid": str(user.id),
+            "claims": {
+                "app_user_id": user.id,
+                "is_admin": bool(getattr(user, "is_admin", False)),
+            },
+        }
+        token = google_auth_jwt.encode(signer, payload)
+        if isinstance(token, bytes):
+            token = token.decode("utf-8")
+        return token, None
+    except Exception as exc:
+        print(f"[FIREBASE_AUTH_ERROR] Impossibile creare custom token: {exc}")
+        return "", "Impossibile inizializzare la chat."
+
+
 def build_push_target_deeplink(target):
     normalized = str(target or "").strip().lower()
     if normalized == "pending-requests":
@@ -2849,7 +2886,7 @@ def parse_age_value(age_raw):
 
 
 def normalize_phone_number(phone_raw):
-    """Normalizza un recapito telefonico per un uso futuro in chat/WhatsApp."""
+    """Normalizza un recapito telefonico per il profilo utente."""
     normalized_phone = str(phone_raw or "").strip()
     if not normalized_phone:
         return None, "Inserisci un numero di cellulare valido."
@@ -2883,23 +2920,8 @@ def phone_to_whatsapp_digits(phone_raw):
 
 
 def build_whatsapp_offer_link(sender_user, recipient_user, offer):
-    """Crea un link WhatsApp diretto solo se entrambi gli utenti hanno un recapito valido."""
-    if not sender_user or not recipient_user or not offer:
-        return ""
-    if not getattr(sender_user, "numero_telefono", None) or not getattr(recipient_user, "numero_telefono", None):
-        return ""
-
-    recipient_digits = phone_to_whatsapp_digits(recipient_user.numero_telefono)
-    if not recipient_digits:
-        return ""
-
-    tipo_pasto_label = dict(TIPI_PASTO).get(offer.tipo_pasto, offer.tipo_pasto).lower()
-    message = (
-        f"Ciao {recipient_user.nome}, sono {sender_user.nome} da ApprofittOffro. "
-        f"Ti scrivo per il {tipo_pasto_label} da {offer.nome_locale} del "
-        f"{offer.data_ora.strftime('%d/%m/%Y alle %H:%M')}."
-    )
-    return f"https://wa.me/{recipient_digits}?text={quote(message)}"
+    """Compat legacy: non esponiamo piu' numeri o link WhatsApp al client."""
+    return ""
 
 
 def parse_optional_age_bound(age_raw, label):
@@ -4770,13 +4792,13 @@ def api_get_offers():
             "autore_cibi_preferiti": o.autore.cibi_preferiti or "",
             "autore_intolleranze": o.autore.intolleranze or "",
             "host_whatsapp_link": host_whatsapp_link,
-            "host_chat_enabled": bool(o.autore.chat_enabled) if already_claimed else False,
+            "host_chat_enabled": already_claimed,
             "partecipanti": [
                 {
                     "id": claim.utente.id,
                     "nome": claim.utente.nome,
                     "foto": claim.utente.foto_filename,
-                    "chat_enabled": bool(claim.utente.chat_enabled),
+                    "chat_enabled": True,
                     "whatsapp_link": build_whatsapp_offer_link(current_user, claim.utente, o)
                     if current_user.is_authenticated and is_own
                     else "",
@@ -5773,6 +5795,313 @@ def api_unregister_push_token():
     return jsonify({"success": True, "message": "Token push disattivato."})
 
 
+def get_chat_block_status(user_id, other_user_id):
+    """Restituisce lo stato blocco fra due utenti."""
+    blocked_by_me = (
+        UserBlock.query.filter_by(
+            blocker_id=user_id,
+            blocked_id=other_user_id,
+        ).first()
+        is not None
+    )
+    blocked_by_other = (
+        UserBlock.query.filter_by(
+            blocker_id=other_user_id,
+            blocked_id=user_id,
+        ).first()
+        is not None
+    )
+    return blocked_by_me, blocked_by_other
+
+
+def ensure_chat_pair_allowed(offer_id, actor_user_id, other_user_id):
+    """Verifica che i due utenti possano usare la chat per quell'evento."""
+    offer = Offer.query.options(selectinload(Offer.claims)).get(offer_id)
+    if not offer:
+        return None, ("Evento non trovato.", 404)
+
+    accepted_participants = {
+        claim.user_id
+        for claim in offer.claims
+        if claim.status == CLAIM_STATUS_ACCEPTED
+    }
+
+    actor_is_host = offer.user_id == actor_user_id
+    actor_is_accepted_guest = actor_user_id in accepted_participants
+
+    if actor_is_host:
+        if other_user_id not in accepted_participants:
+            return None, ("Destinatario non autorizzato.", 403)
+    elif actor_is_accepted_guest:
+        if other_user_id != offer.user_id:
+            return None, ("Destinatario non autorizzato.", 403)
+    else:
+        return None, ("Chat non disponibile per questo evento.", 403)
+
+    return offer, None
+
+
+@app.route("/api/push/chat-notification", methods=["POST"])
+def api_chat_notification():
+    """Endpoint chiamato dalla Cloud Function Firebase per inviare notifiche chat."""
+    # Sicurezza: verifica API Key
+    auth_header = request.headers.get("Authorization", "")
+    expected_key = os.getenv("CHAT_NOTIFICATION_API_KEY", "")
+    if not expected_key or auth_header != f"Bearer {expected_key}":
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json()
+    receiver_id = data.get("receiver_id")
+    sender_id = data.get("sender_id")
+    sender_name = data.get("sender_name", "Utente")
+    message_text = data.get("message_text", "")
+    offer_id = data.get("offer_id")
+
+    if not receiver_id or not message_text:
+        return jsonify({"error": "Missing data"}), 400
+
+    try:
+        receiver_id = int(receiver_id)
+        sender_id = int(sender_id) if sender_id else None
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid user id"}), 400
+
+    user = User.query.get(receiver_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    sender = User.query.get(sender_id) if sender_id else None
+    if sender:
+        sender_name = sender.nome
+
+    # Invia notifica push
+    send_push_to_user(
+        user,
+        title=f"Nuovo messaggio da {sender_name}",
+        body=message_text,
+        target="chat",
+        extra_data={
+            "offer_id": offer_id,
+            "chat_with_user_id": sender_id or "",
+            "chat_with_name": sender_name,
+            "type": "chat_message"
+        },
+    )
+
+    return jsonify({"success": True})
+
+
+@app.route("/api/chat/message-notification", methods=["POST"])
+@login_required
+def api_chat_message_notification():
+    """Invia una push chat lato backend senza dipendere da Cloud Functions."""
+    data = request.get_json(silent=True) or {}
+    offer_id = data.get("offer_id")
+    receiver_id = data.get("receiver_id")
+    message_text = str(data.get("message_text", "")).strip()
+
+    if offer_id in (None, "") or receiver_id in (None, "") or not message_text:
+        return jsonify({"success": False, "error": "Dati chat mancanti."}), 400
+
+    try:
+        offer_id = int(offer_id)
+        receiver_id = int(receiver_id)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Dati chat non validi."}), 400
+
+    if receiver_id == current_user.id:
+        return jsonify({"success": False, "error": "Destinatario non valido."}), 400
+
+    _, chat_error = ensure_chat_pair_allowed(offer_id, current_user.id, receiver_id)
+    if chat_error:
+        message, status = chat_error
+        return jsonify({"success": False, "error": message}), status
+
+    blocked_by_me, blocked_by_other = get_chat_block_status(
+        current_user.id,
+        receiver_id,
+    )
+    if blocked_by_me:
+        return jsonify({"success": False, "error": "Hai bloccato questo utente."}), 403
+    if blocked_by_other:
+        return jsonify({"success": False, "error": "Questo utente ha bloccato la chat."}), 403
+
+    receiver = User.query.get(receiver_id)
+    if not receiver:
+        return jsonify({"success": False, "error": "Utente destinatario non trovato."}), 404
+
+    send_push_to_user(
+        receiver,
+        title=f"Nuovo messaggio da {current_user.nome}",
+        body=message_text,
+        target="chat",
+        extra_data={
+            "offer_id": offer_id,
+            "chat_with_user_id": current_user.id,
+            "chat_with_name": current_user.nome,
+            "type": "chat_message",
+        },
+    )
+
+    return jsonify({"success": True})
+
+
+@app.route("/api/chat/clear-notification", methods=["POST"])
+@login_required
+def api_chat_clear_notification():
+    """Notifica l'altro partecipante quando lo storico chat viene azzerato."""
+    data = request.get_json(silent=True) or {}
+    offer_id = data.get("offer_id")
+    receiver_id = data.get("receiver_id")
+
+    if offer_id in (None, "") or receiver_id in (None, ""):
+        return jsonify({"success": False, "error": "Dati chat mancanti."}), 400
+
+    try:
+        offer_id = int(offer_id)
+        receiver_id = int(receiver_id)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Dati chat non validi."}), 400
+
+    if receiver_id == current_user.id:
+        return jsonify({"success": False, "error": "Destinatario non valido."}), 400
+
+    _, chat_error = ensure_chat_pair_allowed(offer_id, current_user.id, receiver_id)
+    if chat_error:
+        message, status = chat_error
+        return jsonify({"success": False, "error": message}), status
+
+    receiver = User.query.get(receiver_id)
+    if not receiver:
+        return jsonify({"success": False, "error": "Utente destinatario non trovato."}), 404
+
+    send_push_to_user(
+        receiver,
+        title=f"{current_user.nome} ha azzerato la chat",
+        body="Cronologia rimossa per entrambi. Potete continuare a scrivervi.",
+        target="chat",
+        extra_data={
+            "offer_id": offer_id,
+            "chat_with_user_id": current_user.id,
+            "chat_with_name": current_user.nome,
+            "type": "chat_cleared",
+        },
+    )
+    return jsonify({"success": True})
+
+
+@app.route("/api/chat/block-status", methods=["GET"])
+@login_required
+def api_chat_block_status():
+    """Stato blocco chat con un utente specifico."""
+    raw_other_user_id = request.args.get("other_user_id")
+    if raw_other_user_id in (None, ""):
+        return jsonify({"success": False, "error": "Utente mancante."}), 400
+
+    try:
+        other_user_id = int(raw_other_user_id)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Utente non valido."}), 400
+
+    if other_user_id == current_user.id:
+        return jsonify({
+            "success": True,
+            "blocked_by_me": False,
+            "blocked_by_other": False,
+        })
+
+    other_user = User.query.get(other_user_id)
+    if not other_user:
+        return jsonify({"success": False, "error": "Utente non trovato."}), 404
+
+    blocked_by_me, blocked_by_other = get_chat_block_status(current_user.id, other_user_id)
+    return jsonify({
+        "success": True,
+        "blocked_by_me": blocked_by_me,
+        "blocked_by_other": blocked_by_other,
+    })
+
+
+@app.route("/api/chat/block", methods=["POST"])
+@login_required
+def api_chat_block_user():
+    """Blocca un utente in chat."""
+    data = request.get_json(silent=True) or {}
+    raw_other_user_id = data.get("other_user_id")
+    if raw_other_user_id in (None, ""):
+        return jsonify({"success": False, "error": "Utente mancante."}), 400
+
+    try:
+        other_user_id = int(raw_other_user_id)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Utente non valido."}), 400
+
+    if other_user_id == current_user.id:
+        return jsonify({"success": False, "error": "Non puoi bloccare te stesso."}), 400
+
+    other_user = User.query.get(other_user_id)
+    if not other_user:
+        return jsonify({"success": False, "error": "Utente non trovato."}), 404
+
+    existing = UserBlock.query.filter_by(
+        blocker_id=current_user.id,
+        blocked_id=other_user_id,
+    ).first()
+    if not existing:
+        db.session.add(UserBlock(
+            blocker_id=current_user.id,
+            blocked_id=other_user_id,
+        ))
+        db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "blocked_by_me": True,
+        "blocked_by_other": False,
+        "message": f"Hai bloccato {other_user.nome} in chat.",
+    })
+
+
+@app.route("/api/chat/unblock", methods=["POST"])
+@login_required
+def api_chat_unblock_user():
+    """Rimuove il blocco chat verso un utente."""
+    data = request.get_json(silent=True) or {}
+    raw_other_user_id = data.get("other_user_id")
+    if raw_other_user_id in (None, ""):
+        return jsonify({"success": False, "error": "Utente mancante."}), 400
+
+    try:
+        other_user_id = int(raw_other_user_id)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Utente non valido."}), 400
+
+    existing = UserBlock.query.filter_by(
+        blocker_id=current_user.id,
+        blocked_id=other_user_id,
+    ).first()
+    if existing:
+        db.session.delete(existing)
+        db.session.commit()
+
+    blocked_by_me, blocked_by_other = get_chat_block_status(current_user.id, other_user_id)
+    return jsonify({
+        "success": True,
+        "blocked_by_me": blocked_by_me,
+        "blocked_by_other": blocked_by_other,
+        "message": "Utente sbloccato in chat.",
+    })
+
+
+@app.route("/api/firebase/custom-token", methods=["POST"])
+@login_required
+def api_firebase_custom_token():
+    """Restituisce un custom token Firebase per la chat interna."""
+    token, error = create_firebase_custom_token(current_user)
+    if error:
+        return jsonify({"success": False, "error": error}), 500
+    return jsonify({"success": True, "token": token, "uid": str(current_user.id)})
+
+
 @app.route("/api/user/reviews", methods=["GET"])
 @login_required
 def api_user_reviews():
@@ -6280,7 +6609,7 @@ def api_user_update():
 @app.route("/api/user/settings/chat", methods=["POST"])
 @login_required
 def api_user_chat_settings():
-    """Attiva/disattiva la chat WhatsApp."""
+    """Attiva/disattiva la chat interna."""
     data = request.get_json(silent=True) or {}
     chat_enabled = bool(data.get("chat_enabled", False))
     current_user.chat_enabled = chat_enabled
@@ -6291,56 +6620,8 @@ def api_user_chat_settings():
 @app.route("/api/chat/request-notification", methods=["POST"])
 @login_required
 def api_chat_request_notification():
-    """Invia una notifica push a un utente per avvisarlo che qualcuno vuole chattare."""
-    data = request.get_json(silent=True) or {}
-    offer_id = data.get("offer_id")
-    to_user_id = data.get("to_user_id")
-
-    if not offer_id and not to_user_id:
-        return jsonify({"success": False, "error": "ID offerta o utente mancante."}), 400
-
-    target_user = None
-
-    if to_user_id:
-        try:
-            to_user_id = int(to_user_id)
-        except (TypeError, ValueError):
-            return jsonify({"success": False, "error": "ID utente non valido."}), 400
-
-        if to_user_id == current_user.id:
-            return jsonify({"success": False, "error": "Non puoi notificare te stesso."}), 400
-
-        target_user = db.session.get(User, to_user_id)
-
-    elif offer_id:
-        try:
-            offer_id = int(offer_id)
-        except (TypeError, ValueError):
-            return jsonify({"success": False, "error": "ID offerta non valido."}), 400
-
-        offer = Offer.query.filter_by(id=offer_id).first()
-        if not offer:
-            return jsonify({"success": False, "error": "Offerta non trovata."}), 404
-
-        target_user = offer.autore
-        if not target_user or target_user.id == current_user.id:
-            return jsonify({"success": False, "error": "Utente non valido."}), 400
-
-    if not target_user:
-        return jsonify({"success": False, "error": "Utente non trovato."}), 404
-
-    result = send_push_to_user(
-        target_user,
-        title="Qualcuno vuole chattare!",
-        body=f"{current_user.nome} vorrebbe chattare con te su WhatsApp. Attiva la chat nelle impostazioni per ricevere il suo messaggio.",
-        target="chat_request",
-        extra_data={"type": "chat_request", "from_user_id": str(current_user.id)}
-    )
-
-    if result == 0:
-        return jsonify({"success": True, "message": "Utente non raggiungibile al momento."})
-
-    return jsonify({"success": True, "message": "Notifica inviata."})
+    """Compatibilità legacy: la chat interna è sempre attiva, niente push di richiesta chat."""
+    return jsonify({"success": True, "message": "Chat interna sempre attiva."})
 
 
 # ===================================================================

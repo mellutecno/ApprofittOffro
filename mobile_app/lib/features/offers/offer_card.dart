@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -8,12 +7,14 @@ import '../../core/theme/app_theme.dart';
 import '../../models/offer.dart';
 import '../profile/public_profile_page.dart';
 import '../profile/profile_gallery_viewer_page.dart';
+import '../chat/chat_page.dart';
 
 class OfferCard extends StatelessWidget {
   const OfferCard({
     super.key,
     required this.offer,
     required this.apiClient,
+    required this.currentUserId,
     this.onClaim,
     this.onEditOwn,
     this.onArchive,
@@ -23,6 +24,7 @@ class OfferCard extends StatelessWidget {
 
   final Offer offer;
   final ApiClient apiClient;
+  final String currentUserId;
   final Future<void> Function()? onClaim;
   final VoidCallback? onEditOwn;
   final Future<void> Function()? onArchive;
@@ -147,13 +149,14 @@ class OfferCard extends StatelessWidget {
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                          if (offer.hostWhatsAppLink.isNotEmpty) ...[
+                          if (!offer.isOwn && offer.claimStatus == 'claimed') ...[
                             const SizedBox(height: 10),
                             Align(
                               alignment: Alignment.centerLeft,
-                              child: _WhatsAppAction(
-                                compact: true,
-                                onTap: () => _handleWhatsAppTap(context),
+                              child: _ChatButton(
+                                offer: offer,
+                                apiClient: apiClient,
+                                currentUserId: currentUserId,
                               ),
                             ),
                           ],
@@ -259,13 +262,15 @@ class OfferCard extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              if (participant.whatsAppLink.isNotEmpty) ...[
+                              if (offer.isOwn) ...[
                                 const SizedBox(height: 6),
-                                _WhatsAppAction(
-                                  onTap: () => _handleParticipantWhatsAppTap(
-                                    context,
-                                    participant,
-                                  ),
+                                _ChatParticipantAction(
+                                  offerId: offer.id,
+                                  apiClient: apiClient,
+                                  currentUserId: currentUserId,
+                                  participantId: participant.id,
+                                  participantName: participant.name,
+                                  participantPhotoFilename: participant.photoFilename,
                                 ),
                               ],
                             ],
@@ -576,159 +581,6 @@ class OfferCard extends StatelessWidget {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  Future<void> _handleWhatsAppTap(BuildContext context) async {
-    final isOwn = offer.isOwn;
-
-    if (!offer.hostChatEnabled) {
-      if (!isOwn) {
-        try {
-          await apiClient.requestChatNotification(offerId: offer.id);
-        } catch (_) {}
-      }
-
-      if (!context.mounted) return;
-
-      await showModalBottomSheet<void>(
-        context: context,
-        backgroundColor: Colors.transparent,
-        builder: (bottomContext) => Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: AppTheme.cream,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppTheme.cardBorder,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Icon(
-                Icons.chat_bubble_outline_rounded,
-                size: 48,
-                color: Color(0xFF25D366),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Chat non attiva',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.espresso,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                isOwn
-                    ? 'Devi attivare la chat WhatsApp nelle impostazioni del tuo profilo per permettere agli altri di chattare con te.'
-                    : '${offer.autoreNome} non ha ancora attivato la chat WhatsApp. Abbiamo inviato una notifica per avvisarlo.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppTheme.brown,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.of(bottomContext).pop(),
-                  child: const Text('Chiudi'),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      );
-    } else {
-      await _openExternalLink(offer.hostWhatsAppLink);
-    }
-  }
-
-  Future<void> _handleParticipantWhatsAppTap(
-    BuildContext context,
-    Participant participant,
-  ) async {
-    if (!participant.chatEnabled) {
-      try {
-        await apiClient.requestChatNotification(toUserId: participant.id);
-      } catch (_) {}
-
-      if (!context.mounted) return;
-
-      await showModalBottomSheet<void>(
-        context: context,
-        backgroundColor: Colors.transparent,
-        builder: (bottomContext) => Container(
-          padding: const EdgeInsets.all(24),
-          decoration: const BoxDecoration(
-            color: AppTheme.cream,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppTheme.cardBorder,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Icon(
-                Icons.chat_bubble_outline_rounded,
-                size: 48,
-                color: Color(0xFF25D366),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Chat non attiva',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.espresso,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '${participant.name} non ha ancora attivato la chat WhatsApp. Abbiamo inviato una notifica per avvisarlo.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppTheme.brown,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.of(bottomContext).pop(),
-                  child: const Text('Chiudi'),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      );
-    } else {
-      await _openExternalLink(participant.whatsAppLink);
-    }
-  }
-
   Future<void> _callLocalPhone() async {
     final digits = offer.telefonoLocale.replaceAll(RegExp(r'[^0-9+]'), '');
     if (digits.isEmpty) {
@@ -818,40 +670,55 @@ class _CenteredChip extends StatelessWidget {
   }
 }
 
-class _WhatsAppAction extends StatelessWidget {
-  const _WhatsAppAction({
-    required this.onTap,
-    this.compact = false,
+class _ChatParticipantAction extends StatelessWidget {
+  const _ChatParticipantAction({
+    required this.offerId,
+    required this.apiClient,
+    required this.currentUserId,
+    required this.participantId,
+    required this.participantName,
+    this.participantPhotoFilename = '',
   });
 
-  final Future<void> Function() onTap;
-  final bool compact;
+  final int offerId;
+  final ApiClient apiClient;
+  final String currentUserId;
+  final int participantId;
+  final String participantName;
+  final String participantPhotoFilename;
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = compact ? 16.0 : 18.0;
-    final padding = compact
-        ? const EdgeInsets.symmetric(horizontal: 10, vertical: 7)
-        : const EdgeInsets.symmetric(horizontal: 10, vertical: 6);
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
-        child: Ink(
-          padding: padding,
-          decoration: BoxDecoration(
-            color: const Color(0x2538C172),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: const Color(0x8838C172),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ChatPage(
+                apiClient: apiClient,
+                offerId: offerId.toString(),
+                currentUserId: currentUserId,
+                otherUserId: participantId.toString(),
+                otherUserName: participantName,
+                otherUserPhotoFilename: participantPhotoFilename,
+              ),
             ),
+          );
+        },
+        child: Ink(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: AppTheme.peach.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppTheme.cardBorder),
           ),
-          child: Icon(
-            FontAwesomeIcons.whatsapp,
-            size: iconSize,
-            color: const Color(0xFF138A45),
+          child: const Icon(
+            Icons.chat_bubble_outline_rounded,
+            color: AppTheme.orange,
+            size: 16,
           ),
         ),
       ),
@@ -1044,6 +911,56 @@ class _ReminderDialogState extends State<_ReminderDialog> {
           child: const Text('Salva'),
         ),
       ],
+    );
+  }
+}
+
+class _ChatButton extends StatelessWidget {
+  const _ChatButton({
+    required this.offer,
+    required this.apiClient,
+    required this.currentUserId,
+  });
+
+  final Offer offer;
+  final ApiClient apiClient;
+  final String currentUserId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ChatPage(
+                apiClient: apiClient,
+                offerId: offer.id.toString(),
+                currentUserId: currentUserId,
+                otherUserId: offer.autoreId.toString(),
+                otherUserName: offer.autoreNome,
+                otherUserPhotoFilename: offer.autoreFoto,
+              ),
+            ),
+          );
+        },
+        child: Ink(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: AppTheme.peach.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppTheme.cardBorder),
+          ),
+          child: const Icon(
+            Icons.chat_bubble_outline_rounded,
+            color: AppTheme.orange,
+            size: 20,
+          ),
+        ),
+      ),
     );
   }
 }

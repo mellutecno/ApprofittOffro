@@ -1,7 +1,7 @@
 class AppConfig {
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://178-104-175-189.sslip.io',
+    defaultValue: 'https://approfittoffro.it',
   );
 
   static const bool googleMapsEnabled = bool.fromEnvironment(

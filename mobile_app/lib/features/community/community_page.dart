@@ -320,14 +320,14 @@ class _CommunityFilterTile extends StatelessWidget {
           height: 54,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.78),
+            color: AppTheme.paper.withValues(alpha: 0.96),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: AppTheme.cardBorder),
             boxShadow: const [
               BoxShadow(
-                color: Color(0x12000000),
-                blurRadius: 8,
-                offset: Offset(0, 4),
+                color: AppTheme.shadow,
+                blurRadius: 12,
+                offset: Offset(0, 6),
               ),
             ],
           ),
@@ -413,9 +413,16 @@ class _CommunityDistanceControl extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.74),
+        color: AppTheme.paper.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: AppTheme.cardBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: AppTheme.shadow,
+            blurRadius: 14,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -533,21 +540,34 @@ class _CommunityUserCard extends StatelessWidget {
         ? authController.apiClient.buildUploadUrl(person.photoFilename)
         : null;
 
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: () async {
-          await Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => PublicProfilePage(
-                apiClient: authController.apiClient,
-                userId: person.id,
-              ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: AppTheme.surfaceGradient,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: AppTheme.cardBorder),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x12000000),
+              blurRadius: 18,
+              offset: Offset(0, 10),
             ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(18),
+          ],
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PublicProfilePage(
+                  apiClient: authController.apiClient,
+                  userId: person.id,
+                ),
+              ),
+            );
+          },
           child: Column(
             children: [
               Row(
@@ -555,8 +575,11 @@ class _CommunityUserCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
-                      color: AppTheme.sand,
+                      color: AppTheme.mist,
                       borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: AppTheme.cardBorder.withValues(alpha: 0.7),
+                      ),
                     ),
                     child: CircleAvatar(
                       radius: 28,

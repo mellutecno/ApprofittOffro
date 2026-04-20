@@ -1455,6 +1455,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     OfferCard(
                       offer: offer,
                       apiClient: widget.authController.apiClient,
+                      currentUserId: widget.authController.currentUser?.id.toString() ?? '',
                       allowProfileOpen: false,
                       showAddressLeadIcon: false,
                       onEditOwn: offer.isOwn
@@ -1570,93 +1571,6 @@ class _ProfilePageState extends State<ProfilePage> {
           if (context.mounted) {
             Navigator.of(context).pop();
           }
-        },
-      ),
-    );
-  }
-
-  Future<void> _openChatSettings() async {
-    final user = widget.authController.currentUser;
-    final isEnabled = user?.chatEnabled ?? false;
-
-    if (!context.mounted) return;
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppTheme.paper,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (bottomContext) => StatefulBuilder(
-        builder: (bottomContext, setBottomState) {
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppTheme.cardBorder,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Chat WhatsApp',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.espresso,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Attivando la chat, gli altri utenti potranno contattarti via WhatsApp dopo essere stati accettati a un tuo evento.',
-                    style: TextStyle(
-                      color: AppTheme.brown,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  SwitchListTile(
-                    title: const Text(
-                      'Attiva chat',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: const Text(
-                      'Consenti la chat via WhatsApp',
-                    ),
-                    value: isEnabled,
-                    activeColor: const Color(0xFF25D366),
-                    onChanged: (enabled) async {
-                      try {
-                        await widget.authController.apiClient
-                            .setChatEnabled(enabled);
-                        await widget.authController.refreshCurrentUser();
-                        if (bottomContext.mounted) {
-                          Navigator.of(bottomContext).pop();
-                        }
-                      } catch (_) {
-                        if (bottomContext.mounted) {
-                          ScaffoldMessenger.of(bottomContext).showSnackBar(
-                            const SnackBar(content: Text('Errore nel salvare')),
-                          );
-                        }
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
-          );
         },
       ),
     );
@@ -1817,11 +1731,14 @@ class _ProfilePageState extends State<ProfilePage> {
                   decoration: BoxDecoration(
                     gradient: AppTheme.heroGradient,
                     borderRadius: BorderRadius.circular(32),
+                    border: Border.all(
+                      color: AppTheme.cardBorder.withValues(alpha: 0.72),
+                    ),
                     boxShadow: const [
                       BoxShadow(
-                        color: Color(0x18000000),
-                        blurRadius: 24,
-                        offset: Offset(0, 14),
+                        color: AppTheme.shadow,
+                        blurRadius: 28,
+                        offset: Offset(0, 16),
                       ),
                     ],
                   ),
@@ -1835,8 +1752,13 @@ class _ProfilePageState extends State<ProfilePage> {
                             Container(
                               padding: const EdgeInsets.all(5),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.88),
+                                color: AppTheme.paper.withValues(alpha: 0.9),
                                 borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: AppTheme.cardBorder.withValues(
+                                    alpha: 0.8,
+                                  ),
+                                ),
                               ),
                               child: CircleAvatar(
                                 radius: 56,
@@ -1861,7 +1783,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     color: AppTheme.espresso,
                                     borderRadius: BorderRadius.circular(999),
                                     border: Border.all(
-                                      color: Colors.white,
+                                      color: AppTheme.paper,
                                       width: 2,
                                     ),
                                   ),
@@ -2154,7 +2076,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     }
                   },
                   onSecurity: _openSettings,
-                  onChat: _openChatSettings,
                   onInfoApp: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -2354,9 +2275,14 @@ class _PendingClaimCard extends StatelessWidget {
         : '';
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.surfaceGradient,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             InkWell(
@@ -2455,6 +2381,7 @@ class _PendingClaimCard extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -2486,9 +2413,14 @@ class _PendingReviewCard extends StatelessWidget {
         : '';
     final existingReview = reminder.existingReview;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.surfaceGradient,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -2623,6 +2555,7 @@ class _PendingReviewCard extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -2651,12 +2584,17 @@ class _ReviewHistorySectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: AppTheme.surfaceGradient,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
             children: [
               Container(
                 width: 46,
@@ -2737,6 +2675,7 @@ class _ReviewHistorySectionCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -2861,9 +2800,14 @@ class _ProfileSocialTabsCard extends StatelessWidget {
         : 'Per ora non segui ancora nessuno.';
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.surfaceGradient,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Wrap(
@@ -2904,6 +2848,7 @@ class _ProfileSocialTabsCard extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -2921,28 +2866,34 @@ class _ProfileConnectionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundImage: person.photoFilename.isNotEmpty
-              ? NetworkImage(apiClient.buildUploadUrl(person.photoFilename))
-              : null,
-          child: person.photoFilename.isEmpty
-              ? const Icon(Icons.person_outline)
-              : null,
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.surfaceGradient,
         ),
-        title: Text(person.nome),
-        subtitle: Text('${person.etaDisplay} anni - ${person.cityLabel}'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => PublicProfilePage(
-                apiClient: apiClient,
-                userId: person.id,
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundImage: person.photoFilename.isNotEmpty
+                ? NetworkImage(apiClient.buildUploadUrl(person.photoFilename))
+                : null,
+            child: person.photoFilename.isEmpty
+                ? const Icon(Icons.person_outline)
+                : null,
+          ),
+          title: Text(person.nome),
+          subtitle: Text('${person.etaDisplay} anni - ${person.cityLabel}'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PublicProfilePage(
+                  apiClient: apiClient,
+                  userId: person.id,
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -2975,14 +2926,14 @@ class _OwnOfferPreviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: AppTheme.elevatedSurfaceGradient,
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: AppTheme.cardBorder),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 18,
-            offset: Offset(0, 10),
+            color: AppTheme.shadow,
+            blurRadius: 22,
+            offset: Offset(0, 12),
           ),
         ],
       ),
@@ -3392,7 +3343,6 @@ class _SettingsCard extends StatelessWidget {
     required this.onToggle,
     required this.onEditProfile,
     required this.onSecurity,
-    required this.onChat,
     required this.onInfoApp,
     required this.onDeleteAccount,
     required this.onLogout,
@@ -3402,7 +3352,6 @@ class _SettingsCard extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onEditProfile;
   final VoidCallback onSecurity;
-  final VoidCallback onChat;
   final VoidCallback onInfoApp;
   final VoidCallback? onDeleteAccount;
   final VoidCallback? onLogout;
@@ -3410,9 +3359,14 @@ class _SettingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.surfaceGradient,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             InkWell(
@@ -3472,13 +3426,6 @@ class _SettingsCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     OutlinedButton.icon(
-                      onPressed: onChat,
-                      icon: const Icon(Icons.chat_bubble_outline_rounded,
-                          color: Color(0xFF25D366)),
-                      label: const Text('Attiva chat WhatsApp'),
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
                       onPressed: onDeleteAccount,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF8A4336),
@@ -3503,6 +3450,7 @@ class _SettingsCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
       ),
     );
   }

@@ -194,9 +194,16 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppTheme.mist,
+                        gradient: AppTheme.softAccentGradient,
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(color: AppTheme.cardBorder),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: AppTheme.shadow,
+                            blurRadius: 10,
+                            offset: Offset(0, 5),
+                          ),
+                        ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -420,9 +427,16 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: AppTheme.paper,
+                          gradient: AppTheme.surfaceGradient,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(color: AppTheme.cardBorder),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: AppTheme.shadow,
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -639,9 +653,13 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                 ),
                 const SizedBox(height: 10),
                 if (profile.followers.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(18),
+                  Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: AppTheme.surfaceGradient,
+                      ),
+                      padding: const EdgeInsets.all(18),
                       child: Text(
                           'Per ora questo profilo non ha ancora follower.'),
                     ),
@@ -655,7 +673,12 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                             )
                           : null;
                       return Card(
-                        child: ListTile(
+                        clipBehavior: Clip.antiAlias,
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            gradient: AppTheme.surfaceGradient,
+                          ),
+                          child: ListTile(
                           leading: CircleAvatar(
                             backgroundImage: imageUrl != null
                                 ? NetworkImage(imageUrl)
@@ -670,6 +693,7 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                           ),
                           trailing: const Icon(Icons.chevron_right_rounded),
                           onTap: () => _openLinkedPublicProfile(follower.id),
+                          ),
                         ),
                       );
                     },
@@ -720,6 +744,16 @@ class _ProfileHeader extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: AppTheme.heroGradient,
         borderRadius: BorderRadius.circular(30),
+        border: Border.all(
+          color: AppTheme.cardBorder.withValues(alpha: 0.74),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: AppTheme.shadow,
+            blurRadius: 24,
+            offset: Offset(0, 14),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -731,8 +765,11 @@ class _ProfileHeader extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.8),
+                    color: AppTheme.paper.withValues(alpha: 0.82),
                     borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: AppTheme.cardBorder.withValues(alpha: 0.72),
+                    ),
                   ),
                   child: CircleAvatar(
                     radius: 52,
@@ -756,7 +793,7 @@ class _ProfileHeader extends StatelessWidget {
                         color: AppTheme.espresso,
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(
-                          color: Colors.white,
+                          color: AppTheme.paper,
                           width: 2,
                         ),
                       ),
@@ -839,9 +876,14 @@ class _InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.surfaceGradient,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -859,6 +901,7 @@ class _InfoCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -884,12 +927,17 @@ class _CompactReviewSectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: AppTheme.surfaceGradient,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
             children: [
               Container(
                 width: 46,
@@ -932,6 +980,7 @@ class _CompactReviewSectionCard extends StatelessWidget {
             ],
           ),
         ),
+        ),
       ),
     );
   }
@@ -960,12 +1009,17 @@ class _CompactPublicReviewTile extends StatelessWidget {
         : '';
 
     return Card(
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: AppTheme.surfaceGradient,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
@@ -1025,6 +1079,7 @@ class _CompactPublicReviewTile extends StatelessWidget {
               ],
             ],
           ),
+        ),
         ),
       ),
     );

@@ -1,0 +1,62 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /chats/{chatId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function authUid() {
+        return request.auth.uid;
+      }
+
+      // Compatibilita' legacy: alcune chat vecchie hanno participants numerici.
+      function authUidAsInt() {
+        return int(request.auth.uid);
+      }
+
+      function isParticipant(participants) {
+        return isSignedIn()
+          && (
+            authUid() in participants
+            || authUidAsInt() in participants
+          );
+      }
+
+      function senderMatchesAuth(senderId) {
+        return senderId == authUid() || senderId == authUidAsInt();
+      }
+
+      allow create: if request.auth != null
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() == 2
+        && isParticipant(request.resource.data.participants);
+
+      allow read: if isParticipant(resource.data.participants);
+
+      allow update: if isParticipant(resource.data.participants)
+        && request.resource.data.participants == resource.data.participants
+        && request.resource.data.offerId != null;
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isParticipant(
+          get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+        );
+
+        allow create: if isSignedIn()
+          && senderMatchesAuth(request.resource.data.senderId)
+          && isParticipant(
+            get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+          );
+
+        allow update: if false;
+        allow delete: if isParticipant(
+          get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+        );
+      }
+    }
+  }
+}

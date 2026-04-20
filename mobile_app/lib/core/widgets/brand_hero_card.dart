@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+
 class BrandHeroCard extends StatelessWidget {
   const BrandHeroCard({
     super.key,
@@ -26,11 +27,14 @@ class BrandHeroCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: AppTheme.heroGradient,
         borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: AppTheme.cardBorder.withValues(alpha: 0.76),
+        ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 22,
-            offset: Offset(0, 10),
+            color: AppTheme.shadow,
+            blurRadius: 26,
+            offset: Offset(0, 12),
           ),
         ],
       ),
@@ -45,8 +49,11 @@ class BrandHeroCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.65),
+                  color: AppTheme.paper.withValues(alpha: 0.78),
                   borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: AppTheme.cardBorder.withValues(alpha: 0.58),
+                  ),
                 ),
                 child: Text(
                   eyebrow!,

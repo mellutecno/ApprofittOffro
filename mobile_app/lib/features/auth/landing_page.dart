@@ -130,11 +130,18 @@ class _LandingPageState extends State<LandingPage> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 18, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.42),
+                            color: AppTheme.paper.withValues(alpha: 0.68),
                             borderRadius: BorderRadius.circular(26),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.55),
+                              color: AppTheme.cardBorder.withValues(alpha: 0.7),
                             ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: AppTheme.shadow,
+                                blurRadius: 10,
+                                offset: Offset(0, 6),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -298,8 +305,18 @@ class _LandingSectionHeading extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.66),
+            color: AppTheme.paper.withValues(alpha: 0.82),
             borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: AppTheme.cardBorder.withValues(alpha: 0.72),
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: AppTheme.shadow,
+                blurRadius: 8,
+                offset: Offset(0, 4),
+              ),
+            ],
           ),
           child: Text(
             eyebrow,

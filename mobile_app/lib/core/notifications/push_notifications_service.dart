@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../chat/chat_presence_tracker.dart';
 import '../config/app_config.dart';
 import '../navigation/app_launch_target.dart';
 import '../network/api_client.dart';
@@ -212,26 +213,69 @@ class PushNotificationsService {
     if (title.isEmpty && body.isEmpty) {
       return;
     }
-    await _localNotifications.show(
-      _localNotificationId++,
-      title.isEmpty ? 'ApprofittOffro' : title,
-      body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'approfittoffro_alerts',
-          'ApprofittOffro alerts',
-          channelDescription:
-              'Notifiche eventi, richieste, recensioni e follower.',
-          importance: Importance.high,
-          priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
+    
+    // Se è un messaggio chat, gestiscilo diversamente
+    if (message.data['type'] == 'chat_message' ||
+        message.data['type'] == 'chat_cleared') {
+      final offerId = int.tryParse(message.data['offer_id']?.toString() ?? '');
+      final otherUserId =
+          int.tryParse(message.data['chat_with_user_id']?.toString() ?? '');
+      if (offerId != null &&
+          otherUserId != null &&
+          ChatPresenceTracker.isViewingConversation(
+            offerId: offerId,
+            otherUserId: otherUserId,
+          )) {
+        return;
+      }
+
+      await _localNotifications.show(
+        _localNotificationId++,
+        title.isEmpty ? 'ApprofittOffro' : title,
+        body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'approfittoffro_alerts',
+            'ApprofittOffro alerts',
+            channelDescription:
+                'Notifiche eventi, richieste, recensioni e follower.',
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+          ),
         ),
-      ),
-      payload: message.data['target']?.toString() ?? 'login',
-    );
+        payload: 'chat:${message.data['offer_id']}:${message.data['chat_with_user_id']}:${message.data['chat_with_name']}',
+      );
+    } else {
+      await _localNotifications.show(
+        _localNotificationId++,
+        title.isEmpty ? 'ApprofittOffro' : title,
+        body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'approfittoffro_alerts',
+            'ApprofittOffro alerts',
+            channelDescription:
+                'Notifiche eventi, richieste, recensioni e follower.',
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+          ),
+        ),
+        payload: message.data['target']?.toString() ?? 'login',
+      );
+    }
   }
 
   void _handleNotificationTap(RemoteMessage message) {
+    // Gestisci tap su notifica chat
+    if (message.data['type'] == 'chat_message' ||
+        message.data['type'] == 'chat_cleared') {
+      final target = 'chat:${message.data['offer_id']}:${message.data['chat_with_user_id']}:${message.data['chat_with_name']}';
+      _onLaunchTargetRequested(_parseTarget(target)!);
+      return;
+    }
+    
     final target = _parseTarget(message.data['target']?.toString());
     if (target == null) {
       return;
@@ -241,6 +285,19 @@ class PushNotificationsService {
 
   AppLaunchTarget? _parseTarget(String? rawTarget) {
     final normalized = (rawTarget ?? '').trim().toLowerCase();
+    
+    // Gestisci target chat
+    if (normalized.startsWith('chat:')) {
+      final parts = normalized.split(':');
+      if (parts.length >= 4) {
+        return AppLaunchTarget.chat(
+          offerId: int.tryParse(parts[1]) ?? 0,
+          otherUserId: int.tryParse(parts[2]) ?? 0,
+          otherUserName: parts[3],
+        );
+      }
+    }
+    
     switch (normalized) {
       case 'pending-requests':
         return AppLaunchTarget.pendingRequests;

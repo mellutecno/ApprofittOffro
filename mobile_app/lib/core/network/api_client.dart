@@ -750,34 +750,102 @@ class ApiClient {
         'Il tuo account è stato eliminato definitivamente.';
   }
 
-  Future<bool> setChatEnabled(bool enabled) async {
+  Future<String> fetchFirebaseCustomToken() async {
     final response = await _send(
       method: 'POST',
-      path: '/api/user/settings/chat',
+      path: '/api/firebase/custom-token',
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'chat_enabled': enabled}),
+      body: jsonEncode({}),
     );
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
-    return payload['chat_enabled'] == true;
+    return payload['token']?.toString() ?? '';
   }
 
-  Future<void> requestChatNotification({
-    int? offerId,
-    int? toUserId,
+  Future<void> sendChatMessageNotification({
+    required int offerId,
+    required int receiverId,
+    required String messageText,
   }) async {
-    final body = <String, dynamic>{};
-    if (offerId != null) body['offer_id'] = offerId;
-    if (toUserId != null) body['to_user_id'] = toUserId;
+    final trimmed = messageText.trim();
+    if (offerId <= 0 || receiverId <= 0 || trimmed.isEmpty) {
+      return;
+    }
 
     final response = await _send(
       method: 'POST',
-      path: '/api/chat/request-notification',
+      path: '/api/chat/message-notification',
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
+      body: jsonEncode({
+        'offer_id': offerId,
+        'receiver_id': receiverId,
+        'message_text': trimmed,
+      }),
     );
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
+  }
+
+  Future<void> sendChatClearNotification({
+    required int offerId,
+    required int receiverId,
+  }) async {
+    if (offerId <= 0 || receiverId <= 0) {
+      return;
+    }
+    final response = await _send(
+      method: 'POST',
+      path: '/api/chat/clear-notification',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'offer_id': offerId,
+        'receiver_id': receiverId,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+  }
+
+  Future<Map<String, dynamic>> fetchChatBlockStatus({
+    required int otherUserId,
+  }) async {
+    final response = await _send(
+      method: 'GET',
+      path: '/api/chat/block-status?${Uri(queryParameters: {
+            'other_user_id': otherUserId.toString(),
+          }).query}',
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
+  }
+
+  Future<Map<String, dynamic>> blockChatUser({
+    required int otherUserId,
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/chat/block',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'other_user_id': otherUserId}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
+  }
+
+  Future<Map<String, dynamic>> unblockChatUser({
+    required int otherUserId,
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/chat/unblock',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'other_user_id': otherUserId}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
   }
 
   Future<String> submitReview({

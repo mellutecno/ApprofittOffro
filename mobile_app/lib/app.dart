@@ -76,6 +76,7 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
   }
 
   Future<void> _bootstrap() async {
+    final bootstrapStartedAt = DateTime.now();
     final pushNotificationsService = _pushNotificationsService;
     if (pushNotificationsService != null) {
       await pushNotificationsService.initialize();
@@ -104,6 +105,12 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
     }
 
     await _resolveInitialLink();
+
+    const minimumSplashDuration = Duration(milliseconds: 1600);
+    final elapsed = DateTime.now().difference(bootstrapStartedAt);
+    if (elapsed < minimumSplashDuration) {
+      await Future.delayed(minimumSplashDuration - elapsed);
+    }
   }
 
   void _handleAuthStateChanged() {

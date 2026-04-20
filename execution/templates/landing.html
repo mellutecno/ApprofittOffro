@@ -3,370 +3,403 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="ApprofittOffro e una piattaforma social geolocalizzata per condividere colazioni, pranzi e cene nei locali della tua zona.">
+    <meta name="description" content="ApprofittOffro trasforma colazioni, aperitivi, pranzi e cene in occasioni reali per conoscere persone vicine, scegliere un locale e creare la tua tavolata.">
     <title>ApprofittOffro</title>
-    <meta name="theme-color" content="#ffffff">
+    <meta name="theme-color" content="#f2e3d0">
     <style>
         :root {
-            --cream: #F0E0FF;
-            --paper: #FFF8FF;
-            --sand: #D8B8FF;
-            --orange: #D040E0;
-            --brown: #2A0840;
-            --espresso: #140828;
-            --bg: var(--cream);
-            --card: var(--paper);
-            --card-border: #D0A0F0;
-            --text: var(--brown);
-            --muted: #5A4868;
-            --pink: #FF88BB;
-            --purple: var(--orange);
-            --blue: #88CCFF;
-            --shadow: 0 24px 60px rgba(122, 75, 185, 0.14);
+            --cream: #f7ede0;
+            --paper: #fff8ef;
+            --mist: #f1dfca;
+            --sand: #d8b897;
+            --gold: #c99743;
+            --sage: #7f8d6c;
+            --olive: #5d6c52;
+            --terracotta: #b86b49;
+            --terracotta-dark: #7a3f2a;
+            --cocoa: #39281d;
+            --espresso: #1d140f;
+            --muted: #745c4a;
+            --card-border: rgba(126, 88, 58, 0.18);
+            --shadow: 0 32px 72px rgba(26, 14, 8, 0.28);
+            --soft-shadow: 0 20px 40px rgba(28, 16, 10, 0.16);
+            --hero-gradient: radial-gradient(circle at top left, rgba(201, 151, 67, 0.24), transparent 25%), radial-gradient(circle at bottom right, rgba(127, 141, 108, 0.18), transparent 24%), linear-gradient(135deg, rgba(255, 249, 241, 0.96) 0%, rgba(244, 229, 208, 0.96) 54%, rgba(231, 214, 193, 0.98) 100%);
+            --surface-gradient: radial-gradient(circle at top left, rgba(201, 151, 67, 0.14), transparent 22%), linear-gradient(180deg, rgba(255, 251, 246, 0.92) 0%, rgba(247, 236, 222, 0.95) 100%);
+            --elevated-gradient: radial-gradient(circle at top right, rgba(184, 107, 73, 0.16), transparent 22%), linear-gradient(180deg, rgba(255, 252, 248, 0.96) 0%, rgba(243, 228, 209, 0.95) 100%);
+            --accent-gradient: linear-gradient(135deg, #c77a59 0%, #7a3f2a 100%);
+            --dark-ribbon: linear-gradient(135deg, rgba(61, 39, 24, 0.94) 0%, rgba(35, 22, 16, 0.92) 100%);
+            --text-gradient: linear-gradient(135deg, #20150f 0%, #74442f 100%);
         }
-
         * { box-sizing: border-box; }
-
+        html { scroll-behavior: smooth; }
         body {
             margin: 0;
-            font-family: "Segoe UI", Arial, sans-serif;
-            color: var(--text);
-            background: var(--bg);
+            font-family: "Outfit", "Segoe UI", Arial, sans-serif;
+            color: var(--cocoa);
+            background: radial-gradient(circle at 10% 10%, rgba(201, 151, 67, 0.18), transparent 18%), radial-gradient(circle at 85% 12%, rgba(127, 141, 108, 0.14), transparent 18%), linear-gradient(180deg, #f7efe5 0%, #f0e1cf 46%, #e7d4c1 100%);
+            overflow-x: hidden;
         }
-
-        .shell {
-            width: min(1160px, calc(100% - 32px));
-            margin: 0 auto;
-            padding: 26px 0 48px;
-        }
-
-        .wordmark {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 22px;
-        }
-
-        .wordmark img {
-            width: min(100%, 440px);
-            height: auto;
-            filter: drop-shadow(0 16px 22px rgba(112, 86, 160, 0.12));
-        }
-
-        .hero {
-            display: grid;
-            grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
-            gap: 22px;
-            align-items: stretch;
-            margin-bottom: 22px;
-        }
-
-        .panel {
-            background: var(--card);
-            border: 1px solid var(--card-border);
-            border-radius: 30px;
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(12px);
-        }
-
-        .hero-copy {
-            padding: 34px;
-        }
-
-        .eyebrow {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 9px 14px;
+        body::before, body::after {
+            content: "";
+            position: fixed;
             border-radius: 999px;
-            background: linear-gradient(135deg, rgba(255, 136, 187, 0.12), rgba(136, 204, 255, 0.12));
-            color: var(--purple);
-            font-size: 0.8rem;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
+            filter: blur(28px);
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.62;
+            animation: drift 16s ease-in-out infinite;
         }
-
-        h1 {
-            margin: 18px 0 14px;
-            font-size: clamp(2.2rem, 5vw, 4.2rem);
-            line-height: 1.04;
-        }
-
-        .hero-copy p {
-            margin: 0;
-            color: var(--muted);
-            font-size: 1.08rem;
-            line-height: 1.75;
-        }
-
-        .hero-actions {
+        body::before { width: 320px; height: 320px; top: -80px; left: -90px; background: rgba(201, 151, 67, 0.16); }
+        body::after { width: 300px; height: 300px; right: -70px; top: 24%; background: rgba(127, 141, 108, 0.14); animation-delay: -6s; }
+        a { color: inherit; text-decoration: none; }
+        img { display: block; max-width: 100%; }
+        .shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 60px; position: relative; z-index: 1; }
+        .top-logo { margin-top: 0; margin-bottom: 18px; }
+        .top-logo-card {
             display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-top: 24px;
-        }
-
-        .testing-note {
-            margin-top: 16px;
-            font-size: 0.9rem;
-            color: var(--muted);
-        }
-
-        .testing-note a {
-            color: var(--orange);
-            font-weight: 600;
-            text-decoration: none;
-        }
-
-        .testing-note a:hover {
-            text-decoration: underline;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
             justify-content: center;
-            min-height: 52px;
-            padding: 0 22px;
-            border-radius: 18px;
-            text-decoration: none;
-            font-weight: 800;
-            font-size: 0.98rem;
-            letter-spacing: 0.01em;
+            align-items: center;
+            padding: 18px 20px;
+            border-radius: 30px;
+            border: 1px solid rgba(126, 88, 58, 0.16);
+            background: linear-gradient(135deg, rgba(255, 251, 246, 0.94) 0%, rgba(244, 229, 208, 0.92) 100%);
+            box-shadow: var(--soft-shadow);
         }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--orange), var(--sand));
-            color: #fff;
-            box-shadow: 0 16px 28px rgba(208, 64, 224, 0.22);
+        .top-logo-card img { width: clamp(200px, 46vw, 420px); height: auto; }
+        .hero {
+            position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr); gap: 28px; padding: 32px; border-radius: 36px; border: 1px solid rgba(126, 88, 58, 0.14); background: var(--hero-gradient); box-shadow: var(--shadow); margin-bottom: 24px;
         }
-
-        .btn-secondary {
-            background: var(--paper);
-            color: var(--orange);
-            border: 1px solid var(--card-border);
+        .hero::before, .hero::after { content: ""; position: absolute; border-radius: 999px; filter: blur(4px); pointer-events: none; }
+        .hero::before { width: 280px; height: 280px; top: -120px; right: -60px; background: rgba(184, 107, 73, 0.08); }
+        .hero::after { width: 220px; height: 220px; bottom: -80px; left: -50px; background: rgba(127, 141, 108, 0.12); }
+        .hero-copy, .hero-visual { position: relative; z-index: 1; }
+        .hero-brand { display: grid; justify-items: center; gap: 16px; margin-bottom: 18px; }
+        .brand-lockup { display: inline-flex; align-items: center; justify-content: center; width: 100%; }
+        .brand-lockup img { width: clamp(180px, 34vw, 320px); height: auto; }
+        .eyebrow {
+            display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; background: rgba(255, 250, 245, 0.82); border: 1px solid rgba(121, 80, 53, 0.1); color: var(--terracotta); font-size: 0.8rem; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; box-shadow: 0 8px 18px rgba(70, 44, 25, 0.06);
         }
-
-        .hero-visual {
-            padding: 28px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            background:
-                linear-gradient(160deg, rgba(255, 136, 187, 0.12), rgba(136, 204, 255, 0.12)),
-                var(--paper);
-        }
-
-        .hero-visual img {
-            width: 100%;
-            height: auto;
-            border-radius: 24px;
-            object-fit: cover;
-            box-shadow: 0 18px 30px rgba(82, 52, 141, 0.14);
-        }
-
-        .hero-note {
-            margin-top: 16px;
-            padding: 16px 18px;
-            border-radius: 22px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(246, 241, 255, 0.92));
-            border: 1px solid var(--card-border);
-            color: var(--muted);
-            line-height: 1.65;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 18px;
-            margin-bottom: 22px;
-        }
-
-        .card {
-            padding: 24px;
-        }
-
-        .card h2, .how-it-works h2 {
-            margin: 0 0 10px 0;
-            font-size: 1.28rem;
-        }
-
-        .card p, .how-it-works p, .how-it-works li {
-            margin: 0;
-            color: var(--muted);
+        h1 { margin: 18px 0 16px; font-size: clamp(2.8rem, 6vw, 5rem); line-height: 0.98; letter-spacing: -0.05em; max-width: 12ch; background: var(--text-gradient); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        h2 { margin: 0 0 10px; font-size: clamp(1.6rem, 3vw, 2.4rem); line-height: 1.08; letter-spacing: -0.04em; color: var(--espresso); }
+        h3 { margin: 0 0 8px; font-size: 1.28rem; color: var(--espresso); }
+        .hero-copy p, .card p, .story-copy p, .closing-copy p, .map-copy p, li { color: var(--muted); line-height: 1.78; }
+        .hero-copy p { margin: 0; max-width: 62ch; font-size: 1.08rem; line-height: 1.82; }
+        .hero-cta-stack { display: grid; gap: 14px; margin-top: 28px; max-width: 440px; }
+        .beta-note {
+            padding: 22px 22px;
+            border-radius: 26px;
+            background: linear-gradient(135deg, rgba(255, 250, 244, 0.96) 0%, rgba(247, 234, 217, 0.95) 100%);
+            border: 2px solid rgba(184, 107, 73, 0.28);
+            box-shadow: 0 18px 30px rgba(60, 39, 24, 0.12);
+            color: var(--cocoa);
+            font-size: 1.05rem;
             line-height: 1.72;
         }
-
-        .step {
-            display: inline-flex;
-            margin-bottom: 12px;
-            padding: 8px 12px;
-            border-radius: 999px;
-            background: rgba(208, 64, 224, 0.09);
-            color: var(--purple);
-            font-size: 0.78rem;
+        .beta-note a {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 10px 14px;
+            border-radius: 14px;
+            background: rgba(184, 107, 73, 0.12);
+            border: 1px solid rgba(120, 83, 56, 0.2);
+            color: var(--terracotta-dark);
             font-weight: 900;
-            text-transform: uppercase;
+        }
+        .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 54px; padding: 0 22px; border-radius: 18px; font-size: 0.96rem; font-weight: 800; letter-spacing: 0.01em; transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease; }
+        .btn:hover { transform: translateY(-2px); }
+        .btn-primary { background: var(--accent-gradient); color: #fff7f0; box-shadow: 0 18px 30px rgba(122, 63, 42, 0.22); }
+        .btn-secondary { background: rgba(255, 251, 246, 0.78); border: 1px solid rgba(120, 83, 56, 0.12); color: var(--terracotta-dark); box-shadow: 0 12px 22px rgba(60, 39, 24, 0.06); }
+        .hero-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
+        .metric { padding: 16px 18px; border-radius: 22px; background: rgba(255, 252, 248, 0.78); border: 1px solid rgba(120, 83, 56, 0.08); box-shadow: 0 12px 22px rgba(60, 39, 24, 0.05); }
+        .metric strong { display: block; margin-bottom: 4px; font-size: 1.2rem; color: var(--espresso); }
+        .metric span { display: block; color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
+        .marquee-shell { position: relative; overflow: hidden; width: 100%; padding: 16px 0; border-radius: 28px; background: var(--dark-ribbon); border: 1px solid rgba(255, 240, 224, 0.08); box-shadow: 0 24px 42px rgba(20, 12, 8, 0.2); }
+        .marquee-shell::before, .marquee-shell::after { content: ""; position: absolute; top: 0; bottom: 0; width: 88px; z-index: 2; pointer-events: none; }
+        .marquee-shell::before { left: 0; background: linear-gradient(90deg, rgba(39, 25, 18, 0.98) 0%, rgba(39, 25, 18, 0) 100%); }
+        .marquee-shell::after { right: 0; background: linear-gradient(270deg, rgba(39, 25, 18, 0.98) 0%, rgba(39, 25, 18, 0) 100%); }
+        .marquee-track { display: flex; gap: 16px; width: max-content; animation: marquee 30s linear infinite; }
+        .marquee-item { display: inline-flex; align-items: center; gap: 10px; padding: 14px 18px; border-radius: 999px; background: rgba(255, 247, 237, 0.12); border: 1px solid rgba(255, 244, 232, 0.12); color: #f5e9dc; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06); white-space: nowrap; font-size: 0.95rem; font-weight: 700; }
+        .marquee-dot { width: 10px; height: 10px; border-radius: 999px; background: linear-gradient(135deg, var(--gold), var(--terracotta)); box-shadow: 0 0 12px rgba(201, 151, 67, 0.55); }
+        .hero-visual { display: grid; gap: 14px; align-content: start; }
+        .visual-card { overflow: hidden; border-radius: 30px; border: 1px solid rgba(120, 83, 56, 0.1); box-shadow: var(--soft-shadow); }
+        .visual-card img { width: 100%; height: 100%; object-fit: cover; }
+        .visual-main { min-height: 360px; }
+        .visual-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .floating-note { margin-top: 4px; padding: 18px 20px; border-radius: 24px; background: rgba(255, 251, 246, 0.8); border: 1px solid rgba(120, 83, 56, 0.1); box-shadow: 0 16px 28px rgba(60, 39, 24, 0.05); color: var(--muted); line-height: 1.7; }
+        .section { margin-top: 22px; }
+        .section-grid, .feature-ribbon, .experiences { display: grid; gap: 18px; }
+        .section-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .feature-ribbon { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .experiences { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .panel { border-radius: 30px; border: 1px solid var(--card-border); background: var(--surface-gradient); box-shadow: var(--soft-shadow); backdrop-filter: blur(18px); }
+        .card, .story-copy, .map-copy, .closing-copy, .closing-box { padding: 30px; }
+        .feature-card { padding: 24px; min-height: 220px; background: var(--elevated-gradient); }
+        .feature-icon { width: 52px; height: 52px; display: inline-flex; align-items: center; justify-content: center; border-radius: 18px; margin-bottom: 14px; background: rgba(255, 251, 246, 0.86); border: 1px solid rgba(120, 83, 56, 0.08); box-shadow: 0 10px 18px rgba(60, 39, 24, 0.06); font-size: 0.9rem; font-weight: 800; color: var(--terracotta-dark); }
+        .mini-label { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 8px 12px; border-radius: 999px; background: rgba(255, 251, 246, 0.85); color: var(--terracotta); font-size: 0.78rem; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid rgba(120, 83, 56, 0.08); }
+        .story { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(300px, 1.05fr); gap: 20px; }
+        .story-steps { padding: 18px; display: grid; gap: 16px; background: var(--elevated-gradient); }
+        .step-card { padding: 18px; border-radius: 24px; background: rgba(255, 252, 248, 0.88); border: 1px solid rgba(120, 83, 56, 0.08); }
+        .step-card strong { display: block; margin-bottom: 6px; font-size: 1rem; color: var(--espresso); }
+        .step-card span { display: block; color: var(--muted); line-height: 1.65; }
+        .map-story { display: grid; grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.1fr); gap: 20px; align-items: stretch; }
+        .map-visual { overflow: hidden; padding: 14px; background: var(--elevated-gradient); border-radius: 30px; }
+        .map-visual img { width: 100%; height: 100%; min-height: 360px; object-fit: cover; border-radius: 26px; }
+        .map-points { margin: 18px 0 0; padding-left: 18px; display: grid; gap: 10px; }
+        .timeline-panel { padding: 30px; }
+        .timeline-lead { margin: 0 0 18px; max-width: 72ch; }
+        .timeline { position: relative; display: grid; gap: 14px; margin-top: 6px; }
+        .timeline::before {
+            content: "";
+            position: absolute;
+            left: 12px;
+            top: 10px;
+            bottom: 10px;
+            width: 2px;
+            background: linear-gradient(180deg, rgba(184, 107, 73, 0.46) 0%, rgba(127, 141, 108, 0.42) 100%);
+            border-radius: 999px;
+        }
+        .timeline-item {
+            position: relative;
+            margin-left: 34px;
+            padding: 18px 20px;
+            border-radius: 20px;
+            background: rgba(255, 251, 246, 0.78);
+            border: 1px solid rgba(120, 83, 56, 0.1);
+            box-shadow: 0 12px 22px rgba(60, 39, 24, 0.06);
+        }
+        .timeline-item::before {
+            content: "";
+            position: absolute;
+            left: -28px;
+            top: 22px;
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, var(--gold), var(--terracotta));
+            box-shadow: 0 0 0 4px rgba(199, 122, 89, 0.16);
+        }
+        .timeline-date {
+            display: inline-block;
+            margin-bottom: 6px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: rgba(255, 245, 233, 0.88);
+            border: 1px solid rgba(120, 83, 56, 0.1);
+            color: var(--terracotta-dark);
+            font-size: 0.75rem;
+            font-weight: 900;
             letter-spacing: 0.08em;
+            text-transform: uppercase;
         }
-
-        .how-it-works {
-            padding: 28px;
+        .timeline-item h3 { margin: 0 0 6px; font-size: 1.08rem; }
+        .timeline-item p { margin: 0; line-height: 1.66; color: var(--muted); }
+        .timeline-top { margin-top: 0; margin-bottom: 24px; }
+        .timeline-top .timeline-panel {
+            background: linear-gradient(135deg, rgba(255, 251, 246, 0.95) 0%, rgba(242, 225, 205, 0.92) 100%);
+            border: 1px solid rgba(126, 88, 58, 0.16);
+            box-shadow: var(--shadow);
         }
-
-        .how-layout {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
-            gap: 22px;
-            align-items: start;
+        .experience-card { overflow: hidden; padding: 0; }
+        .experience-card img { width: 100%; height: 220px; object-fit: cover; }
+        .experience-copy { padding: 22px; }
+        .closing { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.85fr); gap: 20px; align-items: stretch; }
+        .closing-box { background: var(--accent-gradient); color: #fff5ee; }
+        .closing-box h3, .closing-box p, .closing-box li { color: inherit; }
+        .closing-box ul { margin: 14px 0 0; padding-left: 18px; display: grid; gap: 8px; }
+        .feedback-note { margin-top: 20px; padding: 16px 18px; border-radius: 20px; background: rgba(255, 248, 241, 0.12); border: 1px solid rgba(255, 243, 234, 0.14); color: #fff5ee; line-height: 1.7; }
+        .footnote { margin-top: 20px; text-align: center; color: var(--muted); font-size: 0.92rem; }
+        @keyframes drift { 0%,100% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(22px,28px,0) scale(1.06); } }
+        @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        @media (max-width: 980px) {
+            .hero, .story, .closing, .section-grid, .feature-ribbon, .map-story, .experiences { grid-template-columns: 1fr; }
+            .hero-meta { grid-template-columns: 1fr; }
+            .visual-strip { grid-template-columns: 1fr 1fr; }
+            .marquee-shell::before, .marquee-shell::after { width: 44px; }
         }
-
-        .checklist {
-            margin: 0;
-            padding-left: 20px;
-            display: grid;
-            gap: 10px;
-        }
-
-        .launch-box {
-            padding: 22px;
-            border-radius: 24px;
-            background: linear-gradient(135deg, rgba(255, 136, 187, 0.08), rgba(136, 204, 255, 0.08));
-            border: 1px solid var(--card-border);
-        }
-
-        .launch-box strong {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 1.02rem;
-        }
-
-        .footnote {
-            margin-top: 20px;
-            text-align: center;
-            color: var(--muted);
-            font-size: 0.92rem;
-        }
-
-        @media (max-width: 880px) {
-            .hero,
-            .grid,
-            .how-layout {
-                grid-template-columns: 1fr;
-            }
-
-            .hero-copy,
-            .hero-visual,
-            .card,
-            .how-it-works {
-                padding: 24px;
-            }
-
-            .shell {
-                width: min(100% - 20px, 1160px);
-                padding-top: 18px;
-            }
+        @media (max-width: 720px) {
+            .shell { width: min(100% - 20px, 1180px); padding-top: 18px; }
+            .hero, .story-copy, .closing-copy, .closing-box, .card { padding: 22px; }
+            .top-logo-card { padding: 14px 16px; }
+            .top-logo-card img { width: clamp(180px, 56vw, 320px); }
+            .visual-main { min-height: 280px; }
+            .visual-strip { grid-template-columns: 1fr; }
+            h1 { max-width: 100%; }
+            .hero-cta-stack { max-width: none; }
         }
     </style>
 </head>
 <body>
     <main class="shell">
-        <div class="wordmark">
-            <img src="{{ url_for('static', filename='img/approfitto.png') }}" alt="ApprofittOffro">
-        </div>
+        <section class="top-logo" id="top">
+            <article class="top-logo-card">
+                <a class="brand-lockup" href="#top" aria-label="ApprofittOffro">
+                    <img src="{{ url_for('static', filename='img/wordmark-web.png') }}" alt="ApprofittOffro">
+                </a>
+            </article>
+        </section>
 
-        <section class="hero">
-            <div class="panel hero-copy">
-                <div class="eyebrow">Social meal-sharing geolocalizzato</div>
-                <h1>Conosci persone vere partendo da una colazione, un pranzo o una cena nella tua zona.</h1>
-                <p>
-                    ApprofittOffro non e un semplice social e non e una classica dating app.
-                    E una piattaforma locale per offrire un tavolo, unirsi a un invito gia aperto,
-                    scoprire profili vicini e trasformare il tempo libero in occasioni concrete per incontrarsi offline.
+        <section class="section timeline-top" id="novita">
+            <article class="panel timeline-panel">
+                <div class="mini-label">Novita recenti</div>
+                <h2>Cronologia degli aggiornamenti piu importanti</h2>
+                <p class="timeline-lead">
+                    La piattaforma evolve settimana dopo settimana. Ecco una sintesi rapida delle novita che stanno cambiando l'esperienza dentro ApprofittOffro.
                 </p>
-                <div class="hero-actions">
-                    <a href="https://play.google.com/store/apps/details?id=com.mellutecno.approfittoffro" class="btn btn-primary" rel="noopener noreferrer" target="_blank">
-                        Scarica l'app su Google Play
-                    </a>
-                    <span class="btn btn-secondary">App Store prossimamente</span>
+                <div class="timeline">
+                    <article class="timeline-item">
+                        <span class="timeline-date">Apr 2026</span>
+                        <h3>Chat interna privata host-guest</h3>
+                        <p>Le conversazioni ora vivono dentro l'app: niente numero di telefono esposto, con notifiche push dedicate e maggiore privacy.</p>
+                    </article>
+                    <article class="timeline-item">
+                        <span class="timeline-date">Apr 2026</span>
+                        <h3>Reminder intelligenti su evento</h3>
+                        <p>Host e guest possono impostare fino a due reminder per non perdere l'appuntamento e gestire meglio i tempi dell'uscita.</p>
+                    </article>
+                    <article class="timeline-item">
+                        <span class="timeline-date">Apr 2026</span>
+                        <h3>Aperitivi e selezione mappa piu visiva</h3>
+                        <p>Oltre a colazioni, pranzi e cene, ora puoi pubblicare aperitivi e scegliere il locale con una mappa interattiva piu chiara.</p>
+                    </article>
+                    <article class="timeline-item">
+                        <span class="timeline-date">Apr 2026</span>
+                        <h3>Profili e galleria evento arricchiti</h3>
+                        <p>Nuovo stile card, foto evento multiple e profili piu leggibili per capire in pochi secondi il contesto della tavolata.</p>
+                    </article>
                 </div>
-                <p class="testing-note">
-                    Per partecipare alla fase di testing, invia una email a 
-                    <a href="mailto:mellucciantonio@gmail.com">mellucciantonio@gmail.com</a> 
-                    con un indirizzo Gmail valido.
-                </p>
-            </div>
+            </article>
+        </section>
 
-            <aside class="panel hero-visual">
-                <img src="{{ url_for('static', filename='img/hero-friends.jpg') }}" alt="Persone che condividono un momento conviviale">
-                <div class="hero-note">
-                    <strong style="color: var(--text);">Oggi l'accesso utenti e solo da app Android.</strong>
-                    Il sito web resta come vetrina informativa. La registrazione, la community, le offerte
-                    e gli incontri reali si gestiscono dall'app.
+        <section class="hero" id="home">
+            <div class="hero-copy">
+                <div class="hero-brand">
+                    <section class="marquee-shell" aria-label="Cosa trovi in ApprofittOffro">
+                        <div class="marquee-track">
+                            <div class="marquee-item"><span class="marquee-dot"></span>Aperitivi serali</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Mappa interattiva</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Reminder host e guest</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Profili pubblici</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Community geolocalizzata</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Recensioni reali</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Colazioni, pranzi e cene</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Richieste di partecipazione</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Aperitivi serali</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Mappa interattiva</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Reminder host e guest</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Profili pubblici</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Community geolocalizzata</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Recensioni reali</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Colazioni, pranzi e cene</div>
+                            <div class="marquee-item"><span class="marquee-dot"></span>Richieste di partecipazione</div>
+                        </div>
+                    </section>
+                </div>
+                <div class="eyebrow">Social dining geolocalizzato</div>
+                <h1>Le tavolate piu interessanti iniziano da un invito vicino a te.</h1>
+                <p>
+                    ApprofittOffro mette insieme persone vere, locali della tua zona e occasioni concrete per vedersi offline.
+                    Colazione, aperitivo, pranzo o cena: scegli se offrire un tavolo, unirti a un evento gia aperto o seguire i profili che ti incuriosiscono davvero.
+                </p>
+                <div class="hero-cta-stack">
+                    <div class="beta-note">
+                        Vuoi partecipare al <strong>Beta Testing</strong>? Invia il tuo indirizzo <strong>Gmail</strong> a:
+                        <a href="mailto:betatesting@approfittoffro.it?subject=Richiesta%20Beta%20Testing%20ApprofittOffro&body=Ciao%2C%20voglio%20partecipare%20al%20beta%20testing.%20Questa%20e%20la%20mia%20Gmail%3A%20">betatesting@approfittoffro.it</a>
+                    </div>
+                    <div class="hero-actions">
+                        <a href="{{ play_store_url or 'https://play.google.com/store/apps/details?id=com.mellutecno.approfittoffro' }}" class="btn btn-primary" rel="noopener noreferrer" target="_blank">Scarica da Google Play</a>
+                    </div>
+                </div>
+                <div class="hero-meta">
+                    <div class="metric"><strong>Community locale</strong><span>Profili vicini, filtri smart e connessioni piu leggibili.</span></div>
+                    <div class="metric"><strong>Esperienze reali</strong><span>Offerte future, richieste di partecipazione e recensioni post-evento.</span></div>
+                    <div class="metric"><strong>Look & feel premium</strong><span>Un'app calda, elegante e pensata per il mondo eating.</span></div>
+                </div>
+            </div>
+            <aside class="hero-visual">
+                <div class="visual-card visual-main"><img src="{{ url_for('static', filename='img/hero-friends.jpg') }}" alt="Persone che condividono un momento conviviale"></div>
+                <div class="visual-strip">
+                    <div class="visual-card"><img src="{{ url_for('static', filename='img/hero-dinner.jpg') }}" alt="Una cena elegante tra persone nuove"></div>
+                    <div class="visual-card"><img src="{{ url_for('static', filename='img/hero-brunch.jpg') }}" alt="Un brunch luminoso in citta"></div>
+                </div>
+                <div class="floating-note">
+                    <strong style="color: var(--espresso); display: block; margin-bottom: 6px;">Oggi si parte da Android.</strong>
+                    Il sito e la vetrina. Registrazione, community, eventi, reminder e recensioni si gestiscono dall'app, con una UX piu dinamica e piu coerente con il nuovo stile premium.
                 </div>
             </aside>
         </section>
 
-        <section class="grid">
-            <article class="panel card">
-                <div class="step">1. Crea il profilo</div>
-                <h2>Profilo riconoscibile</h2>
+        <section class="section story" id="come-funziona">
+            <article class="panel story-copy">
+                <div class="mini-label">Come funziona</div>
+                <h2>Non devi organizzare tutto. Devi solo scegliere il tuo momento.</h2>
                 <p>
-                    Foto reali, bio, gusti alimentari, recensioni e posizione aiutano a creare fiducia
-                    e a filtrare meglio chi vuoi incontrare nella tua zona.
+                    L'idea e semplice: apri l'app, scegli il luogo, capisci subito chi c'e dietro un invito e decidi se entrare nella tavolata oppure crearne una tua.
                 </p>
             </article>
-            <article class="panel card">
-                <div class="step">2. Offri o approfitta</div>
-                <h2>Eventi locali veri</h2>
-                <p>
-                    Pubblica colazioni, pranzi e cene in un locale, a casa o dove preferisci.
-                    Oppure apri gli eventi disponibili vicino a te e chiedi di partecipare.
-                </p>
-            </article>
-            <article class="panel card">
-                <div class="step">3. Costruisci reputazione</div>
-                <h2>Recensioni dopo l'incontro</h2>
-                <p>
-                    Dopo ogni pasto puoi lasciare una recensione reale. Nel tempo la community diventa
-                    piu affidabile, leggibile e interessante da frequentare.
-                </p>
+            <aside class="panel story-steps">
+                <div class="step-card"><strong>1. Esplora la community</strong><span>Apri i profili pubblici, guarda foto, gusti, recensioni e distanza reale.</span></div>
+                <div class="step-card"><strong>2. Offri o approfitta</strong><span>Pubblica un pranzo, una cena o una colazione oppure chiedi di partecipare a un evento gia aperto.</span></div>
+                <div class="step-card"><strong>3. Costruisci reputazione</strong><span>Dopo l'incontro restano recensioni, follower e segnali veri che rendono la community piu affidabile.</span></div>
+            </aside>
+        </section>
+
+        <section class="section section-grid">
+            <article class="panel card"><div class="mini-label">Profili veri</div><h2>Una community leggibile, non un catalogo.</h2><p>Bio, foto, follower, preferenze e recensioni rendono ogni profilo piu chiaro. Qui conta il contesto, non il rumore.</p></article>
+            <article class="panel card"><div class="mini-label">Eventi reali</div><h2>Tutto gira intorno a tavoli, locali e momenti concreti.</h2><p>Orario, posti, foto, note, aperitivi e reminder: ogni invito e gia un'esperienza, non solo una riga in elenco.</p></article>
+            <article class="panel card"><div class="mini-label">Reputazione</div><h2>Piace perche lascia memoria delle esperienze.</h2><p>Dopo ogni incontro restano recensioni reali e un profilo piu completo. La fiducia cresce tavolata dopo tavolata.</p></article>
+        </section>
+
+        <section class="section feature-ribbon" id="funzioni">
+            <article class="panel feature-card"><div class="feature-icon">COL</div><div class="mini-label">Colazioni</div><h3>Parti leggero, ma in modo memorabile.</h3><p>Brunch, caffe e incontri piu spontanei per chi vuole conoscersi con un tono piu morbido.</p></article>
+            <article class="panel feature-card"><div class="feature-icon">APE</div><div class="mini-label">Aperitivi</div><h3>Anche gli aperitivi adesso fanno parte del gioco.</h3><p>Perfetti per un primo contatto serale, piu agile di una cena ma piu atmosferico di un semplice caffe.</p></article>
+            <article class="panel feature-card"><div class="feature-icon">MAP</div><div class="mini-label">Mappa</div><h3>Scegli il posto in modo visivo.</h3><p>La selezione sulla mappa interattiva rende subito piu chiaro dove si va, cosa c'e intorno e quanto ti ispira.</p></article>
+            <article class="panel feature-card"><div class="feature-icon">REM</div><div class="mini-label">Reminder</div><h3>Fino a due promemoria per evento.</h3><p>Host e guest possono ricordarsi il momento giusto senza perdere il filo dell'esperienza.</p></article>
+        </section>
+
+        <section class="section map-story">
+            <aside class="panel map-visual"><img src="{{ url_for('static', filename='img/hero.png') }}" alt="Esperienza conviviale associata alla scelta del luogo"></aside>
+            <article class="panel map-copy">
+                <div class="mini-label">Esperienza interattiva</div>
+                <h2>La scelta del luogo adesso conta davvero.</h2>
+                <p>ApprofittOffro non ti mostra solo un invito: ti fa entrare nel contesto dell'uscita. La mappa interattiva rende tutto piu visivo e molto meno astratto.</p>
+                <ul class="map-points">
+                    <li>Scelta del punto evento in modo piu visivo e immediato.</li>
+                    <li>Community filtrata per distanza reale e presenza sul territorio.</li>
+                    <li>Reminder host e guest per non perdere l'appuntamento.</li>
+                    <li>Profili pubblici, recensioni e follower per capire subito il contesto sociale.</li>
+                </ul>
             </article>
         </section>
 
-        <section class="panel how-it-works">
-            <div class="how-layout">
-                <div>
-                    <h2>Come funziona oggi</h2>
-                    <p style="margin-bottom: 14px;">
-                        L'app e gia pensata per un utilizzo reale: community geolocalizzata,
-                        offerte future, richieste di partecipazione, approvazione host, recensioni,
-                        profili pubblici e gestione admin da smartphone.
-                    </p>
-                    <ul class="checklist">
-                        <li>Registrazione e accesso disponibili solo dall'app Android.</li>
-                        <li>Community con filtri per distanza, eta e sesso.</li>
-                        <li>Offerte di colazione, pranzo e cena con posti, data, foto e descrizione.</li>
-                        <li>Richieste di partecipazione, accettazione, rifiuto e notifiche email.</li>
-                        <li>Recensioni finali per costruire reputazione e fiducia.</li>
-                    </ul>
-                </div>
-                <aside class="launch-box">
-                    <strong>Roadmap breve</strong>
-                    <p style="margin-bottom: 10px;">
-                        Android e la piattaforma attiva adesso.
-                    </p>
-                    <p style="margin: 0;">
-                        La versione iPhone e prevista in una fase successiva, dopo il consolidamento
-                        dell'esperienza Android e della parte amministrativa mobile.
-                    </p>
-                </aside>
-            </div>
+        <section class="section experiences" id="esperienze">
+            <article class="panel experience-card"><img src="{{ url_for('static', filename='img/hero-brunch.jpg') }}" alt="Brunch tra persone nuove"><div class="experience-copy"><div class="mini-label">Colazione</div><h3>Parti da un brunch o da un caffe.</h3><p>Perfetto per rompere il ghiaccio con un incontro piu leggero, piu rapido e piu spontaneo.</p></div></article>
+            <article class="panel experience-card"><img src="{{ url_for('static', filename='img/hero-dinner.jpg') }}" alt="Cena condivisa in locale"><div class="experience-copy"><div class="mini-label">Cena</div><h3>La tavolata giusta fa tutto il resto.</h3><p>Le cene diventano il cuore sociale dell'app: piu atmosfera, piu dialogo, piu tempo per conoscersi bene.</p></div></article>
+            <article class="panel experience-card"><img src="{{ url_for('static', filename='img/hero-friends.jpg') }}" alt="Persone che socializzano"><div class="experience-copy"><div class="mini-label">Community</div><h3>Segui chi ti piace davvero incontrare.</h3><p>La parte social resta leggibile: follower, notifiche e profili pubblici costruiscono continuita.</p></div></article>
+            <article class="panel experience-card"><img src="{{ url_for('static', filename='img/hero-dinner.jpg') }}" alt="Aperitivo serale in locale"><div class="experience-copy"><div class="mini-label">Aperitivi</div><h3>Il momento giusto tra giorno e sera.</h3><p>Gli aperitivi aggiungono una fascia piu smart e piu elegante per chi vuole uscire senza impegnarsi su una cena completa.</p></div></article>
         </section>
 
-        <p class="footnote">
-            ApprofittOffro: incontri di opportunita intorno a tavoli veri, persone vere e locali della tua zona.
-        </p>
+        <section class="section closing" id="scarica">
+            <article class="panel closing-copy">
+                <div class="mini-label">Disponibile ora</div>
+                <h2>Scarica l'app e comincia dal tavolo giusto.</h2>
+                <p>Oggi l'esperienza completa vive su Android. La landing deve raccontare meglio l'atmosfera del prodotto: meno pagina tecnica, piu invito a entrare.</p>
+                <div class="hero-actions"><a class="btn btn-secondary" href="mailto:mellucciantonio@gmail.com">Contatta il team</a></div>
+            </article>
+            <aside class="panel closing-box">
+                <h3>Cosa trovi oggi dentro l'app</h3>
+                <p>Oggi il prodotto e gia operativo e molto piu completo di una semplice vetrina: puoi esplorare la community, seguire i profili piu interessanti e costruire esperienze reali intorno a un tavolo.</p>
+                <ul>
+                    <li>Eventi futuri con richieste di partecipazione</li>
+                    <li>Aperitivi, colazioni, pranzi e cene</li>
+                    <li>Reminder personalizzati per host e guest</li>
+                    <li>Profili pubblici, follower e recensioni</li>
+                </ul>
+                <div class="feedback-note">Se la provi, facci sapere cosa ne pensi: feedback, idee e problemi reali ci aiutano a migliorarla molto piu in fretta.</div>
+            </aside>
+        </section>
+
+        <p class="footnote">ApprofittOffro: occasioni vere, tavoli veri, persone vere.</p>
     </main>
 </body>
 </html>

@@ -109,6 +109,7 @@ class _OffersPageState extends State<OffersPage> {
                     OfferCard(
                       offer: offer,
                       apiClient: widget.authController.apiClient,
+                      currentUserId: widget.authController.currentUser?.id.toString() ?? '',
                       allowProfileOpen: true,
                       onEditOwn: null,
                       onArchive: offer.isOwn
@@ -542,8 +543,15 @@ class _ProfileOffersReminder extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: AppTheme.orange,
+            gradient: AppTheme.accentGradient,
             borderRadius: BorderRadius.circular(18),
+            boxShadow: const [
+              BoxShadow(
+                color: AppTheme.shadow,
+                blurRadius: 16,
+                offset: Offset(0, 8),
+              ),
+            ],
           ),
           child: Row(
             children: [
@@ -604,14 +612,14 @@ class _OfferPreviewCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: Colors.white,
+          gradient: AppTheme.elevatedSurfaceGradient,
           borderRadius: BorderRadius.circular(30),
           border: Border.all(color: AppTheme.cardBorder),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x12000000),
-              blurRadius: 18,
-              offset: Offset(0, 10),
+              color: AppTheme.shadow,
+              blurRadius: 22,
+              offset: Offset(0, 12),
             ),
           ],
         ),
@@ -1041,9 +1049,9 @@ class _MealChip extends StatelessWidget {
           child: Text(label, textAlign: TextAlign.center),
         ),
         onSelected: (_) => onTap(value),
-        backgroundColor: Colors.white.withValues(alpha: 0.72),
-        selectedColor: _colorForValue(value).withValues(alpha: 0.18),
-        side: BorderSide(color: _colorForValue(value).withValues(alpha: 0.34)),
+        backgroundColor: AppTheme.paper.withValues(alpha: 0.92),
+        selectedColor: _colorForValue(value).withValues(alpha: 0.16),
+        side: BorderSide(color: _colorForValue(value).withValues(alpha: 0.22)),
         labelStyle: TextStyle(
           color: selected ? _colorForValue(value) : null,
           fontWeight: FontWeight.w700,
@@ -1105,9 +1113,16 @@ class _DistancePreferenceControl extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.74),
+        color: AppTheme.paper.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: AppTheme.cardBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: AppTheme.shadow,
+            blurRadius: 14,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

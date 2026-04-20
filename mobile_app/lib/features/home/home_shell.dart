@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/navigation/app_launch_target.dart';
+import '../../core/theme/app_theme.dart';
 import '../admin/admin_page.dart';
 import '../auth/auth_controller.dart';
 import '../community/community_controller.dart';
 import '../community/community_page.dart';
+import '../chat/chat_page.dart';
 import '../create_offer/create_offer_page.dart';
 import '../offers/offers_controller.dart';
 import '../offers/offers_page.dart';
@@ -117,16 +119,28 @@ class _HomeShellState extends State<HomeShell> {
     }
 
     if (!_isAdminUser) {
-      if (target == AppLaunchTarget.pendingRequests ||
-          target == AppLaunchTarget.profile ||
-          target == AppLaunchTarget.chatRequest) {
+      if (target.isChat) {
+        // Apri direttamente la chat
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && target.otherUserId != null) {
+            Navigator.of(context, rootNavigator: true).push(
+              MaterialPageRoute(
+                builder: (_) => ChatPage(
+                  apiClient: widget.authController.apiClient,
+                  offerId: (target.offerId ?? 0).toString(),
+                  currentUserId: widget.authController.currentUser?.id.toString() ?? '',
+                  currentUserName: widget.authController.currentUser?.nome ?? 'Utente',
+                  otherUserId: target.otherUserId.toString(),
+                  otherUserName: target.otherUserName ?? 'Utente',
+                ),
+              ),
+            );
+          }
+        });
+      } else if (target == AppLaunchTarget.pendingRequests ||
+          target == AppLaunchTarget.profile) {
         if (_selectedIndex != _profileTabIndex) {
           setState(() => _selectedIndex = _profileTabIndex);
-        }
-        if (target == AppLaunchTarget.chatRequest) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _showChatRequestAlert();
-          });
         }
       } else if (target == AppLaunchTarget.offers && _selectedIndex != 0) {
         setState(() => _selectedIndex = 0);
@@ -135,29 +149,6 @@ class _HomeShellState extends State<HomeShell> {
 
     widget.onLaunchTargetHandled?.call();
     unawaited(_refreshAfterNotificationOpen());
-  }
-
-  void _showChatRequestAlert() {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.chat_bubble_outline, color: Colors.white),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Qualcuno vuole chattare con te! Attiva la chat WhatsApp nelle impostazioni.',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF25D366),
-        duration: const Duration(seconds: 8),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   Future<void> _refreshAfterNotificationOpen() async {
@@ -482,9 +473,9 @@ class _ProfileTabIcon extends StatelessWidget {
                 width: 16,
                 height: 16,
                 decoration: BoxDecoration(
-                  color: Colors.redAccent,
+                  color: AppTheme.orange,
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: Colors.white, width: 1.2),
+                  border: Border.all(color: AppTheme.paper, width: 1.2),
                 ),
                 child: const Icon(
                   Icons.notifications_rounded,

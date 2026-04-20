@@ -95,6 +95,20 @@ class User(UserMixin, db.Model):
         lazy=True,
         cascade="all, delete-orphan",
     )
+    blocked_users_rel = db.relationship(
+        "UserBlock",
+        foreign_keys="UserBlock.blocker_id",
+        backref="blocker",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+    blocked_by_rel = db.relationship(
+        "UserBlock",
+        foreign_keys="UserBlock.blocked_id",
+        backref="blocked",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
     push_tokens = db.relationship(
         "DevicePushToken",
         backref="user",
@@ -236,6 +250,23 @@ class UserFollow(db.Model):
 
     def __repr__(self):
         return f"<UserFollow follower={self.follower_id} followed={self.followed_id}>"
+
+
+class UserBlock(db.Model):
+    """Relazione di blocco chat fra utenti."""
+    __tablename__ = "user_blocks"
+
+    id = db.Column(db.Integer, primary_key=True)
+    blocker_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    blocked_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    __table_args__ = (
+        db.UniqueConstraint("blocker_id", "blocked_id", name="unique_user_block"),
+    )
+
+    def __repr__(self):
+        return f"<UserBlock blocker={self.blocker_id} blocked={self.blocked_id}>"
 
 
 class UserReminder(db.Model):

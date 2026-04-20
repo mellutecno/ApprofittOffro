@@ -4,6 +4,8 @@
 
 # Variabili d'ambiente e segreti
 .env
+functions/.env
+functions/.runtimeconfig.json
 
 # Credenziali OAuth Google
 credentials.json
@@ -14,6 +16,9 @@ token.json
 .test_profile/
 .test_zip2/
 deploy_staging/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
 
 # Python
 __pycache__/
@@ -67,3 +72,6 @@ mobile_app/linux/
 mobile_app/macos/
 mobile_app/windows/
 mobile_app/pubspec.lock
+
+# Firebase Functions
+functions/node_modules/
