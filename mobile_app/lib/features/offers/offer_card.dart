@@ -15,6 +15,9 @@ class OfferCard extends StatelessWidget {
     required this.offer,
     required this.apiClient,
     required this.currentUserId,
+    this.currentUserName = 'Utente',
+    this.currentUserPhotoFilename = '',
+    this.onChatClosed,
     this.onClaim,
     this.onEditOwn,
     this.onArchive,
@@ -25,6 +28,9 @@ class OfferCard extends StatelessWidget {
   final Offer offer;
   final ApiClient apiClient;
   final String currentUserId;
+  final String currentUserName;
+  final String currentUserPhotoFilename;
+  final VoidCallback? onChatClosed;
   final Future<void> Function()? onClaim;
   final VoidCallback? onEditOwn;
   final Future<void> Function()? onArchive;
@@ -70,7 +76,8 @@ class OfferCard extends StatelessWidget {
     final occupiedSeats = (offer.postiTotali - offer.postiDisponibili)
         .clamp(0, offer.postiTotali);
     final offerGalleryUrls = _offerGalleryUrls();
-    final localeImageUrl = offerGalleryUrls.isNotEmpty ? offerGalleryUrls.first : null;
+    final localeImageUrl =
+        offerGalleryUrls.isNotEmpty ? offerGalleryUrls.first : null;
     final authorPhotoUrl = offer.autoreFoto.isNotEmpty
         ? apiClient.buildUploadUrl(offer.autoreFoto)
         : null;
@@ -84,414 +91,426 @@ class OfferCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: AppTheme.softAccentGradient,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: AppTheme.cardBorder),
-                boxShadow: const [
-                  BoxShadow(
-                    color: AppTheme.shadow,
-                    blurRadius: 24,
-                    offset: Offset(0, 12),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: AppTheme.softAccentGradient,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: AppTheme.cardBorder),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: AppTheme.shadow,
+                      blurRadius: 24,
+                      offset: Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: allowProfileOpen
+                      ? () => _openProfile(context, offer.autoreId)
+                      : null,
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 28,
+                        backgroundImage: authorPhotoUrl != null
+                            ? NetworkImage(authorPhotoUrl)
+                            : null,
+                        child: authorPhotoUrl == null
+                            ? const Icon(Icons.person)
+                            : null,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              offer.autoreNome,
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Text('${offer.autoreEta} anni'),
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.star_rounded,
+                                  size: 18,
+                                  color: Color(0xFFD49B00),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(offer.autoreRatingAverage
+                                    .toStringAsFixed(1)),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            if (allowProfileOpen)
+                              Text(
+                                'Visualizza profilo',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            if (!offer.isOwn &&
+                                offer.claimStatus == 'claimed') ...[
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: _ChatButton(
+                                  offer: offer,
+                                  apiClient: apiClient,
+                                  currentUserId: currentUserId,
+                                  currentUserName: currentUserName,
+                                  currentUserPhotoFilename:
+                                      currentUserPhotoFilename,
+                                  onChatClosed: onChatClosed,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (allowProfileOpen)
+                        const Icon(Icons.chevron_right_rounded),
+                    ],
                   ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              _CenteredChip(
+                label: offer.tipoPasto.toUpperCase(),
+                backgroundColor: mealColor.withValues(alpha: 0.16),
+                foregroundColor: mealColor,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: _CenteredChip(
+                      label: _formatWhenLabel(offer.dataOra),
+                      backgroundColor: mealColor.withValues(alpha: 0.10),
+                      foregroundColor: mealColor,
+                    ),
+                  ),
+                  if (canManageReminders) ...[
+                    const SizedBox(width: 10),
+                    _ReminderButton(
+                      offer: offer,
+                      apiClient: apiClient,
+                    ),
+                  ],
                 ],
               ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(18),
-                onTap: allowProfileOpen
-                    ? () => _openProfile(context, offer.autoreId)
-                    : null,
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundImage: authorPhotoUrl != null
-                          ? NetworkImage(authorPhotoUrl)
-                          : null,
-                      child: authorPhotoUrl == null
-                          ? const Icon(Icons.person)
-                          : null,
+              const SizedBox(height: 18),
+              Center(
+                child: Text(
+                  'Partecipanti  $occupiedSeats di ${offer.postiTotali}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF8EEE3), Color(0xFFF1E2D4)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: AppTheme.cardBorder.withValues(alpha: 0.7),
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: AppTheme.shadow,
+                      blurRadius: 8,
+                      offset: Offset(0, 4),
                     ),
-                    const SizedBox(width: 14),
+                  ],
+                ),
+                child: offer.participants.isEmpty
+                    ? const Text(
+                        'Per ora nessuno si e\' ancora aggiunto.',
+                        textAlign: TextAlign.center,
+                      )
+                    : Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 14,
+                        runSpacing: 12,
+                        children: offer.participants.map((participant) {
+                          final photoUrl = participant.photoFilename.isNotEmpty
+                              ? apiClient
+                                  .buildUploadUrl(participant.photoFilename)
+                              : null;
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () => _openProfile(context, participant.id),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircleAvatar(
+                                  radius: 26,
+                                  backgroundImage: photoUrl != null
+                                      ? NetworkImage(photoUrl)
+                                      : null,
+                                  child: photoUrl == null
+                                      ? const Icon(Icons.person_outline)
+                                      : null,
+                                ),
+                                const SizedBox(height: 6),
+                                SizedBox(
+                                  width: 70,
+                                  child: Text(
+                                    participant.name,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (offer.isOwn) ...[
+                                  const SizedBox(height: 6),
+                                  _ChatParticipantAction(
+                                    offerId: offer.id,
+                                    apiClient: apiClient,
+                                    currentUserId: currentUserId,
+                                    currentUserName: currentUserName,
+                                    currentUserPhotoFilename:
+                                        currentUserPhotoFilename,
+                                    participantId: participant.id,
+                                    participantName: participant.name,
+                                    participantPhotoFilename:
+                                        participant.photoFilename,
+                                    onChatClosed: onChatClosed,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                offer.nomeLocale,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              if (localeImageUrl != null) ...[
+                const SizedBox(height: 14),
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: offerGalleryUrls.isEmpty
+                              ? null
+                              : () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => ProfileGalleryViewerPage(
+                                        imageUrls: offerGalleryUrls,
+                                        title: offer.nomeLocale,
+                                      ),
+                                    ),
+                                  ),
+                          child: AspectRatio(
+                            aspectRatio: 16 / 10,
+                            child: Image.network(
+                              localeImageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, _, __) => Container(
+                                color: AppTheme.mist,
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                    Icons.image_not_supported_outlined),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (offerGalleryUrls.length > 1)
+                      Positioned(
+                        right: 12,
+                        top: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.62),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '+${offerGalleryUrls.length - 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFFFBF7), Color(0xFFF2E5D9)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppTheme.cardBorder),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: AppTheme.shadow,
+                      blurRadius: 10,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            offer.autoreNome,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Text('${offer.autoreEta} anni'),
-                              const SizedBox(width: 8),
-                              const Icon(
-                                Icons.star_rounded,
-                                size: 18,
-                                color: Color(0xFFD49B00),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                  offer.autoreRatingAverage.toStringAsFixed(1)),
-                            ],
+                            offer.indirizzo,
+                            style: const TextStyle(
+                              color: AppTheme.espresso,
+                              fontWeight: FontWeight.w800,
+                              height: 1.35,
+                            ),
                           ),
                           const SizedBox(height: 6),
-                          if (allowProfileOpen)
-                            Text(
-                              'Visualizza profilo',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w700,
-                              ),
+                          Text(
+                            'Circa ${offer.distanceKm.toStringAsFixed(1)} km',
+                            style: TextStyle(
+                              color: AppTheme.brown.withValues(alpha: 0.72),
+                              fontWeight: FontWeight.w700,
                             ),
-                          if (!offer.isOwn && offer.claimStatus == 'claimed') ...[
-                            const SizedBox(height: 10),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: _ChatButton(
-                                offer: offer,
-                                apiClient: apiClient,
-                                currentUserId: currentUserId,
-                              ),
-                            ),
-                          ],
+                          ),
                         ],
                       ),
                     ),
-                    if (allowProfileOpen)
-                      const Icon(Icons.chevron_right_rounded),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            _CenteredChip(
-              label: offer.tipoPasto.toUpperCase(),
-              backgroundColor: mealColor.withValues(alpha: 0.16),
-              foregroundColor: mealColor,
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Flexible(
-                  child: _CenteredChip(
-                    label: _formatWhenLabel(offer.dataOra),
-                    backgroundColor: mealColor.withValues(alpha: 0.10),
-                    foregroundColor: mealColor,
-                  ),
-                ),
-                if (canManageReminders) ...[
-                  const SizedBox(width: 10),
-                  _ReminderButton(
-                    offer: offer,
-                    apiClient: apiClient,
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 18),
-            Center(
-              child: Text(
-                'Partecipanti  $occupiedSeats di ${offer.postiTotali}',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFF8EEE3), Color(0xFFF1E2D4)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: AppTheme.cardBorder.withValues(alpha: 0.7),
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: AppTheme.shadow,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: offer.participants.isEmpty
-                  ? const Text(
-                      'Per ora nessuno si e\' ancora aggiunto.',
-                      textAlign: TextAlign.center,
-                    )
-                  : Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 14,
-                      runSpacing: 12,
-                      children: offer.participants.map((participant) {
-                        final photoUrl = participant.photoFilename.isNotEmpty
-                            ? apiClient
-                                .buildUploadUrl(participant.photoFilename)
-                            : null;
-                        return InkWell(
-                          borderRadius: BorderRadius.circular(18),
-                          onTap: () => _openProfile(context, participant.id),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircleAvatar(
-                                radius: 26,
-                                backgroundImage: photoUrl != null
-                                    ? NetworkImage(photoUrl)
-                                    : null,
-                                child: photoUrl == null
-                                    ? const Icon(Icons.person_outline)
-                                    : null,
-                              ),
-                              const SizedBox(height: 6),
-                              SizedBox(
-                                width: 70,
-                                child: Text(
-                                  participant.name,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (offer.isOwn) ...[
-                                const SizedBox(height: 6),
-                                _ChatParticipantAction(
-                                  offerId: offer.id,
-                                  apiClient: apiClient,
-                                  currentUserId: currentUserId,
-                                  participantId: participant.id,
-                                  participantName: participant.name,
-                                  participantPhotoFilename: participant.photoFilename,
-                                ),
-                              ],
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              offer.nomeLocale,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            if (localeImageUrl != null) ...[
-              const SizedBox(height: 14),
-              Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: offerGalleryUrls.isEmpty
-                            ? null
-                            : () => Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => ProfileGalleryViewerPage(
-                                      imageUrls: offerGalleryUrls,
-                                      title: offer.nomeLocale,
-                                    ),
-                                  ),
-                                ),
-                        child: AspectRatio(
-                          aspectRatio: 16 / 10,
-                          child: Image.network(
-                            localeImageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, _, __) => Container(
-                              color: AppTheme.mist,
-                              alignment: Alignment.center,
-                              child: const Icon(Icons.image_not_supported_outlined),
+                    if (canNavigateToOffer) ...[
+                      const SizedBox(width: 8),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(999),
+                          onTap: () =>
+                              _openExternalLink(_googleMapsDirectionsUrl()),
+                          child: Ink(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: AppTheme.peach.withValues(alpha: 0.72),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Icon(
+                              Icons.near_me_rounded,
+                              color: AppTheme.orange,
+                              size: 20,
                             ),
                           ),
                         ),
                       ),
+                    ],
+                  ],
+                ),
+              ),
+              if (offer.descrizione.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  offer.descrizione,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    height: 1.45,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.espresso,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 18),
+              if (offer.stato == 'archiviata')
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: const Text(
+                    'Evento archiviato',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppTheme.espresso,
+                      fontWeight: FontWeight.w600,
+                      fontStyle: FontStyle.italic,
                     ),
                   ),
-                  if (offerGalleryUrls.length > 1)
-                    Positioned(
-                      right: 12,
-                      top: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.62),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          '+${offerGalleryUrls.length - 1}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
+                )
+              else if (_isOngoing && offer.isOwn)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: const Text(
+                    'In corso',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF3D8B5A),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                )
+              else if (_canArchive && onArchive != null)
+                FilledButton(
+                  onPressed: () => onArchive?.call(),
+                  child: const Text('Archivia'),
+                )
+              else if (offer.isOwn && offer.telefonoLocale.trim().isNotEmpty)
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: onEditOwn,
+                        child: const Text('Modifica la tua offerta'),
                       ),
                     ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFFFBF7), Color(0xFFF2E5D9)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppTheme.cardBorder),
-                boxShadow: const [
-                  BoxShadow(
-                    color: AppTheme.shadow,
-                    blurRadius: 10,
-                    offset: Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          offer.indirizzo,
-                          style: const TextStyle(
-                            color: AppTheme.espresso,
-                            fontWeight: FontWeight.w800,
-                            height: 1.35,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Circa ${offer.distanceKm.toStringAsFixed(1)} km',
-                          style: TextStyle(
-                            color: AppTheme.brown.withValues(alpha: 0.72),
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (canNavigateToOffer) ...[
-                    const SizedBox(width: 8),
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(999),
-                        onTap: () =>
-                            _openExternalLink(_googleMapsDirectionsUrl()),
-                        child: Ink(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: AppTheme.peach.withValues(alpha: 0.72),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: const Icon(
-                            Icons.near_me_rounded,
-                            color: AppTheme.orange,
-                            size: 20,
-                          ),
-                        ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _callLocalPhone,
+                        icon: const Icon(Icons.call_outlined),
+                        label: const Text('Vuoi prenotare?'),
                       ),
                     ),
                   ],
-                ],
-              ),
-            ),
-            if (offer.descrizione.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              Text(
-                offer.descrizione,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  height: 1.45,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.espresso,
+                )
+              else
+                FilledButton(
+                  onPressed: offer.isOwn
+                      ? onEditOwn
+                      : (!offer.canClaim || onClaim == null
+                          ? null
+                          : () => onClaim!.call()),
+                  child: Text(_ctaLabel()),
                 ),
-              ),
             ],
-            const SizedBox(height: 18),
-            if (offer.stato == 'archiviata')
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: const Text(
-                  'Evento archiviato',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppTheme.espresso,
-                    fontWeight: FontWeight.w600,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              )
-            else if (_isOngoing && offer.isOwn)
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: const Text(
-                  'In corso',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF3D8B5A),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                  ),
-                ),
-              )
-            else if (_canArchive && onArchive != null)
-              FilledButton(
-                onPressed: () => onArchive?.call(),
-                child: const Text('Archivia'),
-              )
-            else if (offer.isOwn && offer.telefonoLocale.trim().isNotEmpty)
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: onEditOwn,
-                      child: const Text('Modifica la tua offerta'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _callLocalPhone,
-                      icon: const Icon(Icons.call_outlined),
-                      label: const Text('Vuoi prenotare?'),
-                    ),
-                  ),
-                ],
-              )
-            else
-              FilledButton(
-                onPressed: offer.isOwn
-                    ? onEditOwn
-                    : (!offer.canClaim || onClaim == null
-                        ? null
-                        : () => onClaim!.call()),
-                child: Text(_ctaLabel()),
-              ),
-          ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -675,17 +694,23 @@ class _ChatParticipantAction extends StatelessWidget {
     required this.offerId,
     required this.apiClient,
     required this.currentUserId,
+    required this.currentUserName,
+    required this.currentUserPhotoFilename,
     required this.participantId,
     required this.participantName,
     this.participantPhotoFilename = '',
+    this.onChatClosed,
   });
 
   final int offerId;
   final ApiClient apiClient;
   final String currentUserId;
+  final String currentUserName;
+  final String currentUserPhotoFilename;
   final int participantId;
   final String participantName;
   final String participantPhotoFilename;
+  final VoidCallback? onChatClosed;
 
   @override
   Widget build(BuildContext context) {
@@ -693,19 +718,22 @@ class _ChatParticipantAction extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
+        onTap: () async {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
               builder: (_) => ChatPage(
                 apiClient: apiClient,
                 offerId: offerId.toString(),
                 currentUserId: currentUserId,
+                currentUserName: currentUserName,
+                currentUserPhotoFilename: currentUserPhotoFilename,
                 otherUserId: participantId.toString(),
                 otherUserName: participantName,
                 otherUserPhotoFilename: participantPhotoFilename,
               ),
             ),
           );
+          onChatClosed?.call();
         },
         child: Ink(
           width: 34,
@@ -751,7 +779,8 @@ class _ReminderButtonState extends State<_ReminderButton> {
 
   Future<void> _loadReminders() async {
     try {
-      final minutes = await widget.apiClient.fetchOfferReminders(widget.offer.id);
+      final minutes =
+          await widget.apiClient.fetchOfferReminders(widget.offer.id);
       if (mounted) {
         setState(() {
           _reminderMinutes = minutes;
@@ -772,7 +801,8 @@ class _ReminderButtonState extends State<_ReminderButton> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Errore nel salvataggio dei promemoria.')),
+          const SnackBar(
+              content: Text('Errore nel salvataggio dei promemoria.')),
         );
       }
     }
@@ -920,11 +950,17 @@ class _ChatButton extends StatelessWidget {
     required this.offer,
     required this.apiClient,
     required this.currentUserId,
+    required this.currentUserName,
+    required this.currentUserPhotoFilename,
+    this.onChatClosed,
   });
 
   final Offer offer;
   final ApiClient apiClient;
   final String currentUserId;
+  final String currentUserName;
+  final String currentUserPhotoFilename;
+  final VoidCallback? onChatClosed;
 
   @override
   Widget build(BuildContext context) {
@@ -932,19 +968,22 @@ class _ChatButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
+        onTap: () async {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
               builder: (_) => ChatPage(
                 apiClient: apiClient,
                 offerId: offer.id.toString(),
                 currentUserId: currentUserId,
+                currentUserName: currentUserName,
+                currentUserPhotoFilename: currentUserPhotoFilename,
                 otherUserId: offer.autoreId.toString(),
                 otherUserName: offer.autoreNome,
                 otherUserPhotoFilename: offer.autoreFoto,
               ),
             ),
           );
+          onChatClosed?.call();
         },
         child: Ink(
           width: 42,

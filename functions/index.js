@@ -30,6 +30,18 @@ exports.sendChatNotification = functions.firestore
                 console.error('ID chat non numerici:', { receiverId, senderId, chatId });
                 return;
             }
+
+            const messageType = String(message.type || 'text').trim().toLowerCase();
+            let messageText = String(message.text || '').trim();
+            if (!messageText && messageType === 'audio') {
+                const duration = Number.parseInt(message.audioDurationSec, 10);
+                messageText = Number.isFinite(duration) && duration > 0
+                    ? `Vocale (${duration}s)`
+                    : 'Messaggio vocale';
+            }
+            if (!messageText) {
+                messageText = 'Nuovo messaggio';
+            }
             
             // Chiama il tuo backend Hetzner
             const backendUrl = process.env.BACKEND_URL;
@@ -43,7 +55,9 @@ exports.sendChatNotification = functions.firestore
                 receiver_id: receiverIdInt,
                 sender_id: senderIdInt,
                 sender_name: message.senderName || chatData.lastSenderName || 'Utente',
-                message_text: message.text,
+                message_text: messageText,
+                message_type: messageType,
+                audio_duration_sec: message.audioDurationSec || null,
                 offer_id: parseInt(chatData.offerId),
                 chat_id: chatId
             }, {

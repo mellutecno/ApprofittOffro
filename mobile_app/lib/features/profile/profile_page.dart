@@ -20,9 +20,14 @@ import 'profile_gallery_viewer_page.dart';
 import 'public_profile_page.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key, required this.authController});
+  const ProfilePage({
+    super.key,
+    required this.authController,
+    required this.onGoToChat,
+  });
 
   final AuthController authController;
+  final VoidCallback onGoToChat;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -1455,7 +1460,22 @@ class _ProfilePageState extends State<ProfilePage> {
                     OfferCard(
                       offer: offer,
                       apiClient: widget.authController.apiClient,
-                      currentUserId: widget.authController.currentUser?.id.toString() ?? '',
+                      currentUserId:
+                          widget.authController.currentUser?.id.toString() ??
+                              '',
+                      currentUserName:
+                          widget.authController.currentUser?.nome ?? 'Utente',
+                      currentUserPhotoFilename:
+                          widget.authController.currentUser?.photoFilename ??
+                              '',
+                      onChatClosed: () {
+                        widget.onGoToChat();
+                        final sheetNavigator =
+                            Navigator.of(sheetContext, rootNavigator: true);
+                        if (sheetNavigator.canPop()) {
+                          sheetNavigator.pop();
+                        }
+                      },
                       allowProfileOpen: false,
                       showAddressLeadIcon: false,
                       onEditOwn: offer.isOwn
@@ -2283,104 +2303,104 @@ class _PendingClaimCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(18),
-              onTap: onOpenRequesterProfile,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundImage: requesterPhotoUrl != null
-                          ? NetworkImage(requesterPhotoUrl)
-                          : null,
-                      child: requesterPhotoUrl == null
-                          ? const Icon(Icons.person_outline)
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            requester.nome,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${request.offerMealType} - ${request.offerLocaleName}',
-                            style: const TextStyle(
-                              color: AppTheme.brown,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: onOpenRequesterProfile,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundImage: requesterPhotoUrl != null
+                            ? NetworkImage(requesterPhotoUrl)
+                            : null,
+                        child: requesterPhotoUrl == null
+                            ? const Icon(Icons.person_outline)
+                            : null,
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: AppTheme.brown,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (request.offerAddress.trim().isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                request.offerAddress,
-                style: const TextStyle(
-                  color: AppTheme.espresso,
-                  fontWeight: FontWeight.w700,
-                  height: 1.35,
-                ),
-              ),
-            ],
-            if (whenText.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                whenText,
-                style: TextStyle(
-                  color: AppTheme.brown.withValues(alpha: 0.82),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onReject,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF8A4336),
-                      side: const BorderSide(color: Color(0xFFD7B4AC)),
-                    ),
-                    icon: const Icon(Icons.close_rounded),
-                    label: const Text('Rifiuta'),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              requester.nome,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${request.offerMealType} - ${request.offerLocaleName}',
+                              style: const TextStyle(
+                                color: AppTheme.brown,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppTheme.brown,
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: onAccept,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF3D8B5A),
-                    ),
-                    icon: const Icon(Icons.check_rounded),
-                    label: const Text('Accetta'),
+              ),
+              if (request.offerAddress.trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  request.offerAddress,
+                  style: const TextStyle(
+                    color: AppTheme.espresso,
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
                   ),
                 ),
               ],
-            ),
-          ],
+              if (whenText.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  whenText,
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.82),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onReject,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF8A4336),
+                        side: const BorderSide(color: Color(0xFFD7B4AC)),
+                      ),
+                      icon: const Icon(Icons.close_rounded),
+                      label: const Text('Rifiuta'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: onAccept,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF3D8B5A),
+                      ),
+                      icon: const Icon(Icons.check_rounded),
+                      label: const Text('Accetta'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -2421,140 +2441,140 @@ class _PendingReviewCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppTheme.gold.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(14),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppTheme.gold.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.reviews_rounded,
+                      color: AppTheme.gold,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.reviews_rounded,
-                    color: AppTheme.gold,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      existingReview == null
+                          ? 'Recensisci ${targetUser.nome}'
+                          : 'Recensione pronta per ${targetUser.nome}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: onOpenProfile,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundImage: targetPhotoUrl != null
+                            ? NetworkImage(targetPhotoUrl)
+                            : null,
+                        child: targetPhotoUrl == null
+                            ? const Icon(Icons.person_outline)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              targetUser.nome,
+                              style: const TextStyle(
+                                color: AppTheme.espresso,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              reminder.roleLabel,
+                              style: TextStyle(
+                                color: AppTheme.brown.withValues(alpha: 0.78),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppTheme.brown,
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    existingReview == null
-                        ? 'Recensisci ${targetUser.nome}'
-                        : 'Recensione pronta per ${targetUser.nome}',
-                    style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '${reminder.offerMealType} - ${reminder.offerLocaleName}',
+                style: const TextStyle(
+                  color: AppTheme.espresso,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (reminder.offerAddress.trim().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  reminder.offerAddress,
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.86),
+                    height: 1.35,
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 12),
-            InkWell(
-              borderRadius: BorderRadius.circular(18),
-              onTap: onOpenProfile,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundImage: targetPhotoUrl != null
-                          ? NetworkImage(targetPhotoUrl)
-                          : null,
-                      child: targetPhotoUrl == null
-                          ? const Icon(Icons.person_outline)
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            targetUser.nome,
-                            style: const TextStyle(
-                              color: AppTheme.espresso,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            reminder.roleLabel,
-                            style: TextStyle(
-                              color: AppTheme.brown.withValues(alpha: 0.78),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: AppTheme.brown,
-                    ),
-                  ],
+              if (whenText.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  whenText,
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.78),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '${reminder.offerMealType} - ${reminder.offerLocaleName}',
-              style: const TextStyle(
-                color: AppTheme.espresso,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            if (reminder.offerAddress.trim().isNotEmpty) ...[
-              const SizedBox(height: 6),
+              ],
+              const SizedBox(height: 16),
               Text(
-                reminder.offerAddress,
+                existingReview == null
+                    ? 'Scrivila adesso: poi la ritroverai sempre nel tuo profilo.'
+                    : 'Puoi aggiornarla quando vuoi dal tuo profilo.',
                 style: TextStyle(
-                  color: AppTheme.brown.withValues(alpha: 0.86),
+                  color: AppTheme.brown.withValues(alpha: 0.82),
+                  fontWeight: FontWeight.w700,
                   height: 1.35,
                 ),
               ),
-            ],
-            if (whenText.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                whenText,
-                style: TextStyle(
-                  color: AppTheme.brown.withValues(alpha: 0.78),
-                  fontWeight: FontWeight.w700,
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onReview,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF7A4EC7),
+                  ),
+                  icon: const Icon(Icons.rate_review_rounded),
+                  label: Text(
+                    existingReview == null
+                        ? 'Lascia recensione'
+                        : 'Modifica recensione',
+                  ),
                 ),
               ),
             ],
-            const SizedBox(height: 16),
-            Text(
-              existingReview == null
-                  ? 'Scrivila adesso: poi la ritroverai sempre nel tuo profilo.'
-                  : 'Puoi aggiornarla quando vuoi dal tuo profilo.',
-              style: TextStyle(
-                color: AppTheme.brown.withValues(alpha: 0.82),
-                fontWeight: FontWeight.w700,
-                height: 1.35,
-              ),
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onReview,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF7A4EC7),
-                ),
-                icon: const Icon(Icons.rate_review_rounded),
-                label: Text(
-                  existingReview == null
-                      ? 'Lascia recensione'
-                      : 'Modifica recensione',
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -2595,87 +2615,87 @@ class _ReviewHistorySectionCard extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(18),
             child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: AppTheme.mist,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppTheme.cardBorder),
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppTheme.mist,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppTheme.cardBorder),
+                  ),
+                  child: Icon(icon, color: AppTheme.orange),
                 ),
-                child: Icon(icon, color: AppTheme.orange),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (title.isNotEmpty) ...[
-                      Text(title,
-                          style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 4),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (title.isNotEmpty) ...[
+                        Text(title,
+                            style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 4),
+                      ],
+                      if (isLoading)
+                        Text(
+                          'Sto caricando...',
+                          style: TextStyle(
+                            color: AppTheme.brown.withValues(alpha: 0.76),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        )
+                      else if (hasError)
+                        Text(
+                          'Non riesco a caricarle adesso.',
+                          style: TextStyle(
+                            color: AppTheme.brown.withValues(alpha: 0.76),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        )
+                      else if (count == 0)
+                        Text(
+                          emptyText,
+                          style: TextStyle(
+                            color: AppTheme.brown.withValues(alpha: 0.76),
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                        )
+                      else
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$count',
+                              style: TextStyle(
+                                color: AppTheme.brown.withValues(alpha: 0.76),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 18,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'recensioni',
+                              style: TextStyle(
+                                color: AppTheme.brown.withValues(alpha: 0.76),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: AppTheme.orange,
+                              size: 24,
+                            ),
+                          ],
+                        ),
                     ],
-                    if (isLoading)
-                      Text(
-                        'Sto caricando...',
-                        style: TextStyle(
-                          color: AppTheme.brown.withValues(alpha: 0.76),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      )
-                    else if (hasError)
-                      Text(
-                        'Non riesco a caricarle adesso.',
-                        style: TextStyle(
-                          color: AppTheme.brown.withValues(alpha: 0.76),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      )
-                    else if (count == 0)
-                      Text(
-                        emptyText,
-                        style: TextStyle(
-                          color: AppTheme.brown.withValues(alpha: 0.76),
-                          fontWeight: FontWeight.w600,
-                        ),
-                        textAlign: TextAlign.center,
-                      )
-                    else
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '$count',
-                            style: TextStyle(
-                              color: AppTheme.brown.withValues(alpha: 0.76),
-                              fontWeight: FontWeight.w700,
-                              fontSize: 18,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'recensioni',
-                            style: TextStyle(
-                              color: AppTheme.brown.withValues(alpha: 0.76),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            color: AppTheme.orange,
-                            size: 24,
-                          ),
-                        ],
-                      ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -2808,46 +2828,46 @@ class _ProfileSocialTabsCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                ChoiceChip(
-                  label: Text('Chi ti segue (${followers.length})'),
-                  selected: showingFollowers,
-                  onSelected: (_) => onTabChanged(0),
-                ),
-                ChoiceChip(
-                  label: Text('I tuoi seguiti (${following.length})'),
-                  selected: !showingFollowers,
-                  onSelected: (_) => onTabChanged(1),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            if (people.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  emptyText,
-                  style: TextStyle(
-                    color: AppTheme.brown.withValues(alpha: 0.76),
-                    fontWeight: FontWeight.w600,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  ChoiceChip(
+                    label: Text('Chi ti segue (${followers.length})'),
+                    selected: showingFollowers,
+                    onSelected: (_) => onTabChanged(0),
+                  ),
+                  ChoiceChip(
+                    label: Text('I tuoi seguiti (${following.length})'),
+                    selected: !showingFollowers,
+                    onSelected: (_) => onTabChanged(1),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (people.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    emptyText,
+                    style: TextStyle(
+                      color: AppTheme.brown.withValues(alpha: 0.76),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              else
+                ...people.map(
+                  (person) => _ProfileConnectionTile(
+                    person: person,
+                    apiClient: apiClient,
                   ),
                 ),
-              )
-            else
-              ...people.map(
-                (person) => _ProfileConnectionTile(
-                  person: person,
-                  apiClient: apiClient,
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -3367,90 +3387,90 @@ class _SettingsCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(18),
-              onTap: onToggle,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.settings_rounded,
-                      color: Color(0xFFE07800),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Impostazioni',
-                        style: Theme.of(context).textTheme.titleMedium,
-                        textAlign: TextAlign.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: onToggle,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.settings_rounded,
+                        color: Color(0xFFE07800),
                       ),
-                    ),
-                    Icon(
-                      isExpanded
-                          ? Icons.expand_less_rounded
-                          : Icons.expand_more_rounded,
-                      color: AppTheme.espresso,
-                    ),
-                  ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Impostazioni',
+                          style: Theme.of(context).textTheme.titleMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      Icon(
+                        isExpanded
+                            ? Icons.expand_less_rounded
+                            : Icons.expand_more_rounded,
+                        color: AppTheme.espresso,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            if (isExpanded) ...[
-              const SizedBox(height: 14),
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: onInfoApp,
-                      icon: const Icon(Icons.info_outline_rounded,
-                          color: Color(0xFFE07800)),
-                      label: const Text('Info app'),
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: onEditProfile,
-                      icon: const Icon(Icons.edit_outlined,
-                          color: Color(0xFFE07800)),
-                      label: const Text('Modifica profilo'),
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: onSecurity,
-                      icon: const Icon(Icons.fingerprint,
-                          color: Color(0xFFE07800)),
-                      label: const Text('Sicurezza con impronta'),
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: onDeleteAccount,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF8A4336),
-                        side: const BorderSide(color: Color(0xFFD7B4AC)),
+              if (isExpanded) ...[
+                const SizedBox(height: 14),
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: onInfoApp,
+                        icon: const Icon(Icons.info_outline_rounded,
+                            color: Color(0xFFE07800)),
+                        label: const Text('Info app'),
                       ),
-                      icon: const Icon(Icons.delete_outline_rounded,
-                          color: Color(0xFF8A4336)),
-                      label: const Text('Cancella il tuo profilo'),
-                    ),
-                    const SizedBox(height: 14),
-                    const Divider(),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: onLogout,
-                      icon: const Icon(Icons.logout_rounded,
-                          color: Color(0xFF8A4336)),
-                      label: const Text('Esci da questo dispositivo'),
-                    ),
-                  ],
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: onEditProfile,
+                        icon: const Icon(Icons.edit_outlined,
+                            color: Color(0xFFE07800)),
+                        label: const Text('Modifica profilo'),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: onSecurity,
+                        icon: const Icon(Icons.fingerprint,
+                            color: Color(0xFFE07800)),
+                        label: const Text('Sicurezza con impronta'),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: onDeleteAccount,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF8A4336),
+                          side: const BorderSide(color: Color(0xFFD7B4AC)),
+                        ),
+                        icon: const Icon(Icons.delete_outline_rounded,
+                            color: Color(0xFF8A4336)),
+                        label: const Text('Cancella il tuo profilo'),
+                      ),
+                      const SizedBox(height: 14),
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: onLogout,
+                        icon: const Icon(Icons.logout_rounded,
+                            color: Color(0xFF8A4336)),
+                        label: const Text('Esci da questo dispositivo'),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
-      ),
       ),
     );
   }

@@ -41,6 +41,7 @@ class ApiClient {
   bool _handlingUnauthorized = false;
 
   String get baseUrl => AppConfig.apiBaseUrl.replaceAll(RegExp(r'/$'), '');
+  String? get authCookieHeader => _cookieHeader;
 
   Future<void> initialize() async {
     _cookieHeader = await sessionStore.loadCookie();
@@ -49,6 +50,36 @@ class ApiClient {
   String buildUploadUrl(String filename) {
     final encoded = Uri.encodeComponent(filename);
     return '$baseUrl/uploads/$encoded';
+  }
+
+  String buildChatAudioPlaybackUrl({
+    required String audioPath,
+    required int offerId,
+    required int otherUserId,
+  }) {
+    final query = Uri(
+      queryParameters: {
+        'offer_id': offerId.toString(),
+        'other_user_id': otherUserId.toString(),
+        'audio_path': audioPath,
+      },
+    ).query;
+    return '$baseUrl/api/chat/audio?$query';
+  }
+
+  String buildChatMediaUrl({
+    required String mediaPath,
+    required int offerId,
+    required int otherUserId,
+  }) {
+    final query = Uri(
+      queryParameters: {
+        'offer_id': offerId.toString(),
+        'other_user_id': otherUserId.toString(),
+        'media_path': mediaPath,
+      },
+    ).query;
+    return '$baseUrl/api/chat/media?$query';
   }
 
   bool get hasSession => (_cookieHeader ?? '').isNotEmpty;
@@ -108,7 +139,8 @@ class ApiClient {
   }
 
   Future<List<int>> fetchOfferReminders(int offerId) async {
-    final response = await _send(method: 'GET', path: '/api/offers/$offerId/reminders');
+    final response =
+        await _send(method: 'GET', path: '/api/offers/$offerId/reminders');
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return List<int>.from(payload['minutes'] ?? []);
@@ -786,6 +818,215 @@ class ApiClient {
     _ensureSuccess(payload, response.statusCode);
   }
 
+  Future<Map<String, dynamic>> uploadChatAudio({
+    required int offerId,
+    required int receiverId,
+    required String filePath,
+  }) async {
+    if (offerId <= 0 || receiverId <= 0 || filePath.trim().isEmpty) {
+      throw ApiException('Dati vocali chat non validi.');
+    }
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/chat/audio-upload'),
+    );
+    if ((_cookieHeader ?? '').isNotEmpty) {
+      request.headers['Cookie'] = _cookieHeader!;
+    }
+
+    request.fields.addAll({
+      'offer_id': offerId.toString(),
+      'receiver_id': receiverId.toString(),
+    });
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'audio',
+        filePath,
+        filename: File(filePath).uri.pathSegments.last,
+      ),
+    );
+
+    final response = await _sendMultipart(request);
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
+  }
+
+  Future<List<int>> downloadChatAudio({
+    required int offerId,
+    required int otherUserId,
+    required String audioPath,
+  }) async {
+    if (offerId <= 0 || otherUserId <= 0 || audioPath.trim().isEmpty) {
+      throw ApiException('Dati riproduzione vocale non validi.');
+    }
+
+    final query = Uri(
+      queryParameters: {
+        'offer_id': offerId.toString(),
+        'other_user_id': otherUserId.toString(),
+        'audio_path': audioPath,
+      },
+    ).query;
+    final response = await _send(method: 'GET', path: '/api/chat/audio?$query');
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return response.bodyBytes;
+    }
+
+    String errorMessage = 'Non riesco a scaricare questo vocale.';
+    try {
+      final payload = _decodeJson(response.body);
+      final serverError = payload['error']?.toString().trim() ?? '';
+      if (serverError.isNotEmpty) {
+        errorMessage = serverError;
+      }
+    } catch (_) {
+      // Keep default error.
+    }
+    throw ApiException(errorMessage, statusCode: response.statusCode);
+  }
+
+  Future<void> deleteChatAudioBatch({
+    required int offerId,
+    required int receiverId,
+    required List<String> audioPaths,
+  }) async {
+    if (offerId <= 0 || receiverId <= 0) {
+      return;
+    }
+    final paths = audioPaths
+        .map((path) => path.trim())
+        .where((path) => path.isNotEmpty)
+        .toList();
+    if (paths.isEmpty) {
+      return;
+    }
+
+    final response = await _send(
+      method: 'POST',
+      path: '/api/chat/audio-delete-batch',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'offer_id': offerId,
+        'receiver_id': receiverId,
+        'audio_paths': paths,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+  }
+
+  Future<Map<String, dynamic>> uploadChatMedia({
+    required int offerId,
+    required int receiverId,
+    required String filePath,
+    required String kind,
+    String fileName = '',
+  }) async {
+    if (offerId <= 0 || receiverId <= 0 || filePath.trim().isEmpty) {
+      throw ApiException('Dati allegato chat non validi.');
+    }
+    final normalizedKind = kind.trim().toLowerCase();
+    if (normalizedKind != 'image' && normalizedKind != 'file') {
+      throw ApiException('Tipo allegato non valido.');
+    }
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/chat/media-upload'),
+    );
+    if ((_cookieHeader ?? '').isNotEmpty) {
+      request.headers['Cookie'] = _cookieHeader!;
+    }
+
+    request.fields.addAll({
+      'offer_id': offerId.toString(),
+      'receiver_id': receiverId.toString(),
+      'kind': normalizedKind,
+    });
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'media',
+        filePath,
+        filename: fileName.trim().isNotEmpty
+            ? fileName.trim()
+            : File(filePath).uri.pathSegments.last,
+      ),
+    );
+
+    final response = await _sendMultipart(request);
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
+  }
+
+  Future<List<int>> downloadChatMedia({
+    required int offerId,
+    required int otherUserId,
+    required String mediaPath,
+  }) async {
+    if (offerId <= 0 || otherUserId <= 0 || mediaPath.trim().isEmpty) {
+      throw ApiException('Dati allegato chat non validi.');
+    }
+
+    final query = Uri(
+      queryParameters: {
+        'offer_id': offerId.toString(),
+        'other_user_id': otherUserId.toString(),
+        'media_path': mediaPath,
+      },
+    ).query;
+    final response = await _send(method: 'GET', path: '/api/chat/media?$query');
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return response.bodyBytes;
+    }
+
+    String errorMessage = 'Non riesco a scaricare questo allegato.';
+    try {
+      final payload = _decodeJson(response.body);
+      final serverError = payload['error']?.toString().trim() ?? '';
+      if (serverError.isNotEmpty) {
+        errorMessage = serverError;
+      }
+    } catch (_) {
+      // Keep default error.
+    }
+    throw ApiException(errorMessage, statusCode: response.statusCode);
+  }
+
+  Future<void> deleteChatMediaBatch({
+    required int offerId,
+    required int receiverId,
+    required List<String> mediaPaths,
+  }) async {
+    if (offerId <= 0 || receiverId <= 0) {
+      return;
+    }
+    final paths = mediaPaths
+        .map((path) => path.trim())
+        .where((path) => path.isNotEmpty)
+        .toList();
+    if (paths.isEmpty) {
+      return;
+    }
+
+    final response = await _send(
+      method: 'POST',
+      path: '/api/chat/media-delete-batch',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'offer_id': offerId,
+        'receiver_id': receiverId,
+        'media_paths': paths,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+  }
+
   Future<void> sendChatClearNotification({
     required int offerId,
     required int receiverId,
@@ -846,6 +1087,17 @@ class ApiClient {
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return payload;
+  }
+
+  Future<List<Map<String, dynamic>>> fetchChatInbox() async {
+    final response = await _send(method: 'GET', path: '/api/chat/inbox');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    final rawChats = payload['chats'] as List<dynamic>? ?? const [];
+    return rawChats
+        .whereType<Map<String, dynamic>>()
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .toList();
   }
 
   Future<String> submitReview({

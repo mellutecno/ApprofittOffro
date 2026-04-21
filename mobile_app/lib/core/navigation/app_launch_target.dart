@@ -3,8 +3,15 @@ class AppLaunchTarget {
   final int? offerId;
   final int? otherUserId;
   final String? otherUserName;
+  final String? otherUserPhotoFilename;
 
-  const AppLaunchTarget._(this.type, {this.offerId, this.otherUserId, this.otherUserName});
+  const AppLaunchTarget._(
+    this.type, {
+    this.offerId,
+    this.otherUserId,
+    this.otherUserName,
+    this.otherUserPhotoFilename,
+  });
 
   static const login = AppLaunchTarget._('login');
   static const offers = AppLaunchTarget._('offers');
@@ -16,12 +23,14 @@ class AppLaunchTarget {
     required int offerId,
     required int otherUserId,
     required String otherUserName,
+    String otherUserPhotoFilename = '',
   }) {
     return AppLaunchTarget._(
       'chat',
       offerId: offerId,
       otherUserId: otherUserId,
       otherUserName: otherUserName,
+      otherUserPhotoFilename: otherUserPhotoFilename,
     );
   }
 

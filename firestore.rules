@@ -11,21 +11,40 @@ service cloud.firestore {
         return request.auth.uid;
       }
 
+      function authUidIsNumeric() {
+        return authUid().matches('^[0-9]+$');
+      }
+
       // Compatibilita' legacy: alcune chat vecchie hanno participants numerici.
       function authUidAsInt() {
-        return int(request.auth.uid);
+        return authUidIsNumeric() ? int(authUid()) : -1;
       }
 
       function isParticipant(participants) {
         return isSignedIn()
+          && participants is list
           && (
             authUid() in participants
-            || authUidAsInt() in participants
+            || (authUidIsNumeric() && authUidAsInt() in participants)
           );
       }
 
+      // Fallback legacy: alcune chat vecchie hanno schema incompleto ma id consistente.
+      function isParticipantByChatId() {
+        return isSignedIn()
+          && (
+            chatId.matches('^[^_]+_' + authUid() + '_[^_]+$')
+            || chatId.matches('^[^_]+_[^_]+_' + authUid() + '$')
+          );
+      }
+
+      function canAccessChat(participants) {
+        return isParticipant(participants) || isParticipantByChatId();
+      }
+
       function senderMatchesAuth(senderId) {
-        return senderId == authUid() || senderId == authUidAsInt();
+        return senderId == authUid()
+          || (authUidIsNumeric() && senderId == authUidAsInt());
       }
 
       allow create: if request.auth != null
@@ -33,27 +52,40 @@ service cloud.firestore {
         && request.resource.data.participants.size() == 2
         && isParticipant(request.resource.data.participants);
 
-      allow read: if isParticipant(resource.data.participants);
+      allow get: if canAccessChat(resource.data.participants);
+      allow list: if request.auth != null
+        && resource.data.participants is list
+        && request.auth.uid in resource.data.participants;
 
-      allow update: if isParticipant(resource.data.participants)
-        && request.resource.data.participants == resource.data.participants
-        && request.resource.data.offerId != null;
+      allow update: if (
+          isParticipant(resource.data.participants)
+          && request.resource.data.participants == resource.data.participants
+          && request.resource.data.offerId != null
+        ) || (
+          // Bootstrap controllato per chat legacy senza participants list valida.
+          isParticipantByChatId()
+          && request.resource.data.participants is list
+          && request.resource.data.participants.size() == 2
+          && isParticipant(request.resource.data.participants)
+          && (!('participants' in resource.data) || !(resource.data.participants is list))
+          && request.resource.data.offerId != null
+        );
 
       allow delete: if false;
 
       match /messages/{messageId} {
-        allow read: if isParticipant(
+        allow read: if canAccessChat(
           get(/databases/$(database)/documents/chats/$(chatId)).data.participants
         );
 
         allow create: if isSignedIn()
           && senderMatchesAuth(request.resource.data.senderId)
-          && isParticipant(
+          && canAccessChat(
             get(/databases/$(database)/documents/chats/$(chatId)).data.participants
           );
 
         allow update: if false;
-        allow delete: if isParticipant(
+        allow delete: if canAccessChat(
           get(/databases/$(database)/documents/chats/$(chatId)).data.participants
         );
       }

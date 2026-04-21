@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../chat/chat_presence_tracker.dart';
@@ -57,7 +58,12 @@ class PushNotificationsService {
 
     try {
       if (Firebase.apps.isEmpty) {
-        if (AppConfig.firebaseMessagingConfigured) {
+        try {
+          await Firebase.initializeApp();
+        } catch (_) {
+          if (!AppConfig.firebaseMessagingConfigured) {
+            rethrow;
+          }
           await Firebase.initializeApp(
             options: FirebaseOptions(
               apiKey: AppConfig.firebaseApiKey,
@@ -69,8 +75,6 @@ class PushNotificationsService {
                   : AppConfig.firebaseStorageBucket,
             ),
           );
-        } else {
-          await Firebase.initializeApp();
         }
       }
       _firebaseAvailable = Firebase.apps.isNotEmpty;
@@ -188,7 +192,7 @@ class PushNotificationsService {
 
   Future<void> _initializeLocalNotifications() async {
     const settings = InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      android: AndroidInitializationSettings('ic_notification_small'),
     );
     await _localNotifications.initialize(
       settings,
@@ -213,8 +217,8 @@ class PushNotificationsService {
     if (title.isEmpty && body.isEmpty) {
       return;
     }
-    
-    // Se è un messaggio chat, gestiscilo diversamente
+
+    // Se e' un messaggio chat, gestiscilo diversamente.
     if (message.data['type'] == 'chat_message' ||
         message.data['type'] == 'chat_cleared') {
       final offerId = int.tryParse(message.data['offer_id']?.toString() ?? '');
@@ -229,6 +233,13 @@ class PushNotificationsService {
         return;
       }
 
+      final chatPayload = _buildChatPayload(
+        offerId: message.data['offer_id'],
+        otherUserId: message.data['chat_with_user_id'],
+        otherUserName: message.data['chat_with_name'],
+        otherUserPhotoFilename: message.data['chat_with_photo_filename'],
+      );
+
       await _localNotifications.show(
         _localNotificationId++,
         title.isEmpty ? 'ApprofittOffro' : title,
@@ -241,41 +252,52 @@ class PushNotificationsService {
                 'Notifiche eventi, richieste, recensioni e follower.',
             importance: Importance.high,
             priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
+            icon: 'ic_notification_small',
+            color: Color(0xFFDFFF00),
           ),
         ),
-        payload: 'chat:${message.data['offer_id']}:${message.data['chat_with_user_id']}:${message.data['chat_with_name']}',
+        payload: chatPayload ?? (message.data['target']?.toString() ?? 'login'),
       );
-    } else {
-      await _localNotifications.show(
-        _localNotificationId++,
-        title.isEmpty ? 'ApprofittOffro' : title,
-        body,
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'approfittoffro_alerts',
-            'ApprofittOffro alerts',
-            channelDescription:
-                'Notifiche eventi, richieste, recensioni e follower.',
-            importance: Importance.high,
-            priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
-          ),
-        ),
-        payload: message.data['target']?.toString() ?? 'login',
-      );
+      return;
     }
+
+    await _localNotifications.show(
+      _localNotificationId++,
+      title.isEmpty ? 'ApprofittOffro' : title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'approfittoffro_alerts',
+          'ApprofittOffro alerts',
+          channelDescription:
+              'Notifiche eventi, richieste, recensioni e follower.',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: 'ic_notification_small',
+          color: Color(0xFFDFFF00),
+        ),
+      ),
+      payload: message.data['target']?.toString() ?? 'login',
+    );
   }
 
   void _handleNotificationTap(RemoteMessage message) {
-    // Gestisci tap su notifica chat
+    // Gestisci tap su notifica chat.
     if (message.data['type'] == 'chat_message' ||
         message.data['type'] == 'chat_cleared') {
-      final target = 'chat:${message.data['offer_id']}:${message.data['chat_with_user_id']}:${message.data['chat_with_name']}';
-      _onLaunchTargetRequested(_parseTarget(target)!);
-      return;
+      final chatPayload = _buildChatPayload(
+        offerId: message.data['offer_id'],
+        otherUserId: message.data['chat_with_user_id'],
+        otherUserName: message.data['chat_with_name'],
+        otherUserPhotoFilename: message.data['chat_with_photo_filename'],
+      );
+      final chatTarget = _parseTarget(chatPayload);
+      if (chatTarget != null) {
+        _onLaunchTargetRequested(chatTarget);
+        return;
+      }
     }
-    
+
     final target = _parseTarget(message.data['target']?.toString());
     if (target == null) {
       return;
@@ -284,20 +306,34 @@ class PushNotificationsService {
   }
 
   AppLaunchTarget? _parseTarget(String? rawTarget) {
-    final normalized = (rawTarget ?? '').trim().toLowerCase();
-    
-    // Gestisci target chat
-    if (normalized.startsWith('chat:')) {
-      final parts = normalized.split(':');
+    final raw = (rawTarget ?? '').trim();
+
+    // Gestisci target chat.
+    if (raw.toLowerCase().startsWith('chat:')) {
+      final parts = raw.split(':');
       if (parts.length >= 4) {
+        final offerId = int.tryParse(parts[1]);
+        final otherUserId = int.tryParse(parts[2]);
+        if (offerId == null ||
+            offerId <= 0 ||
+            otherUserId == null ||
+            otherUserId <= 0) {
+          return null;
+        }
+        final decodedName = Uri.decodeComponent(parts[3]).trim();
+        final decodedPhoto = parts.length >= 5
+            ? Uri.decodeComponent(parts.sublist(4).join(':')).trim()
+            : '';
         return AppLaunchTarget.chat(
-          offerId: int.tryParse(parts[1]) ?? 0,
-          otherUserId: int.tryParse(parts[2]) ?? 0,
-          otherUserName: parts[3],
+          offerId: offerId,
+          otherUserId: otherUserId,
+          otherUserName: decodedName.isEmpty ? 'Utente' : decodedName,
+          otherUserPhotoFilename: decodedPhoto,
         );
       }
     }
-    
+
+    final normalized = raw.toLowerCase();
     switch (normalized) {
       case 'pending-requests':
         return AppLaunchTarget.pendingRequests;
@@ -312,5 +348,28 @@ class PushNotificationsService {
       default:
         return null;
     }
+  }
+
+  String? _buildChatPayload({
+    required Object? offerId,
+    required Object? otherUserId,
+    required Object? otherUserName,
+    required Object? otherUserPhotoFilename,
+  }) {
+    final parsedOfferId = int.tryParse((offerId ?? '').toString());
+    final parsedOtherUserId = int.tryParse((otherUserId ?? '').toString());
+    if (parsedOfferId == null ||
+        parsedOfferId <= 0 ||
+        parsedOtherUserId == null ||
+        parsedOtherUserId <= 0) {
+      return null;
+    }
+
+    final safeName =
+        Uri.encodeComponent((otherUserName ?? '').toString().trim());
+    final safePhoto = Uri.encodeComponent(
+      (otherUserPhotoFilename ?? '').toString().trim(),
+    );
+    return 'chat:$parsedOfferId:$parsedOtherUserId:$safeName:$safePhoto';
   }
 }

@@ -1,0 +1,62 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function authUid() {
+      return request.auth.uid;
+    }
+
+    function authUidIsNumeric() {
+      return authUid().matches('^[0-9]+$');
+    }
+
+    function authUidAsInt() {
+      return authUidIsNumeric() ? int(authUid()) : -1;
+    }
+
+    function participants(chatId) {
+      return firestore.get(/databases/(default)/documents/chats/$(chatId)).data.participants;
+    }
+
+    function isParticipant(participantsList) {
+      return participantsList is list
+        && (
+          authUid() in participantsList
+          || (authUidIsNumeric() && authUidAsInt() in participantsList)
+        );
+    }
+
+    function isParticipantByChatId(chatId) {
+      return chatId.matches('^[^_]+_' + authUid() + '_[^_]+$')
+        || chatId.matches('^[^_]+_[^_]+_' + authUid() + '$');
+    }
+
+    function isChatParticipant(chatId) {
+      return isSignedIn()
+        && firestore.exists(/databases/(default)/documents/chats/$(chatId))
+        && (
+          isParticipant(participants(chatId))
+          || isParticipantByChatId(chatId)
+        );
+    }
+
+    match /chat_audio/{chatId}/{fileName} {
+      allow read: if isChatParticipant(chatId);
+
+      allow create, update: if isChatParticipant(chatId)
+        && request.resource != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('audio/.*');
+
+      allow delete: if isChatParticipant(chatId);
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

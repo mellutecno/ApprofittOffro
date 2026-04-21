@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/chat/chat_presence_tracker.dart';
 import '../../core/navigation/app_launch_target.dart';
 import '../../core/theme/app_theme.dart';
 import '../admin/admin_page.dart';
 import '../auth/auth_controller.dart';
+import '../chat/chat_inbox_page.dart';
 import '../community/community_controller.dart';
 import '../community/community_page.dart';
 import '../chat/chat_page.dart';
@@ -39,11 +41,12 @@ class _HomeShellState extends State<HomeShell> {
   bool _mandatoryProfileFlowOpen = false;
   bool _managementAlertInFlight = false;
   bool _launchRefreshInFlight = false;
+  bool _chatLaunchInFlight = false;
   bool _reviewAlertVisible = false;
   String? _lastReviewsAlertSignature;
 
   bool get _isAdminUser => widget.authController.currentUser?.isAdmin == true;
-  int get _profileTabIndex => _isAdminUser ? 0 : 3;
+  int get _profileTabIndex => _isAdminUser ? 0 : 4;
   int? get _adminTabIndex => _isAdminUser ? 0 : null;
 
   @override
@@ -120,23 +123,7 @@ class _HomeShellState extends State<HomeShell> {
 
     if (!_isAdminUser) {
       if (target.isChat) {
-        // Apri direttamente la chat
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && target.otherUserId != null) {
-            Navigator.of(context, rootNavigator: true).push(
-              MaterialPageRoute(
-                builder: (_) => ChatPage(
-                  apiClient: widget.authController.apiClient,
-                  offerId: (target.offerId ?? 0).toString(),
-                  currentUserId: widget.authController.currentUser?.id.toString() ?? '',
-                  currentUserName: widget.authController.currentUser?.nome ?? 'Utente',
-                  otherUserId: target.otherUserId.toString(),
-                  otherUserName: target.otherUserName ?? 'Utente',
-                ),
-              ),
-            );
-          }
-        });
+        unawaited(_openChatFromLaunchTarget(target));
       } else if (target == AppLaunchTarget.pendingRequests ||
           target == AppLaunchTarget.profile) {
         if (_selectedIndex != _profileTabIndex) {
@@ -149,6 +136,56 @@ class _HomeShellState extends State<HomeShell> {
 
     widget.onLaunchTargetHandled?.call();
     unawaited(_refreshAfterNotificationOpen());
+  }
+
+  Future<void> _openChatFromLaunchTarget(AppLaunchTarget target) async {
+    if (!mounted || _chatLaunchInFlight) {
+      return;
+    }
+
+    final offerId = target.offerId;
+    final otherUserId = target.otherUserId;
+    if (offerId == null ||
+        offerId <= 0 ||
+        otherUserId == null ||
+        otherUserId <= 0) {
+      return;
+    }
+
+    if (ChatPresenceTracker.isViewingConversation(
+      offerId: offerId,
+      otherUserId: otherUserId,
+    )) {
+      return;
+    }
+
+    final currentUser = widget.authController.currentUser;
+    if (currentUser == null) {
+      return;
+    }
+
+    _chatLaunchInFlight = true;
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ChatPage(
+            apiClient: widget.authController.apiClient,
+            offerId: offerId.toString(),
+            currentUserId: currentUser.id.toString(),
+            currentUserName: currentUser.nome,
+            currentUserPhotoFilename: currentUser.photoFilename,
+            otherUserId: otherUserId.toString(),
+            otherUserName: target.otherUserName ?? 'Utente',
+            otherUserPhotoFilename: target.otherUserPhotoFilename ?? '',
+          ),
+        ),
+      );
+      if (mounted) {
+        setState(() => _selectedIndex = 2);
+      }
+    } finally {
+      _chatLaunchInFlight = false;
+    }
   }
 
   Future<void> _refreshAfterNotificationOpen() async {
@@ -364,11 +401,16 @@ class _HomeShellState extends State<HomeShell> {
             OffersPage(
               authController: widget.authController,
               offersController: _offersController,
-              onGoToProfile: () => setState(() => _selectedIndex = 3),
+              onGoToProfile: () =>
+                  setState(() => _selectedIndex = _profileTabIndex),
+              onGoToChat: () => setState(() => _selectedIndex = 2),
             ),
             CommunityPage(
               authController: widget.authController,
               communityController: _communityController,
+            ),
+            ChatInboxPage(
+              authController: widget.authController,
             ),
             CreateOfferPage(
               authController: widget.authController,
@@ -383,6 +425,7 @@ class _HomeShellState extends State<HomeShell> {
             ProfilePage(
               key: ValueKey<int>(_profileRefreshVersion),
               authController: widget.authController,
+              onGoToChat: () => setState(() => _selectedIndex = 2),
             ),
           ];
     final selectedIndex = _selectedIndex.clamp(0, pages.length - 1);
@@ -398,7 +441,16 @@ class _HomeShellState extends State<HomeShell> {
         ),
       ),
       bottomNavigationBar: NavigationBar(
+        height: 72,
         selectedIndex: selectedIndex,
+        labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+            height: 1.05,
+          );
+        }),
         destinations: _isAdminUser
             ? const [
                 NavigationDestination(
@@ -414,9 +466,20 @@ class _HomeShellState extends State<HomeShell> {
                   label: 'Approfitta',
                 ),
                 const NavigationDestination(
-                  icon: Icon(Icons.groups_rounded),
-                  selectedIcon: Icon(Icons.groups),
+                  icon: Padding(
+                    padding: EdgeInsets.only(bottom: 2),
+                    child: Icon(Icons.groups_rounded),
+                  ),
+                  selectedIcon: Padding(
+                    padding: EdgeInsets.only(bottom: 2),
+                    child: Icon(Icons.groups),
+                  ),
                   label: 'Community',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.forum_outlined),
+                  selectedIcon: Icon(Icons.forum_rounded),
+                  label: 'Chat',
                 ),
                 const NavigationDestination(
                   icon: Icon(Icons.add_circle_outline),
@@ -432,7 +495,7 @@ class _HomeShellState extends State<HomeShell> {
                     selected: true,
                     hasAlert: _hasReviewsToManage(),
                   ),
-                  label: 'Profilo',
+                  label: 'Io',
                 ),
               ],
         onDestinationSelected: (index) {

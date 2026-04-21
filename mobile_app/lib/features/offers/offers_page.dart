@@ -18,11 +18,13 @@ class OffersPage extends StatefulWidget {
     required this.authController,
     required this.offersController,
     required this.onGoToProfile,
+    required this.onGoToChat,
   });
 
   final AuthController authController;
   final OffersController offersController;
   final VoidCallback onGoToProfile;
+  final VoidCallback onGoToChat;
 
   @override
   State<OffersPage> createState() => _OffersPageState();
@@ -109,7 +111,22 @@ class _OffersPageState extends State<OffersPage> {
                     OfferCard(
                       offer: offer,
                       apiClient: widget.authController.apiClient,
-                      currentUserId: widget.authController.currentUser?.id.toString() ?? '',
+                      currentUserId:
+                          widget.authController.currentUser?.id.toString() ??
+                              '',
+                      currentUserName:
+                          widget.authController.currentUser?.nome ?? 'Utente',
+                      currentUserPhotoFilename:
+                          widget.authController.currentUser?.photoFilename ??
+                              '',
+                      onChatClosed: () {
+                        widget.onGoToChat();
+                        final sheetNavigator =
+                            Navigator.of(sheetContext, rootNavigator: true);
+                        if (sheetNavigator.canPop()) {
+                          sheetNavigator.pop();
+                        }
+                      },
                       allowProfileOpen: true,
                       onEditOwn: null,
                       onArchive: offer.isOwn
@@ -859,7 +876,8 @@ class _CompactReminderButtonState extends State<_CompactReminderButton> {
 
   Future<void> _loadReminders() async {
     try {
-      final minutes = await widget.apiClient.fetchOfferReminders(widget.offer.id);
+      final minutes =
+          await widget.apiClient.fetchOfferReminders(widget.offer.id);
       if (mounted) {
         setState(() {
           _reminderMinutes = minutes;
@@ -880,7 +898,8 @@ class _CompactReminderButtonState extends State<_CompactReminderButton> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Errore nel salvataggio dei promemoria.')),
+          const SnackBar(
+              content: Text('Errore nel salvataggio dei promemoria.')),
         );
       }
     }
