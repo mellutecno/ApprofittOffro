@@ -27,6 +27,16 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
   String? _error;
   List<_ChatListItem> _items = const [];
 
+  bool get _isDarkPalette => AppTheme.useMusicAiPalette;
+  Color get _bgTop =>
+      _isDarkPalette ? const Color(0xFF070A11) : const Color(0xFFFFFBF6);
+  Color get _bgBottom =>
+      _isDarkPalette ? const Color(0xFF12192A) : const Color(0xFFF6E8DA);
+  Color get _tileTextPrimary =>
+      _isDarkPalette ? const Color(0xFFEAF0FF) : AppTheme.brown;
+  Color get _tileTextSecondary =>
+      _isDarkPalette ? const Color(0xFFB8C3E5) : const Color(0xFF6E5A4E);
+
   @override
   void initState() {
     super.initState();
@@ -172,10 +182,12 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: AppTheme.cardBorder),
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFFFFF9F2), Color(0xFFF4E1CD)],
+              colors: _isDarkPalette
+                  ? const [Color(0xFF141D31), Color(0xFF1A2640)]
+                  : const [Color(0xFFFFF9F2), Color(0xFFF4E1CD)],
             ),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -187,7 +199,12 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
                 backgroundImage:
                     photoUrl == null ? null : NetworkImage(photoUrl),
                 child: photoUrl == null
-                    ? const Icon(Icons.person_rounded, color: AppTheme.brown)
+                    ? Icon(
+                        Icons.person_rounded,
+                        color: _isDarkPalette
+                            ? const Color(0xFFEAF0FF)
+                            : AppTheme.brown,
+                      )
                     : null,
               ),
               const SizedBox(width: 12),
@@ -199,8 +216,8 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
                       displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppTheme.brown,
+                      style: TextStyle(
+                        color: _tileTextPrimary,
                         fontWeight: FontWeight.w800,
                         fontSize: 16,
                       ),
@@ -210,8 +227,8 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF6E5A4E),
+                      style: TextStyle(
+                        color: _tileTextSecondary,
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                       ),
@@ -222,8 +239,8 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
               const SizedBox(width: 8),
               Text(
                 _formatDateTime(item.lastMessageTime),
-                style: const TextStyle(
-                  color: Color(0xFF6E5A4E),
+                style: TextStyle(
+                  color: _tileTextSecondary,
                   fontWeight: FontWeight.w700,
                   fontSize: 12,
                 ),
@@ -334,11 +351,11 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFFFFFBF6), Color(0xFFF6E8DA)],
+          colors: [_bgTop, _bgBottom],
         ),
       ),
       child: Column(
@@ -360,7 +377,7 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
                   'Qui trovi solo le persone con cui hai gia aperto una chat da un evento confermato.',
               centered: true,
               footer: Text(
-                'Apri una conversazione e continua da qui, senza tornare all\'evento.',
+                'Apri una conversazione e continua da qui, senza tornare all\'evento. Le chat inattive si cancellano automaticamente dopo 30 giorni.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppTheme.brown,

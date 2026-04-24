@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/biometric_auth_service.dart';
 import '../../core/network/api_client.dart';
@@ -12,7 +13,6 @@ import '../../models/offer.dart';
 import '../../models/public_profile.dart';
 import '../../models/user_preview.dart';
 import '../auth/auth_controller.dart';
-import '../auth/landing_page.dart';
 import '../create_offer/create_offer_page.dart';
 import '../offers/offer_card.dart';
 import 'profile_edit_page.dart';
@@ -36,6 +36,9 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   static const int _profileEventHistoryHours = 24;
   static const int _profileArchiveLookbackDays = 30;
+  static final Uri _playStoreUri = Uri.parse(
+    'https://play.google.com/store/apps/details?id=com.mellutecno.approfittoffro',
+  );
   bool _archiveExpanded = false;
   bool _communityExpanded = false;
   bool _reviewsExpanded = false;
@@ -584,7 +587,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                         child: Text(
-                          'Qui trovi gli eventi archiviati nell\'ultimo mese.',
+                          'Tocca un evento per aprire i dettagli: in alto vedi solo pasto e data, sotto trovi host/partecipanti e i profili collegati.',
                           style: TextStyle(
                             color: AppTheme.brown.withValues(alpha: 0.76),
                             fontWeight: FontWeight.w600,
@@ -611,16 +614,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                     const SizedBox(height: 12),
                                 itemBuilder: (context, index) {
                                   final offer = offers[index];
-                                  return _OwnOfferPreviewCard(
+                                  return _ArchivedOfferCompactTile(
                                     offer: offer,
+                                    claimed: claimed,
                                     apiClient: widget.authController.apiClient,
-                                    buttonLabel: 'Apri evento',
                                     onOpen: () {
                                       Navigator.of(sheetContext).pop();
                                       _openOwnOfferDetails(offer);
                                     },
-                                    onReviewTapped: () =>
-                                        _showReviewParticipantsSheet(offer),
                                   );
                                 },
                               ),
@@ -698,29 +699,30 @@ class _ProfilePageState extends State<ProfilePage> {
                           const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final review = reviews[index];
+                        final peer =
+                            isReceived ? review.reviewer : review.reviewed;
+                        final peerName = (peer?.nome ?? '').trim().isNotEmpty
+                            ? peer!.nome
+                            : 'Utente';
+                        final previewText = review.comment.trim().isNotEmpty
+                            ? review.comment.trim()
+                            : (isReceived
+                                ? 'Nessun commento scritto per questa recensione.'
+                                : 'Non hai inserito un commento in questa recensione.');
                         return _ReviewHistoryTile(
                           review: review,
-                          title: isReceived
-                              ? (review.reviewer?.nome.isNotEmpty == true
-                                  ? review.reviewer!.nome
-                                  : 'Utente')
-                              : (review.reviewed?.nome.isNotEmpty == true
-                                  ? review.reviewed!.nome
-                                  : 'Utente'),
+                          apiClient: widget.authController.apiClient,
+                          title: peerName,
                           subtitle: isReceived
                               ? 'Ti ha lasciato una recensione'
                               : 'Hai lasciato una recensione',
+                          previewText: previewText,
+                          photoFilename: peer?.photoFilename ?? '',
                           onTap: () {
                             Navigator.of(sheetContext).pop();
                             _openReviewDetailSheet(
                               review: review,
-                              title: isReceived
-                                  ? (review.reviewer?.nome.isNotEmpty == true
-                                      ? review.reviewer!.nome
-                                      : 'Utente')
-                                  : (review.reviewed?.nome.isNotEmpty == true
-                                      ? review.reviewed!.nome
-                                      : 'Utente'),
+                              title: peerName,
                               subtitle: isReceived
                                   ? 'Ti ha lasciato questa recensione'
                                   : 'Hai lasciato questa recensione',
@@ -1484,6 +1486,63 @@ class _ProfilePageState extends State<ProfilePage> {
                               unawaited(_openEditOffer(offer));
                             }
                           : null,
+                      onDeleteOwn: offer.isOwn
+                          ? () async {
+                              final confirmed = await showDialog<bool>(
+                                context: sheetContext,
+                                builder: (dialogContext) => AlertDialog(
+                                  title:
+                                      const Text('Eliminare evento a vuoto?'),
+                                  content: Text(
+                                    'Vuoi eliminare ${offer.nomeLocale}? Nessun partecipante e\' stato confermato.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(dialogContext)
+                                              .pop(false),
+                                      child: const Text('No'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () =>
+                                          Navigator.of(dialogContext).pop(true),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: Colors.redAccent,
+                                      ),
+                                      child: const Text('Elimina'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed != true || !context.mounted) {
+                                return;
+                              }
+                              try {
+                                final message = await widget
+                                    .authController.apiClient
+                                    .deleteOffer(
+                                  offer.id,
+                                  motivazione:
+                                      'Evento partito senza partecipanti, eliminato dall\'host.',
+                                );
+                                if (!sheetContext.mounted) {
+                                  return;
+                                }
+                                Navigator.of(sheetContext).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(message)),
+                                );
+                                await _refreshAll();
+                              } catch (e) {
+                                if (!context.mounted) {
+                                  return;
+                                }
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Errore: $e')),
+                                );
+                              }
+                            }
+                          : null,
                       onArchive: offer.isOwn
                           ? () async {
                               try {
@@ -1653,6 +1712,19 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _openExternalLink(
+    Uri uri, {
+    required String fallbackMessage,
+  }) async {
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (opened || !mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(fallbackMessage)),
+    );
+  }
+
   List<String> _galleryUrls() {
     final user = widget.authController.currentUser;
     if (user == null) {
@@ -1701,6 +1773,10 @@ class _ProfilePageState extends State<ProfilePage> {
         final galleryUrls = _galleryUrls();
         final totalPhotos = galleryUrls.length;
         final extraPhotoCount = totalPhotos > 0 ? totalPhotos - 1 : 0;
+        final extraBadgeBackground =
+            AppTheme.useMusicAiPalette ? AppTheme.orange : AppTheme.espresso;
+        final extraBadgeTextColor =
+            AppTheme.useMusicAiPalette ? Colors.white : Colors.white;
         final photoUrl = user != null && user.photoFilename.isNotEmpty
             ? apiClient.buildUploadUrl(user.photoFilename)
             : null;
@@ -1800,7 +1876,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     vertical: 6,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.espresso,
+                                    color: extraBadgeBackground,
                                     borderRadius: BorderRadius.circular(999),
                                     border: Border.all(
                                       color: AppTheme.paper,
@@ -1809,8 +1885,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                   ),
                                   child: Text(
                                     '+$extraPhotoCount',
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    style: TextStyle(
+                                      color: extraBadgeTextColor,
                                       fontWeight: FontWeight.w800,
                                     ),
                                   ),
@@ -1824,10 +1900,12 @@ class _ProfilePageState extends State<ProfilePage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.photo_library_outlined,
                               size: 18,
-                              color: AppTheme.espresso,
+                              color: AppTheme.useMusicAiPalette
+                                  ? AppTheme.orange
+                                  : AppTheme.espresso,
                             ),
                             const SizedBox(width: 6),
                             Text(
@@ -2066,7 +2144,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               child: _OwnOfferPreviewCard(
                                 offer: offer,
                                 apiClient: apiClient,
-                                buttonLabel: 'Apri evento',
+                                buttonLabel: 'Dettagli evento',
                                 onOpen: () => _openOwnOfferDetails(offer),
                               ),
                             ),
@@ -2096,16 +2174,11 @@ class _ProfilePageState extends State<ProfilePage> {
                     }
                   },
                   onSecurity: _openSettings,
-                  onInfoApp: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => LandingPage(
-                          authController: widget.authController,
-                          showLoginButton: false,
-                        ),
-                      ),
-                    );
-                  },
+                  onCheckUpdates: () => _openExternalLink(
+                    _playStoreUri,
+                    fallbackMessage:
+                        'Non riesco ad aprire il Play Store adesso.',
+                  ),
                   onDeleteAccount: widget.authController.isBusy
                       ? null
                       : _confirmDeleteAccount,
@@ -2161,6 +2234,15 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         if (_archiveExpanded) ...[
                           const SizedBox(height: 14),
+                          Text(
+                            'Riapri gli eventi passati per rivedere luogo, partecipanti e profili. Le recensioni si gestiscono dalla sezione Recensioni.',
+                            style: TextStyle(
+                              color: AppTheme.brown.withValues(alpha: 0.78),
+                              fontWeight: FontWeight.w700,
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -2704,37 +2786,58 @@ class _ReviewHistorySectionCard extends StatelessWidget {
 
 class _ReviewHistoryTile extends StatelessWidget {
   const _ReviewHistoryTile({
+    required this.apiClient,
     required this.review,
     required this.title,
     required this.subtitle,
+    required this.previewText,
+    required this.photoFilename,
     required this.onTap,
   });
 
+  final ApiClient apiClient;
   final UserReview review;
   final String title;
   final String subtitle;
+  final String previewText;
+  final String photoFilename;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final offer = review.offer;
-    final eventDateText = offer?.dateTime != null
-        ? DateFormat("EEEE d MMMM 'alle' HH:mm", 'it_IT').format(
-            offer!.dateTime!.toLocal(),
+    final reviewDateText = review.createdAt != null
+        ? DateFormat("dd/MM/yyyy", 'it_IT').format(
+            review.createdAt!.toLocal(),
           )
         : '';
+    final photoUrl = photoFilename.trim().isNotEmpty
+        ? apiClient.buildUploadUrl(photoFilename.trim())
+        : null;
 
     return Card(
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
-        child: Padding(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: AppTheme.surfaceGradient,
+          ),
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundImage:
+                        photoUrl == null ? null : NetworkImage(photoUrl),
+                    child: photoUrl == null
+                        ? const Icon(Icons.person_outline_rounded)
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2751,15 +2854,32 @@ class _ReviewHistoryTile extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.star_rounded,
+                                color: AppTheme.gold, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${review.rating}/5',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            if (reviewDateText.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                '• $reviewDateText',
+                                style: TextStyle(
+                                  color: AppTheme.brown.withValues(alpha: 0.66),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
-                  ),
-                  const Icon(Icons.star_rounded,
-                      color: AppTheme.gold, size: 18),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${review.rating}/5',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(width: 8),
                   Icon(
@@ -2768,26 +2888,17 @@ class _ReviewHistoryTile extends StatelessWidget {
                   ),
                 ],
               ),
-              if (offer != null) ...[
-                const SizedBox(height: 10),
-                Text(
-                  '${offer.mealType} - ${offer.localeName}',
-                  style: const TextStyle(
-                    color: AppTheme.espresso,
-                    fontWeight: FontWeight.w800,
-                  ),
+              const SizedBox(height: 12),
+              Text(
+                previewText,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppTheme.espresso,
+                  fontWeight: FontWeight.w700,
+                  height: 1.35,
                 ),
-              ],
-              if (eventDateText.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  eventDateText,
-                  style: TextStyle(
-                    color: AppTheme.brown.withValues(alpha: 0.76),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+              ),
             ],
           ),
         ),
@@ -3201,6 +3312,303 @@ class _OwnOfferPreviewCard extends StatelessWidget {
   }
 }
 
+class _ArchivedOfferCompactTile extends StatefulWidget {
+  const _ArchivedOfferCompactTile({
+    required this.offer,
+    required this.claimed,
+    required this.apiClient,
+    required this.onOpen,
+  });
+
+  final Offer offer;
+  final bool claimed;
+  final ApiClient apiClient;
+  final VoidCallback onOpen;
+
+  @override
+  State<_ArchivedOfferCompactTile> createState() =>
+      _ArchivedOfferCompactTileState();
+}
+
+class _ArchivedOfferCompactTileState extends State<_ArchivedOfferCompactTile> {
+  bool _expanded = false;
+
+  String _mealLabel(String value) {
+    switch (value.toLowerCase()) {
+      case 'colazione':
+        return 'Colazione';
+      case 'pranzo':
+        return 'Pranzo';
+      case 'cena':
+        return 'Cena';
+      case 'ape':
+        return 'Aperitivo';
+      default:
+        return value.isEmpty ? 'Evento' : value;
+    }
+  }
+
+  String _compactDate(DateTime value) {
+    final local = value.toLocal();
+    return DateFormat('dd/MM • HH:mm', 'it_IT').format(local);
+  }
+
+  Future<void> _openPublicProfile(int userId) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PublicProfilePage(
+          apiClient: widget.apiClient,
+          userId: userId,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final offer = widget.offer;
+    final hostPhotoUrl = offer.autoreFoto.isNotEmpty
+        ? widget.apiClient.buildUploadUrl(offer.autoreFoto)
+        : null;
+    final participants = offer.participants;
+    final summaryTitle =
+        '${_mealLabel(offer.tipoPasto)} • ${_compactDate(offer.dataOra)}';
+    final summarySubtitle =
+        widget.claimed ? 'Con ${offer.autoreNome}' : offer.nomeLocale;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      decoration: BoxDecoration(
+        gradient: AppTheme.elevatedSurfaceGradient,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppTheme.cardBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: AppTheme.shadow,
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: AppTheme.sand.withValues(alpha: 0.8),
+                    child: Icon(
+                      Icons.event_note_rounded,
+                      size: 18,
+                      color: AppTheme.brown.withValues(alpha: 0.84),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          summaryTitle,
+                          style:
+                              Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    color: AppTheme.espresso,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          summarySubtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                color: AppTheme.brown.withValues(alpha: 0.78),
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: AppTheme.espresso,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+                  Text(
+                    offer.nomeLocale,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: AppTheme.espresso,
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                  if (offer.indirizzo.trim().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      offer.indirizzo.trim(),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppTheme.brown.withValues(alpha: 0.8),
+                          ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  if (widget.claimed)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: offer.autoreId > 0
+                          ? () => _openPublicProfile(offer.autoreId)
+                          : null,
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.paper.withValues(alpha: 0.9),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppTheme.cardBorder),
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 20,
+                              backgroundImage: hostPhotoUrl != null
+                                  ? NetworkImage(hostPhotoUrl)
+                                  : null,
+                              child: hostPhotoUrl == null
+                                  ? const Icon(Icons.person)
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Host: ${offer.autoreNome}',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: AppTheme.espresso,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right_rounded),
+                          ],
+                        ),
+                      ),
+                    )
+                  else ...[
+                    Text(
+                      'Partecipanti (${participants.length})',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppTheme.espresso,
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (participants.isEmpty)
+                      Text(
+                        'Nessun partecipante registrato.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.brown.withValues(alpha: 0.75),
+                            ),
+                      )
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: participants.map((participant) {
+                          final participantPhotoUrl =
+                              participant.photoFilename.isNotEmpty
+                                  ? widget.apiClient
+                                      .buildUploadUrl(participant.photoFilename)
+                                  : null;
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(999),
+                            onTap: () => _openPublicProfile(participant.id),
+                            child: Container(
+                              padding: const EdgeInsets.fromLTRB(6, 4, 10, 4),
+                              decoration: BoxDecoration(
+                                color: AppTheme.paper.withValues(alpha: 0.92),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: AppTheme.cardBorder),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 12,
+                                    backgroundImage: participantPhotoUrl != null
+                                        ? NetworkImage(participantPhotoUrl)
+                                        : null,
+                                    child: participantPhotoUrl == null
+                                        ? Text(
+                                            participant.name.isNotEmpty
+                                                ? participant.name[0]
+                                                    .toUpperCase()
+                                                : '?',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          )
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    participant.name,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: AppTheme.espresso,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                  ],
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: widget.onOpen,
+                      icon: const Icon(Icons.open_in_new_rounded),
+                      label: const Text('Apri evento completo'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _CompactInfoChip extends StatelessWidget {
   const _CompactInfoChip({
     required this.label,
@@ -3363,7 +3771,7 @@ class _SettingsCard extends StatelessWidget {
     required this.onToggle,
     required this.onEditProfile,
     required this.onSecurity,
-    required this.onInfoApp,
+    required this.onCheckUpdates,
     required this.onDeleteAccount,
     required this.onLogout,
   });
@@ -3372,7 +3780,7 @@ class _SettingsCard extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onEditProfile;
   final VoidCallback onSecurity;
-  final VoidCallback onInfoApp;
+  final VoidCallback onCheckUpdates;
   final VoidCallback? onDeleteAccount;
   final VoidCallback? onLogout;
 
@@ -3420,51 +3828,75 @@ class _SettingsCard extends StatelessWidget {
               ),
               if (isExpanded) ...[
                 const SizedBox(height: 14),
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: onInfoApp,
-                        icon: const Icon(Icons.info_outline_rounded,
-                            color: Color(0xFFE07800)),
-                        label: const Text('Info app'),
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: onEditProfile,
-                        icon: const Icon(Icons.edit_outlined,
-                            color: Color(0xFFE07800)),
-                        label: const Text('Modifica profilo'),
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: onSecurity,
-                        icon: const Icon(Icons.fingerprint,
-                            color: Color(0xFFE07800)),
-                        label: const Text('Sicurezza con impronta'),
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: onDeleteAccount,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF8A4336),
-                          side: const BorderSide(color: Color(0xFFD7B4AC)),
+                Text(
+                  'Gestisci rapidamente il tuo profilo da qui.',
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.76),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth >= 520;
+                    return GridView.count(
+                      crossAxisCount: isWide ? 2 : 1,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: isWide ? 3.6 : 4.4,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: onEditProfile,
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            color: Color(0xFFE07800),
+                          ),
+                          label: const Text('Modifica profilo'),
                         ),
-                        icon: const Icon(Icons.delete_outline_rounded,
-                            color: Color(0xFF8A4336)),
-                        label: const Text('Cancella il tuo profilo'),
-                      ),
-                      const SizedBox(height: 14),
-                      const Divider(),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: onLogout,
-                        icon: const Icon(Icons.logout_rounded,
-                            color: Color(0xFF8A4336)),
-                        label: const Text('Esci da questo dispositivo'),
-                      ),
-                    ],
+                        OutlinedButton.icon(
+                          onPressed: onSecurity,
+                          icon: const Icon(
+                            Icons.fingerprint,
+                            color: Color(0xFFE07800),
+                          ),
+                          label: const Text('Entra con impronta'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: onCheckUpdates,
+                          icon: const Icon(
+                            Icons.system_update_alt_rounded,
+                            color: Color(0xFFE07800),
+                          ),
+                          label: const Text('Aggiorna la tua app'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: onLogout,
+                          icon: const Icon(
+                            Icons.logout_rounded,
+                            color: Color(0xFF8A4336),
+                          ),
+                          label: const Text('Esci da questo dispositivo'),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: onDeleteAccount,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF8A4336),
+                      side: const BorderSide(color: Color(0xFFD7B4AC)),
+                    ),
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: Color(0xFF8A4336),
+                    ),
+                    label: const Text('Cancella il tuo profilo'),
                   ),
                 ),
               ],

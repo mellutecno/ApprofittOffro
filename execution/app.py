@@ -20,8 +20,6 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from functools import wraps
 
 from dotenv import load_dotenv
-from google.auth import crypt as google_auth_crypt
-from google.auth import jwt as google_auth_jwt
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2 import id_token as google_id_token
 from google.oauth2 import service_account
@@ -65,6 +63,8 @@ from models import (
     UserPhoto,
     UserFollow,
     UserBlock,
+    ChatThread,
+    ChatMessage,
     DevicePushToken,
     NotificationDeliveryLog,
     UserReminder,
@@ -145,7 +145,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(
     os.getenv("DATABASE_URL")
 ) or ("sqlite:///" + SQLITE_PATH)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64 MB max upload (telefoni moderni)
+app.config["MAX_CONTENT_LENGTH"] = 128 * 1024 * 1024  # 128 MB max upload
 app.config["UPLOAD_STORAGE_BACKEND"] = os.getenv("APP_STORAGE_BACKEND", "local").strip().lower()
 app.config["R2_ACCOUNT_ID"] = os.getenv("R2_ACCOUNT_ID", "")
 app.config["R2_ACCESS_KEY_ID"] = os.getenv("R2_ACCESS_KEY_ID", "")
@@ -177,7 +177,9 @@ MAX_OFFER_PHOTOS = 3
 CHAT_AUDIO_ALLOWED_EXTENSIONS = {"m4a", "mp4", "aac", "ogg", "opus", "wav", "mp3"}
 CHAT_AUDIO_MAX_BYTES = 5 * 1024 * 1024
 CHAT_MEDIA_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
-CHAT_MEDIA_FILE_EXTENSIONS = {
+CHAT_MEDIA_AUDIO_EXTENSIONS = {"mp3", "m4a", "aac", "wav", "ogg", "opus", "flac"}
+CHAT_MEDIA_VIDEO_EXTENSIONS = {"mp4", "m4v", "mov", "3gp", "webm", "mkv"}
+CHAT_MEDIA_GENERIC_FILE_EXTENSIONS = {
     "pdf",
     "txt",
     "csv",
@@ -191,10 +193,20 @@ CHAT_MEDIA_FILE_EXTENSIONS = {
     "rar",
     "7z",
 }
+CHAT_MEDIA_FILE_EXTENSIONS = {
+    *CHAT_MEDIA_GENERIC_FILE_EXTENSIONS,
+    *CHAT_MEDIA_AUDIO_EXTENSIONS,
+    *CHAT_MEDIA_VIDEO_EXTENSIONS,
+}
 CHAT_MEDIA_ALLOWED_EXTENSIONS = CHAT_MEDIA_IMAGE_EXTENSIONS | CHAT_MEDIA_FILE_EXTENSIONS
-CHAT_MEDIA_MAX_BYTES = 20 * 1024 * 1024
+CHAT_MEDIA_IMAGE_MAX_BYTES = 20 * 1024 * 1024
+CHAT_MEDIA_AUDIO_MAX_BYTES = 30 * 1024 * 1024
+CHAT_MEDIA_GENERIC_FILE_MAX_BYTES = 30 * 1024 * 1024
+CHAT_MEDIA_VIDEO_MAX_BYTES = 100 * 1024 * 1024
+CHAT_MEDIA_MAX_BYTES = CHAT_MEDIA_VIDEO_MAX_BYTES
 CHAT_MEDIA_IMAGE_MAX_SIDE = 1280
 CHAT_MEDIA_IMAGE_JPEG_QUALITY = 78
+CHAT_RETENTION_DAYS = 30
 BREAKFAST_BOOKING_LEAD_HOURS = 1
 MEAL_BOOKING_LEAD_HOURS = 6
 SHORT_NOTICE_BREAKFAST_BOOKING_LEAD_MINUTES = 30
@@ -219,8 +231,10 @@ BREAKFAST_COMMITMENT_GAP_HOURS = 3
 MEAL_COMMITMENT_GAP_HOURS = 4
 PROFILE_EVENT_HISTORY_HOURS = 24
 PROFILE_ARCHIVE_LOOKBACK_DAYS = 30
+EMPTY_OFFER_AUTOHIDE_REMINDER_TYPE = "empty_offer_autohide"
 DEFAULT_USER_LATITUDE = 41.9028
 DEFAULT_USER_LONGITUDE = 12.4964
+COMMUNITY_LIVE_LOCATION_TTL_MINUTES = 15
 DEFAULT_PROFILE_PLACEHOLDER_FILENAME = "user_placeholder.png"
 COMMUNITY_GENDER_FILTERS = [
     ("", "Tutti"),
@@ -230,14 +244,10 @@ COMMUNITY_GENDER_FILTERS = [
 PUSH_PLATFORM_ANDROID = "android"
 PUSH_DEEP_LINK_BASE = "approfittoffro://"
 FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
-FIRESTORE_SCOPE = "https://www.googleapis.com/auth/datastore"
 PUSH_CHANNEL_ID = "approfittoffro_alerts"
 UPCOMING_EVENT_REMINDER_HOURS = 0.5  # 30 minuti
 REVIEW_REMINDER_DELAY_HOURS = 3
 REVIEW_REMINDER_LOOKBACK_HOURS = 72
-FIREBASE_CUSTOM_TOKEN_AUDIENCE = (
-    "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit"
-)
 
 
 def get_google_oauth_client_ids():
@@ -529,6 +539,83 @@ def get_spots_copy(spots_count):
 def get_offer_accepted_claims(offer):
     """Restituisce solo i claim gia' accettati dall'host."""
     return [claim for claim in offer.claims if claim.status == CLAIM_STATUS_ACCEPTED]
+
+
+def has_offer_accepted_participants(offer):
+    """True se l'offerta ha almeno un partecipante accettato."""
+    return any(claim.status == CLAIM_STATUS_ACCEPTED for claim in offer.claims)
+
+
+def is_offer_started_without_participants(offer, *, now=None):
+    """True se l'evento e' iniziato ma non ha alcun partecipante accettato."""
+    now = now or local_now()
+    return offer.data_ora <= now and not has_offer_accepted_participants(offer)
+
+
+def notify_host_offer_started_without_participants(offer, *, now=None, dry_run=False):
+    """Invia una sola push all'host quando un evento parte con zero partecipanti."""
+    host = offer.autore
+    if host is None:
+        return False
+    now = now or local_now()
+    dedupe_key = build_notification_dedupe_key(
+        EMPTY_OFFER_AUTOHIDE_REMINDER_TYPE,
+        offer_id=offer.id,
+        user_id=host.id,
+    )
+    if notification_delivery_exists(dedupe_key):
+        return False
+    if dry_run:
+        return True
+
+    data_evento = format_offer_datetime_label(offer.data_ora, now=now)
+    push_sent = send_push_to_user(
+        host,
+        title="Evento senza partecipanti",
+        body=(
+            f"Il tuo {offer.tipo_pasto} da {offer.nome_locale} ({data_evento}) "
+            "e' partito senza partecipanti ed e' stato nascosto dall'elenco eventi."
+        ),
+        target="profile",
+        extra_data={
+            "offer_id": offer.id,
+            "offer_autohidden_empty": "true",
+        },
+    )
+    if push_sent <= 0:
+        return False
+
+    record_notification_delivery(
+        user_id=host.id,
+        offer_id=offer.id,
+        reminder_type=EMPTY_OFFER_AUTOHIDE_REMINDER_TYPE,
+        dedupe_key=dedupe_key,
+    )
+    return True
+
+
+def filter_visible_offers_and_notify_empty_started_hosts(
+    offers,
+    *,
+    now=None,
+    dry_run=False,
+):
+    """Nasconde gli eventi iniziati senza partecipanti e notifica l'host (deduplicata)."""
+    now = now or local_now()
+    visible = []
+    hidden_count = 0
+    notified_count = 0
+
+    for offer in offers:
+        if not is_offer_started_without_participants(offer, now=now):
+            visible.append(offer)
+            continue
+
+        hidden_count += 1
+        if notify_host_offer_started_without_participants(offer, now=now, dry_run=dry_run):
+            notified_count += 1
+
+    return visible, {"hidden": hidden_count, "notified": notified_count}
 
 
 def get_offer_pending_claims(offer):
@@ -1437,6 +1524,9 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("intolleranze", "ALTER TABLE users ADD COLUMN intolleranze VARCHAR(300)"),
                 ("bio", "ALTER TABLE users ADD COLUMN bio VARCHAR(500)"),
                 ("raggio_azione", "ALTER TABLE users ADD COLUMN raggio_azione INTEGER DEFAULT 10"),
+                ("live_latitudine", "ALTER TABLE users ADD COLUMN live_latitudine FLOAT"),
+                ("live_longitudine", "ALTER TABLE users ADD COLUMN live_longitudine FLOAT"),
+                ("live_location_at", "ALTER TABLE users ADD COLUMN live_location_at DATETIME"),
                 ("verificato", "ALTER TABLE users ADD COLUMN verificato INTEGER DEFAULT 0"),
                 ("verification_token", "ALTER TABLE users ADD COLUMN verification_token VARCHAR(100)"),
                 ("password_reset_token", "ALTER TABLE users ADD COLUMN password_reset_token VARCHAR(100)"),
@@ -1520,6 +1610,15 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_sent_at DATETIME"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS live_latitudine DOUBLE PRECISION"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS live_longitudine DOUBLE PRECISION"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS live_location_at DATETIME"
             )
             conn.exec_driver_sql(
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)"
@@ -1757,7 +1856,7 @@ def get_firebase_credentials():
     try:
         _firebase_credentials_cache = service_account.Credentials.from_service_account_info(
             info,
-            scopes=[FCM_SCOPE, FIRESTORE_SCOPE],
+            scopes=[FCM_SCOPE],
         )
         return _firebase_credentials_cache
     except Exception as exc:
@@ -1781,137 +1880,6 @@ def get_firebase_access_token():
     except Exception as exc:
         print(f"[PUSH_AUTH_ERROR] Impossibile ottenere access token Firebase: {exc}")
         return ""
-
-
-def _firestore_decode_value(value):
-    if not isinstance(value, dict):
-        return value
-    if "stringValue" in value:
-        return value.get("stringValue", "")
-    if "integerValue" in value:
-        raw = value.get("integerValue", 0)
-        try:
-            return int(raw)
-        except (TypeError, ValueError):
-            return 0
-    if "doubleValue" in value:
-        raw = value.get("doubleValue", 0.0)
-        try:
-            return float(raw)
-        except (TypeError, ValueError):
-            return 0.0
-    if "booleanValue" in value:
-        return bool(value.get("booleanValue"))
-    if "timestampValue" in value:
-        return str(value.get("timestampValue") or "")
-    if "nullValue" in value:
-        return None
-    if "arrayValue" in value:
-        nested = value.get("arrayValue", {}) or {}
-        nested_values = nested.get("values", []) or []
-        return [_firestore_decode_value(item) for item in nested_values]
-    if "mapValue" in value:
-        nested = value.get("mapValue", {}) or {}
-        fields = nested.get("fields", {}) or {}
-        return {
-            str(key): _firestore_decode_value(raw_value)
-            for key, raw_value in fields.items()
-        }
-    return value
-
-
-def _firestore_run_query(structured_query):
-    project_id = get_firebase_project_id()
-    access_token = get_firebase_access_token()
-    if not project_id or not access_token:
-        return None, "Firebase non configurato per query chat inbox."
-
-    endpoint = (
-        f"https://firestore.googleapis.com/v1/projects/{project_id}"
-        "/databases/(default)/documents:runQuery"
-    )
-    payload = {"structuredQuery": structured_query}
-    request_body = json.dumps(payload).encode("utf-8")
-    req = Request(
-        endpoint,
-        data=request_body,
-        headers={
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json; charset=utf-8",
-        },
-        method="POST",
-    )
-
-    try:
-        with urlopen(req, timeout=12) as response:
-            body = response.read().decode("utf-8")
-        raw_rows = json.loads(body) if body else []
-    except HTTPError as exc:
-        details = ""
-        try:
-            details = exc.read().decode("utf-8", errors="ignore")
-        except Exception:
-            details = ""
-        print(f"[FIRESTORE_QUERY_ERROR] status={exc.code} details={details[:400]}")
-        return None, f"Firestore query fallita ({exc.code})."
-    except URLError as exc:
-        print(f"[FIRESTORE_QUERY_ERROR] network={exc}")
-        return None, "Firestore non raggiungibile."
-    except Exception as exc:
-        print(f"[FIRESTORE_QUERY_ERROR] unexpected={exc}")
-        return None, "Errore interno durante la query Firestore."
-
-    if isinstance(raw_rows, dict):
-        raw_rows = [raw_rows]
-
-    documents = []
-    for row in raw_rows:
-        if not isinstance(row, dict):
-            continue
-        raw_doc = row.get("document")
-        if not isinstance(raw_doc, dict):
-            continue
-        fields = raw_doc.get("fields", {}) or {}
-        documents.append({
-            "name": str(raw_doc.get("name") or ""),
-            "fields": {
-                str(key): _firestore_decode_value(raw_value)
-                for key, raw_value in fields.items()
-            },
-        })
-
-    return documents, None
-
-
-def create_firebase_custom_token(user):
-    """Firma un custom token Firebase per proteggere Firestore con l'utente Flask."""
-    info = _load_firebase_service_account_info() or {}
-    client_email = str(info.get("client_email", "") or "").strip()
-    if not client_email or not info.get("private_key"):
-        return "", "Credenziali Firebase incomplete."
-
-    try:
-        signer = google_auth_crypt.RSASigner.from_service_account_info(info)
-        now = int(datetime.now(timezone.utc).timestamp())
-        payload = {
-            "iss": client_email,
-            "sub": client_email,
-            "aud": FIREBASE_CUSTOM_TOKEN_AUDIENCE,
-            "iat": now,
-            "exp": now + 3600,
-            "uid": str(user.id),
-            "claims": {
-                "app_user_id": user.id,
-                "is_admin": bool(getattr(user, "is_admin", False)),
-            },
-        }
-        token = google_auth_jwt.encode(signer, payload)
-        if isinstance(token, bytes):
-            token = token.decode("utf-8")
-        return token, None
-    except Exception as exc:
-        print(f"[FIREBASE_AUTH_ERROR] Impossibile creare custom token: {exc}")
-        return "", "Impossibile inizializzare la chat."
 
 
 def build_push_target_deeplink(target):
@@ -2370,6 +2338,21 @@ def get_visible_profile_gallery_filenames(user, *, include_gallery=False):
     """Restituisce solo le foto profilo reali e visibili per API e onboarding."""
     filenames = list(user.gallery_filenames if include_gallery else user.gallery_filenames[:2])
     return filter_visible_profile_photos(filenames)
+
+
+def get_primary_photo_filename(user):
+    """Restituisce la foto principale reale da usare nelle preview chat/profili."""
+    if not user:
+        return ""
+
+    direct_photo = str(getattr(user, "foto_filename", "") or "").strip()
+    if direct_photo and not is_placeholder_profile_photo(direct_photo):
+        return direct_photo
+
+    visible_gallery = get_visible_profile_gallery_filenames(user, include_gallery=True)
+    if visible_gallery:
+        return visible_gallery[0]
+    return ""
 
 
 def user_has_visible_profile_photo(user):
@@ -4773,6 +4756,10 @@ def api_get_offers():
         query = query.filter(Offer.tipo_pasto == tipo)
 
     offers = query.order_by(Offer.data_ora.asc()).all()
+    offers, _visibility_stats = filter_visible_offers_and_notify_empty_started_hosts(
+        offers,
+        now=now,
+    )
 
     # Applica filtro per Raggio se specificato
     radius_km = None
@@ -5006,6 +4993,13 @@ def api_get_user_profile_offers():
                 Offer.data_ora > threshold,
             )
         offers = offers_query.order_by(Offer.data_ora.desc()).all()
+        if not archived:
+            for offer in offers:
+                if is_offer_started_without_participants(offer, now=now):
+                    notify_host_offer_started_without_participants(
+                        offer,
+                        now=now,
+                    )
         result = [
             serialize_mobile_offer(offer, viewer=current_user, now=now)
             for offer in offers
@@ -5036,6 +5030,9 @@ def api_get_user_profile_offers():
         for claim in claims:
             offer = claim.offerta
             if not offer or offer.id in seen_offer_ids:
+                continue
+            if not archived and is_offer_started_without_participants(offer, now=now):
+                notify_host_offer_started_without_participants(offer, now=now)
                 continue
             seen_offer_ids.add(offer.id)
             result.append(
@@ -5722,6 +5719,45 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
+
+def utc_now_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def parse_coordinate(raw_value, *, kind):
+    raw = str(raw_value or "").strip()
+    if not raw:
+        raise ValueError(f"{kind}_missing")
+    value = float(raw.replace(",", "."))
+    if kind == "lat" and (value < -90 or value > 90):
+        raise ValueError("lat_out_of_range")
+    if kind == "lon" and (value < -180 or value > 180):
+        raise ValueError("lon_out_of_range")
+    return value
+
+
+def is_live_location_fresh(user, *, now_utc=None):
+    now_utc = now_utc or utc_now_naive()
+    if (
+        user.live_latitudine is None
+        or user.live_longitudine is None
+        or user.live_location_at is None
+    ):
+        return False
+    return user.live_location_at >= (
+        now_utc - timedelta(minutes=COMMUNITY_LIVE_LOCATION_TTL_MINUTES)
+    )
+
+
+def resolve_user_distance_coordinates(user, *, now_utc=None):
+    """Restituisce coordinate da usare nei filtri community: live -> fallback profilo."""
+    now_utc = now_utc or utc_now_naive()
+    if is_live_location_fresh(user, now_utc=now_utc):
+        return float(user.live_latitudine), float(user.live_longitudine), "live"
+    if user.latitudine is not None and user.longitudine is not None:
+        return float(user.latitudine), float(user.longitudine), "profile"
+    return None, None, "none"
+
 # ===================================================================
 # API — Utente
 # ===================================================================
@@ -5858,6 +5894,33 @@ def api_user_me():
     })
 
 
+@app.route("/api/user/live-location", methods=["POST"])
+@login_required
+def api_user_live_location():
+    """Aggiorna la posizione live utente usata nei filtri Community in tempo reale."""
+    data = request.get_json(silent=True) or {}
+    try:
+        lat = parse_coordinate(data.get("latitudine"), kind="lat")
+        lon = parse_coordinate(data.get("longitudine"), kind="lon")
+    except Exception:
+        return jsonify({"success": False, "error": "Coordinate live non valide."}), 400
+
+    now_utc = utc_now_naive()
+    current_user.live_latitudine = lat
+    current_user.live_longitudine = lon
+    current_user.live_location_at = now_utc
+    db.session.commit()
+
+    return jsonify(
+        {
+            "success": True,
+            "live_latitudine": lat,
+            "live_longitudine": lon,
+            "live_location_at": datetime_to_iso_z(now_utc),
+        }
+    )
+
+
 @app.route("/api/push/token", methods=["POST"])
 @login_required
 def api_register_push_token():
@@ -5963,6 +6026,97 @@ def ensure_chat_pair_allowed(offer_id, actor_user_id, other_user_id):
     return offer, None
 
 
+def chat_now_utc():
+    """Timestamp chat coerente in UTC (naive per compatibilita' DB esistente)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def normalize_chat_pair_ids(user_a_id, user_b_id):
+    first_id, second_id = sorted((int(user_a_id), int(user_b_id)))
+    return first_id, second_id
+
+
+def build_chat_thread_key(offer_id, user_a_id, user_b_id):
+    first_id, second_id = normalize_chat_pair_ids(user_a_id, user_b_id)
+    return f"{int(offer_id)}_{first_id}_{second_id}"
+
+
+def datetime_to_iso_z(value):
+    if not value:
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat().replace("+00:00", "Z")
+
+
+def get_or_create_chat_thread(*, offer_id, user_id, other_user_id, create_if_missing=True):
+    first_id, second_id = normalize_chat_pair_ids(user_id, other_user_id)
+    now = chat_now_utc()
+    purged_expired = False
+    thread = ChatThread.query.filter_by(
+        offer_id=int(offer_id),
+        user_a_id=first_id,
+        user_b_id=second_id,
+    ).first()
+    if thread and purge_chat_thread_if_expired(thread, now=now):
+        purged_expired = True
+        db.session.flush()
+        thread = None
+    if purged_expired and not create_if_missing:
+        db.session.commit()
+    if thread or not create_if_missing:
+        return thread
+
+    thread = ChatThread(
+        offer_id=int(offer_id),
+        user_a_id=first_id,
+        user_b_id=second_id,
+        created_at=now,
+        updated_at=now,
+        last_message="",
+        last_message_type="text",
+    )
+    db.session.add(thread)
+    db.session.flush()
+    return thread
+
+
+def build_chat_preview_text(message_type, *, text="", media_file_name="", audio_duration_sec=0):
+    kind = str(message_type or "text").strip().lower()
+    if kind == "audio":
+        try:
+            duration_value = int(audio_duration_sec or 0)
+        except (TypeError, ValueError):
+            duration_value = 0
+        return f"Vocale ({duration_value}s)" if duration_value > 0 else "Messaggio vocale"
+    if kind == "image":
+        return "Foto inviata"
+    if kind == "file":
+        clean_name = str(media_file_name or "").strip()
+        return f"Allegato: {clean_name}" if clean_name else "Allegato inviato"
+    clean_text = str(text or "").strip()
+    return clean_text or "Nuovo messaggio"
+
+
+def serialize_chat_message(message):
+    return {
+        "id": str(message.id),
+        "senderId": str(message.sender_id),
+        "senderName": message.sender_name or "Utente",
+        "type": (message.message_type or "text").strip().lower(),
+        "text": message.text or "",
+        "audioPath": message.audio_path or "",
+        "audioDurationSec": int(message.audio_duration_sec or 0),
+        "mediaPath": message.media_path or "",
+        "mediaFileName": message.media_file_name or "",
+        "mediaContentType": message.media_content_type or "",
+        "mediaSizeBytes": int(message.media_size_bytes or 0),
+        "timestamp": datetime_to_iso_z(message.created_at),
+    }
+
+
 def sanitize_chat_audio_path(raw_path):
     """Normalizza e valida un path audio chat relativo all'upload storage."""
     normalized = str(raw_path or "").strip().replace("\\", "/")
@@ -5986,6 +6140,56 @@ def build_chat_media_prefix(offer_id, user_a_id, user_b_id):
     """Prefisso canonico degli allegati chat per coppia utenti + evento."""
     first_id, second_id = sorted((int(user_a_id), int(user_b_id)))
     return f"chat_media/{int(offer_id)}/{first_id}_{second_id}/"
+
+
+def chat_thread_last_activity(thread):
+    return thread.last_message_time or thread.updated_at or thread.created_at
+
+
+def is_chat_thread_expired(thread, *, now=None):
+    now = now or chat_now_utc()
+    last_activity = chat_thread_last_activity(thread)
+    if not last_activity:
+        return False
+    return last_activity <= (now - timedelta(days=CHAT_RETENTION_DAYS))
+
+
+def purge_chat_thread_if_expired(thread, *, now=None):
+    """Elimina definitivamente thread+messaggi+file se inattivo oltre retention."""
+    now = now or chat_now_utc()
+    if not is_chat_thread_expired(thread, now=now):
+        return False
+
+    expected_audio_prefix = build_chat_audio_prefix(
+        thread.offer_id,
+        thread.user_a_id,
+        thread.user_b_id,
+    )
+    expected_media_prefix = build_chat_media_prefix(
+        thread.offer_id,
+        thread.user_a_id,
+        thread.user_b_id,
+    )
+
+    audio_paths_to_delete = set()
+    media_paths_to_delete = set()
+    messages = ChatMessage.query.filter_by(thread_id=thread.id).all()
+    for message in messages:
+        normalized_audio = sanitize_chat_audio_path(message.audio_path)
+        if normalized_audio and normalized_audio.startswith(expected_audio_prefix):
+            audio_paths_to_delete.add(normalized_audio)
+        normalized_media = sanitize_chat_audio_path(message.media_path)
+        if normalized_media and normalized_media.startswith(expected_media_prefix):
+            media_paths_to_delete.add(normalized_media)
+        db.session.delete(message)
+
+    for audio_path in audio_paths_to_delete:
+        upload_storage.delete(audio_path)
+    for media_path in media_paths_to_delete:
+        upload_storage.delete(media_path)
+
+    db.session.delete(thread)
+    return True
 
 
 @app.route("/api/push/chat-notification", methods=["POST"])
@@ -6425,6 +6629,30 @@ def api_chat_media_upload():
     original_name = secure_filename(media_file.filename or "").strip()
     extension = original_name.rsplit(".", 1)[1].lower() if "." in original_name else ""
     content_type = (media_file.mimetype or "").strip().lower()
+    if not extension and content_type:
+        mime_to_ext = {
+            "image/jpeg": "jpg",
+            "image/jpg": "jpg",
+            "image/png": "png",
+            "image/webp": "webp",
+            "video/mp4": "mp4",
+            "video/x-m4v": "m4v",
+            "video/quicktime": "mov",
+            "video/3gpp": "3gp",
+            "video/webm": "webm",
+            "video/x-matroska": "mkv",
+            "audio/mpeg": "mp3",
+            "audio/mp3": "mp3",
+            "audio/mp4": "m4a",
+            "audio/x-m4a": "m4a",
+            "audio/aac": "aac",
+            "audio/wav": "wav",
+            "audio/x-wav": "wav",
+            "audio/ogg": "ogg",
+            "audio/opus": "opus",
+            "audio/flac": "flac",
+        }
+        extension = mime_to_ext.get(content_type, "")
     inferred_kind = "image" if extension in CHAT_MEDIA_IMAGE_EXTENSIONS else "file"
     kind = raw_kind if raw_kind in {"image", "file"} else inferred_kind
 
@@ -6442,11 +6670,21 @@ def api_chat_media_upload():
     ):
         return jsonify({"success": False, "error": "Tipo immagine non valido."}), 400
 
+    def _max_bytes_for_chat_media(ext: str, media_kind: str) -> int:
+        if media_kind == "image":
+            return CHAT_MEDIA_IMAGE_MAX_BYTES
+        if ext in CHAT_MEDIA_VIDEO_EXTENSIONS:
+            return CHAT_MEDIA_VIDEO_MAX_BYTES
+        if ext in CHAT_MEDIA_AUDIO_EXTENSIONS:
+            return CHAT_MEDIA_AUDIO_MAX_BYTES
+        return CHAT_MEDIA_GENERIC_FILE_MAX_BYTES
+
     raw_file_bytes = media_file.read()
     if not raw_file_bytes:
         return jsonify({"success": False, "error": "Allegato vuoto non valido."}), 400
-    if len(raw_file_bytes) > CHAT_MEDIA_MAX_BYTES:
-        max_mb = CHAT_MEDIA_MAX_BYTES / (1024 * 1024)
+    max_allowed_bytes = _max_bytes_for_chat_media(extension, kind)
+    if len(raw_file_bytes) > max_allowed_bytes:
+        max_mb = max_allowed_bytes / (1024 * 1024)
         return jsonify({
             "success": False,
             "error": f"Allegato troppo pesante (max {max_mb:.0f} MB).",
@@ -6475,8 +6713,8 @@ def api_chat_media_upload():
             if "." in final_name
             else "jpg"
         )
-        if len(final_bytes) > CHAT_MEDIA_MAX_BYTES:
-            max_mb = CHAT_MEDIA_MAX_BYTES / (1024 * 1024)
+        if len(final_bytes) > CHAT_MEDIA_IMAGE_MAX_BYTES:
+            max_mb = CHAT_MEDIA_IMAGE_MAX_BYTES / (1024 * 1024)
             return jsonify({
                 "success": False,
                 "error": f"Immagine ancora troppo pesante dopo compressione (max {max_mb:.0f} MB).",
@@ -6745,153 +6983,381 @@ def api_chat_unblock_user():
     })
 
 
-@app.route("/api/firebase/custom-token", methods=["POST"])
+@app.route("/api/chat/thread/ensure", methods=["POST"])
 @login_required
-def api_firebase_custom_token():
-    """Restituisce un custom token Firebase per la chat interna."""
-    token, error = create_firebase_custom_token(current_user)
-    if error:
-        return jsonify({"success": False, "error": error}), 500
-    return jsonify({"success": True, "token": token, "uid": str(current_user.id)})
+def api_chat_thread_ensure():
+    """Garantisce l'esistenza del thread chat su DB server."""
+    data = request.get_json(silent=True) or {}
+    raw_offer_id = data.get("offer_id")
+    raw_other_user_id = data.get("other_user_id")
+
+    if raw_offer_id in (None, "") or raw_other_user_id in (None, ""):
+        return jsonify({"success": False, "error": "Dati chat mancanti."}), 400
+
+    try:
+        offer_id = int(raw_offer_id)
+        other_user_id = int(raw_other_user_id)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Dati chat non validi."}), 400
+
+    if offer_id <= 0 or other_user_id <= 0 or other_user_id == current_user.id:
+        return jsonify({"success": False, "error": "Dati chat non validi."}), 400
+
+    _, chat_error = ensure_chat_pair_allowed(offer_id, current_user.id, other_user_id)
+    if chat_error:
+        message, status = chat_error
+        return jsonify({"success": False, "error": message}), status
+
+    thread = get_or_create_chat_thread(
+        offer_id=offer_id,
+        user_id=current_user.id,
+        other_user_id=other_user_id,
+        create_if_missing=True,
+    )
+    if not thread:
+        return jsonify({"success": False, "error": "Thread chat non disponibile."}), 500
+
+    if thread.updated_at is None:
+        thread.updated_at = chat_now_utc()
+    db.session.commit()
+
+    other_user = User.query.get(other_user_id)
+    return jsonify({
+        "success": True,
+        "thread_id": thread.id,
+        "chat_id": build_chat_thread_key(thread.offer_id, thread.user_a_id, thread.user_b_id),
+        "offer_id": thread.offer_id,
+        "other_user_id": other_user_id,
+        "other_user_name": (other_user.nome.strip() if other_user and other_user.nome else "Utente"),
+        "other_user_photo_filename": (
+            get_primary_photo_filename(other_user) if other_user else ""
+        ),
+    })
+
+
+@app.route("/api/chat/messages", methods=["GET"])
+@login_required
+def api_chat_messages():
+    """Lista messaggi chat dal DB server (ordine discendente per timestamp)."""
+    raw_offer_id = request.args.get("offer_id")
+    raw_other_user_id = request.args.get("other_user_id")
+    raw_limit = request.args.get("limit")
+
+    if raw_offer_id in (None, "") or raw_other_user_id in (None, ""):
+        return jsonify({"success": False, "error": "Dati chat mancanti."}), 400
+
+    try:
+        offer_id = int(raw_offer_id)
+        other_user_id = int(raw_other_user_id)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Dati chat non validi."}), 400
+
+    if offer_id <= 0 or other_user_id <= 0 or other_user_id == current_user.id:
+        return jsonify({"success": False, "error": "Dati chat non validi."}), 400
+
+    _, chat_error = ensure_chat_pair_allowed(offer_id, current_user.id, other_user_id)
+    if chat_error:
+        message, status = chat_error
+        return jsonify({"success": False, "error": message}), status
+
+    limit = 200
+    if raw_limit not in (None, ""):
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            limit = 200
+    limit = max(20, min(limit, 500))
+
+    thread = get_or_create_chat_thread(
+        offer_id=offer_id,
+        user_id=current_user.id,
+        other_user_id=other_user_id,
+        create_if_missing=False,
+    )
+    if not thread:
+        return jsonify({"success": True, "messages": []})
+
+    messages = (
+        ChatMessage.query.filter_by(thread_id=thread.id)
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+        .limit(limit)
+        .all()
+    )
+    return jsonify({
+        "success": True,
+        "messages": [serialize_chat_message(message) for message in messages],
+        "chat_id": build_chat_thread_key(thread.offer_id, thread.user_a_id, thread.user_b_id),
+    })
+
+
+@app.route("/api/chat/messages", methods=["POST"])
+@login_required
+def api_chat_send_message():
+    """Salva un messaggio chat (text/audio/image/file) nel DB server."""
+    data = request.get_json(silent=True) or {}
+    raw_offer_id = data.get("offer_id")
+    raw_receiver_id = data.get("receiver_id")
+    message_type = str(data.get("type", "text")).strip().lower()
+    text = str(data.get("text", "")).strip()
+    audio_path = str(data.get("audio_path", "")).strip()
+    media_path = str(data.get("media_path", "")).strip()
+    media_file_name = str(data.get("media_file_name", "")).strip()
+    media_content_type = str(data.get("media_content_type", "")).strip()
+    audio_duration_sec = data.get("audio_duration_sec")
+    media_size_bytes = data.get("media_size_bytes")
+
+    if raw_offer_id in (None, "") or raw_receiver_id in (None, ""):
+        return jsonify({"success": False, "error": "Dati chat mancanti."}), 400
+
+    try:
+        offer_id = int(raw_offer_id)
+        receiver_id = int(raw_receiver_id)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Dati chat non validi."}), 400
+
+    if offer_id <= 0 or receiver_id <= 0 or receiver_id == current_user.id:
+        return jsonify({"success": False, "error": "Dati chat non validi."}), 400
+
+    if message_type not in {"text", "audio", "image", "file"}:
+        return jsonify({"success": False, "error": "Tipo messaggio non valido."}), 400
+
+    _, chat_error = ensure_chat_pair_allowed(offer_id, current_user.id, receiver_id)
+    if chat_error:
+        message, status = chat_error
+        return jsonify({"success": False, "error": message}), status
+
+    blocked_by_me, blocked_by_other = get_chat_block_status(current_user.id, receiver_id)
+    if blocked_by_me:
+        return jsonify({"success": False, "error": "Hai bloccato questo utente."}), 403
+    if blocked_by_other:
+        return jsonify({"success": False, "error": "Questo utente ha bloccato la chat."}), 403
+
+    normalized_audio_path = ""
+    normalized_media_path = ""
+
+    if message_type == "text":
+        if not text:
+            return jsonify({"success": False, "error": "Messaggio vuoto."}), 400
+    elif message_type == "audio":
+        normalized_audio_path = sanitize_chat_audio_path(audio_path)
+        if not normalized_audio_path:
+            return jsonify({"success": False, "error": "Audio non valido."}), 400
+        expected_audio_prefix = build_chat_audio_prefix(offer_id, current_user.id, receiver_id)
+        if not normalized_audio_path.startswith(expected_audio_prefix):
+            return jsonify({"success": False, "error": "Audio non autorizzato."}), 403
+    else:
+        normalized_media_path = sanitize_chat_audio_path(media_path)
+        if not normalized_media_path:
+            return jsonify({"success": False, "error": "Allegato non valido."}), 400
+        expected_media_prefix = build_chat_media_prefix(offer_id, current_user.id, receiver_id)
+        if not normalized_media_path.startswith(expected_media_prefix):
+            return jsonify({"success": False, "error": "Allegato non autorizzato."}), 403
+        if message_type == "image":
+            media_extension = normalized_media_path.rsplit(".", 1)[-1].lower() if "." in normalized_media_path else ""
+            if media_extension not in CHAT_MEDIA_IMAGE_EXTENSIONS:
+                return jsonify({"success": False, "error": "Formato immagine non supportato."}), 400
+
+    try:
+        parsed_audio_duration = int(audio_duration_sec or 0)
+    except (TypeError, ValueError):
+        parsed_audio_duration = 0
+    try:
+        parsed_media_size = int(media_size_bytes or 0)
+    except (TypeError, ValueError):
+        parsed_media_size = 0
+
+    preview_text = build_chat_preview_text(
+        message_type,
+        text=text,
+        media_file_name=media_file_name,
+        audio_duration_sec=parsed_audio_duration,
+    )
+    now = chat_now_utc()
+
+    thread = get_or_create_chat_thread(
+        offer_id=offer_id,
+        user_id=current_user.id,
+        other_user_id=receiver_id,
+        create_if_missing=True,
+    )
+    if not thread:
+        return jsonify({"success": False, "error": "Thread chat non disponibile."}), 500
+
+    message = ChatMessage(
+        thread_id=thread.id,
+        sender_id=current_user.id,
+        sender_name=current_user.nome or "Utente",
+        message_type=message_type,
+        text=preview_text if message_type != "text" else text,
+        audio_path=normalized_audio_path or None,
+        audio_duration_sec=parsed_audio_duration if message_type == "audio" else None,
+        media_path=normalized_media_path or None,
+        media_file_name=media_file_name or None,
+        media_content_type=media_content_type or None,
+        media_size_bytes=parsed_media_size if parsed_media_size > 0 else None,
+        created_at=now,
+    )
+    db.session.add(message)
+
+    thread.last_message = preview_text
+    thread.last_message_type = message_type
+    thread.last_message_time = now
+    thread.last_sender_id = current_user.id
+    thread.updated_at = now
+    thread.cleared_at = None
+    thread.cleared_by_id = None
+
+    db.session.commit()
+    return jsonify({
+        "success": True,
+        "message": serialize_chat_message(message),
+        "preview_text": preview_text,
+    })
+
+
+@app.route("/api/chat/clear", methods=["POST"])
+@login_required
+def api_chat_clear():
+    """Cancella tutti i messaggi del thread chat per entrambi gli utenti."""
+    data = request.get_json(silent=True) or {}
+    raw_offer_id = data.get("offer_id")
+    raw_receiver_id = data.get("receiver_id")
+
+    if raw_offer_id in (None, "") or raw_receiver_id in (None, ""):
+        return jsonify({"success": False, "error": "Dati chat mancanti."}), 400
+
+    try:
+        offer_id = int(raw_offer_id)
+        receiver_id = int(raw_receiver_id)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Dati chat non validi."}), 400
+
+    if offer_id <= 0 or receiver_id <= 0 or receiver_id == current_user.id:
+        return jsonify({"success": False, "error": "Dati chat non validi."}), 400
+
+    _, chat_error = ensure_chat_pair_allowed(offer_id, current_user.id, receiver_id)
+    if chat_error:
+        message, status = chat_error
+        return jsonify({"success": False, "error": message}), status
+
+    thread = get_or_create_chat_thread(
+        offer_id=offer_id,
+        user_id=current_user.id,
+        other_user_id=receiver_id,
+        create_if_missing=False,
+    )
+    if not thread:
+        return jsonify({
+            "success": True,
+            "deleted_messages": 0,
+            "deleted_audio_files": 0,
+            "deleted_media_files": 0,
+        })
+
+    expected_audio_prefix = build_chat_audio_prefix(offer_id, current_user.id, receiver_id)
+    expected_media_prefix = build_chat_media_prefix(offer_id, current_user.id, receiver_id)
+    audio_paths_to_delete = set()
+    media_paths_to_delete = set()
+
+    messages = ChatMessage.query.filter_by(thread_id=thread.id).all()
+    deleted_messages = len(messages)
+    for message in messages:
+        normalized_audio = sanitize_chat_audio_path(message.audio_path)
+        if normalized_audio and normalized_audio.startswith(expected_audio_prefix):
+            audio_paths_to_delete.add(normalized_audio)
+        normalized_media = sanitize_chat_audio_path(message.media_path)
+        if normalized_media and normalized_media.startswith(expected_media_prefix):
+            media_paths_to_delete.add(normalized_media)
+        db.session.delete(message)
+
+    deleted_audio_files = 0
+    for audio_path in audio_paths_to_delete:
+        upload_storage.delete(audio_path)
+        deleted_audio_files += 1
+
+    deleted_media_files = 0
+    for media_path in media_paths_to_delete:
+        upload_storage.delete(media_path)
+        deleted_media_files += 1
+
+    now = chat_now_utc()
+    thread.last_message = ""
+    thread.last_message_type = "text"
+    thread.last_message_time = now
+    thread.last_sender_id = current_user.id
+    thread.updated_at = now
+    thread.cleared_at = now
+    thread.cleared_by_id = current_user.id
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "deleted_messages": deleted_messages,
+        "deleted_audio_files": deleted_audio_files,
+        "deleted_media_files": deleted_media_files,
+    })
 
 
 @app.route("/api/chat/inbox", methods=["GET"])
 @login_required
 def api_chat_inbox():
-    """Restituisce la lista chat dell'utente corrente usando query admin Firestore."""
-    user_id_str = str(current_user.id)
-    value_variants = [{"stringValue": user_id_str}]
-    if user_id_str.isdigit():
-        value_variants.append({"integerValue": str(int(user_id_str))})
-
-    docs_by_name = {}
-    last_error = None
-
-    for variant in value_variants:
-        query = {
-            "from": [{"collectionId": "chats"}],
-            "where": {
-                "fieldFilter": {
-                    "field": {"fieldPath": "participants"},
-                    "op": "ARRAY_CONTAINS",
-                    "value": variant,
-                }
-            },
-            "limit": 200,
-        }
-        docs, error = _firestore_run_query(query)
-        if error:
-            last_error = error
-            continue
-        for doc in docs or []:
-            doc_name = str(doc.get("name") or "").strip()
-            if doc_name:
-                docs_by_name[doc_name] = doc
-
-    if not docs_by_name and last_error:
-        return jsonify({
-            "success": False,
-            "error": last_error,
-        }), 502
-
-    def _extract_chat_id(doc_name):
-        if not doc_name:
-            return ""
-        return doc_name.split("/")[-1].strip()
-
-    def _parse_iso_timestamp(value):
-        raw = str(value or "").strip()
-        if not raw:
-            return datetime.min.replace(tzinfo=timezone.utc)
-        normalized = raw.replace("Z", "+00:00")
-        try:
-            parsed = datetime.fromisoformat(normalized)
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            return parsed
-        except Exception:
-            return datetime.min.replace(tzinfo=timezone.utc)
-
-    chat_items = []
-    for doc in docs_by_name.values():
-        fields = doc.get("fields", {}) or {}
-        chat_id = _extract_chat_id(str(doc.get("name") or ""))
-        if not chat_id:
-            continue
-
-        participants_raw = fields.get("participants", []) or []
-        participants = [
-            str(item).strip()
-            for item in participants_raw
-            if str(item).strip()
-        ]
-        if user_id_str not in participants:
-            # Fallback legacy dal nome doc: offerId_userA_userB
-            parts = chat_id.split("_")
-            if len(parts) >= 3:
-                participants = [parts[1].strip(), parts[2].strip()]
-        if user_id_str not in participants:
-            continue
-
-        other_user_id = next(
-            (participant for participant in participants if participant != user_id_str),
-            "",
+    """Restituisce la inbox chat usando esclusivamente il DB server."""
+    base_query = ChatThread.query.filter(
+        or_(
+            ChatThread.user_a_id == current_user.id,
+            ChatThread.user_b_id == current_user.id,
         )
-        if not other_user_id:
-            continue
-
-        participant_names = fields.get("participantNames", {}) or {}
-        participant_photos = fields.get("participantPhotos", {}) or {}
-        other_user_name = str(participant_names.get(other_user_id) or "").strip()
-        other_user_photo = str(participant_photos.get(other_user_id) or "").strip()
-
-        if not other_user_name or not other_user_photo:
-            try:
-                other_user_obj = User.query.get(int(other_user_id))
-                if other_user_obj:
-                    if not other_user_name:
-                        other_user_name = (other_user_obj.nome or "").strip()
-                    if not other_user_photo:
-                        other_user_photo = get_primary_photo_filename(other_user_obj) or other_user_photo
-            except Exception:
-                pass
-
-        offer_id = fields.get("offerId", 0)
-        if not isinstance(offer_id, int):
-            try:
-                offer_id = int(offer_id)
-            except Exception:
-                offer_id = 0
-        if offer_id <= 0:
-            try:
-                offer_id = int(chat_id.split("_")[0])
-            except Exception:
-                offer_id = 0
-
-        last_message_time = str(fields.get("lastMessageTime") or "").strip()
-        if not last_message_time:
-            last_message_time = str(fields.get("lastSeenAt") or "").strip()
-        if not last_message_time:
-            last_message_time = str(fields.get("createdAt") or "").strip()
-
-        chat_items.append({
-            "chat_id": chat_id,
-            "offer_id": offer_id,
-            "other_user_id": int(other_user_id) if other_user_id.isdigit() else 0,
-            "other_user_name": other_user_name or "Utente",
-            "other_user_photo_filename": other_user_photo,
-            "last_message": str(fields.get("lastMessage") or "").strip(),
-            "last_message_time": last_message_time,
-        })
-
-    chat_items.sort(
-        key=lambda item: _parse_iso_timestamp(item.get("last_message_time")),
-        reverse=True,
     )
+    threads = base_query.all()
+    now = chat_now_utc()
+    purged_any = False
+    for thread in threads:
+        if purge_chat_thread_if_expired(thread, now=now):
+            purged_any = True
+    if purged_any:
+        db.session.commit()
+        threads = base_query.all()
 
+    if not threads:
+        return jsonify({"success": True, "chats": []})
+
+    other_user_ids = {
+        thread.user_b_id if thread.user_a_id == current_user.id else thread.user_a_id
+        for thread in threads
+    }
+    users = User.query.filter(User.id.in_(other_user_ids)).all() if other_user_ids else []
+    users_by_id = {user.id: user for user in users}
+
+    enriched = []
+    for thread in threads:
+        other_user_id = (
+            thread.user_b_id if thread.user_a_id == current_user.id else thread.user_a_id
+        )
+        other_user = users_by_id.get(other_user_id)
+        sort_time = thread.last_message_time or thread.updated_at or thread.created_at or datetime.min
+        enriched.append((
+            sort_time,
+            {
+                "chat_id": build_chat_thread_key(thread.offer_id, thread.user_a_id, thread.user_b_id),
+                "offer_id": thread.offer_id,
+                "other_user_id": int(other_user_id),
+                "other_user_name": (
+                    other_user.nome.strip()
+                    if other_user and other_user.nome
+                    else "Utente"
+                ),
+                "other_user_photo_filename": (
+                    get_primary_photo_filename(other_user) if other_user else ""
+                ),
+                "last_message": (thread.last_message or "").strip(),
+                "last_message_time": datetime_to_iso_z(sort_time),
+            },
+        ))
+
+    enriched.sort(key=lambda item: item[0], reverse=True)
     return jsonify({
         "success": True,
-        "chats": chat_items,
+        "chats": [item[1] for item in enriched],
     })
 
 
@@ -6963,19 +7429,28 @@ def api_people():
                 "error": "La distanza community deve essere un numero tra 5 e 1500 km.",
             }), 400
 
+    now_utc = utc_now_naive()
     req_lat = (request.args.get("lat") or "").strip()
     req_lon = (request.args.get("lon") or "").strip()
-    search_lat = current_user.latitudine or DEFAULT_USER_LATITUDE
-    search_lon = current_user.longitudine or DEFAULT_USER_LONGITUDE
+    search_source = "profile"
     if req_lat and req_lon:
         try:
-            search_lat = float(req_lat.replace(",", "."))
-            search_lon = float(req_lon.replace(",", "."))
-        except ValueError:
+            search_lat = parse_coordinate(req_lat, kind="lat")
+            search_lon = parse_coordinate(req_lon, kind="lon")
+            search_source = "request_gps"
+        except Exception:
             return jsonify({
                 "success": False,
                 "error": "Le coordinate community non sono valide.",
             }), 400
+    else:
+        resolved_lat, resolved_lon, resolved_source = resolve_user_distance_coordinates(
+            current_user,
+            now_utc=now_utc,
+        )
+        search_lat = resolved_lat if resolved_lat is not None else DEFAULT_USER_LATITUDE
+        search_lon = resolved_lon if resolved_lon is not None else DEFAULT_USER_LONGITUDE
+        search_source = resolved_source if resolved_source != "none" else "default"
 
     people_query = User.query.options(selectinload(User.photos)).filter(
         User.id != current_user.id,
@@ -7002,18 +7477,17 @@ def api_people():
 
     people = people_query.order_by(User.eta.asc(), User.nome.asc()).all()
     if radius_km is not None:
-        people = [
-            person
-            for person in people
-            if person.latitudine is not None
-            and person.longitudine is not None
-            and calculate_distance(
-                search_lat,
-                search_lon,
-                person.latitudine,
-                person.longitudine,
-            ) <= radius_km
-        ]
+        filtered_people = []
+        for person in people:
+            person_lat, person_lon, _ = resolve_user_distance_coordinates(
+                person,
+                now_utc=now_utc,
+            )
+            if person_lat is None or person_lon is None:
+                continue
+            if calculate_distance(search_lat, search_lon, person_lat, person_lon) <= radius_km:
+                filtered_people.append(person)
+        people = filtered_people
     followed_user_ids = get_followed_user_ids(current_user.id)
 
     return jsonify({
@@ -7021,6 +7495,7 @@ def api_people():
         "selected_age_range": selected_age_range,
         "selected_gender": selected_gender,
         "selected_radius": radius_km,
+        "search_location_source": search_source,
         "age_ranges": [{"value": value, "label": label} for value, label in FASCE_ETA],
         "gender_filters": [{"value": value, "label": label} for value, label in COMMUNITY_GENDER_FILTERS],
         "people": [

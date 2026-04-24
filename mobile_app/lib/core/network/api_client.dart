@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -31,6 +32,8 @@ class ReviewHistoryBundle {
   final List<UserReview> received;
   final List<UserReview> given;
 }
+
+typedef UploadProgressCallback = void Function(int sentBytes, int totalBytes);
 
 class ApiClient {
   ApiClient({required this.sessionStore});
@@ -249,6 +252,23 @@ class ApiClient {
       path: '/api/push/token',
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'token': token}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+  }
+
+  Future<void> sendLiveLocationPing({
+    required double latitude,
+    required double longitude,
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/user/live-location',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'latitudine': latitude,
+        'longitudine': longitude,
+      }),
     );
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
@@ -782,18 +802,6 @@ class ApiClient {
         'Il tuo account è stato eliminato definitivamente.';
   }
 
-  Future<String> fetchFirebaseCustomToken() async {
-    final response = await _send(
-      method: 'POST',
-      path: '/api/firebase/custom-token',
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({}),
-    );
-    final payload = _decodeJson(response.body);
-    _ensureSuccess(payload, response.statusCode);
-    return payload['token']?.toString() ?? '';
-  }
-
   Future<void> sendChatMessageNotification({
     required int offerId,
     required int receiverId,
@@ -924,6 +932,7 @@ class ApiClient {
     required String filePath,
     required String kind,
     String fileName = '',
+    UploadProgressCallback? onProgress,
   }) async {
     if (offerId <= 0 || receiverId <= 0 || filePath.trim().isEmpty) {
       throw ApiException('Dati allegato chat non validi.');
@@ -932,6 +941,19 @@ class ApiClient {
     if (normalizedKind != 'image' && normalizedKind != 'file') {
       throw ApiException('Tipo allegato non valido.');
     }
+
+    final localFile = File(filePath);
+    final totalBytes = await localFile.length();
+    var sentBytes = 0;
+    final progressStream = localFile.openRead().transform(
+      StreamTransformer<List<int>, List<int>>.fromHandlers(
+        handleData: (List<int> chunk, EventSink<List<int>> sink) {
+          sentBytes += chunk.length;
+          onProgress?.call(sentBytes, totalBytes);
+          sink.add(chunk);
+        },
+      ),
+    );
 
     final request = http.MultipartRequest(
       'POST',
@@ -947,18 +969,20 @@ class ApiClient {
       'kind': normalizedKind,
     });
     request.files.add(
-      await http.MultipartFile.fromPath(
+      http.MultipartFile(
         'media',
-        filePath,
+        progressStream,
+        totalBytes,
         filename: fileName.trim().isNotEmpty
             ? fileName.trim()
-            : File(filePath).uri.pathSegments.last,
+            : localFile.uri.pathSegments.last,
       ),
     );
 
     final response = await _sendMultipart(request);
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
+    onProgress?.call(totalBytes, totalBytes);
     return payload;
   }
 
@@ -966,6 +990,7 @@ class ApiClient {
     required int offerId,
     required int otherUserId,
     required String mediaPath,
+    UploadProgressCallback? onProgress,
   }) async {
     if (offerId <= 0 || otherUserId <= 0 || mediaPath.trim().isEmpty) {
       throw ApiException('Dati allegato chat non validi.');
@@ -978,15 +1003,37 @@ class ApiClient {
         'media_path': mediaPath,
       },
     ).query;
-    final response = await _send(method: 'GET', path: '/api/chat/media?$query');
+    final uri = Uri.parse('$baseUrl/api/chat/media?$query');
+    final request = http.Request('GET', uri);
+    if ((_cookieHeader ?? '').isNotEmpty) {
+      request.headers['Cookie'] = _cookieHeader!;
+    }
 
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return response.bodyBytes;
+    final streamedResponse = await request.send();
+    if (streamedResponse.statusCode == 401) {
+      await _handleUnauthorizedResponse();
+    }
+
+    if (streamedResponse.statusCode >= 200 &&
+        streamedResponse.statusCode < 300) {
+      final totalBytes = streamedResponse.contentLength ?? 0;
+      var receivedBytes = 0;
+      final collected = <int>[];
+      await for (final chunk in streamedResponse.stream) {
+        collected.addAll(chunk);
+        receivedBytes += chunk.length;
+        onProgress?.call(receivedBytes, totalBytes);
+      }
+      if (totalBytes > 0) {
+        onProgress?.call(receivedBytes, totalBytes);
+      }
+      return collected;
     }
 
     String errorMessage = 'Non riesco a scaricare questo allegato.';
     try {
-      final payload = _decodeJson(response.body);
+      final body = await streamedResponse.stream.bytesToString();
+      final payload = _decodeJson(body);
       final serverError = payload['error']?.toString().trim() ?? '';
       if (serverError.isNotEmpty) {
         errorMessage = serverError;
@@ -994,7 +1041,7 @@ class ApiClient {
     } catch (_) {
       // Keep default error.
     }
-    throw ApiException(errorMessage, statusCode: response.statusCode);
+    throw ApiException(errorMessage, statusCode: streamedResponse.statusCode);
   }
 
   Future<void> deleteChatMediaBatch({
@@ -1083,6 +1130,111 @@ class ApiClient {
       path: '/api/chat/unblock',
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'other_user_id': otherUserId}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
+  }
+
+  Future<void> ensureChatThread({
+    required int offerId,
+    required int otherUserId,
+  }) async {
+    if (offerId <= 0 || otherUserId <= 0) {
+      throw ApiException('Dati chat non validi.');
+    }
+    final response = await _send(
+      method: 'POST',
+      path: '/api/chat/thread/ensure',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'offer_id': offerId,
+        'other_user_id': otherUserId,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchChatMessages({
+    required int offerId,
+    required int otherUserId,
+    int limit = 200,
+  }) async {
+    if (offerId <= 0 || otherUserId <= 0) {
+      throw ApiException('Dati chat non validi.');
+    }
+    final safeLimit = limit.clamp(20, 500).toString();
+    final response = await _send(
+      method: 'GET',
+      path: '/api/chat/messages?${Uri(queryParameters: {
+            'offer_id': offerId.toString(),
+            'other_user_id': otherUserId.toString(),
+            'limit': safeLimit,
+          }).query}',
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    final rawMessages = payload['messages'] as List<dynamic>? ?? const [];
+    return rawMessages
+        .whereType<Map<String, dynamic>>()
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> sendChatMessage({
+    required int offerId,
+    required int receiverId,
+    required String type,
+    String text = '',
+    String audioPath = '',
+    int audioDurationSec = 0,
+    String mediaPath = '',
+    String mediaFileName = '',
+    String mediaContentType = '',
+    int mediaSizeBytes = 0,
+  }) async {
+    if (offerId <= 0 || receiverId <= 0) {
+      throw ApiException('Dati chat non validi.');
+    }
+    final normalizedType = type.trim().toLowerCase();
+    final response = await _send(
+      method: 'POST',
+      path: '/api/chat/messages',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'offer_id': offerId,
+        'receiver_id': receiverId,
+        'type': normalizedType,
+        'text': text,
+        'audio_path': audioPath,
+        'audio_duration_sec': audioDurationSec,
+        'media_path': mediaPath,
+        'media_file_name': mediaFileName,
+        'media_content_type': mediaContentType,
+        'media_size_bytes': mediaSizeBytes,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
+  }
+
+  Future<Map<String, dynamic>> clearChatForEveryone({
+    required int offerId,
+    required int receiverId,
+  }) async {
+    if (offerId <= 0 || receiverId <= 0) {
+      throw ApiException('Dati chat non validi.');
+    }
+    final response = await _send(
+      method: 'POST',
+      path: '/api/chat/clear',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'offer_id': offerId,
+        'receiver_id': receiverId,
+      }),
     );
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);

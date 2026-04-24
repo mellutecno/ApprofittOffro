@@ -20,6 +20,7 @@ class OfferCard extends StatelessWidget {
     this.onChatClosed,
     this.onClaim,
     this.onEditOwn,
+    this.onDeleteOwn,
     this.onArchive,
     this.allowProfileOpen = true,
     this.showAddressLeadIcon = true,
@@ -33,6 +34,7 @@ class OfferCard extends StatelessWidget {
   final VoidCallback? onChatClosed;
   final Future<void> Function()? onClaim;
   final VoidCallback? onEditOwn;
+  final Future<void> Function()? onDeleteOwn;
   final Future<void> Function()? onArchive;
   final bool allowProfileOpen;
   final bool showAddressLeadIcon;
@@ -51,6 +53,11 @@ class OfferCard extends StatelessWidget {
           .toLocal()
           .isBefore(DateTime.now().subtract(const Duration(hours: 3)));
 
+  bool get _isEmptyStartedOwn =>
+      offer.isOwn &&
+      offer.participants.isEmpty &&
+      offer.dataOra.toLocal().isBefore(DateTime.now());
+
   List<String> _offerGalleryUrls() {
     final filenames = <String>[];
     if (offer.fotoLocale.isNotEmpty && offer.fotoLocale != 'nessuna.jpg') {
@@ -68,6 +75,7 @@ class OfferCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final darkPalette = AppTheme.useMusicAiPalette;
     final mealColor = _mealColor(offer.tipoPasto);
     final isUpcoming = offer.dataOra.toLocal().isAfter(DateTime.now());
     final canNavigateToOffer = offer.isOwn || offer.claimStatus == 'claimed';
@@ -219,8 +227,10 @@ class OfferCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFF8EEE3), Color(0xFFF1E2D4)],
+                  gradient: LinearGradient(
+                    colors: darkPalette
+                        ? const [Color(0xFF182337), Color(0xFF1E2A43)]
+                        : const [Color(0xFFF8EEE3), Color(0xFFF1E2D4)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -367,8 +377,10 @@ class OfferCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFFFBF7), Color(0xFFF2E5D9)],
+                  gradient: LinearGradient(
+                    colors: darkPalette
+                        ? const [Color(0xFF141D31), Color(0xFF1A2640)]
+                        : const [Color(0xFFFFFBF7), Color(0xFFF2E5D9)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -462,6 +474,34 @@ class OfferCard extends StatelessWidget {
                     ),
                   ),
                 )
+              else if (_isEmptyStartedOwn)
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: onEditOwn,
+                        child: const Text('Modifica la tua offerta'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: onDeleteOwn == null
+                            ? null
+                            : () => onDeleteOwn?.call(),
+                        icon: const Icon(Icons.delete_forever_rounded),
+                        label: const Text('Elimina evento a vuoto'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent.shade700,
+                          side: BorderSide(
+                            color: Colors.redAccent.shade700,
+                            width: 1.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
               else if (_isOngoing && offer.isOwn)
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -518,6 +558,9 @@ class OfferCard extends StatelessWidget {
   String _ctaLabel() {
     if (offer.stato == 'archiviata') {
       return 'Evento archiviato';
+    }
+    if (_isEmptyStartedOwn) {
+      return 'Elimina evento a vuoto';
     }
     if (_isOngoing && offer.isOwn) {
       return 'In corso';

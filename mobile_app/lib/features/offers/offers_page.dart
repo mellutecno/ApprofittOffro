@@ -358,7 +358,6 @@ class _OffersPageState extends State<OffersPage> {
         final user = widget.authController.currentUser;
         final hasOffersToManage = user != null &&
             (user.pendingClaimRequests.isNotEmpty ||
-                user.manageableOffersCount > 0 ||
                 widget.offersController.hiddenOwnOffersCount > 0);
 
         return RefreshIndicator(
@@ -1017,7 +1016,15 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                 label: Text('$minutes min'),
                 selected: isSelected,
                 onSelected: (_) => _toggleOption(minutes),
-                selectedColor: const Color(0xFFFFD54F),
+                selectedColor: AppTheme.useMusicAiPalette
+                    ? AppTheme.orange.withValues(alpha: 0.38)
+                    : const Color(0xFFFFD54F),
+                labelStyle: TextStyle(
+                  color: AppTheme.useMusicAiPalette
+                      ? AppTheme.espresso
+                      : null,
+                  fontWeight: FontWeight.w700,
+                ),
               );
             }).toList(),
           ),
@@ -1059,6 +1066,7 @@ class _MealChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final darkPalette = AppTheme.useMusicAiPalette;
     final chip = SizedBox(
       height: 48,
       child: FilterChip(
@@ -1068,11 +1076,16 @@ class _MealChip extends StatelessWidget {
           child: Text(label, textAlign: TextAlign.center),
         ),
         onSelected: (_) => onTap(value),
-        backgroundColor: AppTheme.paper.withValues(alpha: 0.92),
-        selectedColor: _colorForValue(value).withValues(alpha: 0.16),
+        backgroundColor:
+            darkPalette ? AppTheme.sand : AppTheme.paper.withValues(alpha: 0.92),
+        selectedColor: _colorForValue(value).withValues(
+          alpha: darkPalette ? 0.26 : 0.16,
+        ),
         side: BorderSide(color: _colorForValue(value).withValues(alpha: 0.22)),
         labelStyle: TextStyle(
-          color: selected ? _colorForValue(value) : null,
+          color: selected
+              ? _colorForValue(value)
+              : (darkPalette ? AppTheme.espresso : null),
           fontWeight: FontWeight.w700,
         ),
         labelPadding: const EdgeInsets.symmetric(horizontal: 4),

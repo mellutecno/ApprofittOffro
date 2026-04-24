@@ -98,10 +98,13 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                           const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final review = profile.reviews[index];
+                        final previewText = review.comment.trim().isNotEmpty
+                            ? review.comment.trim()
+                            : 'Nessun commento scritto per questa recensione.';
                         return _CompactPublicReviewTile(
                           review: review,
                           title: review.reviewer?.nome ?? 'Utente',
-                          subtitle: 'Ha lasciato una recensione',
+                          previewText: previewText,
                           onTap: () {
                             Navigator.of(sheetContext).pop();
                             _openReviewDetailSheet(profile, review);
@@ -679,20 +682,20 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                             gradient: AppTheme.surfaceGradient,
                           ),
                           child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundImage: imageUrl != null
-                                ? NetworkImage(imageUrl)
-                                : null,
-                            child: imageUrl == null
-                                ? const Icon(Icons.person_outline)
-                                : null,
-                          ),
-                          title: Text(follower.nome),
-                          subtitle: Text(
-                            '${follower.etaDisplay} anni - ${follower.cityLabel}',
-                          ),
-                          trailing: const Icon(Icons.chevron_right_rounded),
-                          onTap: () => _openLinkedPublicProfile(follower.id),
+                            leading: CircleAvatar(
+                              backgroundImage: imageUrl != null
+                                  ? NetworkImage(imageUrl)
+                                  : null,
+                              child: imageUrl == null
+                                  ? const Icon(Icons.person_outline)
+                                  : null,
+                            ),
+                            title: Text(follower.nome),
+                            subtitle: Text(
+                              '${follower.etaDisplay} anni - ${follower.cityLabel}',
+                            ),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: () => _openLinkedPublicProfile(follower.id),
                           ),
                         ),
                       );
@@ -734,6 +737,10 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final extraBadgeBackground =
+        AppTheme.useMusicAiPalette ? AppTheme.orange : AppTheme.espresso;
+    final extraBadgeTextColor =
+        AppTheme.useMusicAiPalette ? Colors.white : Colors.white;
     final imageUrl = user.photoFilename.isNotEmpty
         ? apiClient.buildUploadUrl(user.photoFilename)
         : null;
@@ -790,7 +797,7 @@ class _ProfileHeader extends StatelessWidget {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: AppTheme.espresso,
+                        color: extraBadgeBackground,
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(
                           color: AppTheme.paper,
@@ -799,8 +806,8 @@ class _ProfileHeader extends StatelessWidget {
                       ),
                       child: Text(
                         '+$extraPhotoCount',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: extraBadgeTextColor,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -814,10 +821,12 @@ class _ProfileHeader extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
+                Icon(
                   Icons.photo_library_outlined,
                   size: 18,
-                  color: AppTheme.espresso,
+                  color: AppTheme.useMusicAiPalette
+                      ? AppTheme.orange
+                      : AppTheme.espresso,
                 ),
                 const SizedBox(width: 6),
                 Text(
@@ -884,24 +893,25 @@ class _InfoCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: emphasizedValue ? 17 : null,
-                fontWeight: emphasizedValue ? FontWeight.w700 : FontWeight.w500,
-                height: 1.4,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: emphasizedValue ? 17 : null,
+                  fontWeight:
+                      emphasizedValue ? FontWeight.w700 : FontWeight.w500,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -938,48 +948,49 @@ class _CompactReviewSectionCard extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(18),
             child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: AppTheme.mist,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppTheme.cardBorder),
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppTheme.mist,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppTheme.cardBorder),
+                  ),
+                  child: Icon(icon, color: AppTheme.orange),
                 ),
-                child: Icon(icon, color: AppTheme.orange),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 4),
-                    Text(
-                      count == 0 ? emptyText : '$count recensioni',
-                      style: TextStyle(
-                        color: AppTheme.brown.withValues(alpha: 0.76),
-                        fontWeight: FontWeight.w700,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      Text(
+                        count == 0 ? emptyText : '$count recensioni',
+                        style: TextStyle(
+                          color: AppTheme.brown.withValues(alpha: 0.76),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              if (count > 0) ...[
-                Text(
-                  actionLabel,
-                  style: TextStyle(
-                    color: AppTheme.orange,
-                    fontWeight: FontWeight.w800,
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Icon(Icons.chevron_right_rounded, color: AppTheme.orange),
+                if (count > 0) ...[
+                  Text(
+                    actionLabel,
+                    style: TextStyle(
+                      color: AppTheme.orange,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.chevron_right_rounded, color: AppTheme.orange),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -990,24 +1001,17 @@ class _CompactPublicReviewTile extends StatelessWidget {
   const _CompactPublicReviewTile({
     required this.review,
     required this.title,
-    required this.subtitle,
+    required this.previewText,
     required this.onTap,
   });
 
   final UserReview review;
   final String title;
-  final String subtitle;
+  final String previewText;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final offer = review.offer;
-    final eventDateText = offer?.dateTime != null
-        ? DateFormat("EEEE d MMMM 'alle' HH:mm", 'it_IT').format(
-            offer!.dateTime!.toLocal(),
-          )
-        : '';
-
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -1020,66 +1024,57 @@ class _CompactPublicReviewTile extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            color: AppTheme.brown.withValues(alpha: 0.72),
-                            fontWeight: FontWeight.w600,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 2),
+                          Text(
+                            'Ha lasciato una recensione',
+                            style: TextStyle(
+                              color: AppTheme.brown.withValues(alpha: 0.72),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const Icon(
-                    Icons.star_rounded,
-                    color: AppTheme.gold,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${review.rating}/5',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(Icons.chevron_right_rounded, color: AppTheme.orange),
-                ],
-              ),
-              if (offer != null) ...[
+                    const Icon(
+                      Icons.star_rounded,
+                      color: AppTheme.gold,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${review.rating}/5',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(Icons.chevron_right_rounded, color: AppTheme.orange),
+                  ],
+                ),
                 const SizedBox(height: 10),
                 Text(
-                  '${offer.mealType} - ${offer.localeName}',
+                  previewText,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppTheme.espresso,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-              if (eventDateText.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  eventDateText,
-                  style: TextStyle(
-                    color: AppTheme.brown.withValues(alpha: 0.76),
                     fontWeight: FontWeight.w700,
+                    height: 1.35,
                   ),
                 ),
               ],
-            ],
+            ),
           ),
-        ),
         ),
       ),
     );

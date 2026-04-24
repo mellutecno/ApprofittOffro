@@ -55,6 +55,9 @@ class User(UserMixin, db.Model):
     numero_telefono = db.Column(db.String(32), nullable=True)
     latitudine = db.Column(db.Float, nullable=False)
     longitudine = db.Column(db.Float, nullable=False)
+    live_latitudine = db.Column(db.Float, nullable=True)
+    live_longitudine = db.Column(db.Float, nullable=True)
+    live_location_at = db.Column(db.DateTime, nullable=True)
     citta = db.Column(db.String(200), nullable=True) # Aggiunta colonna mancante per l'indirizzo testuale
     cibi_preferiti = db.Column(db.String(300), nullable=True) # Aggiunta per Profilazione
     intolleranze = db.Column(db.String(300), nullable=True) # Aggiunta per Profilazione
@@ -267,6 +270,63 @@ class UserBlock(db.Model):
 
     def __repr__(self):
         return f"<UserBlock blocker={self.blocker_id} blocked={self.blocked_id}>"
+
+
+class ChatThread(db.Model):
+    """Conversazione chat persistente fra due utenti su uno specifico evento."""
+    __tablename__ = "chat_threads"
+
+    id = db.Column(db.Integer, primary_key=True)
+    offer_id = db.Column(db.Integer, db.ForeignKey("offers.id"), nullable=False)
+    user_a_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user_b_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    last_message = db.Column(db.Text, nullable=True)
+    last_message_type = db.Column(db.String(24), nullable=True, default="text")
+    last_message_time = db.Column(db.DateTime, nullable=True)
+    last_sender_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    cleared_at = db.Column(db.DateTime, nullable=True)
+    cleared_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "offer_id",
+            "user_a_id",
+            "user_b_id",
+            name="unique_chat_thread_offer_pair",
+        ),
+    )
+
+    def __repr__(self):
+        return f"<ChatThread offer={self.offer_id} pair={self.user_a_id}-{self.user_b_id}>"
+
+
+class ChatMessage(db.Model):
+    """Messaggio chat (testo, vocale, foto o file) salvato nel DB server."""
+    __tablename__ = "chat_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    thread_id = db.Column(db.Integer, db.ForeignKey("chat_threads.id"), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    sender_name = db.Column(db.String(120), nullable=False)
+    message_type = db.Column(db.String(24), nullable=False, default="text")
+    text = db.Column(db.Text, nullable=True)
+    audio_path = db.Column(db.String(512), nullable=True)
+    audio_duration_sec = db.Column(db.Integer, nullable=True)
+    media_path = db.Column(db.String(512), nullable=True)
+    media_file_name = db.Column(db.String(255), nullable=True)
+    media_content_type = db.Column(db.String(120), nullable=True)
+    media_size_bytes = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    thread = db.relationship("ChatThread", backref=db.backref("messages", lazy=True))
+
+    def __repr__(self):
+        return (
+            f"<ChatMessage thread={self.thread_id} sender={self.sender_id} "
+            f"type={self.message_type}>"
+        )
 
 
 class UserReminder(db.Model):

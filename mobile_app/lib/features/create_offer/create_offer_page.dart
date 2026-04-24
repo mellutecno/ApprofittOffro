@@ -295,38 +295,53 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                   ),
                   if (_visiblePublicationTimingWarning != null) ...[
                     const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF1ED),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: const Color(0xFFF1B8AA)),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Padding(
-                            padding: EdgeInsets.only(top: 1),
-                            child: Icon(
-                              Icons.schedule_outlined,
-                              color: Color(0xFFB65C45),
-                              size: 20,
+                    Builder(
+                      builder: (context) {
+                        final darkPalette = AppTheme.useMusicAiPalette;
+                        return Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: darkPalette
+                                ? AppTheme.sand.withValues(alpha: 0.88)
+                                : const Color(0xFFFFF1ED),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: darkPalette
+                                  ? AppTheme.cardBorder
+                                  : const Color(0xFFF1B8AA),
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              _visiblePublicationTimingWarning!,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: const Color(0xFF8A4336),
-                                fontWeight: FontWeight.w700,
-                                height: 1.35,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(top: 1),
+                                child: Icon(
+                                  Icons.schedule_outlined,
+                                  color: darkPalette
+                                      ? AppTheme.orange
+                                      : const Color(0xFFB65C45),
+                                  size: 20,
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _visiblePublicationTimingWarning!,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: darkPalette
+                                        ? AppTheme.brown
+                                        : const Color(0xFF8A4336),
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
                   ],
                   const SizedBox(height: 14),
@@ -522,7 +537,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                     onPressed: _submitting ? null : _pickEventPhotos,
                     icon: const Icon(Icons.photo_camera_back_outlined),
                     label: Text(
-                      (_existingGalleryFilenames.isEmpty && _pickedImages.isEmpty)
+                      (_existingGalleryFilenames.isEmpty &&
+                              _pickedImages.isEmpty)
                           ? 'Aggiungi fino a 3 foto evento'
                           : 'Gestisci foto evento',
                     ),
@@ -590,9 +606,17 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                           : const Icon(Icons.delete_outline_rounded),
                       label: const Text('Elimina offerta'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF8A4336),
-                        side: const BorderSide(color: Color(0xFFD7B4AC)),
-                        backgroundColor: const Color(0xFFF7ECE8),
+                        foregroundColor: AppTheme.useMusicAiPalette
+                            ? AppTheme.orange
+                            : const Color(0xFF8A4336),
+                        side: BorderSide(
+                          color: AppTheme.useMusicAiPalette
+                              ? AppTheme.cardBorder
+                              : const Color(0xFFD7B4AC),
+                        ),
+                        backgroundColor: AppTheme.useMusicAiPalette
+                            ? AppTheme.sand.withValues(alpha: 0.74)
+                            : const Color(0xFFF7ECE8),
                       ),
                     ),
                   ),
@@ -677,13 +701,19 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
   Widget _buildMapPickerSheet(BuildContext context) {
     final theme = Theme.of(context);
+    final darkPalette = AppTheme.useMusicAiPalette;
 
     return FractionallySizedBox(
       heightFactor: 0.88,
       child: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFFFFFBF7),
+        decoration: BoxDecoration(
+          color: darkPalette ? AppTheme.paper : const Color(0xFFFFFBF7),
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(
+            top: BorderSide(
+              color: AppTheme.cardBorder.withValues(alpha: 0.9),
+            ),
+          ),
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 20),
@@ -1605,10 +1635,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       if (widget.onOfferCreated != null) {
         await widget.onOfferCreated!.call();
       }
-        _localeController.clear();
-        _addressController.clear();
-        _phoneController.clear();
-        _descriptionController.clear();
+      _localeController.clear();
+      _addressController.clear();
+      _phoneController.clear();
+      _descriptionController.clear();
       setState(() {
         _mealType = null;
         _totalSeats = 1;
@@ -2075,6 +2105,7 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final darkPalette = AppTheme.useMusicAiPalette;
     final isManualAddress = place.id.startsWith('manual_address:');
     final titleText = isManualAddress ? place.address : place.name;
     final subtitleText = isManualAddress
@@ -2084,12 +2115,15 @@ class _SelectedPlacePreviewCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.96),
+        color: darkPalette
+            ? AppTheme.paper.withValues(alpha: 0.98)
+            : Colors.white.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppTheme.cardBorder),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x22000000),
+            color:
+                darkPalette ? const Color(0x52000000) : const Color(0x22000000),
             blurRadius: 14,
             offset: Offset(0, 8),
           ),
@@ -2167,6 +2201,7 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final darkPalette = AppTheme.useMusicAiPalette;
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: SizedBox(
@@ -2209,11 +2244,15 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.96),
+                      color: darkPalette
+                          ? AppTheme.paper.withValues(alpha: 0.95)
+                          : Colors.white.withValues(alpha: 0.96),
                       borderRadius: BorderRadius.circular(18),
-                      boxShadow: const [
+                      boxShadow: [
                         BoxShadow(
-                          color: Color(0x22000000),
+                          color: darkPalette
+                              ? const Color(0x52000000)
+                              : const Color(0x22000000),
                           blurRadius: 18,
                           offset: Offset(0, 8),
                         ),
@@ -2241,15 +2280,19 @@ class _BusyMapBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final darkPalette = AppTheme.useMusicAiPalette;
     return Container(
       width: 42,
       height: 42,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.94),
+        color: darkPalette
+            ? AppTheme.paper.withValues(alpha: 0.94)
+            : Colors.white.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x22000000),
+            color:
+                darkPalette ? const Color(0x52000000) : const Color(0x22000000),
             blurRadius: 16,
             offset: Offset(0, 8),
           ),
@@ -2350,6 +2393,7 @@ class _MealChoiceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final darkPalette = AppTheme.useMusicAiPalette;
     final selected = currentValue == value;
     final color = switch (value) {
       'colazione' => const Color(0xFFD49B00),
@@ -2368,12 +2412,14 @@ class _MealChoiceChip extends StatelessWidget {
           child: Text(label, textAlign: TextAlign.center),
         ),
         onSelected: onSelected == null ? null : (_) => onSelected!(value),
-        backgroundColor: Colors.white,
-        selectedColor: color.withValues(alpha: 0.16),
+        backgroundColor: darkPalette ? AppTheme.sand : Colors.white,
+        selectedColor: color.withValues(alpha: darkPalette ? 0.26 : 0.16),
         side: BorderSide(color: color.withValues(alpha: 0.36)),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         labelStyle: TextStyle(
-          color: selected ? color : AppTheme.brown,
+          color: selected
+              ? color
+              : (darkPalette ? AppTheme.espresso : AppTheme.brown),
           fontWeight: FontWeight.w800,
         ),
       ),

@@ -26,10 +26,6 @@ val hasReleaseSigning =
     listOf("storeFile", "storePassword", "keyAlias", "keyPassword").all {
         !keystoreProperties.getProperty(it).isNullOrBlank()
     }
-val isPlayBuild = gradle.startParameter.taskNames.any { taskName ->
-    taskName.contains("Play", ignoreCase = true)
-}
-
 val googleMapsApiKey =
     System.getenv("GOOGLE_MAPS_ANDROID_API_KEY")
         ?: localProperties.getProperty("google.maps.api.key", "")
@@ -64,7 +60,7 @@ android {
         create("play") {
             dimension = "distribution"
             applicationId = "com.mellutecno.approfittoffro"
-            versionCode = 3025
+            versionCode = 3030
         }
     }
 
@@ -86,7 +82,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (hasReleaseSigning && isPlayBuild) {
+            signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")

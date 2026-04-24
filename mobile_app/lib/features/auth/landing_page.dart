@@ -471,18 +471,27 @@ class _LandingStepCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final darkPalette = AppTheme.useMusicAiPalette;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.8),
+        gradient: darkPalette
+            ? AppTheme.surfaceGradient
+            : const LinearGradient(
+                colors: [Color(0xFFFFFCF7), Color(0xFFF7EFE3)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.82),
+          color:
+              AppTheme.cardBorder.withValues(alpha: darkPalette ? 0.9 : 0.82),
         ),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x12000000),
+            color:
+                darkPalette ? const Color(0x52000000) : const Color(0x12000000),
             blurRadius: 16,
             offset: Offset(0, 8),
           ),
@@ -522,26 +531,37 @@ class _LandingInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final darkPalette = AppTheme.useMusicAiPalette;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: highlighted
-              ? const [Color(0xFFFFF7E9), Color(0xFFF9E3BF)]
-              : const [Color(0xFFFFFCF7), Color(0xFFF7EFE3)],
+              ? (darkPalette
+                  ? const [Color(0xFF1F2950), Color(0xFF293667)]
+                  : const [Color(0xFFFFF7E9), Color(0xFFF9E3BF)])
+              : (darkPalette
+                  ? const [Color(0xFF121A31), Color(0xFF182341)]
+                  : const [Color(0xFFFFFCF7), Color(0xFFF7EFE3)]),
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: highlighted ? const Color(0xFFE0BB74) : AppTheme.cardBorder,
+          color: highlighted
+              ? (darkPalette
+                  ? AppTheme.orange.withValues(alpha: 0.78)
+                  : const Color(0xFFE0BB74))
+              : AppTheme.cardBorder,
           width: highlighted ? 1.4 : 1,
         ),
         boxShadow: highlighted
-            ? const [
+            ? [
                 BoxShadow(
-                  color: Color(0x1A7A4A00),
+                  color: darkPalette
+                      ? const Color(0x4A1C2E6D)
+                      : const Color(0x1A7A4A00),
                   blurRadius: 18,
                   offset: Offset(0, 10),
                 ),
@@ -557,7 +577,9 @@ class _LandingInfoCard extends StatelessWidget {
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontSize: highlighted ? 22 : 18,
                   fontWeight: highlighted ? FontWeight.w900 : FontWeight.w800,
-                  color: highlighted ? AppTheme.espresso : AppTheme.brown,
+                  color: highlighted
+                      ? AppTheme.espresso
+                      : (darkPalette ? AppTheme.espresso : AppTheme.brown),
                 ),
           ),
           const SizedBox(height: 8),
@@ -568,7 +590,9 @@ class _LandingInfoCard extends StatelessWidget {
                   height: 1.45,
                   fontSize: highlighted ? 16.5 : null,
                   fontWeight: highlighted ? FontWeight.w600 : FontWeight.w500,
-                  color: highlighted ? AppTheme.espresso : AppTheme.brown,
+                  color: highlighted
+                      ? (darkPalette ? AppTheme.brown : AppTheme.espresso)
+                      : AppTheme.brown,
                 ),
           ),
         ],
@@ -586,10 +610,13 @@ class _LandingNoticeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final darkPalette = AppTheme.useMusicAiPalette;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.86),
+        color: darkPalette
+            ? AppTheme.paper.withValues(alpha: 0.96)
+            : Colors.white.withValues(alpha: 0.86),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(color: AppTheme.cardBorder),
       ),
@@ -614,6 +641,7 @@ class _PublicOfferCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final darkPalette = AppTheme.useMusicAiPalette;
     final mealColor = _mealColor(offer.tipoPasto);
     final authorPhotoUrl = offer.autoreFoto.isNotEmpty
         ? apiClient.buildUploadUrl(offer.autoreFoto)
@@ -622,12 +650,19 @@ class _PublicOfferCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: darkPalette
+            ? AppTheme.paper.withValues(alpha: 0.98)
+            : Colors.white.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
-        boxShadow: const [
+        border: Border.all(
+          color: darkPalette
+              ? AppTheme.cardBorder.withValues(alpha: 0.9)
+              : Colors.white.withValues(alpha: 0.9),
+        ),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x16000000),
+            color:
+                darkPalette ? const Color(0x56000000) : const Color(0x16000000),
             blurRadius: 18,
             offset: Offset(0, 10),
           ),
