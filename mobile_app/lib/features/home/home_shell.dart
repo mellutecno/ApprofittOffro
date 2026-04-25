@@ -432,12 +432,9 @@ class _HomeShellState extends State<HomeShell> {
 
     return Scaffold(
       body: SafeArea(
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          child: KeyedSubtree(
-            key: ValueKey<int>(selectedIndex),
-            child: pages[selectedIndex],
-          ),
+        child: IndexedStack(
+          index: selectedIndex,
+          children: pages,
         ),
       ),
       bottomNavigationBar: DecoratedBox(
@@ -515,6 +512,12 @@ class _HomeShellState extends State<HomeShell> {
                   ),
                 ],
           onDestinationSelected: (index) {
+            if (index == _selectedIndex) {
+              if (!_isAdminUser && index == 0) {
+                unawaited(_offersController.loadOffers());
+              }
+              return;
+            }
             setState(() => _selectedIndex = index);
           },
         ),
