@@ -9,6 +9,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:mime/mime.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -29,6 +30,7 @@ enum _ChatMenuAction {
 enum _ChatComposerMediaAction {
   file,
   camera,
+  cameraVideo,
   voice,
 }
 
@@ -80,7 +82,7 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   static const int _maxVoiceSeconds = 30;
   static const int _imageCompressionThresholdBytes = 2 * 1024 * 1024;
-  static const int _videoCompressionThresholdBytes = 12 * 1024 * 1024;
+  static const int _videoCompressionThresholdBytes = 10 * 1024 * 1024;
   static const int _imageCompressionQuality = 74;
   static const int _imageCompressionMaxDimension = 1600;
   static const Set<String> _imageExtensions = <String>{
@@ -134,16 +136,19 @@ class _ChatPageState extends State<ChatPage> {
   List<Map<String, dynamic>> _messages = const <Map<String, dynamic>>[];
   late String _resolvedOtherUserName;
   late String _resolvedOtherUserPhotoFilename;
+  int? _resolvedOfferId;
+  int? _presenceOfferId;
 
   String get _chatHiddenMessagesPrefsKey => 'chat_hidden_messages_$_chatId';
   Set<String> _hiddenMessageIds = <String>{};
 
   String get _chatId {
     final ids = [widget.currentUserId, widget.otherUserId]..sort();
-    return '${widget.offerId}_${ids[0]}_${ids[1]}';
+    return 'pair_${ids[0]}_${ids[1]}';
   }
 
-  int? get _parsedOfferId => int.tryParse(widget.offerId);
+  int? get _initialOfferId => int.tryParse(widget.offerId);
+  int? get _parsedOfferId => _resolvedOfferId ?? _initialOfferId;
   int? get _parsedOtherUserId => int.tryParse(widget.otherUserId);
   String? get _otherUserPhotoUrl {
     final filename = _resolvedOtherUserPhotoFilename.trim();
@@ -160,13 +165,14 @@ class _ChatPageState extends State<ChatPage> {
         ? 'Utente'
         : widget.otherUserName.trim();
     _resolvedOtherUserPhotoFilename = widget.otherUserPhotoFilename.trim();
-    final offerId = _parsedOfferId;
+    final offerId = _initialOfferId;
     final otherUserId = _parsedOtherUserId;
     if (offerId != null && otherUserId != null) {
       ChatPresenceTracker.setActiveConversation(
         offerId: offerId,
         otherUserId: otherUserId,
       );
+      _presenceOfferId = offerId;
     }
     _playerStateSubscription = _audioPlayer.playerStateStream.listen((state) {
       if (!mounted) {
@@ -184,7 +190,7 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
-    final offerId = _parsedOfferId;
+    final offerId = _presenceOfferId ?? _parsedOfferId;
     final otherUserId = _parsedOtherUserId;
     if (offerId != null && otherUserId != null) {
       ChatPresenceTracker.clearConversation(
@@ -226,10 +232,68 @@ class _ChatPageState extends State<ChatPage> {
         otherUserId <= 0) {
       throw Exception('Dati chat non validi.');
     }
-    await widget.apiClient.ensureChatThread(
+    final payload = await widget.apiClient.ensureChatThread(
       offerId: offerId,
       otherUserId: otherUserId,
     );
+    final canonicalOfferId = (payload['offer_id'] as num?)?.toInt() ??
+        int.tryParse('${payload['offer_id'] ?? ''}');
+    final resolvedName = (payload['other_user_name'] ?? '').toString().trim();
+    final resolvedPhoto =
+        (payload['other_user_photo_filename'] ?? '').toString().trim();
+
+    if (canonicalOfferId != null && canonicalOfferId > 0) {
+      final previousPresenceOffer = _presenceOfferId;
+      if (previousPresenceOffer != canonicalOfferId) {
+        if (previousPresenceOffer != null && otherUserId > 0) {
+          ChatPresenceTracker.clearConversation(
+            offerId: previousPresenceOffer,
+            otherUserId: otherUserId,
+          );
+        }
+        ChatPresenceTracker.setActiveConversation(
+          offerId: canonicalOfferId,
+          otherUserId: otherUserId,
+        );
+        _presenceOfferId = canonicalOfferId;
+      }
+    }
+
+    final shouldUpdateOffer = canonicalOfferId != null &&
+        canonicalOfferId > 0 &&
+        canonicalOfferId != _resolvedOfferId;
+    final shouldUpdateName =
+        resolvedName.isNotEmpty && resolvedName != _resolvedOtherUserName;
+    final shouldUpdatePhoto = resolvedPhoto.isNotEmpty &&
+        resolvedPhoto != _resolvedOtherUserPhotoFilename;
+    if (!shouldUpdateOffer && !shouldUpdateName && !shouldUpdatePhoto) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        if (shouldUpdateOffer) {
+          _resolvedOfferId = canonicalOfferId;
+        }
+        if (shouldUpdateName) {
+          _resolvedOtherUserName = resolvedName;
+        }
+        if (shouldUpdatePhoto) {
+          _resolvedOtherUserPhotoFilename = resolvedPhoto;
+        }
+      });
+      return;
+    }
+
+    if (shouldUpdateOffer) {
+      _resolvedOfferId = canonicalOfferId;
+    }
+    if (shouldUpdateName) {
+      _resolvedOtherUserName = resolvedName;
+    }
+    if (shouldUpdatePhoto) {
+      _resolvedOtherUserPhotoFilename = resolvedPhoto;
+    }
   }
 
   void _startMessagesPolling() {
@@ -709,6 +773,77 @@ class _ChatPageState extends State<ChatPage> {
   bool _isVideoFileName(String fileName) =>
       _videoExtensions.contains(_fileExtensionFromName(fileName));
 
+  Future<String?> _probeMimeType(String localPath) async {
+    try {
+      final direct = lookupMimeType(localPath)?.trim().toLowerCase();
+      if (direct != null && direct.isNotEmpty) {
+        return direct;
+      }
+    } catch (_) {
+      // Best effort.
+    }
+    try {
+      final file = File(localPath);
+      if (!await file.exists()) {
+        return null;
+      }
+      final header = await file.openRead(0, 64).fold<List<int>>(
+        <int>[],
+        (acc, chunk) {
+          acc.addAll(chunk);
+          return acc;
+        },
+      );
+      if (header.isEmpty) {
+        return null;
+      }
+      final sniffed = lookupMimeType(
+        localPath,
+        headerBytes: header,
+      )?.trim().toLowerCase();
+      if (sniffed != null && sniffed.isNotEmpty) {
+        return sniffed;
+      }
+    } catch (_) {
+      // Best effort.
+    }
+    return null;
+  }
+
+  Future<bool> _isLikelyImageFile({
+    required String localPath,
+    required String displayFileName,
+  }) async {
+    if (_isImageFileName(displayFileName) || _isImageFileName(localPath)) {
+      return true;
+    }
+    final mimeType = await _probeMimeType(localPath);
+    return mimeType?.startsWith('image/') ?? false;
+  }
+
+  Future<bool> _isLikelyVideoFile({
+    required String localPath,
+    required String displayFileName,
+  }) async {
+    if (_isVideoFileName(displayFileName) || _isVideoFileName(localPath)) {
+      return true;
+    }
+    final mimeType = await _probeMimeType(localPath);
+    if (mimeType?.startsWith('video/') ?? false) {
+      return true;
+    }
+    try {
+      final info = await VideoCompress.getMediaInfo(localPath)
+          .timeout(const Duration(seconds: 10));
+      final width = (info.width ?? 0).toDouble();
+      final height = (info.height ?? 0).toDouble();
+      final duration = (info.duration ?? 0).toDouble();
+      return duration > 0 && (width > 0 || height > 0);
+    } catch (_) {
+      return false;
+    }
+  }
+
   bool _isVideoMessage(Map<String, dynamic> data) {
     final mediaFileName = data['mediaFileName']?.toString().trim() ?? '';
     final mediaPath = data['mediaPath']?.toString().trim() ?? '';
@@ -823,16 +958,18 @@ class _ChatPageState extends State<ChatPage> {
       _isMusicAiDark ? const Color(0xFF070A11) : const Color(0xFFF8F0E9);
   Color get _chatCanvasBottom =>
       _isMusicAiDark ? const Color(0xFF11182A) : const Color(0xFFF4ECE5);
-  Color get _chatInputSurface =>
-      _isMusicAiDark ? const Color(0xFF1A2439) : (Colors.grey[100] ?? AppTheme.mist);
+  Color get _chatInputSurface => _isMusicAiDark
+      ? const Color(0xFF1A2439)
+      : (Colors.grey[100] ?? AppTheme.mist);
   Color get _chatInputBorder =>
       _isMusicAiDark ? const Color(0xFF2F3B5A) : AppTheme.cardBorder;
   Color get _incomingBubbleColor =>
       _isMusicAiDark ? const Color(0xFF1C263D) : const Color(0xFFF7EADF);
   Color get _incomingVideoBubbleColor =>
       _isMusicAiDark ? const Color(0xFF182133) : const Color(0xFFF9F2EA);
-  Color get _outgoingBubbleColor =>
-      _isMusicAiDark ? const Color(0xFF314783) : AppTheme.orange.withValues(alpha: 0.94);
+  Color get _outgoingBubbleColor => _isMusicAiDark
+      ? const Color(0xFF314783)
+      : AppTheme.orange.withValues(alpha: 0.94);
   Color get _outgoingVideoBubbleColor =>
       _isMusicAiDark ? const Color(0xFF273B72) : const Color(0xFFF4E8DE);
 
@@ -1218,7 +1355,7 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Future<String> _compressVideoForChatUpload(String sourcePath) async {
+  Future<String?> _compressVideoForChatUpload(String sourcePath) async {
     try {
       final sourceFile = File(sourcePath);
       if (!await sourceFile.exists()) {
@@ -1228,44 +1365,84 @@ class _ChatPageState extends State<ChatPage> {
       if (sourceBytes <= _videoCompressionThresholdBytes) {
         return sourcePath;
       }
-      final sourceExt = _fileExtensionFromName(sourcePath);
-      if (sourceExt.isEmpty || !_videoExtensions.contains(sourceExt)) {
-        return sourcePath;
-      }
-      final info = await VideoCompress.compressVideo(
-        sourcePath,
-        quality: VideoQuality.MediumQuality,
-        includeAudio: true,
-        deleteOrigin: false,
-        frameRate: 24,
-      ).timeout(const Duration(seconds: 40));
-      final compressedPath = info?.file?.path ?? '';
-      if (compressedPath.isEmpty) {
-        return sourcePath;
-      }
-      final compressedFile = File(compressedPath);
-      if (!await compressedFile.exists()) {
-        return sourcePath;
-      }
-      final compressedBytes = await compressedFile.length();
-      if (compressedBytes <= 0 || compressedBytes >= sourceBytes) {
-        if (compressedPath != sourcePath) {
+
+      Future<String?> attemptCompression(
+        VideoQuality quality, {
+        int? frameRate,
+      }) async {
+        try {
+          final compressionFuture = frameRate == null
+              ? VideoCompress.compressVideo(
+                  sourcePath,
+                  quality: quality,
+                  includeAudio: true,
+                  deleteOrigin: false,
+                )
+              : VideoCompress.compressVideo(
+                  sourcePath,
+                  quality: quality,
+                  includeAudio: true,
+                  deleteOrigin: false,
+                  frameRate: frameRate,
+                );
+          final info =
+              await compressionFuture.timeout(const Duration(minutes: 3));
+          final compressedPath = info?.file?.path ?? '';
+          if (compressedPath.isEmpty) {
+            return null;
+          }
+          final compressedFile = File(compressedPath);
+          if (!await compressedFile.exists()) {
+            return null;
+          }
+          final compressedBytes = await compressedFile.length();
+          if (compressedBytes <= 0 || compressedBytes >= sourceBytes) {
+            if (compressedPath != sourcePath) {
+              try {
+                await compressedFile.delete();
+              } catch (_) {}
+            }
+            return null;
+          }
+          return compressedPath;
+        } on TimeoutException {
           try {
-            await compressedFile.delete();
+            await VideoCompress.cancelCompression();
           } catch (_) {}
+          return null;
+        } catch (_) {
+          return null;
         }
-        return sourcePath;
       }
-      return compressedPath;
+
+      final medium = await attemptCompression(
+        VideoQuality.MediumQuality,
+        frameRate: 24,
+      );
+      if (medium != null) {
+        return medium;
+      }
+      final low = await attemptCompression(
+        VideoQuality.LowQuality,
+        frameRate: 24,
+      );
+      if (low != null) {
+        return low;
+      }
+      final lowNoFrame = await attemptCompression(VideoQuality.LowQuality);
+      if (lowNoFrame != null) {
+        return lowNoFrame;
+      }
+      return null;
     } on TimeoutException {
       try {
         await VideoCompress.cancelCompression();
       } catch (_) {
         // Ignore cancellation failures.
       }
-      return sourcePath;
+      return null;
     } catch (_) {
-      return sourcePath;
+      return null;
     }
   }
 
@@ -1273,6 +1450,7 @@ class _ChatPageState extends State<ChatPage> {
     required String localPath,
     required String kind,
     required String displayFileName,
+    bool forceVideo = false,
     void Function(String status)? onStatus,
   }) async {
     final normalizedKind = kind.trim().toLowerCase();
@@ -1303,16 +1481,17 @@ class _ChatPageState extends State<ChatPage> {
         onStatus?.call('Foto compressa, avvio invio...');
       }
     } else {
-      final isVideo =
-          _isVideoFileName(displayFileName) || _isVideoFileName(localPath);
+      final isVideo = forceVideo ||
+          await _isLikelyVideoFile(
+            localPath: localPath,
+            displayFileName: displayFileName,
+          );
       if (isVideo) {
-        var shouldAttemptCompression = false;
         try {
           final sourceFile = File(localPath);
           if (await sourceFile.exists()) {
             final sourceBytes = await sourceFile.length();
             if (sourceBytes > _videoCompressionThresholdBytes) {
-              shouldAttemptCompression = true;
               onStatus?.call('Compressione video in corso...');
             } else {
               onStatus?.call('Video pronto, avvio invio...');
@@ -1322,6 +1501,11 @@ class _ChatPageState extends State<ChatPage> {
           // Best effort.
         }
         final compressedPath = await _compressVideoForChatUpload(localPath);
+        if (compressedPath == null) {
+          throw Exception(
+            'Compressione video non riuscita. Prova con un video piu breve o riprova.',
+          );
+        }
         if (compressedPath != localPath) {
           uploadPath = compressedPath;
           final compressedExt = _fileExtensionFromName(compressedPath);
@@ -1331,8 +1515,8 @@ class _ChatPageState extends State<ChatPage> {
           }
           shouldDeleteUploadFile = true;
           onStatus?.call('Video compresso, avvio invio...');
-        } else if (shouldAttemptCompression) {
-          onStatus?.call('Invio originale (compressione saltata)...');
+        } else {
+          onStatus?.call('Video pronto, avvio invio...');
         }
       } else {
         onStatus?.call('Preparazione allegato...');
@@ -1372,8 +1556,16 @@ class _ChatPageState extends State<ChatPage> {
       final fileName = picked.name.trim().isNotEmpty
           ? picked.name.trim()
           : File(localPath).uri.pathSegments.last;
-      final kind = _isImageFileName(fileName) ? 'image' : 'file';
-      final isVideo = _isVideoFileName(fileName) || _isVideoFileName(localPath);
+      final isImage = await _isLikelyImageFile(
+        localPath: localPath,
+        displayFileName: fileName,
+      );
+      final isVideo = !isImage &&
+          await _isLikelyVideoFile(
+            localPath: localPath,
+            displayFileName: fileName,
+          );
+      final kind = isImage ? 'image' : 'file';
       _startPreparingMediaUi(
         displayFileName: fileName,
         isVideo: isVideo,
@@ -1390,6 +1582,7 @@ class _ChatPageState extends State<ChatPage> {
         localPath: localPath,
         kind: kind,
         displayFileName: fileName,
+        forceVideo: isVideo,
         onStatus: _setMediaTransferStatus,
       );
       await _sendMediaMessage(
@@ -1471,6 +1664,64 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  Future<void> _captureAndSendVideo() async {
+    if (_isSendingSomething || _isRecording) {
+      return;
+    }
+    if (!await _ensureCanSendChat()) {
+      return;
+    }
+    try {
+      final video = await _imagePicker.pickVideo(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.rear,
+      );
+      if (video == null) {
+        return;
+      }
+      final fileName = video.name.trim().isNotEmpty
+          ? video.name.trim()
+          : File(video.path).uri.pathSegments.last;
+      _startPreparingMediaUi(
+        displayFileName: fileName,
+        isVideo: true,
+      );
+      unawaited(
+        _loadPreparingMediaPreview(
+          localPath: video.path,
+          isImage: false,
+          isVideo: true,
+          displayFileName: fileName,
+        ),
+      );
+      final prepared = await _prepareMediaForUpload(
+        localPath: video.path,
+        kind: 'file',
+        displayFileName: fileName,
+        forceVideo: true,
+        onStatus: _setMediaTransferStatus,
+      );
+      await _sendMediaMessage(
+        uploadPath: prepared.uploadPath,
+        previewPath: prepared.previewPath,
+        kind: 'file',
+        displayFileName: prepared.uploadFileName,
+        deleteUploadAfterSend: prepared.shouldDeleteUploadFile,
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isPreparingMedia = false;
+          _isSendingMedia = false;
+          _mediaTransferStatus = '';
+          _mediaTransferPreviewBytes = null;
+          _uploadingMediaName = '';
+        });
+      }
+      _showSnack('Non riesco ad aprire la videocamera.');
+    }
+  }
+
   Future<void> _onComposerMediaActionSelected(
     _ChatComposerMediaAction action,
   ) async {
@@ -1480,6 +1731,9 @@ class _ChatPageState extends State<ChatPage> {
         break;
       case _ChatComposerMediaAction.camera:
         await _captureAndSendImage();
+        break;
+      case _ChatComposerMediaAction.cameraVideo:
+        await _captureAndSendVideo();
         break;
       case _ChatComposerMediaAction.voice:
         await _startVoiceRecording();
@@ -1663,7 +1917,9 @@ class _ChatPageState extends State<ChatPage> {
           uploadPayload['media_kind']?.toString().trim().toLowerCase() ??
               normalizedKind;
       _mediaFileCache[mediaPath] = previewPath;
-      if (kindFromServer == 'file' && _isVideoFileName(fileName)) {
+      final isVideoAttachment = _isVideoFileName(fileName) ||
+          contentType.trim().toLowerCase().startsWith('video/');
+      if (kindFromServer == 'file' && isVideoAttachment) {
         _primeVideoThumbnailFromLocalPath(
           mediaPath: mediaPath,
           localPath: previewPath,
@@ -2239,18 +2495,18 @@ class _ChatPageState extends State<ChatPage> {
           tag: heroTag,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                imageUrl,
-                headers: _chatRequestHeaders,
-                width: 148,
-                height: 148,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 148,
-                  height: 148,
-                  color: Colors.black12,
-                  alignment: Alignment.center,
-                  child: Icon(
+            child: Image.network(
+              imageUrl,
+              headers: _chatRequestHeaders,
+              width: 118,
+              height: 118,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 118,
+                height: 118,
+                color: Colors.black12,
+                alignment: Alignment.center,
+                child: Icon(
                   Icons.broken_image_outlined,
                   color: textColor.withValues(alpha: 0.8),
                 ),
@@ -2316,11 +2572,11 @@ class _ChatPageState extends State<ChatPage> {
                             return Container(
                               color: textColor.withValues(alpha: 0.18),
                               alignment: Alignment.center,
-                                child: Icon(
-                                  Icons.movie_creation_outlined,
+                              child: Icon(
+                                Icons.movie_creation_outlined,
                                 size: 20,
-                                  color: textColor.withValues(alpha: 0.9),
-                                ),
+                                color: textColor.withValues(alpha: 0.9),
+                              ),
                             );
                           },
                         ),
@@ -2799,6 +3055,37 @@ class _ChatPageState extends State<ChatPage> {
                 ),
               ),
               PopupMenuItem<_ChatComposerMediaAction>(
+                value: _ChatComposerMediaAction.cameraVideo,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: AppTheme.orange.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppTheme.orange.withValues(alpha: 0.28),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.videocam_rounded,
+                        color: AppTheme.espresso,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'Video (fotocamera)',
+                      style: TextStyle(
+                        color: AppTheme.espresso,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuItem<_ChatComposerMediaAction>(
                 value: _ChatComposerMediaAction.voice,
                 child: Row(
                   children: [
@@ -2972,146 +3259,162 @@ class _ChatPageState extends State<ChatPage> {
                         reverse: true,
                         itemCount: visibleMessages.length,
                         itemBuilder: (context, index) {
-                        final data = visibleMessages[index];
-                        final messageId = _messageLocalId(data);
-                        final isMe = data['senderId']?.toString() ==
-                            widget.currentUserId.toString();
-                        final type =
-                            data['type']?.toString().trim().toLowerCase() ??
-                                'text';
-                        final isVideoBubble =
-                            type == 'file' && _isVideoMessage(data);
-                        final maxBubbleFactor = switch (type) {
-                          'image' => 0.70,
-                          'file' => isVideoBubble ? 0.46 : 0.68,
-                          'audio' => 0.68,
-                          _ => 0.64,
-                        };
-                        final bubbleColor = isVideoBubble
-                            ? (isMe
-                                ? _outgoingVideoBubbleColor
-                                : _incomingVideoBubbleColor)
-                            : (isMe
-                                ? _outgoingBubbleColor
-                                : _incomingBubbleColor);
-                        final showDaySeparator = _shouldShowDaySeparator(
-                          messages: visibleMessages,
-                          index: index,
-                        );
-                        final messageAt = _messageDateTime(data);
+                          final data = visibleMessages[index];
+                          final messageId = _messageLocalId(data);
+                          final isMe = data['senderId']?.toString() ==
+                              widget.currentUserId.toString();
+                          final type =
+                              data['type']?.toString().trim().toLowerCase() ??
+                                  'text';
+                          final isImageBubble = type == 'image';
+                          final isVideoBubble =
+                              type == 'file' && _isVideoMessage(data);
+                          final isCompactMediaBubble =
+                              isImageBubble || isVideoBubble;
+                          final maxBubbleFactor = switch (type) {
+                            'image' => 0.44,
+                            'file' => isVideoBubble ? 0.46 : 0.68,
+                            'audio' => 0.68,
+                            _ => 0.64,
+                          };
+                          final bubbleColor = isImageBubble
+                              ? Colors.transparent
+                              : (isVideoBubble
+                                  ? (isMe
+                                      ? _outgoingVideoBubbleColor
+                                      : _incomingVideoBubbleColor)
+                                  : (isMe
+                                      ? _outgoingBubbleColor
+                                      : _incomingBubbleColor));
+                          final showDaySeparator = _shouldShowDaySeparator(
+                            messages: visibleMessages,
+                            index: index,
+                          );
+                          final messageAt = _messageDateTime(data);
 
                           return Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 4,
-                            horizontal: 12,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (showDaySeparator) _buildDaySeparator(messageAt),
-                              Align(
-                                alignment: isMe
-                                    ? Alignment.centerRight
-                                    : Alignment.centerLeft,
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    maxWidth:
-                                        MediaQuery.of(context).size.width *
-                                            maxBubbleFactor,
-                                  ),
-                                  child: GestureDetector(
-                                    onLongPress: () =>
-                                        unawaited(_showMessageActions(data)),
-                                    child: Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        Container(
-                                          padding: EdgeInsets.symmetric(
-                                            vertical: isVideoBubble ? 2 : 8,
-                                            horizontal: isVideoBubble ? 3 : 11,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: bubbleColor,
-                                            borderRadius: BorderRadius.only(
-                                              topLeft: const Radius.circular(18),
-                                              topRight: const Radius.circular(18),
-                                              bottomLeft: Radius.circular(
-                                                isMe ? 18 : 6,
-                                              ),
-                                              bottomRight: Radius.circular(
-                                                isMe ? 6 : 18,
-                                              ),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 4,
+                              horizontal: 12,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (showDaySeparator)
+                                  _buildDaySeparator(messageAt),
+                                Align(
+                                  alignment: isMe
+                                      ? Alignment.centerRight
+                                      : Alignment.centerLeft,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth:
+                                          MediaQuery.of(context).size.width *
+                                              maxBubbleFactor,
+                                    ),
+                                    child: GestureDetector(
+                                      onLongPress: () =>
+                                          unawaited(_showMessageActions(data)),
+                                      child: Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          Container(
+                                            padding: EdgeInsets.symmetric(
+                                              vertical:
+                                                  isCompactMediaBubble ? 2 : 8,
+                                              horizontal:
+                                                  isCompactMediaBubble ? 3 : 11,
                                             ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black.withValues(
-                                                  alpha: 0.045,
+                                            decoration: BoxDecoration(
+                                              color: bubbleColor,
+                                              borderRadius: BorderRadius.only(
+                                                topLeft:
+                                                    const Radius.circular(18),
+                                                topRight:
+                                                    const Radius.circular(18),
+                                                bottomLeft: Radius.circular(
+                                                  isMe ? 18 : 6,
                                                 ),
-                                                blurRadius: 6,
-                                                offset: const Offset(0, 2),
+                                                bottomRight: Radius.circular(
+                                                  isMe ? 6 : 18,
+                                                ),
                                               ),
-                                            ],
-                                            border: isVideoBubble
-                                                ? Border.all(
-                                                    color: AppTheme.cardBorder
-                                                        .withValues(
-                                                      alpha: 0.55,
+                                              boxShadow: isImageBubble
+                                                  ? const []
+                                                  : [
+                                                      BoxShadow(
+                                                        color: Colors.black
+                                                            .withValues(
+                                                          alpha: 0.045,
+                                                        ),
+                                                        blurRadius: 6,
+                                                        offset:
+                                                            const Offset(0, 2),
+                                                      ),
+                                                    ],
+                                              border: isCompactMediaBubble
+                                                  ? Border.all(
+                                                      color: AppTheme.cardBorder
+                                                          .withValues(
+                                                        alpha: 0.55,
+                                                      ),
+                                                      width: 0.8,
+                                                    )
+                                                  : null,
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                _buildMessageContent(
+                                                  messageId: messageId,
+                                                  data: data,
+                                                  isMe: isMe,
+                                                ),
+                                                if (!isCompactMediaBubble) ...[
+                                                  const SizedBox(height: 4),
+                                                  Align(
+                                                    alignment:
+                                                        Alignment.centerRight,
+                                                    child: _buildMessageMeta(
+                                                      data: data,
+                                                      isMe: isMe,
                                                     ),
-                                                    width: 0.8,
-                                                  )
-                                                : null,
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              _buildMessageContent(
-                                                messageId: messageId,
-                                                data: data,
-                                                isMe: isMe,
-                                              ),
-                                              if (!isVideoBubble) ...[
-                                                const SizedBox(height: 4),
-                                                Align(
-                                                  alignment: Alignment.centerRight,
-                                                  child: _buildMessageMeta(
-                                                    data: data,
-                                                    isMe: isMe,
                                                   ),
-                                                ),
+                                                ],
                                               ],
-                                            ],
+                                            ),
                                           ),
-                                        ),
-                                        if (!isVideoBubble)
-                                          Positioned(
-                                            right: isMe ? -2 : null,
-                                            left: isMe ? null : -2,
-                                            bottom: 7,
-                                            child: Transform.rotate(
-                                              angle: math.pi / 4,
-                                              child: Container(
-                                                width: 7,
-                                                height: 7,
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      bubbleColor.withValues(
-                                                    alpha: 0.92,
+                                          if (!isCompactMediaBubble)
+                                            Positioned(
+                                              right: isMe ? -2 : null,
+                                              left: isMe ? null : -2,
+                                              bottom: 7,
+                                              child: Transform.rotate(
+                                                angle: math.pi / 4,
+                                                child: Container(
+                                                  width: 7,
+                                                  height: 7,
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        bubbleColor.withValues(
+                                                      alpha: 0.92,
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            2),
                                                   ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(2),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
+                              ],
+                            ),
                           );
                         },
                       ),
@@ -3122,9 +3425,8 @@ class _ChatPageState extends State<ChatPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 decoration: BoxDecoration(
-                  color: _isMusicAiDark
-                      ? const Color(0xFF0B111C)
-                      : Colors.white,
+                  color:
+                      _isMusicAiDark ? const Color(0xFF0B111C) : Colors.white,
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.05),

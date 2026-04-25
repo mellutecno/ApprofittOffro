@@ -6,48 +6,30 @@ class AppTheme {
   /// - false => palette originale ApprofittOffro
   static const bool useMusicAiPalette = true;
 
-  static const cream = useMusicAiPalette
-      ? Color(0xFF080B12)
-      : Color(0xFFF6F0E7);
-  static const paper = useMusicAiPalette
-      ? Color(0xFF0F1422)
-      : Color(0xFFFFFBF7);
-  static const sand = useMusicAiPalette
-      ? Color(0xFF1A2336)
-      : Color(0xFFE6D8C8);
-  static const peach = useMusicAiPalette
-      ? Color(0xFF222C44)
-      : Color(0xFFD8A484);
-  static const orange = useMusicAiPalette
-      ? Color(0xFF755CFF)
-      : Color(0xFFAD5A3C);
-  static const brown = useMusicAiPalette
-      ? Color(0xFFDDE5FF)
-      : Color(0xFF49362D);
-  static const espresso = useMusicAiPalette
-      ? Color(0xFFF4F7FF)
-      : Color(0xFF221914);
-  static const sage = useMusicAiPalette
-      ? Color(0xFF38CCFF)
-      : Color(0xFF96A182);
-  static const mist = useMusicAiPalette
-      ? Color(0xFF121A2B)
-      : Color(0xFFF3E8DA);
-  static const cardBorder = useMusicAiPalette
-      ? Color(0xFF2D3A59)
-      : Color(0xFFD8C5AE);
-  static const moss = useMusicAiPalette
-      ? Color(0xFF49A5FF)
-      : Color(0xFF657353);
-  static const gold = useMusicAiPalette
-      ? Color(0xFF9A7DFF)
-      : Color(0xFFD3A24E);
-  static const berry = useMusicAiPalette
-      ? Color(0xFF4C37C9)
-      : Color(0xFF6A4744);
-  static const plum = useMusicAiPalette
-      ? Color(0xFF6A4CFF)
-      : Color(0xFF5E4A63);
+  static const cream =
+      useMusicAiPalette ? Color(0xFF080B12) : Color(0xFFF6F0E7);
+  static const paper =
+      useMusicAiPalette ? Color(0xFF0F1422) : Color(0xFFFFFBF7);
+  static const sand = useMusicAiPalette ? Color(0xFF1A2336) : Color(0xFFE6D8C8);
+  static const peach =
+      useMusicAiPalette ? Color(0xFF222C44) : Color(0xFFD8A484);
+  static const orange =
+      useMusicAiPalette ? Color(0xFF755CFF) : Color(0xFFAD5A3C);
+  static const brown =
+      useMusicAiPalette ? Color(0xFFDDE5FF) : Color(0xFF49362D);
+  static const espresso =
+      useMusicAiPalette ? Color(0xFFF4F7FF) : Color(0xFF221914);
+  static const sage = useMusicAiPalette ? Color(0xFF38CCFF) : Color(0xFF96A182);
+  static const mist = useMusicAiPalette ? Color(0xFF121A2B) : Color(0xFFF3E8DA);
+  static const cardBorder =
+      useMusicAiPalette ? Color(0xFF2D3A59) : Color(0xFFD8C5AE);
+  static const moss = useMusicAiPalette ? Color(0xFF49A5FF) : Color(0xFF657353);
+  static const gold = useMusicAiPalette ? Color(0xFF9A7DFF) : Color(0xFFD3A24E);
+  static const berry =
+      useMusicAiPalette ? Color(0xFF4C37C9) : Color(0xFF6A4744);
+  static const plum = useMusicAiPalette ? Color(0xFF6A4CFF) : Color(0xFF5E4A63);
+  static const vividViolet =
+      useMusicAiPalette ? Color(0xFFC94DFF) : Color(0xFF7A4EC7);
   static const shadow = Color(0x18000000);
 
   static const heroGradient = useMusicAiPalette
@@ -201,12 +183,23 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: paper,
-        indicatorColor: const Color(0xFFEED9CC),
+        indicatorColor: vividViolet.withValues(alpha: 0.32),
         surfaceTintColor: paper,
-        shadowColor: shadow,
-        labelTextStyle: WidgetStateProperty.all(
-          const TextStyle(fontWeight: FontWeight.w700),
-        ),
+        shadowColor: vividViolet.withValues(alpha: 0.46),
+        elevation: 14,
+        iconTheme: WidgetStateProperty.resolveWith<IconThemeData>((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: selected ? vividViolet : brown.withValues(alpha: 0.78),
+          );
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+            color: selected ? vividViolet : brown.withValues(alpha: 0.82),
+          );
+        }),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: berry,
@@ -355,12 +348,23 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: paper,
-        indicatorColor: const Color(0xFF252F48),
+        indicatorColor: vividViolet.withValues(alpha: 0.34),
         surfaceTintColor: Colors.transparent,
-        shadowColor: const Color(0x55000000),
-        labelTextStyle: WidgetStateProperty.all(
-          const TextStyle(fontWeight: FontWeight.w700, color: espresso),
-        ),
+        shadowColor: vividViolet.withValues(alpha: 0.55),
+        elevation: 16,
+        iconTheme: WidgetStateProperty.resolveWith<IconThemeData>((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: selected ? vividViolet : brown.withValues(alpha: 0.86),
+          );
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+            color: selected ? vividViolet : brown.withValues(alpha: 0.9),
+          );
+        }),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: const Color(0xFF2B3552),

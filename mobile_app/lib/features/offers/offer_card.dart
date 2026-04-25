@@ -437,7 +437,7 @@ class OfferCard extends StatelessWidget {
                             ),
                             child: const Icon(
                               Icons.near_me_rounded,
-                              color: AppTheme.orange,
+                              color: AppTheme.vividViolet,
                               size: 20,
                             ),
                           ),
@@ -788,7 +788,7 @@ class _ChatParticipantAction extends StatelessWidget {
           ),
           child: const Icon(
             Icons.chat_bubble_outline_rounded,
-            color: AppTheme.orange,
+            color: AppTheme.vividViolet,
             size: 16,
           ),
         ),
@@ -854,6 +854,12 @@ class _ReminderButtonState extends State<_ReminderButton> {
   @override
   Widget build(BuildContext context) {
     final hasReminders = _reminderMinutes.isNotEmpty;
+    final reminderBackground = AppTheme.useMusicAiPalette
+        ? AppTheme.orange.withValues(alpha: 0.28)
+        : const Color(0xFFFFD54F).withValues(alpha: 0.85);
+    final reminderIconColor = AppTheme.useMusicAiPalette
+        ? AppTheme.espresso
+        : const Color(0xFF8D6E00);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -864,7 +870,7 @@ class _ReminderButtonState extends State<_ReminderButton> {
           height: 42,
           decoration: BoxDecoration(
             color: hasReminders
-                ? const Color(0xFFFFD54F).withValues(alpha: 0.85)
+                ? reminderBackground
                 : AppTheme.peach.withValues(alpha: 0.72),
             borderRadius: BorderRadius.circular(999),
             border: Border.all(color: AppTheme.cardBorder),
@@ -873,7 +879,7 @@ class _ReminderButtonState extends State<_ReminderButton> {
             hasReminders
                 ? Icons.notifications_active
                 : Icons.notifications_none,
-            color: hasReminders ? const Color(0xFF8D6E00) : AppTheme.orange,
+            color: hasReminders ? reminderIconColor : AppTheme.vividViolet,
             size: 20,
           ),
         ),
@@ -963,7 +969,9 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                 label: Text('$minutes min'),
                 selected: isSelected,
                 onSelected: (_) => _toggleOption(minutes),
-                selectedColor: const Color(0xFFFFD54F),
+                selectedColor: AppTheme.useMusicAiPalette
+                    ? AppTheme.orange.withValues(alpha: 0.3)
+                    : const Color(0xFFFFD54F),
               );
             }).toList(),
           ),
@@ -1038,7 +1046,7 @@ class _ChatButton extends StatelessWidget {
           ),
           child: const Icon(
             Icons.chat_bubble_outline_rounded,
-            color: AppTheme.orange,
+            color: AppTheme.vividViolet,
             size: 20,
           ),
         ),

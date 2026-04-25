@@ -678,7 +678,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       child: Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: !widget.requireCompletion,
-          title: const BrandWordmark(height: 42, alignment: Alignment.center),
+          title: const BrandWordmark(height: 44, alignment: Alignment.center),
         ),
         body: SafeArea(
           child: Form(

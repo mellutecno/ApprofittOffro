@@ -39,13 +39,13 @@ dependencies:
   video_thumbnail: ^0.5.3
   flutter_image_compress: ^2.4.0
   video_compress: ^3.1.4
+  mime: ^2.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
   flutter_launcher_icons: ^0.14.4
-  flutter_native_splash: ^2.4.0
 
 dependency_overrides:
   google_sign_in_android: 7.2.9
@@ -63,10 +63,3 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/branding/app_icon.png"
   adaptive_icon_background: "#F6EFE6"
   min_sdk_android: 34
-
-flutter_native_splash:
-  color: "#F6EFE6"
-  image: assets/branding/app_icon.png
-  android_12:
-    color: "#F6EFE6"
-    image: assets/branding/app_icon.png

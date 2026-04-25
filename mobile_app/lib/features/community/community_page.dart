@@ -119,12 +119,9 @@ class _CommunityPageState extends State<CommunityPage> {
                 leading: const SizedBox.shrink(),
                 leadingWidth: kToolbarHeight,
                 centerTitle: true,
-                title: const Padding(
-                  padding: EdgeInsets.only(left: 8),
-                  child: BrandWordmark(
-                    height: 42,
-                    alignment: Alignment.center,
-                  ),
+                title: const BrandWordmark(
+                  height: 44,
+                  alignment: Alignment.center,
                 ),
                 actions: const [
                   SizedBox(width: kToolbarHeight),

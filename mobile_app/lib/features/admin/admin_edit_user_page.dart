@@ -514,12 +514,9 @@ class _AdminEditUserPageState extends State<AdminEditUserPage> {
           appBar: AppBar(
             toolbarHeight: kToolbarHeight,
             centerTitle: true,
-            title: const Padding(
-              padding: EdgeInsets.only(left: 8),
-              child: BrandWordmark(
-                height: 42,
-                alignment: Alignment.center,
-              ),
+            title: const BrandWordmark(
+              height: 44,
+              alignment: Alignment.center,
             ),
           ),
           body: isLoading

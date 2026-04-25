@@ -364,7 +364,7 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
           const Padding(
             padding: EdgeInsets.fromLTRB(20, 10, 20, 8),
             child: BrandWordmark(
-              height: 42,
+              height: 44,
               alignment: Alignment.center,
             ),
           ),

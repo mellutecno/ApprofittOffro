@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 class BrandWordmark extends StatelessWidget {
   const BrandWordmark({
     super.key,
-    this.height = 34,
-    this.alignment = Alignment.centerLeft,
+    this.height = 36,
+    this.alignment = Alignment.center,
   });
 
   final double height;

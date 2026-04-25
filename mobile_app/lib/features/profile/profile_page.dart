@@ -1725,6 +1725,19 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _openEditProfile() async {
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => ProfileEditPage(
+          authController: widget.authController,
+        ),
+      ),
+    );
+    if (updated == true) {
+      await _refreshAll();
+    }
+  }
+
   List<String> _galleryUrls() {
     final user = widget.authController.currentUser;
     if (user == null) {
@@ -2161,18 +2174,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       _settingsExpanded = !_settingsExpanded;
                     });
                   },
-                  onEditProfile: () async {
-                    final updated = await Navigator.of(context).push<bool>(
-                      MaterialPageRoute<bool>(
-                        builder: (_) => ProfileEditPage(
-                          authController: widget.authController,
-                        ),
-                      ),
-                    );
-                    if (updated == true) {
-                      await _refreshAll();
-                    }
-                  },
+                  onEditProfile: _openEditProfile,
                   onSecurity: _openSettings,
                   onCheckUpdates: () => _openExternalLink(
                     _playStoreUri,

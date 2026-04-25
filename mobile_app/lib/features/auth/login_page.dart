@@ -143,7 +143,8 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) {
         return;
       }
-      Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+      Navigator.of(context, rootNavigator: true)
+          .popUntil((route) => route.isFirst);
     });
   }
 
@@ -155,7 +156,7 @@ class _LoginPageState extends State<LoginPage> {
         final busy = widget.authController.isBusy;
         return Scaffold(
           appBar: AppBar(
-            title: const BrandWordmark(height: 42, alignment: Alignment.center),
+            title: const BrandWordmark(height: 44, alignment: Alignment.center),
           ),
           body: DecoratedBox(
             decoration: const BoxDecoration(gradient: AppTheme.heroGradient),
@@ -214,9 +215,11 @@ class _LoginPageState extends State<LoginPage> {
                                   Align(
                                     alignment: Alignment.centerRight,
                                     child: TextButton(
-                                      onPressed:
-                                          busy ? null : _openForgotPasswordDialog,
-                                      child: const Text('Password dimenticata?'),
+                                      onPressed: busy
+                                          ? null
+                                          : _openForgotPasswordDialog,
+                                      child:
+                                          const Text('Password dimenticata?'),
                                     ),
                                   ),
                                   const SizedBox(height: 20),

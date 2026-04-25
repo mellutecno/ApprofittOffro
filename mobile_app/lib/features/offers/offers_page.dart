@@ -370,12 +370,9 @@ class _OffersPageState extends State<OffersPage> {
                 leading: const SizedBox.shrink(),
                 leadingWidth: kToolbarHeight,
                 centerTitle: true,
-                title: const Padding(
-                  padding: EdgeInsets.only(left: 8),
-                  child: BrandWordmark(
-                    height: 42,
-                    alignment: Alignment.center,
-                  ),
+                title: const BrandWordmark(
+                  height: 44,
+                  alignment: Alignment.center,
                 ),
                 actions: const [
                   SizedBox(width: kToolbarHeight),
@@ -907,6 +904,12 @@ class _CompactReminderButtonState extends State<_CompactReminderButton> {
   @override
   Widget build(BuildContext context) {
     final hasReminders = _reminderMinutes.isNotEmpty;
+    final reminderBackground = AppTheme.useMusicAiPalette
+        ? AppTheme.orange.withValues(alpha: 0.28)
+        : const Color(0xFFFFD54F).withValues(alpha: 0.85);
+    final reminderIconColor = AppTheme.useMusicAiPalette
+        ? AppTheme.espresso
+        : const Color(0xFF8D6E00);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -917,7 +920,7 @@ class _CompactReminderButtonState extends State<_CompactReminderButton> {
           height: 40,
           decoration: BoxDecoration(
             color: hasReminders
-                ? const Color(0xFFFFD54F).withValues(alpha: 0.85)
+                ? reminderBackground
                 : AppTheme.peach.withValues(alpha: 0.72),
             borderRadius: BorderRadius.circular(999),
             border: Border.all(color: AppTheme.cardBorder),
@@ -926,7 +929,7 @@ class _CompactReminderButtonState extends State<_CompactReminderButton> {
             hasReminders
                 ? Icons.notifications_active
                 : Icons.notifications_none,
-            color: hasReminders ? const Color(0xFF8D6E00) : AppTheme.orange,
+            color: hasReminders ? reminderIconColor : AppTheme.vividViolet,
             size: 18,
           ),
         ),
@@ -1020,9 +1023,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                     ? AppTheme.orange.withValues(alpha: 0.38)
                     : const Color(0xFFFFD54F),
                 labelStyle: TextStyle(
-                  color: AppTheme.useMusicAiPalette
-                      ? AppTheme.espresso
-                      : null,
+                  color: AppTheme.useMusicAiPalette ? AppTheme.espresso : null,
                   fontWeight: FontWeight.w700,
                 ),
               );
@@ -1076,8 +1077,9 @@ class _MealChip extends StatelessWidget {
           child: Text(label, textAlign: TextAlign.center),
         ),
         onSelected: (_) => onTap(value),
-        backgroundColor:
-            darkPalette ? AppTheme.sand : AppTheme.paper.withValues(alpha: 0.92),
+        backgroundColor: darkPalette
+            ? AppTheme.sand
+            : AppTheme.paper.withValues(alpha: 0.92),
         selectedColor: _colorForValue(value).withValues(
           alpha: darkPalette ? 0.26 : 0.16,
         ),

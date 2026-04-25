@@ -145,7 +145,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(
     os.getenv("DATABASE_URL")
 ) or ("sqlite:///" + SQLITE_PATH)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["MAX_CONTENT_LENGTH"] = 128 * 1024 * 1024  # 128 MB max upload
+app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64 MB max upload (telefoni moderni)
 app.config["UPLOAD_STORAGE_BACKEND"] = os.getenv("APP_STORAGE_BACKEND", "local").strip().lower()
 app.config["R2_ACCOUNT_ID"] = os.getenv("R2_ACCOUNT_ID", "")
 app.config["R2_ACCESS_KEY_ID"] = os.getenv("R2_ACCESS_KEY_ID", "")
@@ -177,9 +177,7 @@ MAX_OFFER_PHOTOS = 3
 CHAT_AUDIO_ALLOWED_EXTENSIONS = {"m4a", "mp4", "aac", "ogg", "opus", "wav", "mp3"}
 CHAT_AUDIO_MAX_BYTES = 5 * 1024 * 1024
 CHAT_MEDIA_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
-CHAT_MEDIA_AUDIO_EXTENSIONS = {"mp3", "m4a", "aac", "wav", "ogg", "opus", "flac"}
-CHAT_MEDIA_VIDEO_EXTENSIONS = {"mp4", "m4v", "mov", "3gp", "webm", "mkv"}
-CHAT_MEDIA_GENERIC_FILE_EXTENSIONS = {
+CHAT_MEDIA_FILE_EXTENSIONS = {
     "pdf",
     "txt",
     "csv",
@@ -192,18 +190,16 @@ CHAT_MEDIA_GENERIC_FILE_EXTENSIONS = {
     "zip",
     "rar",
     "7z",
-}
-CHAT_MEDIA_FILE_EXTENSIONS = {
-    *CHAT_MEDIA_GENERIC_FILE_EXTENSIONS,
-    *CHAT_MEDIA_AUDIO_EXTENSIONS,
-    *CHAT_MEDIA_VIDEO_EXTENSIONS,
+    "mp3",
+    "m4a",
+    "aac",
+    "wav",
+    "ogg",
+    "opus",
+    "flac",
 }
 CHAT_MEDIA_ALLOWED_EXTENSIONS = CHAT_MEDIA_IMAGE_EXTENSIONS | CHAT_MEDIA_FILE_EXTENSIONS
-CHAT_MEDIA_IMAGE_MAX_BYTES = 20 * 1024 * 1024
-CHAT_MEDIA_AUDIO_MAX_BYTES = 30 * 1024 * 1024
-CHAT_MEDIA_GENERIC_FILE_MAX_BYTES = 30 * 1024 * 1024
-CHAT_MEDIA_VIDEO_MAX_BYTES = 100 * 1024 * 1024
-CHAT_MEDIA_MAX_BYTES = CHAT_MEDIA_VIDEO_MAX_BYTES
+CHAT_MEDIA_MAX_BYTES = 20 * 1024 * 1024
 CHAT_MEDIA_IMAGE_MAX_SIDE = 1280
 CHAT_MEDIA_IMAGE_JPEG_QUALITY = 78
 CHAT_RETENTION_DAYS = 30
@@ -231,10 +227,8 @@ BREAKFAST_COMMITMENT_GAP_HOURS = 3
 MEAL_COMMITMENT_GAP_HOURS = 4
 PROFILE_EVENT_HISTORY_HOURS = 24
 PROFILE_ARCHIVE_LOOKBACK_DAYS = 30
-EMPTY_OFFER_AUTOHIDE_REMINDER_TYPE = "empty_offer_autohide"
 DEFAULT_USER_LATITUDE = 41.9028
 DEFAULT_USER_LONGITUDE = 12.4964
-COMMUNITY_LIVE_LOCATION_TTL_MINUTES = 15
 DEFAULT_PROFILE_PLACEHOLDER_FILENAME = "user_placeholder.png"
 COMMUNITY_GENDER_FILTERS = [
     ("", "Tutti"),
@@ -539,83 +533,6 @@ def get_spots_copy(spots_count):
 def get_offer_accepted_claims(offer):
     """Restituisce solo i claim gia' accettati dall'host."""
     return [claim for claim in offer.claims if claim.status == CLAIM_STATUS_ACCEPTED]
-
-
-def has_offer_accepted_participants(offer):
-    """True se l'offerta ha almeno un partecipante accettato."""
-    return any(claim.status == CLAIM_STATUS_ACCEPTED for claim in offer.claims)
-
-
-def is_offer_started_without_participants(offer, *, now=None):
-    """True se l'evento e' iniziato ma non ha alcun partecipante accettato."""
-    now = now or local_now()
-    return offer.data_ora <= now and not has_offer_accepted_participants(offer)
-
-
-def notify_host_offer_started_without_participants(offer, *, now=None, dry_run=False):
-    """Invia una sola push all'host quando un evento parte con zero partecipanti."""
-    host = offer.autore
-    if host is None:
-        return False
-    now = now or local_now()
-    dedupe_key = build_notification_dedupe_key(
-        EMPTY_OFFER_AUTOHIDE_REMINDER_TYPE,
-        offer_id=offer.id,
-        user_id=host.id,
-    )
-    if notification_delivery_exists(dedupe_key):
-        return False
-    if dry_run:
-        return True
-
-    data_evento = format_offer_datetime_label(offer.data_ora, now=now)
-    push_sent = send_push_to_user(
-        host,
-        title="Evento senza partecipanti",
-        body=(
-            f"Il tuo {offer.tipo_pasto} da {offer.nome_locale} ({data_evento}) "
-            "e' partito senza partecipanti ed e' stato nascosto dall'elenco eventi."
-        ),
-        target="profile",
-        extra_data={
-            "offer_id": offer.id,
-            "offer_autohidden_empty": "true",
-        },
-    )
-    if push_sent <= 0:
-        return False
-
-    record_notification_delivery(
-        user_id=host.id,
-        offer_id=offer.id,
-        reminder_type=EMPTY_OFFER_AUTOHIDE_REMINDER_TYPE,
-        dedupe_key=dedupe_key,
-    )
-    return True
-
-
-def filter_visible_offers_and_notify_empty_started_hosts(
-    offers,
-    *,
-    now=None,
-    dry_run=False,
-):
-    """Nasconde gli eventi iniziati senza partecipanti e notifica l'host (deduplicata)."""
-    now = now or local_now()
-    visible = []
-    hidden_count = 0
-    notified_count = 0
-
-    for offer in offers:
-        if not is_offer_started_without_participants(offer, now=now):
-            visible.append(offer)
-            continue
-
-        hidden_count += 1
-        if notify_host_offer_started_without_participants(offer, now=now, dry_run=dry_run):
-            notified_count += 1
-
-    return visible, {"hidden": hidden_count, "notified": notified_count}
 
 
 def get_offer_pending_claims(offer):
@@ -1524,9 +1441,6 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("intolleranze", "ALTER TABLE users ADD COLUMN intolleranze VARCHAR(300)"),
                 ("bio", "ALTER TABLE users ADD COLUMN bio VARCHAR(500)"),
                 ("raggio_azione", "ALTER TABLE users ADD COLUMN raggio_azione INTEGER DEFAULT 10"),
-                ("live_latitudine", "ALTER TABLE users ADD COLUMN live_latitudine FLOAT"),
-                ("live_longitudine", "ALTER TABLE users ADD COLUMN live_longitudine FLOAT"),
-                ("live_location_at", "ALTER TABLE users ADD COLUMN live_location_at DATETIME"),
                 ("verificato", "ALTER TABLE users ADD COLUMN verificato INTEGER DEFAULT 0"),
                 ("verification_token", "ALTER TABLE users ADD COLUMN verification_token VARCHAR(100)"),
                 ("password_reset_token", "ALTER TABLE users ADD COLUMN password_reset_token VARCHAR(100)"),
@@ -1610,15 +1524,6 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_sent_at DATETIME"
-            )
-            conn.exec_driver_sql(
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS live_latitudine DOUBLE PRECISION"
-            )
-            conn.exec_driver_sql(
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS live_longitudine DOUBLE PRECISION"
-            )
-            conn.exec_driver_sql(
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS live_location_at DATETIME"
             )
             conn.exec_driver_sql(
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)"
@@ -4756,10 +4661,6 @@ def api_get_offers():
         query = query.filter(Offer.tipo_pasto == tipo)
 
     offers = query.order_by(Offer.data_ora.asc()).all()
-    offers, _visibility_stats = filter_visible_offers_and_notify_empty_started_hosts(
-        offers,
-        now=now,
-    )
 
     # Applica filtro per Raggio se specificato
     radius_km = None
@@ -4993,13 +4894,6 @@ def api_get_user_profile_offers():
                 Offer.data_ora > threshold,
             )
         offers = offers_query.order_by(Offer.data_ora.desc()).all()
-        if not archived:
-            for offer in offers:
-                if is_offer_started_without_participants(offer, now=now):
-                    notify_host_offer_started_without_participants(
-                        offer,
-                        now=now,
-                    )
         result = [
             serialize_mobile_offer(offer, viewer=current_user, now=now)
             for offer in offers
@@ -5030,9 +4924,6 @@ def api_get_user_profile_offers():
         for claim in claims:
             offer = claim.offerta
             if not offer or offer.id in seen_offer_ids:
-                continue
-            if not archived and is_offer_started_without_participants(offer, now=now):
-                notify_host_offer_started_without_participants(offer, now=now)
                 continue
             seen_offer_ids.add(offer.id)
             result.append(
@@ -5719,45 +5610,6 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
-
-def utc_now_naive():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
-def parse_coordinate(raw_value, *, kind):
-    raw = str(raw_value or "").strip()
-    if not raw:
-        raise ValueError(f"{kind}_missing")
-    value = float(raw.replace(",", "."))
-    if kind == "lat" and (value < -90 or value > 90):
-        raise ValueError("lat_out_of_range")
-    if kind == "lon" and (value < -180 or value > 180):
-        raise ValueError("lon_out_of_range")
-    return value
-
-
-def is_live_location_fresh(user, *, now_utc=None):
-    now_utc = now_utc or utc_now_naive()
-    if (
-        user.live_latitudine is None
-        or user.live_longitudine is None
-        or user.live_location_at is None
-    ):
-        return False
-    return user.live_location_at >= (
-        now_utc - timedelta(minutes=COMMUNITY_LIVE_LOCATION_TTL_MINUTES)
-    )
-
-
-def resolve_user_distance_coordinates(user, *, now_utc=None):
-    """Restituisce coordinate da usare nei filtri community: live -> fallback profilo."""
-    now_utc = now_utc or utc_now_naive()
-    if is_live_location_fresh(user, now_utc=now_utc):
-        return float(user.live_latitudine), float(user.live_longitudine), "live"
-    if user.latitudine is not None and user.longitudine is not None:
-        return float(user.latitudine), float(user.longitudine), "profile"
-    return None, None, "none"
-
 # ===================================================================
 # API — Utente
 # ===================================================================
@@ -5894,33 +5746,6 @@ def api_user_me():
     })
 
 
-@app.route("/api/user/live-location", methods=["POST"])
-@login_required
-def api_user_live_location():
-    """Aggiorna la posizione live utente usata nei filtri Community in tempo reale."""
-    data = request.get_json(silent=True) or {}
-    try:
-        lat = parse_coordinate(data.get("latitudine"), kind="lat")
-        lon = parse_coordinate(data.get("longitudine"), kind="lon")
-    except Exception:
-        return jsonify({"success": False, "error": "Coordinate live non valide."}), 400
-
-    now_utc = utc_now_naive()
-    current_user.live_latitudine = lat
-    current_user.live_longitudine = lon
-    current_user.live_location_at = now_utc
-    db.session.commit()
-
-    return jsonify(
-        {
-            "success": True,
-            "live_latitudine": lat,
-            "live_longitudine": lon,
-            "live_location_at": datetime_to_iso_z(now_utc),
-        }
-    )
-
-
 @app.route("/api/push/token", methods=["POST"])
 @login_required
 def api_register_push_token():
@@ -6051,58 +5876,19 @@ def datetime_to_iso_z(value):
     return value.isoformat().replace("+00:00", "Z")
 
 
-def chat_thread_last_activity(thread):
-    return thread.last_message_time or thread.updated_at or thread.created_at
-
-
-def chat_thread_preference_key(thread):
-    """Ordina i thread duplicati privilegiando quelli con vera attività."""
-    has_real_messages = 1 if thread.last_message_time else 0
-    if not has_real_messages and (thread.last_message or "").strip():
-        has_real_messages = 1
-    activity = chat_thread_last_activity(thread) or datetime.min
-    return (has_real_messages, activity, int(thread.id or 0))
-
-
 def get_or_create_chat_thread(*, offer_id, user_id, other_user_id, create_if_missing=True):
     first_id, second_id = normalize_chat_pair_ids(user_id, other_user_id)
     now = chat_now_utc()
     purged_expired = False
-    threads = ChatThread.query.filter_by(
+    thread = ChatThread.query.filter_by(
+        offer_id=int(offer_id),
         user_a_id=first_id,
         user_b_id=second_id,
-    ).all()
-    active_threads = []
-    for candidate in threads:
-        if purge_chat_thread_if_expired(candidate, now=now):
-            purged_expired = True
-            continue
-        active_threads.append(candidate)
-    if purged_expired:
+    ).first()
+    if thread and purge_chat_thread_if_expired(thread, now=now):
+        purged_expired = True
         db.session.flush()
-
-    thread = (
-        max(active_threads, key=chat_thread_preference_key)
-        if active_threads
-        else None
-    )
-
-    # Pulizia soft: elimina eventuali thread duplicati vuoti creati per errore.
-    duplicate_pruned = False
-    if thread is not None and len(active_threads) > 1:
-        for candidate in active_threads:
-            if candidate.id == thread.id:
-                continue
-            has_messages = ChatMessage.query.filter_by(thread_id=candidate.id).first() is not None
-            if has_messages:
-                continue
-            if (candidate.last_message or "").strip():
-                continue
-            db.session.delete(candidate)
-            duplicate_pruned = True
-    if duplicate_pruned:
-        db.session.flush()
-
+        thread = None
     if purged_expired and not create_if_missing:
         db.session.commit()
     if thread or not create_if_missing:
@@ -6179,6 +5965,10 @@ def build_chat_media_prefix(offer_id, user_a_id, user_b_id):
     """Prefisso canonico degli allegati chat per coppia utenti + evento."""
     first_id, second_id = sorted((int(user_a_id), int(user_b_id)))
     return f"chat_media/{int(offer_id)}/{first_id}_{second_id}/"
+
+
+def chat_thread_last_activity(thread):
+    return thread.last_message_time or thread.updated_at or thread.created_at
 
 
 def is_chat_thread_expired(thread, *, now=None):
@@ -6664,30 +6454,6 @@ def api_chat_media_upload():
     original_name = secure_filename(media_file.filename or "").strip()
     extension = original_name.rsplit(".", 1)[1].lower() if "." in original_name else ""
     content_type = (media_file.mimetype or "").strip().lower()
-    if not extension and content_type:
-        mime_to_ext = {
-            "image/jpeg": "jpg",
-            "image/jpg": "jpg",
-            "image/png": "png",
-            "image/webp": "webp",
-            "video/mp4": "mp4",
-            "video/x-m4v": "m4v",
-            "video/quicktime": "mov",
-            "video/3gpp": "3gp",
-            "video/webm": "webm",
-            "video/x-matroska": "mkv",
-            "audio/mpeg": "mp3",
-            "audio/mp3": "mp3",
-            "audio/mp4": "m4a",
-            "audio/x-m4a": "m4a",
-            "audio/aac": "aac",
-            "audio/wav": "wav",
-            "audio/x-wav": "wav",
-            "audio/ogg": "ogg",
-            "audio/opus": "opus",
-            "audio/flac": "flac",
-        }
-        extension = mime_to_ext.get(content_type, "")
     inferred_kind = "image" if extension in CHAT_MEDIA_IMAGE_EXTENSIONS else "file"
     kind = raw_kind if raw_kind in {"image", "file"} else inferred_kind
 
@@ -6705,21 +6471,11 @@ def api_chat_media_upload():
     ):
         return jsonify({"success": False, "error": "Tipo immagine non valido."}), 400
 
-    def _max_bytes_for_chat_media(ext: str, media_kind: str) -> int:
-        if media_kind == "image":
-            return CHAT_MEDIA_IMAGE_MAX_BYTES
-        if ext in CHAT_MEDIA_VIDEO_EXTENSIONS:
-            return CHAT_MEDIA_VIDEO_MAX_BYTES
-        if ext in CHAT_MEDIA_AUDIO_EXTENSIONS:
-            return CHAT_MEDIA_AUDIO_MAX_BYTES
-        return CHAT_MEDIA_GENERIC_FILE_MAX_BYTES
-
     raw_file_bytes = media_file.read()
     if not raw_file_bytes:
         return jsonify({"success": False, "error": "Allegato vuoto non valido."}), 400
-    max_allowed_bytes = _max_bytes_for_chat_media(extension, kind)
-    if len(raw_file_bytes) > max_allowed_bytes:
-        max_mb = max_allowed_bytes / (1024 * 1024)
+    if len(raw_file_bytes) > CHAT_MEDIA_MAX_BYTES:
+        max_mb = CHAT_MEDIA_MAX_BYTES / (1024 * 1024)
         return jsonify({
             "success": False,
             "error": f"Allegato troppo pesante (max {max_mb:.0f} MB).",
@@ -6748,8 +6504,8 @@ def api_chat_media_upload():
             if "." in final_name
             else "jpg"
         )
-        if len(final_bytes) > CHAT_MEDIA_IMAGE_MAX_BYTES:
-            max_mb = CHAT_MEDIA_IMAGE_MAX_BYTES / (1024 * 1024)
+        if len(final_bytes) > CHAT_MEDIA_MAX_BYTES:
+            max_mb = CHAT_MEDIA_MAX_BYTES / (1024 * 1024)
             return jsonify({
                 "success": False,
                 "error": f"Immagine ancora troppo pesante dopo compressione (max {max_mb:.0f} MB).",
@@ -7353,14 +7109,6 @@ def api_chat_inbox():
         db.session.commit()
         threads = base_query.all()
 
-    thread_by_pair = {}
-    for thread in threads:
-        pair_key = (int(thread.user_a_id), int(thread.user_b_id))
-        existing = thread_by_pair.get(pair_key)
-        if existing is None or chat_thread_preference_key(thread) > chat_thread_preference_key(existing):
-            thread_by_pair[pair_key] = thread
-    threads = list(thread_by_pair.values())
-
     if not threads:
         return jsonify({"success": True, "chats": []})
 
@@ -7472,28 +7220,19 @@ def api_people():
                 "error": "La distanza community deve essere un numero tra 5 e 1500 km.",
             }), 400
 
-    now_utc = utc_now_naive()
     req_lat = (request.args.get("lat") or "").strip()
     req_lon = (request.args.get("lon") or "").strip()
-    search_source = "profile"
+    search_lat = current_user.latitudine or DEFAULT_USER_LATITUDE
+    search_lon = current_user.longitudine or DEFAULT_USER_LONGITUDE
     if req_lat and req_lon:
         try:
-            search_lat = parse_coordinate(req_lat, kind="lat")
-            search_lon = parse_coordinate(req_lon, kind="lon")
-            search_source = "request_gps"
-        except Exception:
+            search_lat = float(req_lat.replace(",", "."))
+            search_lon = float(req_lon.replace(",", "."))
+        except ValueError:
             return jsonify({
                 "success": False,
                 "error": "Le coordinate community non sono valide.",
             }), 400
-    else:
-        resolved_lat, resolved_lon, resolved_source = resolve_user_distance_coordinates(
-            current_user,
-            now_utc=now_utc,
-        )
-        search_lat = resolved_lat if resolved_lat is not None else DEFAULT_USER_LATITUDE
-        search_lon = resolved_lon if resolved_lon is not None else DEFAULT_USER_LONGITUDE
-        search_source = resolved_source if resolved_source != "none" else "default"
 
     people_query = User.query.options(selectinload(User.photos)).filter(
         User.id != current_user.id,
@@ -7520,17 +7259,18 @@ def api_people():
 
     people = people_query.order_by(User.eta.asc(), User.nome.asc()).all()
     if radius_km is not None:
-        filtered_people = []
-        for person in people:
-            person_lat, person_lon, _ = resolve_user_distance_coordinates(
-                person,
-                now_utc=now_utc,
-            )
-            if person_lat is None or person_lon is None:
-                continue
-            if calculate_distance(search_lat, search_lon, person_lat, person_lon) <= radius_km:
-                filtered_people.append(person)
-        people = filtered_people
+        people = [
+            person
+            for person in people
+            if person.latitudine is not None
+            and person.longitudine is not None
+            and calculate_distance(
+                search_lat,
+                search_lon,
+                person.latitudine,
+                person.longitudine,
+            ) <= radius_km
+        ]
     followed_user_ids = get_followed_user_ids(current_user.id)
 
     return jsonify({
@@ -7538,7 +7278,6 @@ def api_people():
         "selected_age_range": selected_age_range,
         "selected_gender": selected_gender,
         "selected_radius": radius_km,
-        "search_location_source": search_source,
         "age_ranges": [{"value": value, "label": label} for value, label in FASCE_ETA],
         "gender_filters": [{"value": value, "label": label} for value, label in COMMUNITY_GENDER_FILTERS],
         "people": [

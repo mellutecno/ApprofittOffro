@@ -95,7 +95,7 @@ class _LandingPageState extends State<LandingPage> {
                       children: [
                         const Center(
                           child: BrandWordmark(
-                            height: 42,
+                            height: 44,
                             alignment: Alignment.center,
                           ),
                         ),

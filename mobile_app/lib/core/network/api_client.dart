@@ -1136,7 +1136,7 @@ class ApiClient {
     return payload;
   }
 
-  Future<void> ensureChatThread({
+  Future<Map<String, dynamic>> ensureChatThread({
     required int offerId,
     required int otherUserId,
   }) async {
@@ -1154,6 +1154,7 @@ class ApiClient {
     );
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
+    return payload;
   }
 
   Future<List<Map<String, dynamic>>> fetchChatMessages({
