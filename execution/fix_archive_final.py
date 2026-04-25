@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script per correggere definitivamente la query dell'archivio su PythonAnywhere.
+Script storico per correggere definitivamente la query dell'archivio.
 """
 
 def fix_archive():

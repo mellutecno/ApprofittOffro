@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script per aggiungere le modifiche dell'archivio su PythonAnywhere.
+Script storico per aggiungere le modifiche dell'archivio al backend.
 """
 
 def add_archive_modifications():

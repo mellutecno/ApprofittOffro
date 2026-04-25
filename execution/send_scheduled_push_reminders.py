@@ -25,7 +25,7 @@ else:
 
 if os.name != "nt" and "APP_DATA_DIR" not in os.environ:
     # Se esiste un database vicino allo script (deploy Hetzner), usiamo quello.
-    # Altrimenti teniamo il fallback storico per PythonAnywhere.
+    # Altrimenti usiamo la home utente come fallback generico per deploy Linux.
     execution_db_path = os.path.join(EXECUTION_DIR, "approfittoffro.db")
     os.environ["APP_DATA_DIR"] = EXECUTION_DIR if os.path.exists(execution_db_path) else HOME_DIR
 

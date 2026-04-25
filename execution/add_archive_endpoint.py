@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Script per aggiungere l'endpoint di archiviazione offerte su PythonAnywhere.
-Eseguire questo script nella Bash console di PythonAnywhere.
+Script storico per aggiungere l'endpoint di archiviazione offerte al backend.
+Eseguire questo script solo su una copia locale del progetto o su un deploy controllato.
 
 Uso: python3 add_archive_endpoint.py
 """

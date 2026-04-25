@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script per correggere la query dell'archivio su PythonAnywhere.
+Script storico per correggere la query dell'archivio.
 L'archivio mostra:
 - Eventi > 24 ore (automatici)
 - OPPURE eventi archiviati manualmente (stato = archiviata)

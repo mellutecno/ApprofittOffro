@@ -47,16 +47,10 @@ flutter create . --platforms=android
 flutter pub get
 ```
 
-4. avvia l'app puntando al backend che vuoi usare:
+4. avvia l'app puntando al backend di produzione:
 
 ```bash
-flutter run --dart-define=API_BASE_URL=https://mellucci.pythonanywhere.com
-```
-
-Oppure, per test su Render:
-
-```bash
-flutter run --dart-define=API_BASE_URL=https://approfittoffro.onrender.com
+flutter run --dart-define=API_BASE_URL=https://approfittoffro.it
 ```
 
 ## Base Google Maps
@@ -89,7 +83,7 @@ google.maps.api.key=la_tua_chiave
 Quando la chiave c'e`, avvia o builda cosi`:
 
 ```bash
-flutter run --dart-define=API_BASE_URL=https://mellucci.pythonanywhere.com --dart-define=GOOGLE_MAPS_ENABLED=true
+flutter run --dart-define=API_BASE_URL=https://approfittoffro.it --dart-define=GOOGLE_MAPS_ENABLED=true
 ```
 
 La schermata `Offri` continuera` a funzionare anche senza chiave: mostrera` un placeholder elegante e manterra` posizione telefono + coordinate manuali.

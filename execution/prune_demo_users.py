@@ -22,7 +22,7 @@ from sqlalchemy import or_
 HOME_DIR = os.path.expanduser("~")
 os.environ.setdefault("APP_ENV_FILE", os.path.join(HOME_DIR, ".env"))
 if os.name != "nt" and "APP_DATA_DIR" not in os.environ:
-    # Su PythonAnywhere il database live e gli upload stanno nella home utente.
+    # Nei deploy Linux il database e gli upload possono stare nella home utente.
     os.environ["APP_DATA_DIR"] = HOME_DIR
 
 from app import SQLITE_PATH, UPLOAD_FOLDER, app, db, delete_upload_files, local_now

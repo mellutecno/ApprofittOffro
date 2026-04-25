@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Script per aggiornare app.py per includere offerte archiviate nell'archivio profilo.
-Eseguire questo script nella Bash console di PythonAnywhere.
+Eseguire questo script solo su una copia locale del progetto o su un deploy controllato.
 
 Uso: python3 fix_archive_complete.py
 """

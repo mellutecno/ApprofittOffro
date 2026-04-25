@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script per correggere la query dell'archivio su PythonAnywhere.
+Script storico per correggere la query dell'archivio.
 L'archivio deve mostrare solo eventi più vecchi di 24 ore.
 """
 

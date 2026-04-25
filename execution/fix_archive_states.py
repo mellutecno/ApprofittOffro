@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Script per aggiornare le query dell'archivio per includere lo stato 'archiviata'.
-Eseguire questo script nella Bash console di PythonAnywhere.
+Eseguire questo script solo su una copia locale del progetto o su un deploy controllato.
 """
 
 import re
