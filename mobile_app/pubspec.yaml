@@ -53,13 +53,13 @@ dependency_overrides:
 flutter:
   uses-material-design: true
   assets:
-    - assets/branding/app_icon.png
+    - assets/branding/app_icon.jpg
     - assets/branding/wordmark.png
     - assets/landing/
 
 flutter_launcher_icons:
   android: true
-  image_path: "assets/branding/app_icon.png"
-  adaptive_icon_foreground: "assets/branding/app_icon.png"
+  image_path: "assets/branding/app_icon.jpg"
+  adaptive_icon_foreground: "assets/branding/app_icon.jpg"
   adaptive_icon_background: "#F6EFE6"
   min_sdk_android: 34
