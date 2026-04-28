@@ -68,7 +68,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   bool _deleting = false;
   bool _isLocating = false;
   bool _initialLocationRequested = false;
-  bool _initialMapReady = !AppConfig.googleMapsEnabled;
+  bool _initialMapReady = true;
   bool _loadingNearbyPlaces = false;
   bool _resolvingMapTapAddress = false;
   bool _nearbyPlacesLoaded = false;
@@ -689,10 +689,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     }
 
     if (!_initialLocationRequested) {
-      await _bootstrapCurrentLocation();
-    }
-    if (!mounted) {
-      return;
+      unawaited(_bootstrapCurrentLocation());
     }
 
     _mapDraftSelection ??= _currentCommittedPlaceCandidate();
@@ -778,23 +775,16 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                 child: Stack(
                   children: [
                     Positioned.fill(
-                      child: !_initialMapReady
-                          ? const _MapBootstrappingCard(height: null)
-                          : _GoogleMapsPreviewCard(
-                              target: _currentMapCenter,
-                              markers: _nearbyMarkers,
-                              isBusy: _isLocating ||
-                                  _loadingNearbyPlaces ||
-                                  _resolvingMapTapAddress,
-                              onMapCreated: _handleMapCreated,
-                              onCameraMove: _handleCameraMove,
-                              onCameraIdle: () {},
-                              onMapTap: _handleMapTap,
-                              onRecenterTap: _submitting || _isLocating
-                                  ? null
-                                  : _useCurrentLocation,
-                              height: null,
-                            ),
+                      child: _GoogleMapsPreviewCard(
+                        target: _currentMapCenter,
+                        markers: _nearbyMarkers,
+                        onMapCreated: _handleMapCreated,
+                        onCameraMove: _handleCameraMove,
+                        onCameraIdle: () {},
+                        onMapTap: _handleMapTap,
+                        onRecenterTap: _submitting ? null : _useCurrentLocation,
+                        height: null,
+                      ),
                     ),
                     if (_mapDraftSelection != null)
                       Positioned(
@@ -867,10 +857,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     if (profileTarget != null &&
         _selectedLatitude == null &&
         _selectedLongitude == null) {
-      setState(() {
-        _currentMapCenter = profileTarget;
-        _initialMapReady = true;
-      });
+      _setMapCenter(profileTarget);
       await _animateMapTo(profileTarget, zoom: 15.6);
     }
     await _useCurrentLocation(silent: true);
@@ -881,6 +868,36 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       setState(() => _initialMapReady = true);
       _refreshMapPicker();
     }
+  }
+
+  void _setMapCenter(LatLng target) {
+    if (!mounted) {
+      _currentMapCenter = target;
+      _initialMapReady = true;
+      return;
+    }
+    setState(() {
+      _currentMapCenter = target;
+      _initialMapReady = true;
+    });
+    _refreshMapPicker();
+  }
+
+  Future<Position?> _lastKnownPosition() async {
+    try {
+      return await Geolocator.getLastKnownPosition();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _usePosition(Position position, {double zoom = 16.2}) async {
+    if (!mounted) {
+      return;
+    }
+    final target = LatLng(position.latitude, position.longitude);
+    _setMapCenter(target);
+    await _animateMapTo(target, zoom: zoom);
   }
 
   Future<void> _pickDateTime() async {
@@ -1020,6 +1037,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
   Future<void> _useCurrentLocation({bool silent = false}) async {
     if (_isLocating) {
+      final lastKnown = await _lastKnownPosition();
+      if (lastKnown != null) {
+        await _usePosition(lastKnown, zoom: 15.8);
+      }
       return;
     }
 
@@ -1027,6 +1048,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
+        final lastKnown = await _lastKnownPosition();
+        if (lastKnown != null) {
+          await _usePosition(lastKnown, zoom: 15.8);
+          return;
+        }
         throw Exception('Attiva il GPS del telefono e riprova.');
       }
 
@@ -1035,30 +1061,40 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.denied) {
+        final lastKnown = await _lastKnownPosition();
+        if (lastKnown != null) {
+          await _usePosition(lastKnown, zoom: 15.8);
+          return;
+        }
         throw Exception('Permesso posizione negato.');
       }
       if (permission == LocationPermission.deniedForever) {
+        final lastKnown = await _lastKnownPosition();
+        if (lastKnown != null) {
+          await _usePosition(lastKnown, zoom: 15.8);
+          return;
+        }
         throw Exception(
           'Permesso posizione negato in modo permanente. Riattivalo dalle impostazioni.',
         );
       }
 
+      final lastKnown = await _lastKnownPosition();
+      if (lastKnown != null) {
+        await _usePosition(lastKnown, zoom: 15.8);
+      }
+
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 12),
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 8),
         ),
       );
       if (!mounted) {
         return;
       }
 
-      final target = LatLng(position.latitude, position.longitude);
-      setState(() {
-        _currentMapCenter = target;
-        _initialMapReady = true;
-      });
-      await _animateMapTo(target, zoom: 16.2);
+      await _usePosition(position, zoom: 16.2);
     } catch (error) {
       if (!mounted) {
         return;
@@ -2210,7 +2246,6 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
   const _GoogleMapsPreviewCard({
     required this.target,
     required this.markers,
-    required this.isBusy,
     required this.onMapCreated,
     required this.onCameraMove,
     required this.onCameraIdle,
@@ -2221,7 +2256,6 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
 
   final LatLng target;
   final Set<Marker> markers;
-  final bool isBusy;
   final ValueChanged<GoogleMapController> onMapCreated;
   final ValueChanged<CameraPosition> onCameraMove;
   final VoidCallback onCameraIdle;
@@ -2296,65 +2330,7 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
                 ),
               ),
             ),
-            if (isBusy)
-              const Positioned(bottom: 14, left: 14, child: _BusyMapBadge()),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BusyMapBadge extends StatelessWidget {
-  const _BusyMapBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final darkPalette = AppTheme.useMusicAiPalette;
-    return Container(
-      width: 42,
-      height: 42,
-      decoration: BoxDecoration(
-        color: darkPalette
-            ? AppTheme.paper.withValues(alpha: 0.94)
-            : Colors.white.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color:
-                darkPalette ? const Color(0x52000000) : const Color(0x22000000),
-            blurRadius: 16,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(10),
-      child: const CircularProgressIndicator(
-        strokeWidth: 2.6,
-        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.orange),
-      ),
-    );
-  }
-}
-
-class _MapBootstrappingCard extends StatelessWidget {
-  const _MapBootstrappingCard({this.height = 304});
-
-  final double? height;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: height,
-      decoration: BoxDecoration(
-        color: AppTheme.mist,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.cardBorder),
-      ),
-      child: const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.orange),
         ),
       ),
     );
