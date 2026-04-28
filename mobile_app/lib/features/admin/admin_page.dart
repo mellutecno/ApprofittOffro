@@ -11,6 +11,7 @@ import 'admin_edit_user_page.dart';
 
 enum _AdminSection {
   users('Utenti'),
+  reviewUsers('Review'),
   futureOffers('Eventi futuri'),
   pastOffers('Eventi passati'),
   chats('Chat');
@@ -132,8 +133,16 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   List<AdminUserSummary> _filteredUsers(AdminDashboardData data) {
+    return _filterUsers(data.users);
+  }
+
+  List<AdminUserSummary> _filteredReviewUsers(AdminDashboardData data) {
+    return _filterUsers(data.reviewUsers);
+  }
+
+  List<AdminUserSummary> _filterUsers(List<AdminUserSummary> users) {
     final query = _userQuery.trim().toLowerCase();
-    return data.users.where((user) {
+    return users.where((user) {
       if (_selectedGender.isNotEmpty && user.gender != _selectedGender) {
         return false;
       }
@@ -278,6 +287,119 @@ class _AdminPageState extends State<AdminPage> {
       default:
         return 'Non dichiarato';
     }
+  }
+
+  String _moderationStatusLabel(String value) {
+    switch (value) {
+      case 'approved':
+        return 'Approvato';
+      case 'review':
+        return 'In review';
+      case 'blocked':
+        return 'Bloccato';
+      case 'rejected':
+        return 'Respinto';
+      default:
+        return value.isEmpty ? 'Non definito' : value;
+    }
+  }
+
+  Color _moderationStatusColor(String value) {
+    switch (value) {
+      case 'approved':
+        return const Color(0xFF0F9D75);
+      case 'review':
+        return AppTheme.orange;
+      case 'blocked':
+      case 'rejected':
+        return const Color(0xFFBE3455);
+      default:
+        return AppTheme.vividViolet;
+    }
+  }
+
+  Future<void> _updateUserModeration(
+    AdminUserSummary user, {
+    required String target,
+    required String status,
+    String reason = '',
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result =
+          await widget.authController.apiClient.updateAdminUserModeration(
+        userId: user.id,
+        target: target,
+        status: status,
+        reason: reason,
+      );
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text(result)));
+      await _reloadDashboard();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _confirmModerationDecision(
+    AdminUserSummary user, {
+    required String target,
+    required String status,
+  }) async {
+    final reasonController = TextEditingController();
+    final isApproval = status == 'approved';
+    final targetLabel = target == 'bio' ? 'bio' : 'foto';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title:
+              Text(isApproval ? 'Approva $targetLabel' : 'Blocca $targetLabel'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(user.name),
+              if (!isApproval) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: reasonController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Motivo',
+                    hintText: 'Motivo visibile nel pannello admin.',
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annulla'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(isApproval ? 'Approva' : 'Blocca'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed == true) {
+      await _updateUserModeration(
+        user,
+        target: target,
+        status: status,
+        reason: reasonController.text.trim(),
+      );
+    }
+    reasonController.dispose();
   }
 
   Future<void> _confirmDeleteUser(AdminUserSummary user) async {
@@ -604,6 +726,7 @@ class _AdminPageState extends State<AdminPage> {
       (label: 'Futuri', value: stats.futureOffers),
       (label: 'Passati', value: stats.pastOffers),
       (label: 'Chat', value: stats.chats),
+      (label: 'Review', value: stats.reviewUsers),
     ];
 
     return GridView.builder(
@@ -858,6 +981,18 @@ class _AdminPageState extends State<AdminPage> {
           ];
         }
         return filteredUsers.map(_buildUserCard).toList();
+      case _AdminSection.reviewUsers:
+        final filteredUsers = _filteredReviewUsers(data);
+        if (filteredUsers.isEmpty) {
+          return const [
+            _AdminEmptyState(
+              title: 'Nessun utente in review',
+              subtitle:
+                  'Qui compariranno bio o foto bloccate dalla moderazione.',
+            ),
+          ];
+        }
+        return filteredUsers.map(_buildReviewUserCard).toList();
       case _AdminSection.futureOffers:
         final filteredOffers = _filteredOffers(data.futureOffers);
         if (filteredOffers.isEmpty) {
@@ -1012,6 +1147,171 @@ class _AdminPageState extends State<AdminPage> {
                     label: const Text('Elimina'),
                   ),
                 ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewUserCard(AdminUserSummary user) {
+    final bioReason = user.bioModerationReason.trim();
+    final photoReason = user.photoModerationReason.trim();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildAvatar(
+                  filename: user.photoFilename,
+                  fallback: user.name,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.name,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: AppTheme.brown,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        user.email,
+                        style: TextStyle(
+                          color: AppTheme.brown.withValues(alpha: 0.72),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _StatusPill(
+                            label:
+                                'Bio ${_moderationStatusLabel(user.bioModerationStatus)}',
+                            color: _moderationStatusColor(
+                              user.bioModerationStatus,
+                            ),
+                          ),
+                          _StatusPill(
+                            label:
+                                'Foto ${_moderationStatusLabel(user.photoModerationStatus)}',
+                            color: _moderationStatusColor(
+                              user.photoModerationStatus,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (user.bio.trim().isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Text(
+                user.bio,
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.82),
+                  height: 1.35,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            if (bioReason.isNotEmpty || photoReason.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              if (bioReason.isNotEmpty)
+                Text(
+                  'Motivo bio: $bioReason',
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.7),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              if (photoReason.isNotEmpty)
+                Text(
+                  'Motivo foto: $photoReason',
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.7),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+            ],
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (user.needsBioReview)
+                  SizedBox(
+                    width: 180,
+                    child: FilledButton.icon(
+                      onPressed: () => _confirmModerationDecision(
+                        user,
+                        target: 'bio',
+                        status: 'approved',
+                      ),
+                      icon: const Icon(Icons.check_circle_outline_rounded),
+                      label: const Text('Approva bio'),
+                    ),
+                  ),
+                if (user.needsPhotoReview)
+                  SizedBox(
+                    width: 180,
+                    child: FilledButton.icon(
+                      onPressed: () => _confirmModerationDecision(
+                        user,
+                        target: 'photo',
+                        status: 'approved',
+                      ),
+                      icon: const Icon(Icons.verified_outlined),
+                      label: const Text('Approva foto'),
+                    ),
+                  ),
+                SizedBox(
+                  width: 180,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _editUser(user),
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Modifica'),
+                  ),
+                ),
+                if (user.bioModerationStatus != 'blocked')
+                  SizedBox(
+                    width: 180,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _confirmModerationDecision(
+                        user,
+                        target: 'bio',
+                        status: 'blocked',
+                      ),
+                      icon: const Icon(Icons.block_rounded),
+                      label: const Text('Blocca bio'),
+                    ),
+                  ),
+                if (user.photoModerationStatus != 'blocked')
+                  SizedBox(
+                    width: 180,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _confirmModerationDecision(
+                        user,
+                        target: 'photo',
+                        status: 'blocked',
+                      ),
+                      icon: const Icon(Icons.no_photography_outlined),
+                      label: const Text('Blocca foto'),
+                    ),
+                  ),
               ],
             ),
           ],
@@ -1305,11 +1605,13 @@ class _AdminPageState extends State<AdminPage> {
 
         final dashboard = data!;
         final filteredUsers = _filteredUsers(dashboard);
+        final filteredReviewUsers = _filteredReviewUsers(dashboard);
         final filteredFutureOffers = _filteredOffers(dashboard.futureOffers);
         final filteredPastOffers = _filteredOffers(dashboard.pastOffers);
         final filteredChats = _filteredChats(dashboard);
         final currentCount = switch (_selectedSection) {
           _AdminSection.users => filteredUsers.length,
+          _AdminSection.reviewUsers => filteredReviewUsers.length,
           _AdminSection.futureOffers => filteredFutureOffers.length,
           _AdminSection.pastOffers => filteredPastOffers.length,
           _AdminSection.chats => filteredChats.length,
@@ -1395,8 +1697,13 @@ class _AdminPageState extends State<AdminPage> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-                  child: _selectedSection == _AdminSection.users
-                      ? _buildUsersFilters(filteredUsers)
+                  child: _selectedSection == _AdminSection.users ||
+                          _selectedSection == _AdminSection.reviewUsers
+                      ? _buildUsersFilters(
+                          _selectedSection == _AdminSection.users
+                              ? filteredUsers
+                              : filteredReviewUsers,
+                        )
                       : _selectedSection == _AdminSection.chats
                           ? _buildChatsFilters(filteredChats)
                           : _buildOffersFilters(

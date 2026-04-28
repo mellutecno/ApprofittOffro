@@ -423,7 +423,7 @@ class OfferCard extends StatelessWidget {
                       ),
                     ),
                     if (canNavigateToOffer) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       Material(
                         color: Colors.transparent,
                         child: InkWell(
@@ -431,8 +431,8 @@ class OfferCard extends StatelessWidget {
                           onTap: () =>
                               _openExternalLink(_googleMapsDirectionsUrl()),
                           child: Ink(
-                            width: 42,
-                            height: 42,
+                            width: 58,
+                            height: 58,
                             decoration: BoxDecoration(
                               color: AppTheme.peach.withValues(alpha: 0.72),
                               borderRadius: BorderRadius.circular(999),
@@ -440,7 +440,7 @@ class OfferCard extends StatelessWidget {
                             child: const Icon(
                               Icons.near_me_rounded,
                               color: AppTheme.vividViolet,
-                              size: 20,
+                              size: 32,
                             ),
                           ),
                         ),

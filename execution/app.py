@@ -8488,6 +8488,10 @@ def api_admin_dashboard():
         .all()
     )
     admins_count = User.query.filter_by(is_admin=True).count()
+    review_users = [
+        user for user in users
+        if is_user_moderation_restricted(user)
+    ]
 
     return jsonify({
         "success": True,
@@ -8497,10 +8501,15 @@ def api_admin_dashboard():
             "future_offers": len(upcoming_offers),
             "past_offers": len(past_offers),
             "chats": len(chat_threads),
+            "review_users": len(review_users),
         },
         "users": [
             serialize_admin_user_summary(user)
             for user in users
+        ],
+        "review_users": [
+            serialize_admin_user_summary(user)
+            for user in review_users
         ],
         "future_offers": [
             serialize_admin_offer_summary(offer)
@@ -8702,11 +8711,149 @@ def api_admin_approve_user_bio(user_id):
     user.bio_moderation_provider = "admin"
     user.bio_moderation_model = "manual"
     user.bio_moderation_raw_json = None
+    db.session.add(AiModerationLog(
+        user_id=user.id,
+        content_type="bio",
+        content_table="users",
+        content_id=user.id,
+        status=MODERATION_STATUS_APPROVED,
+        reason=None,
+        score=None,
+        provider="admin",
+        model="manual",
+        raw_json=json.dumps({
+            "target": "bio",
+            "status": MODERATION_STATUS_APPROVED,
+            "admin_id": current_user.id,
+        }, ensure_ascii=False),
+        created_at=datetime.now(),
+    ))
     db.session.commit()
 
     return jsonify({
         "success": True,
         "message": f"Bio di {user.nome} approvata. L'utente può pubblicare offerte.",
+        "user": serialize_admin_user_detail(user),
+    })
+
+
+def apply_admin_user_moderation_decision(user, *, target, status, reason=""):
+    now = datetime.now()
+    normalized_target = str(target or "").strip().lower()
+    normalized_status = str(status or "").strip().lower()
+    normalized_reason = str(reason or "").strip()[:100]
+
+    allowed_targets = {"bio", "photo"}
+    allowed_statuses = {
+        MODERATION_STATUS_APPROVED,
+        MODERATION_STATUS_REVIEW,
+        MODERATION_STATUS_REJECTED,
+        "blocked",
+    }
+    if normalized_target not in allowed_targets:
+        return False, "Target moderazione non valido."
+    if normalized_status not in allowed_statuses:
+        return False, "Stato moderazione non valido."
+
+    prefix = "bio" if normalized_target == "bio" else "photo"
+    setattr(user, f"{prefix}_moderation_status", normalized_status)
+    setattr(user, f"{prefix}_moderation_reason", "" if normalized_status == MODERATION_STATUS_APPROVED else normalized_reason)
+    setattr(user, f"{prefix}_moderation_score", None)
+    setattr(user, f"{prefix}_moderation_checked_at", now)
+    setattr(user, f"{prefix}_moderation_provider", "admin")
+    setattr(user, f"{prefix}_moderation_model", "manual")
+    setattr(user, f"{prefix}_moderation_raw_json", None)
+
+    if normalized_target == "photo":
+        for photo in list(getattr(user, "photos", [])):
+            photo.moderation_status = normalized_status
+            photo.moderation_reason = "" if normalized_status == MODERATION_STATUS_APPROVED else normalized_reason
+            photo.moderation_score = None
+            photo.moderation_checked_at = now
+            photo.moderation_provider = "admin"
+            photo.moderation_model = "manual"
+            photo.moderation_raw_json = None
+            photo.status = "approved" if normalized_status == MODERATION_STATUS_APPROVED else normalized_status
+            photo.reason = "" if normalized_status == MODERATION_STATUS_APPROVED else normalized_reason
+            photo.moderated_by = current_user.id
+            photo.moderated_at = now
+
+    db.session.add(AiModerationLog(
+        user_id=user.id,
+        content_type=normalized_target,
+        content_table="users",
+        content_id=user.id,
+        status=normalized_status,
+        reason=normalized_reason or None,
+        score=None,
+        provider="admin",
+        model="manual",
+        raw_json=json.dumps({
+            "target": normalized_target,
+            "status": normalized_status,
+            "reason": normalized_reason,
+            "admin_id": current_user.id,
+        }, ensure_ascii=False),
+        created_at=now,
+    ))
+    return True, ""
+
+
+@app.route("/api/admin/users/<int:user_id>/approve-photo", methods=["POST"])
+@admin_required
+def api_admin_approve_user_photo(user_id):
+    """Approva le foto profilo di un utente in revisione."""
+    user = User.query.options(selectinload(User.photos)).get(user_id)
+    if not user:
+        return jsonify({"success": False, "error": "Utente non trovato."}), 404
+    if is_admin_user(user):
+        return jsonify({"success": False, "error": "Non puoi modificare un amministratore."}), 403
+
+    ok, error = apply_admin_user_moderation_decision(
+        user,
+        target="photo",
+        status=MODERATION_STATUS_APPROVED,
+    )
+    if not ok:
+        return jsonify({"success": False, "error": error}), 400
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"Foto di {user.nome} approvate.",
+        "user": serialize_admin_user_detail(user),
+    })
+
+
+@app.route("/api/admin/users/<int:user_id>/moderation", methods=["POST"])
+@admin_required
+def api_admin_update_user_moderation(user_id):
+    """Aggiorna manualmente lo stato di moderazione bio/foto."""
+    user = User.query.options(selectinload(User.photos)).get(user_id)
+    if not user:
+        return jsonify({"success": False, "error": "Utente non trovato."}), 404
+    if is_admin_user(user):
+        return jsonify({"success": False, "error": "Non puoi modificare un amministratore."}), 403
+
+    data = request.get_json(silent=True) or {}
+    target = data.get("target", "")
+    status = data.get("status", "")
+    reason = data.get("reason", "")
+
+    ok, error = apply_admin_user_moderation_decision(
+        user,
+        target=target,
+        status=status,
+        reason=reason,
+    )
+    if not ok:
+        return jsonify({"success": False, "error": error}), 400
+    db.session.commit()
+
+    label = "bio" if str(target).strip().lower() == "bio" else "foto"
+    return jsonify({
+        "success": True,
+        "message": f"Moderazione {label} aggiornata per {user.nome}.",
         "user": serialize_admin_user_detail(user),
     })
 

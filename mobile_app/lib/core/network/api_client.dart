@@ -307,6 +307,17 @@ class ApiClient {
     );
   }
 
+  Future<List<AdminUserSummary>> fetchAdminReviewUsers() async {
+    final response =
+        await _send(method: 'GET', path: '/api/admin/users/review');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return (payload['users'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>()
+        .map(AdminUserSummary.fromJson)
+        .toList();
+  }
+
   Future<List<UserPreview>> fetchPeople({
     String ageRange = '',
     String gender = '',
@@ -721,6 +732,43 @@ class ApiClient {
     _ensureSuccess(payload, response.statusCode);
     return payload['message']?.toString() ??
         'Comunicazione inviata con successo.';
+  }
+
+  Future<String> updateAdminUserModeration({
+    required int userId,
+    required String target,
+    required String status,
+    String reason = '',
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/admin/users/$userId/moderation',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'target': target,
+        'status': status,
+        'reason': reason,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Moderazione aggiornata.';
+  }
+
+  Future<String> approveAdminUserBio(int userId) {
+    return updateAdminUserModeration(
+      userId: userId,
+      target: 'bio',
+      status: 'approved',
+    );
+  }
+
+  Future<String> approveAdminUserPhoto(int userId) {
+    return updateAdminUserModeration(
+      userId: userId,
+      target: 'photo',
+      status: 'approved',
+    );
   }
 
   Future<String> deleteAdminChat(

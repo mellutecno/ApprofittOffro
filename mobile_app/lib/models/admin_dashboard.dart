@@ -7,6 +7,7 @@ class AdminDashboardStats {
     required this.futureOffers,
     required this.pastOffers,
     required this.chats,
+    required this.reviewUsers,
   });
 
   final int users;
@@ -14,6 +15,7 @@ class AdminDashboardStats {
   final int futureOffers;
   final int pastOffers;
   final int chats;
+  final int reviewUsers;
 
   factory AdminDashboardStats.fromJson(Map<String, dynamic> json) {
     return AdminDashboardStats(
@@ -22,6 +24,7 @@ class AdminDashboardStats {
       futureOffers: json['future_offers'] as int? ?? 0,
       pastOffers: json['past_offers'] as int? ?? 0,
       chats: json['chats'] as int? ?? 0,
+      reviewUsers: json['review_users'] as int? ?? 0,
     );
   }
 }
@@ -37,6 +40,12 @@ class AdminUserSummary {
     required this.city,
     required this.cityLabel,
     required this.bio,
+    required this.bioModerationStatus,
+    required this.bioModerationReason,
+    required this.bioModerationScore,
+    required this.bioModerationCheckedAt,
+    required this.photoModerationStatus,
+    required this.photoModerationReason,
     required this.isVerified,
     required this.isAdmin,
     required this.createdAt,
@@ -56,6 +65,12 @@ class AdminUserSummary {
   final String city;
   final String cityLabel;
   final String bio;
+  final String bioModerationStatus;
+  final String bioModerationReason;
+  final double? bioModerationScore;
+  final DateTime? bioModerationCheckedAt;
+  final String photoModerationStatus;
+  final String photoModerationReason;
   final bool isVerified;
   final bool isAdmin;
   final DateTime? createdAt;
@@ -76,6 +91,14 @@ class AdminUserSummary {
       city: (json['citta'] ?? '').toString(),
       cityLabel: (json['city_label'] ?? '').toString(),
       bio: (json['bio'] ?? '').toString(),
+      bioModerationStatus:
+          (json['bio_moderation_status'] ?? 'approved').toString(),
+      bioModerationReason: (json['bio_moderation_reason'] ?? '').toString(),
+      bioModerationScore: (json['bio_moderation_score'] as num?)?.toDouble(),
+      bioModerationCheckedAt: _parseDate(json['bio_moderation_checked_at']),
+      photoModerationStatus:
+          (json['photo_moderation_status'] ?? 'approved').toString(),
+      photoModerationReason: (json['photo_moderation_reason'] ?? '').toString(),
       isVerified: json['verificato'] == true,
       isAdmin: json['is_admin'] == true,
       createdAt: _parseDate(json['created_at']),
@@ -86,6 +109,10 @@ class AdminUserSummary {
       ratingCount: json['rating_count'] as int? ?? 0,
     );
   }
+
+  bool get needsBioReview => bioModerationStatus != 'approved';
+  bool get needsPhotoReview => photoModerationStatus != 'approved';
+  bool get isRestricted => needsBioReview || needsPhotoReview;
 }
 
 class AdminEditableUser {
@@ -105,6 +132,15 @@ class AdminEditableUser {
     required this.preferredFoods,
     required this.intolerances,
     required this.bio,
+    required this.bioModerationStatus,
+    required this.bioModerationReason,
+    required this.bioModerationScore,
+    required this.bioModerationCheckedAt,
+    required this.bioModerationProvider,
+    required this.bioModerationModel,
+    required this.photoModerationStatus,
+    required this.photoModerationReason,
+    required this.photoModerationScore,
     required this.isVerified,
     required this.isAdmin,
   });
@@ -124,6 +160,15 @@ class AdminEditableUser {
   final String preferredFoods;
   final String intolerances;
   final String bio;
+  final String bioModerationStatus;
+  final String bioModerationReason;
+  final double? bioModerationScore;
+  final DateTime? bioModerationCheckedAt;
+  final String bioModerationProvider;
+  final String bioModerationModel;
+  final String photoModerationStatus;
+  final String photoModerationReason;
+  final double? photoModerationScore;
   final bool isVerified;
   final bool isAdmin;
 
@@ -146,6 +191,18 @@ class AdminEditableUser {
       preferredFoods: (json['cibi_preferiti'] ?? '').toString(),
       intolerances: (json['intolleranze'] ?? '').toString(),
       bio: (json['bio'] ?? '').toString(),
+      bioModerationStatus:
+          (json['bio_moderation_status'] ?? 'approved').toString(),
+      bioModerationReason: (json['bio_moderation_reason'] ?? '').toString(),
+      bioModerationScore: (json['bio_moderation_score'] as num?)?.toDouble(),
+      bioModerationCheckedAt: _parseDate(json['bio_moderation_checked_at']),
+      bioModerationProvider: (json['bio_moderation_provider'] ?? '').toString(),
+      bioModerationModel: (json['bio_moderation_model'] ?? '').toString(),
+      photoModerationStatus:
+          (json['photo_moderation_status'] ?? 'approved').toString(),
+      photoModerationReason: (json['photo_moderation_reason'] ?? '').toString(),
+      photoModerationScore:
+          (json['photo_moderation_score'] as num?)?.toDouble(),
       isVerified: json['verificato'] == true,
       isAdmin: json['is_admin'] == true,
     );
@@ -281,6 +338,7 @@ class AdminDashboardData {
     required this.futureOffers,
     required this.pastOffers,
     required this.chats,
+    required this.reviewUsers,
   });
 
   final AdminDashboardStats stats;
@@ -288,6 +346,7 @@ class AdminDashboardData {
   final List<AdminOfferSummary> futureOffers;
   final List<AdminOfferSummary> pastOffers;
   final List<AdminChatSummary> chats;
+  final List<AdminUserSummary> reviewUsers;
 
   factory AdminDashboardData.fromJson(Map<String, dynamic> json) {
     return AdminDashboardData(
@@ -309,6 +368,10 @@ class AdminDashboardData {
       chats: (json['chats'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>()
           .map(AdminChatSummary.fromJson)
+          .toList(),
+      reviewUsers: (json['review_users'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(AdminUserSummary.fromJson)
           .toList(),
     );
   }
