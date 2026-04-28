@@ -57,7 +57,6 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   final _scrollController = ScrollController();
   final _venueSectionKey = GlobalKey();
   final ValueNotifier<int> _mapPickerRefreshTick = ValueNotifier(0);
-  final Completer<GoogleMapController> _mapControllerCompleter = Completer();
 
   String? _mealType;
   int _totalSeats = 1;
@@ -68,10 +67,12 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   bool _deleting = false;
   bool _isLocating = false;
   bool _initialLocationRequested = false;
-  bool _initialMapReady = !AppConfig.googleMapsEnabled;
+  bool _initialMapReady = true;
+  bool _userLocationLayerEnabled = false;
   bool _loadingNearbyPlaces = false;
   bool _resolvingMapTapAddress = false;
   bool _nearbyPlacesLoaded = false;
+  int _mapInstance = 0;
   GoogleMapController? _mapController;
   BuildContext? _mapPickerSheetContext;
   LatLng _currentMapCenter = _fallbackMapTarget;
@@ -665,15 +666,13 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
 
-    if (!_initialLocationRequested) {
-      await _bootstrapCurrentLocation();
-    }
-    if (!mounted) {
-      return;
-    }
-
     _mapDraftSelection ??= _currentCommittedPlaceCandidate();
+    _mapController = null;
+    _mapInstance++;
     _refreshMapPicker();
+    if (!_initialLocationRequested) {
+      unawaited(_bootstrapCurrentLocation());
+    }
 
     await showModalBottomSheet<void>(
       context: context,
@@ -689,6 +688,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       },
     ).whenComplete(() {
       _mapPickerSheetContext = null;
+      _mapController = null;
       if (mounted && _mapDraftSelection != null) {
         setState(() => _mapDraftSelection = null);
         _refreshMapPicker();
@@ -763,6 +763,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                               isBusy: _isLocating ||
                                   _loadingNearbyPlaces ||
                                   _resolvingMapTapAddress,
+                              mapKey: ValueKey('offer-map-$_mapInstance'),
+                              myLocationEnabled: _userLocationLayerEnabled,
                               onMapCreated: _handleMapCreated,
                               onCameraMove: _handleCameraMove,
                               onCameraIdle: () {},
@@ -1009,6 +1011,24 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
           'Permesso posizione negato in modo permanente. Riattivalo dalle impostazioni.',
         );
       }
+      if (mounted && !_userLocationLayerEnabled) {
+        setState(() => _userLocationLayerEnabled = true);
+        _refreshMapPicker();
+      }
+
+      final lastKnownPosition = await Geolocator.getLastKnownPosition();
+      if (mounted && lastKnownPosition != null) {
+        final target = LatLng(
+          lastKnownPosition.latitude,
+          lastKnownPosition.longitude,
+        );
+        setState(() {
+          _currentMapCenter = target;
+          _initialMapReady = true;
+        });
+        _refreshMapPicker();
+        await _animateMapTo(target, zoom: 15.8);
+      }
 
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -1044,10 +1064,14 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
   void _handleMapCreated(GoogleMapController controller) {
     _mapController = controller;
-    if (!_mapControllerCompleter.isCompleted) {
-      _mapControllerCompleter.complete(controller);
-    }
-    unawaited(_animateMapTo(_currentMapCenter));
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 250)).then((_) {
+        if (!mounted || _mapController != controller) {
+          return null;
+        }
+        return _animateMapTo(_currentMapCenter);
+      }),
+    );
   }
 
   void _handleCameraMove(CameraPosition position) {
@@ -1513,10 +1537,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   }
 
   Future<void> _animateMapTo(LatLng target, {double zoom = 15.6}) async {
-    final controller = _mapController ??
-        (_mapControllerCompleter.isCompleted
-            ? await _mapControllerCompleter.future
-            : null);
+    final controller = _mapController;
     if (controller == null) {
       return;
     }
@@ -2178,6 +2199,8 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
     required this.target,
     required this.markers,
     required this.isBusy,
+    required this.mapKey,
+    required this.myLocationEnabled,
     required this.onMapCreated,
     required this.onCameraMove,
     required this.onCameraIdle,
@@ -2189,6 +2212,8 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
   final LatLng target;
   final Set<Marker> markers;
   final bool isBusy;
+  final Key mapKey;
+  final bool myLocationEnabled;
   final ValueChanged<GoogleMapController> onMapCreated;
   final ValueChanged<CameraPosition> onCameraMove;
   final VoidCallback onCameraIdle;
@@ -2206,12 +2231,13 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
         child: Stack(
           children: [
             GoogleMap(
+              key: mapKey,
               onMapCreated: onMapCreated,
               initialCameraPosition: CameraPosition(target: target, zoom: 15.6),
               markers: markers,
               mapToolbarEnabled: false,
               myLocationButtonEnabled: false,
-              myLocationEnabled: true,
+              myLocationEnabled: myLocationEnabled,
               zoomControlsEnabled: false,
               compassEnabled: false,
               scrollGesturesEnabled: true,
