@@ -466,10 +466,10 @@ li {
 }
 
 .btn-primary {
-    background: var(--accent-gradient) !important;
+    background: linear-gradient(135deg, #5a2fc2 0%, #3d2ca6 48%, #15329c 100%) !important;
     color: #ffffff !important;
-    box-shadow: 0 18px 34px rgba(91, 76, 255, 0.3);
-    border: 1px solid var(--line-strong) !important;
+    box-shadow: 0 14px 30px rgba(35, 50, 160, 0.42);
+    border: 1px solid rgba(129, 122, 255, 0.74) !important;
 }
 
 .btn-secondary {
@@ -930,9 +930,9 @@ li {
 
 .hero .btn-primary,
 #home .btn-primary {
-    background: var(--accent-gradient) !important;
+    background: linear-gradient(135deg, #5a2fc2 0%, #3d2ca6 48%, #15329c 100%) !important;
     color: #ffffff !important;
-    border: 1px solid rgba(210, 235, 255, 0.72) !important;
+    border: 1px solid rgba(129, 122, 255, 0.74) !important;
 }
 
 .hero .btn-secondary,
