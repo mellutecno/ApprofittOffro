@@ -38,6 +38,15 @@ CLAIM_STATUS_PENDING = "pending"
 CLAIM_STATUS_ACCEPTED = "accepted"
 CLAIM_STATUS_REJECTED = "rejected"
 
+MODERATION_STATUS_APPROVED = "approved"
+MODERATION_STATUS_REVIEW = "review"
+MODERATION_STATUS_REJECTED = "rejected"
+MODERATION_RESTRICTED_STATUSES = {
+    MODERATION_STATUS_REVIEW,
+    MODERATION_STATUS_REJECTED,
+    "blocked",
+}
+
 
 class User(UserMixin, db.Model):
     """Utente registrato."""
@@ -62,6 +71,20 @@ class User(UserMixin, db.Model):
     cibi_preferiti = db.Column(db.String(300), nullable=True) # Aggiunta per Profilazione
     intolleranze = db.Column(db.String(300), nullable=True) # Aggiunta per Profilazione
     bio = db.Column(db.String(500), nullable=True) # Aggiunta bio per Profilazione
+    bio_moderation_status = db.Column(db.String(20), default=MODERATION_STATUS_APPROVED, nullable=False)
+    bio_moderation_reason = db.Column(db.String(100), nullable=True)
+    bio_moderation_score = db.Column(db.Float, nullable=True)
+    bio_moderation_checked_at = db.Column(db.DateTime, nullable=True)
+    bio_moderation_provider = db.Column(db.String(50), nullable=True)
+    bio_moderation_model = db.Column(db.String(100), nullable=True)
+    bio_moderation_raw_json = db.Column(db.Text, nullable=True)
+    photo_moderation_status = db.Column(db.String(20), default=MODERATION_STATUS_APPROVED, nullable=False)
+    photo_moderation_reason = db.Column(db.String(100), nullable=True)
+    photo_moderation_score = db.Column(db.Float, nullable=True)
+    photo_moderation_checked_at = db.Column(db.DateTime, nullable=True)
+    photo_moderation_provider = db.Column(db.String(50), nullable=True)
+    photo_moderation_model = db.Column(db.String(100), nullable=True)
+    photo_moderation_raw_json = db.Column(db.Text, nullable=True)
     raggio_azione = db.Column(db.Integer, default=10, nullable=True) # KM raggio di spostamento
 
     verificato = db.Column(db.Boolean, default=False)
@@ -80,6 +103,7 @@ class User(UserMixin, db.Model):
     photos = db.relationship(
         "UserPhoto",
         backref="user",
+        foreign_keys="UserPhoto.user_id",
         lazy=True,
         cascade="all, delete-orphan",
         order_by="UserPhoto.position.asc()",
@@ -172,7 +196,21 @@ class Offer(db.Model):
     data_ora = db.Column(db.DateTime, nullable=False)
     booking_lead_override_minutes = db.Column(db.Integer, nullable=True)
     descrizione = db.Column(db.Text, nullable=True)
+    description_moderation_status = db.Column(db.String(20), default=MODERATION_STATUS_APPROVED, nullable=False)
+    description_moderation_reason = db.Column(db.String(100), nullable=True)
+    description_moderation_score = db.Column(db.Float, nullable=True)
+    description_moderation_checked_at = db.Column(db.DateTime, nullable=True)
+    description_moderation_provider = db.Column(db.String(50), nullable=True)
+    description_moderation_model = db.Column(db.String(100), nullable=True)
+    description_moderation_raw_json = db.Column(db.Text, nullable=True)
     foto_locale = db.Column(db.String(256), nullable=False)
+    photo_moderation_status = db.Column(db.String(20), default=MODERATION_STATUS_APPROVED, nullable=False)
+    photo_moderation_reason = db.Column(db.String(100), nullable=True)
+    photo_moderation_score = db.Column(db.Float, nullable=True)
+    photo_moderation_checked_at = db.Column(db.DateTime, nullable=True)
+    photo_moderation_provider = db.Column(db.String(50), nullable=True)
+    photo_moderation_model = db.Column(db.String(100), nullable=True)
+    photo_moderation_raw_json = db.Column(db.Text, nullable=True)
     stato = db.Column(db.String(20), default="attiva")  # attiva, completata, annullata, archiviata
     created_at = db.Column(db.DateTime, default=datetime.now)
 
@@ -232,6 +270,17 @@ class UserPhoto(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     filename = db.Column(db.String(256), nullable=False)
     position = db.Column(db.Integer, default=0, nullable=False)
+    status = db.Column(db.String(20), default="pending", nullable=False)
+    moderated_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    moderated_at = db.Column(db.DateTime, nullable=True)
+    reason = db.Column(db.Text, nullable=True)
+    moderation_status = db.Column(db.String(20), default=MODERATION_STATUS_APPROVED, nullable=False)
+    moderation_reason = db.Column(db.String(100), nullable=True)
+    moderation_score = db.Column(db.Float, nullable=True)
+    moderation_checked_at = db.Column(db.DateTime, nullable=True)
+    moderation_provider = db.Column(db.String(50), nullable=True)
+    moderation_model = db.Column(db.String(100), nullable=True)
+    moderation_raw_json = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     def __repr__(self):
@@ -384,6 +433,29 @@ class NotificationDeliveryLog(db.Model):
             f"<NotificationDeliveryLog user={self.user_id} "
             f"offer={self.offer_id} type={self.reminder_type}>"
         )
+
+
+class AiModerationLog(db.Model):
+    """Registro delle decisioni automatiche di moderazione."""
+    __tablename__ = "ai_moderation_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    content_type = db.Column(db.String(50), nullable=False)
+    content_table = db.Column(db.String(50), nullable=True)
+    content_id = db.Column(db.Integer, nullable=True)
+    status = db.Column(db.String(20), nullable=False)
+    reason = db.Column(db.String(100), nullable=True)
+    score = db.Column(db.Float, nullable=True)
+    provider = db.Column(db.String(50), nullable=False, default="openai")
+    model = db.Column(db.String(100), nullable=False, default="omni-moderation-latest")
+    raw_json = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    user = db.relationship("User", backref="ai_moderation_logs")
+
+    def __repr__(self):
+        return f"<AiModerationLog user={self.user_id} content={self.content_type} status={self.status}>"
 
 
 class Claim(db.Model):

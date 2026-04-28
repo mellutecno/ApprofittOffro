@@ -68,6 +68,11 @@ from models import (
     DevicePushToken,
     NotificationDeliveryLog,
     UserReminder,
+    AiModerationLog,
+    MODERATION_STATUS_APPROVED,
+    MODERATION_STATUS_REVIEW,
+    MODERATION_STATUS_REJECTED,
+    MODERATION_RESTRICTED_STATUSES,
 )
 from verify_photo import verifica_volto
 from upload_storage import create_upload_storage, StorageObjectNotFound
@@ -170,6 +175,39 @@ app.config["FIREBASE_SERVICE_ACCOUNT_JSON"] = os.getenv(
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 upload_storage = create_upload_storage(app.config)
+
+
+def parse_float_env(name, default):
+    try:
+        return float(os.getenv(name, str(default)) or default)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+OPENAI_MODERATION_URL = os.getenv(
+    "OPENAI_MODERATION_URL",
+    "https://api.openai.com/v1/moderations",
+).strip()
+OPENAI_MODERATION_MODEL = os.getenv(
+    "OPENAI_MODERATION_MODEL",
+    "omni-moderation-latest",
+).strip()
+OPENAI_MODERATION_TIMEOUT_SECONDS = parse_float_env("OPENAI_MODERATION_TIMEOUT_SECONDS", 12)
+OPENAI_MODERATION_REVIEW_THRESHOLD = parse_float_env("OPENAI_MODERATION_REVIEW_THRESHOLD", 0.75)
+MODERATION_FAIL_CLOSED = os.getenv(
+    "MODERATION_FAIL_CLOSED",
+    "",
+).strip().lower() in {"1", "true", "yes", "on"}
+LOCAL_MODERATION_KEYWORDS = {
+    "porno",
+    "sex",
+    "xxx",
+    "nudo",
+    "nuda",
+    "escort",
+    "massaggio erotico",
+    "onlyfans",
+}
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 MAX_PROFILE_PHOTOS = 5
@@ -760,7 +798,7 @@ def serialize_mobile_offer(
                 else "",
             }
             for claim in accepted_claims
-            if claim.utente
+            if claim.utente and is_public_user_visible_to_viewer(claim.utente, viewer)
         ],
         "is_own": is_own,
         "already_claimed": already_claimed,
@@ -811,6 +849,8 @@ def get_followers_notification_targets(offer):
         UserFollow.followed_id == offer.user_id,
         User.verificato.is_(True),
         User.is_admin.is_(False),
+        User.bio_moderation_status == MODERATION_STATUS_APPROVED,
+        User.photo_moderation_status == MODERATION_STATUS_APPROVED,
         User.email.isnot(None),
         User.email != "",
         User.id != offer.user_id,
@@ -830,6 +870,8 @@ def get_nearby_active_push_users(offer, *, radius_km=20, excluded_user_ids=None)
         .filter(
             User.verificato.is_(True),
             User.is_admin.is_(False),
+            User.bio_moderation_status == MODERATION_STATUS_APPROVED,
+            User.photo_moderation_status == MODERATION_STATUS_APPROVED,
             DevicePushToken.active.is_(True),
         )
         .order_by(User.nome.asc())
@@ -1523,6 +1565,20 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("cibi_preferiti", "ALTER TABLE users ADD COLUMN cibi_preferiti VARCHAR(300)"),
                 ("intolleranze", "ALTER TABLE users ADD COLUMN intolleranze VARCHAR(300)"),
                 ("bio", "ALTER TABLE users ADD COLUMN bio VARCHAR(500)"),
+                ("bio_moderation_status", "ALTER TABLE users ADD COLUMN bio_moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved'"),
+                ("bio_moderation_reason", "ALTER TABLE users ADD COLUMN bio_moderation_reason VARCHAR(100)"),
+                ("bio_moderation_score", "ALTER TABLE users ADD COLUMN bio_moderation_score FLOAT"),
+                ("bio_moderation_checked_at", "ALTER TABLE users ADD COLUMN bio_moderation_checked_at DATETIME"),
+                ("bio_moderation_provider", "ALTER TABLE users ADD COLUMN bio_moderation_provider VARCHAR(50)"),
+                ("bio_moderation_model", "ALTER TABLE users ADD COLUMN bio_moderation_model VARCHAR(100)"),
+                ("bio_moderation_raw_json", "ALTER TABLE users ADD COLUMN bio_moderation_raw_json TEXT"),
+                ("photo_moderation_status", "ALTER TABLE users ADD COLUMN photo_moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved'"),
+                ("photo_moderation_reason", "ALTER TABLE users ADD COLUMN photo_moderation_reason VARCHAR(100)"),
+                ("photo_moderation_score", "ALTER TABLE users ADD COLUMN photo_moderation_score FLOAT"),
+                ("photo_moderation_checked_at", "ALTER TABLE users ADD COLUMN photo_moderation_checked_at DATETIME"),
+                ("photo_moderation_provider", "ALTER TABLE users ADD COLUMN photo_moderation_provider VARCHAR(50)"),
+                ("photo_moderation_model", "ALTER TABLE users ADD COLUMN photo_moderation_model VARCHAR(100)"),
+                ("photo_moderation_raw_json", "ALTER TABLE users ADD COLUMN photo_moderation_raw_json TEXT"),
                 ("raggio_azione", "ALTER TABLE users ADD COLUMN raggio_azione INTEGER DEFAULT 10"),
                 ("live_latitudine", "ALTER TABLE users ADD COLUMN live_latitudine FLOAT"),
                 ("live_longitudine", "ALTER TABLE users ADD COLUMN live_longitudine FLOAT"),
@@ -1539,10 +1595,37 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("stato", "ALTER TABLE offers ADD COLUMN stato VARCHAR(20) DEFAULT 'attiva'"),
                 ("telefono_locale", "ALTER TABLE offers ADD COLUMN telefono_locale VARCHAR(50)"),
                 ("booking_lead_override_minutes", "ALTER TABLE offers ADD COLUMN booking_lead_override_minutes INTEGER"),
+                ("description_moderation_status", "ALTER TABLE offers ADD COLUMN description_moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved'"),
+                ("description_moderation_reason", "ALTER TABLE offers ADD COLUMN description_moderation_reason VARCHAR(100)"),
+                ("description_moderation_score", "ALTER TABLE offers ADD COLUMN description_moderation_score FLOAT"),
+                ("description_moderation_checked_at", "ALTER TABLE offers ADD COLUMN description_moderation_checked_at DATETIME"),
+                ("description_moderation_provider", "ALTER TABLE offers ADD COLUMN description_moderation_provider VARCHAR(50)"),
+                ("description_moderation_model", "ALTER TABLE offers ADD COLUMN description_moderation_model VARCHAR(100)"),
+                ("description_moderation_raw_json", "ALTER TABLE offers ADD COLUMN description_moderation_raw_json TEXT"),
+                ("photo_moderation_status", "ALTER TABLE offers ADD COLUMN photo_moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved'"),
+                ("photo_moderation_reason", "ALTER TABLE offers ADD COLUMN photo_moderation_reason VARCHAR(100)"),
+                ("photo_moderation_score", "ALTER TABLE offers ADD COLUMN photo_moderation_score FLOAT"),
+                ("photo_moderation_checked_at", "ALTER TABLE offers ADD COLUMN photo_moderation_checked_at DATETIME"),
+                ("photo_moderation_provider", "ALTER TABLE offers ADD COLUMN photo_moderation_provider VARCHAR(50)"),
+                ("photo_moderation_model", "ALTER TABLE offers ADD COLUMN photo_moderation_model VARCHAR(100)"),
+                ("photo_moderation_raw_json", "ALTER TABLE offers ADD COLUMN photo_moderation_raw_json TEXT"),
             ],
             "claims": [
                 ("status", "ALTER TABLE claims ADD COLUMN status VARCHAR(20) DEFAULT 'accepted'"),
                 ("hidden_by_guest", "ALTER TABLE claims ADD COLUMN hidden_by_guest INTEGER DEFAULT 0"),
+            ],
+            "user_photos": [
+                ("status", "ALTER TABLE user_photos ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'"),
+                ("moderated_by", "ALTER TABLE user_photos ADD COLUMN moderated_by INTEGER"),
+                ("moderated_at", "ALTER TABLE user_photos ADD COLUMN moderated_at DATETIME"),
+                ("reason", "ALTER TABLE user_photos ADD COLUMN reason TEXT"),
+                ("moderation_status", "ALTER TABLE user_photos ADD COLUMN moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved'"),
+                ("moderation_reason", "ALTER TABLE user_photos ADD COLUMN moderation_reason VARCHAR(100)"),
+                ("moderation_score", "ALTER TABLE user_photos ADD COLUMN moderation_score FLOAT"),
+                ("moderation_checked_at", "ALTER TABLE user_photos ADD COLUMN moderation_checked_at DATETIME"),
+                ("moderation_provider", "ALTER TABLE user_photos ADD COLUMN moderation_provider VARCHAR(50)"),
+                ("moderation_model", "ALTER TABLE user_photos ADD COLUMN moderation_model VARCHAR(100)"),
+                ("moderation_raw_json", "ALTER TABLE user_photos ADD COLUMN moderation_raw_json TEXT"),
             ],
             "chat_threads": [
                 ("admin_deleted_at", "ALTER TABLE chat_threads ADD COLUMN admin_deleted_at DATETIME"),
@@ -1563,6 +1646,17 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                     user_id INTEGER NOT NULL,
                     filename VARCHAR(256) NOT NULL,
                     position INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    moderated_by INTEGER,
+                    moderated_at DATETIME,
+                    reason TEXT,
+                    moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved',
+                    moderation_reason VARCHAR(100),
+                    moderation_score FLOAT,
+                    moderation_checked_at DATETIME,
+                    moderation_provider VARCHAR(50),
+                    moderation_model VARCHAR(100),
+                    moderation_raw_json TEXT,
                     created_at DATETIME
                 )
             """)
@@ -1589,8 +1683,37 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 )
             """)
 
+        if not table_exists("ai_moderation_logs"):
+            cur.execute("""
+                CREATE TABLE ai_moderation_logs (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER,
+                    content_type VARCHAR(50) NOT NULL,
+                    content_table VARCHAR(50),
+                    content_id INTEGER,
+                    status VARCHAR(20) NOT NULL,
+                    reason VARCHAR(100),
+                    score FLOAT,
+                    provider VARCHAR(50) NOT NULL DEFAULT 'openai',
+                    model VARCHAR(100) NOT NULL DEFAULT 'omni-moderation-latest',
+                    raw_json TEXT,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES users (id)
+                )
+            """)
+
         if table_exists("users"):
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)")
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_users_bio_moderation_status ON users (bio_moderation_status)")
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_users_photo_moderation_status ON users (photo_moderation_status)")
+        if table_exists("offers"):
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_offers_description_moderation_status ON offers (description_moderation_status)")
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_offers_photo_moderation_status ON offers (photo_moderation_status)")
+        if table_exists("user_photos"):
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_user_photos_moderation_status ON user_photos (moderation_status)")
+        if table_exists("ai_moderation_logs"):
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_ai_moderation_logs_user_id ON ai_moderation_logs (user_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_ai_moderation_logs_content ON ai_moderation_logs (content_type, content_id)")
 
         conn.commit()
     finally:
@@ -1626,8 +1749,31 @@ def ensure_database_schema_compatibility():
             conn.exec_driver_sql(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS live_location_at DATETIME"
             )
+            for column_sql in [
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS bio_moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved'",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS bio_moderation_reason VARCHAR(100)",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS bio_moderation_score DOUBLE PRECISION",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS bio_moderation_checked_at TIMESTAMP",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS bio_moderation_provider VARCHAR(50)",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS bio_moderation_model VARCHAR(100)",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS bio_moderation_raw_json TEXT",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved'",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_moderation_reason VARCHAR(100)",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_moderation_score DOUBLE PRECISION",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_moderation_checked_at TIMESTAMP",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_moderation_provider VARCHAR(50)",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_moderation_model VARCHAR(100)",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_moderation_raw_json TEXT",
+            ]:
+                conn.exec_driver_sql(column_sql)
             conn.exec_driver_sql(
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_users_bio_moderation_status ON users (bio_moderation_status)"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_users_photo_moderation_status ON users (photo_moderation_status)"
             )
             conn.exec_driver_sql(
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_password_reset_token ON users (password_reset_token)"
@@ -1640,6 +1786,29 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "ALTER TABLE offers ADD COLUMN IF NOT EXISTS booking_lead_override_minutes INTEGER"
+            )
+            for column_sql in [
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS description_moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved'",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS description_moderation_reason VARCHAR(100)",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS description_moderation_score DOUBLE PRECISION",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS description_moderation_checked_at TIMESTAMP",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS description_moderation_provider VARCHAR(50)",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS description_moderation_model VARCHAR(100)",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS description_moderation_raw_json TEXT",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS photo_moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved'",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS photo_moderation_reason VARCHAR(100)",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS photo_moderation_score DOUBLE PRECISION",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS photo_moderation_checked_at TIMESTAMP",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS photo_moderation_provider VARCHAR(50)",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS photo_moderation_model VARCHAR(100)",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS photo_moderation_raw_json TEXT",
+            ]:
+                conn.exec_driver_sql(column_sql)
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_offers_description_moderation_status ON offers (description_moderation_status)"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_offers_photo_moderation_status ON offers (photo_moderation_status)"
             )
             conn.exec_driver_sql(
                 "ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS admin_deleted_at TIMESTAMP"
@@ -1663,6 +1832,47 @@ def ensure_database_schema_compatibility():
                     created_at TIMESTAMP
                 )
                 """
+            )
+            for column_sql in [
+                "ALTER TABLE user_photos ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'",
+                "ALTER TABLE user_photos ADD COLUMN IF NOT EXISTS moderated_by INTEGER",
+                "ALTER TABLE user_photos ADD COLUMN IF NOT EXISTS moderated_at TIMESTAMP",
+                "ALTER TABLE user_photos ADD COLUMN IF NOT EXISTS reason TEXT",
+                "ALTER TABLE user_photos ADD COLUMN IF NOT EXISTS moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved'",
+                "ALTER TABLE user_photos ADD COLUMN IF NOT EXISTS moderation_reason VARCHAR(100)",
+                "ALTER TABLE user_photos ADD COLUMN IF NOT EXISTS moderation_score DOUBLE PRECISION",
+                "ALTER TABLE user_photos ADD COLUMN IF NOT EXISTS moderation_checked_at TIMESTAMP",
+                "ALTER TABLE user_photos ADD COLUMN IF NOT EXISTS moderation_provider VARCHAR(50)",
+                "ALTER TABLE user_photos ADD COLUMN IF NOT EXISTS moderation_model VARCHAR(100)",
+                "ALTER TABLE user_photos ADD COLUMN IF NOT EXISTS moderation_raw_json TEXT",
+            ]:
+                conn.exec_driver_sql(column_sql)
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_user_photos_moderation_status ON user_photos (moderation_status)"
+            )
+            conn.exec_driver_sql(
+                """
+                CREATE TABLE IF NOT EXISTS ai_moderation_logs (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    content_type VARCHAR(50) NOT NULL,
+                    content_table VARCHAR(50),
+                    content_id INTEGER,
+                    status VARCHAR(20) NOT NULL,
+                    reason VARCHAR(100),
+                    score DOUBLE PRECISION,
+                    provider VARCHAR(50) NOT NULL DEFAULT 'openai',
+                    model VARCHAR(100) NOT NULL DEFAULT 'omni-moderation-latest',
+                    raw_json TEXT,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_ai_moderation_logs_user_id ON ai_moderation_logs (user_id)"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_ai_moderation_logs_content ON ai_moderation_logs (content_type, content_id)"
             )
     except Exception as exc:
         print(f"[SCHEMA_COMPAT_ERROR] {exc}")
@@ -2714,6 +2924,246 @@ def get_profile_form_values(user, source=None):
     }
 
 
+def is_moderation_status_restricted(status):
+    return str(status or MODERATION_STATUS_APPROVED).strip().lower() in MODERATION_RESTRICTED_STATUSES
+
+
+def is_user_moderation_restricted(user):
+    if not user or is_admin_user(user):
+        return False
+    return (
+        is_moderation_status_restricted(getattr(user, "bio_moderation_status", MODERATION_STATUS_APPROVED))
+        or is_moderation_status_restricted(getattr(user, "photo_moderation_status", MODERATION_STATUS_APPROVED))
+    )
+
+
+def apply_public_user_visibility_filters(query):
+    return query.filter(
+        User.bio_moderation_status == MODERATION_STATUS_APPROVED,
+        User.photo_moderation_status == MODERATION_STATUS_APPROVED,
+    )
+
+
+def is_public_user_visible_to_viewer(user, viewer=None):
+    if not user:
+        return False
+    if viewer and getattr(viewer, "is_authenticated", False):
+        if is_admin_user(viewer) or viewer.id == user.id:
+            return True
+    return not is_user_moderation_restricted(user)
+
+
+def get_user_moderation_block_message(user):
+    if not user:
+        return "Profilo in revisione."
+    if is_moderation_status_restricted(getattr(user, "photo_moderation_status", MODERATION_STATUS_APPROVED)):
+        return (
+            "Il tuo profilo e' temporaneamente in revisione per una foto. "
+            "Attendi la verifica dell'amministratore."
+        )
+    if is_moderation_status_restricted(getattr(user, "bio_moderation_status", MODERATION_STATUS_APPROVED)):
+        return (
+            "Il tuo profilo e' temporaneamente in revisione per la bio. "
+            "Attendi la verifica dell'amministratore."
+        )
+    return "Profilo in revisione."
+
+
+def require_moderation_clear_json(user=None):
+    checked_user = user or current_user
+    if not getattr(checked_user, "is_authenticated", True):
+        return None
+    if not is_user_moderation_restricted(checked_user):
+        return None
+    message = get_user_moderation_block_message(checked_user)
+    return jsonify({
+        "success": False,
+        "error": message,
+        "errors": [message],
+        "moderation_status": "review",
+    }), 403
+
+
+def local_moderation_keyword_reason(text):
+    lowered = (text or "").lower()
+    for keyword in sorted(LOCAL_MODERATION_KEYWORDS, key=len, reverse=True):
+        if keyword in lowered:
+            return f"keyword:{keyword}"
+    return ""
+
+
+def extract_moderation_reason_and_score(result):
+    categories = result.get("categories") or {}
+    scores = result.get("category_scores") or {}
+    flagged_categories = [
+        name for name, flagged in categories.items()
+        if bool(flagged)
+    ]
+    if flagged_categories:
+        top_reason = max(
+            flagged_categories,
+            key=lambda name: float(scores.get(name, 0) or 0),
+        )
+        return top_reason, float(scores.get(top_reason, 0) or 0)
+    if scores:
+        top_reason = max(scores, key=lambda name: float(scores.get(name, 0) or 0))
+        return top_reason, float(scores.get(top_reason, 0) or 0)
+    return "", None
+
+
+def call_openai_moderation_api(text):
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return None, "missing_api_key"
+
+    payload = json.dumps({
+        "model": OPENAI_MODERATION_MODEL,
+        "input": text or "",
+    }).encode("utf-8")
+    request_obj = Request(
+        OPENAI_MODERATION_URL,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request_obj, timeout=OPENAI_MODERATION_TIMEOUT_SECONDS) as response:
+            body = response.read().decode("utf-8", errors="replace")
+        return json.loads(body), ""
+    except HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
+        return None, f"http_{exc.code}:{body[:180]}"
+    except (URLError, TimeoutError, ValueError) as exc:
+        return None, f"{type(exc).__name__}:{str(exc)[:180]}"
+
+
+def moderate_text_content(text, *, user=None, content_type="bio", content_table=None, content_id=None):
+    cleaned_text = (text or "").strip()
+    checked_at = datetime.now()
+    provider = "openai"
+    model = OPENAI_MODERATION_MODEL
+    raw_json = None
+    reason = ""
+    score = None
+    status = MODERATION_STATUS_APPROVED
+
+    keyword_reason = local_moderation_keyword_reason(cleaned_text)
+    api_result, api_error = call_openai_moderation_api(cleaned_text)
+
+    if api_result:
+        raw_json = json.dumps(api_result, ensure_ascii=False)
+        results = api_result.get("results") or []
+        first_result = results[0] if results else {}
+        reason, score = extract_moderation_reason_and_score(first_result)
+        if bool(first_result.get("flagged")):
+            status = MODERATION_STATUS_REVIEW
+        elif score is not None and score >= OPENAI_MODERATION_REVIEW_THRESHOLD:
+            status = MODERATION_STATUS_REVIEW
+        if status == MODERATION_STATUS_REVIEW and not reason:
+            reason = "openai_flagged"
+    elif keyword_reason:
+        provider = "local"
+        model = "keyword-fallback"
+        reason = keyword_reason
+        score = 1.0
+        raw_json = json.dumps({"fallback": "keyword", "reason": reason})
+        status = MODERATION_STATUS_REVIEW
+    elif api_error and MODERATION_FAIL_CLOSED:
+        reason = "moderation_unavailable"
+        raw_json = json.dumps({"error": api_error})
+        status = MODERATION_STATUS_REVIEW
+    elif api_error:
+        provider = "local"
+        model = "keyword-fallback"
+        raw_json = json.dumps({"error": api_error})
+
+    db.session.add(AiModerationLog(
+        user_id=getattr(user, "id", None),
+        content_type=content_type,
+        content_table=content_table,
+        content_id=content_id,
+        status=status,
+        reason=reason or None,
+        score=score,
+        provider=provider,
+        model=model,
+        raw_json=raw_json,
+        created_at=checked_at,
+    ))
+
+    return {
+        "status": status,
+        "reason": reason or "",
+        "score": score,
+        "checked_at": checked_at,
+        "provider": provider,
+        "model": model,
+        "raw_json": raw_json,
+        "api_error": api_error,
+    }
+
+
+def apply_user_bio_moderation(user, bio_text, *, allow_auto_approve=False):
+    result = moderate_text_content(
+        bio_text,
+        user=user,
+        content_type="bio",
+        content_table="users",
+        content_id=getattr(user, "id", None),
+    )
+    previous_status = getattr(user, "bio_moderation_status", MODERATION_STATUS_APPROVED)
+    approved = result["status"] == MODERATION_STATUS_APPROVED
+    if approved and is_moderation_status_restricted(previous_status) and not allow_auto_approve:
+        user.bio_moderation_status = MODERATION_STATUS_REVIEW
+        user.bio_moderation_reason = "pending_admin_approval"
+    else:
+        user.bio_moderation_status = result["status"]
+        user.bio_moderation_reason = result["reason"]
+    user.bio_moderation_score = result["score"]
+    user.bio_moderation_checked_at = result["checked_at"]
+    user.bio_moderation_provider = result["provider"]
+    user.bio_moderation_model = result["model"]
+    user.bio_moderation_raw_json = result["raw_json"]
+    return result
+
+
+def notify_admin_for_user_moderation(user, result, *, content_label="Bio"):
+    if result.get("status") != MODERATION_STATUS_REVIEW:
+        return False
+    admin_email = os.getenv("ADMIN_EMAIL")
+    if not admin_email:
+        return False
+    try:
+        safe_nome = escape(user.nome or "Utente senza nome")
+        safe_email = escape(user.email or "Email non disponibile")
+        safe_reason = escape(result.get("reason") or "Da verificare")
+        safe_score = "" if result.get("score") is None else f"{result['score']:.3f}"
+        safe_bio = escape((user.bio or "")[:1200])
+        send_email_html(
+            f"{content_label} in revisione su ApprofittOffro",
+            [admin_email],
+            f"""
+            <h2>{content_label} in revisione</h2>
+            <p><b>Utente:</b> {safe_nome}</p>
+            <p><b>Email:</b> {safe_email}</p>
+            <p><b>ID utente:</b> {user.id}</p>
+            <p><b>Motivo:</b> {safe_reason}</p>
+            <p><b>Score:</b> {safe_score}</p>
+            <p><b>Bio:</b></p>
+            <blockquote>{safe_bio}</blockquote>
+            <p>L'utente e' temporaneamente nascosto e bloccato dalle azioni pubbliche.</p>
+            """,
+            background=True,
+        )
+        return True
+    except Exception as exc:
+        print("[MODERATION_ADMIN_EMAIL_ERROR]", exc)
+        return False
+
+
 def validate_profile_update_input(user, source, *, foto_files=None, require_primary_face=True):
     uploaded_gallery_filenames = []
     source = source or {}
@@ -2858,7 +3308,7 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
     return payload, errors
 
 
-def save_profile_update_for_user(user, payload, *, verified=None):
+def save_profile_update_for_user(user, payload, *, verified=None, allow_moderation_auto_approve=False):
     old_gallery_filenames = []
     uploaded_gallery_filenames = payload.get("uploaded_gallery_filenames", [])
     final_gallery_filenames = payload.get("final_gallery_filenames", list(user.gallery_filenames))
@@ -2878,6 +3328,12 @@ def save_profile_update_for_user(user, payload, *, verified=None):
     user.cibi_preferiti = payload["cibi_preferiti"]
     user.intolleranze = payload["intolleranze"]
     user.bio = payload["bio"]
+    bio_moderation_result = apply_user_bio_moderation(
+        user,
+        payload["bio"] or "",
+        allow_auto_approve=allow_moderation_auto_approve,
+    )
+
     if payload.get("new_password"):
         user.set_password(payload["new_password"])
         clear_password_reset_state(user)
@@ -2898,6 +3354,7 @@ def save_profile_update_for_user(user, payload, *, verified=None):
     db.session.refresh(user)
     db.session.expire(user, ["photos"])
     delete_upload_files(old_gallery_filenames)
+    notify_admin_for_user_moderation(user, bio_moderation_result, content_label="Bio")
     return True, [], old_gallery_filenames
 
 
@@ -2915,6 +3372,9 @@ def profile_completed_required(f):
         if current_user.is_authenticated:
             if is_admin_user(current_user):
                 return f(*args, **kwargs)
+            if is_user_moderation_restricted(current_user):
+                flash(get_user_moderation_block_message(current_user), "warning")
+                return redirect(url_for('profile_page'))
             if not is_profile_complete(current_user):
                 flash("Ciao! Completa il tuo numero di cellulare, l'identikit alimentare e la tua bio: sono obbligatori per poter pubblicare offerte, partecipare ai pasti e vedere i profili completi. 🍽️", "warning")
                 return redirect(url_for('profile_page'))
@@ -2929,6 +3389,7 @@ def is_profile_complete(user):
         and user.cibi_preferiti
         and user.intolleranze
         and user.bio
+        and not is_user_moderation_restricted(user)
     )
 
 
@@ -2983,6 +3444,10 @@ def admin_required(f):
 
 
 def require_complete_profile_json():
+    if current_user.is_authenticated and not is_admin_user(current_user):
+        moderation_error = require_moderation_clear_json(current_user)
+        if moderation_error:
+            return moderation_error
     if current_user.is_authenticated and not is_admin_user(current_user) and not is_profile_complete(current_user):
         return jsonify({
             "success": False,
@@ -3246,6 +3711,7 @@ def admin_edit_user_page(user_id):
             user,
             payload,
             verified=verified_value,
+            allow_moderation_auto_approve=True,
         )
         if not success:
             for error in save_errors:
@@ -3442,6 +3908,17 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
         "is_self": is_self,
         "chat_enabled": bool(user.chat_enabled) if include_private else False,
     }
+    if include_private or is_self or (viewer_is_authenticated and is_admin_user(viewer)):
+        payload["moderation_restricted"] = is_user_moderation_restricted(user)
+        payload["bio_moderation_status"] = getattr(user, "bio_moderation_status", MODERATION_STATUS_APPROVED)
+        payload["bio_moderation_reason"] = getattr(user, "bio_moderation_reason", "") or ""
+        payload["photo_moderation_status"] = getattr(user, "photo_moderation_status", MODERATION_STATUS_APPROVED)
+        payload["photo_moderation_reason"] = getattr(user, "photo_moderation_reason", "") or ""
+        payload["moderation_message"] = (
+            get_user_moderation_block_message(user)
+            if is_user_moderation_restricted(user)
+            else ""
+        )
     return payload
 
 
@@ -3484,6 +3961,16 @@ def serialize_admin_user_summary(user):
         "citta": user.citta or "",
         "city_label": extract_city_label(user.citta),
         "bio": user.bio or "",
+        "bio_moderation_status": getattr(user, "bio_moderation_status", "approved"),
+        "bio_moderation_reason": getattr(user, "bio_moderation_reason", "") or "",
+        "bio_moderation_score": getattr(user, "bio_moderation_score", None),
+        "bio_moderation_checked_at": (
+            user.bio_moderation_checked_at.isoformat()
+            if getattr(user, "bio_moderation_checked_at", None)
+            else ""
+        ),
+        "photo_moderation_status": getattr(user, "photo_moderation_status", "approved"),
+        "photo_moderation_reason": getattr(user, "photo_moderation_reason", "") or "",
         "verificato": bool(user.verificato),
         "is_admin": bool(user.is_admin),
         "created_at": user.created_at.isoformat() if user.created_at else "",
@@ -3514,6 +4001,19 @@ def serialize_admin_user_detail(user):
         "cibi_preferiti": user.cibi_preferiti or "",
         "intolleranze": user.intolleranze or "",
         "bio": user.bio or "",
+        "bio_moderation_status": getattr(user, "bio_moderation_status", "approved"),
+        "bio_moderation_reason": getattr(user, "bio_moderation_reason", "") or "",
+        "bio_moderation_score": getattr(user, "bio_moderation_score", None),
+        "bio_moderation_checked_at": (
+            user.bio_moderation_checked_at.isoformat()
+            if getattr(user, "bio_moderation_checked_at", None)
+            else ""
+        ),
+        "bio_moderation_provider": getattr(user, "bio_moderation_provider", "") or "",
+        "bio_moderation_model": getattr(user, "bio_moderation_model", "") or "",
+        "photo_moderation_status": getattr(user, "photo_moderation_status", "approved"),
+        "photo_moderation_reason": getattr(user, "photo_moderation_reason", "") or "",
+        "photo_moderation_score": getattr(user, "photo_moderation_score", None),
         "verificato": bool(user.verificato),
         "is_admin": bool(user.is_admin),
         "created_at": user.created_at.isoformat() if user.created_at else "",
@@ -4798,6 +5298,11 @@ def api_logout():
 @app.route("/api/offers", methods=["GET"])
 def api_get_offers():
     """Recupera le offerte attualmente valide e visibili."""
+    if current_user.is_authenticated and not is_admin_user(current_user):
+        moderation_error = require_moderation_clear_json(current_user)
+        if moderation_error:
+            return moderation_error
+
     tipo = request.args.get("tipo", "")
     radius_str = request.args.get("radius", "")
     limit_str = request.args.get("limit", "").strip()
@@ -4899,6 +5404,9 @@ def api_get_offers():
             ):
                 host_whatsapp_link = build_whatsapp_offer_link(current_user, o.autore, o)
 
+        if is_user_moderation_restricted(o.autore) and not is_own:
+            continue
+
         # Il raggio filtra gli eventi degli altri; i propri restano nel payload
         # per tenere sempre visibile il promemoria di gestione nel menu Approfitta.
         if radius_km is not None and not is_own and dist > radius_km:
@@ -4973,7 +5481,7 @@ def api_get_offers():
                     else "",
                 }
                 for claim in accepted_claims
-                if claim.utente
+                if claim.utente and is_public_user_visible_to_viewer(claim.utente, current_user)
             ],
             "is_own": is_own,
             "already_claimed": already_claimed,
@@ -5848,7 +6356,9 @@ def api_user_me():
             key=lambda item: item.created_at or datetime.min,
             reverse=True,
         )
-        if relation.follower and not is_admin_user(relation.follower)
+        if relation.follower
+        and not is_admin_user(relation.follower)
+        and is_public_user_visible_to_viewer(relation.follower, current_user)
     ]
     following = [
         relation.followed
@@ -5857,9 +6367,14 @@ def api_user_me():
             key=lambda item: item.created_at or datetime.min,
             reverse=True,
         )
-        if relation.followed and not is_admin_user(relation.followed)
+        if relation.followed
+        and not is_admin_user(relation.followed)
+        and is_public_user_visible_to_viewer(relation.followed, current_user)
     ]
-    met_users = get_met_users_for_user(current_user)
+    met_users = [
+        user for user in get_met_users_for_user(current_user)
+        if is_public_user_visible_to_viewer(user, current_user)
+    ]
     reviews_received = (
         Review.query.options(
             selectinload(Review.reviewer).selectinload(User.photos),
@@ -6061,6 +6576,13 @@ def get_chat_block_status(user_id, other_user_id):
 
 def ensure_chat_pair_allowed(offer_id, actor_user_id, other_user_id):
     """Verifica che i due utenti possano usare la chat per quell'evento."""
+    actor_user = User.query.get(actor_user_id)
+    other_user = User.query.get(other_user_id)
+    if is_user_moderation_restricted(actor_user):
+        return None, (get_user_moderation_block_message(actor_user), 403)
+    if is_user_moderation_restricted(other_user):
+        return None, ("Utente non disponibile.", 403)
+
     offer = Offer.query.options(selectinload(Offer.claims)).get(offer_id)
     if not offer:
         return None, ("Evento non trovato.", 404)
@@ -7674,6 +8196,9 @@ def api_people():
     """Restituisce i profili community in formato JSON."""
     if is_admin_user(current_user):
         return jsonify({"success": False, "error": "La community non è disponibile per gli amministratori."}), 403
+    moderation_error = require_moderation_clear_json(current_user)
+    if moderation_error:
+        return moderation_error
 
     selected_age_range, parsed_age_range, age_range_error = parse_age_range_filter(
         request.args.get("age_range")
@@ -7732,6 +8257,7 @@ def api_people():
         User.intolleranze.isnot(None),
         User.intolleranze != "",
     )
+    people_query = apply_public_user_visibility_filters(people_query)
 
     if isinstance(parsed_age_range, tuple):
         people_query = people_query.filter(
@@ -7784,11 +8310,17 @@ def api_public_user(user_id):
     """Dettaglio profilo pubblico in formato JSON."""
     if is_admin_user(current_user):
         return jsonify({"success": False, "error": "I profili pubblici non sono disponibili per gli amministratori."}), 403
+    moderation_error = require_moderation_clear_json(current_user)
+    if moderation_error:
+        return moderation_error
 
     user = User.query.options(selectinload(User.photos)).filter(
         User.id == user_id,
         User.is_admin.is_(False),
-    ).first_or_404()
+    )
+    if user_id != current_user.id:
+        user = apply_public_user_visibility_filters(user)
+    user = user.first_or_404()
 
     followed_user_ids = get_followed_user_ids(current_user.id)
     followers = [
@@ -7799,6 +8331,7 @@ def api_public_user(user_id):
             reverse=True,
         )
         if relation.follower and not is_admin_user(relation.follower)
+        and is_public_user_visible_to_viewer(relation.follower, current_user)
     ]
     reviews = Review.query.options(
         selectinload(Review.reviewer).selectinload(User.photos),
@@ -7841,12 +8374,17 @@ def api_follow_user(user_id):
     """Segue un utente da mobile/web app JSON."""
     if is_admin_user(current_user):
         return jsonify({"success": False, "error": "Operazione non disponibile per gli amministratori."}), 403
+    moderation_error = require_moderation_clear_json(current_user)
+    if moderation_error:
+        return moderation_error
 
     user = User.query.get_or_404(user_id)
     if user.id == current_user.id:
         return jsonify({"success": False, "error": "Non puoi seguire te stesso."}), 400
     if user.is_admin:
         return jsonify({"success": False, "error": "Non puoi seguire un amministratore."}), 400
+    if is_user_moderation_restricted(user):
+        return jsonify({"success": False, "error": "Profilo non disponibile."}), 404
 
     existing_follow = UserFollow.query.filter_by(
         follower_id=current_user.id,
@@ -8135,6 +8673,7 @@ def api_admin_user_detail(user_id):
         user,
         payload,
         verified=verified_value,
+        allow_moderation_auto_approve=True,
     )
     if not success:
         return jsonify({"success": False, "errors": save_errors}), 400
@@ -8143,6 +8682,55 @@ def api_admin_user_detail(user_id):
         "success": True,
         "message": f"Profilo di {user.nome} aggiornato con successo.",
         "user": serialize_admin_user_detail(user),
+    })
+
+
+@app.route("/api/admin/users/<int:user_id>/approve-bio", methods=["POST"])
+@admin_required
+def api_admin_approve_user_bio(user_id):
+    """Approva la bio di un utente in revisione."""
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"success": False, "error": "Utente non trovato."}), 404
+    if is_admin_user(user):
+        return jsonify({"success": False, "error": "Non puoi modificare un amministratore."}), 403
+
+    user.bio_moderation_status = MODERATION_STATUS_APPROVED
+    user.bio_moderation_reason = ""
+    user.bio_moderation_score = None
+    user.bio_moderation_checked_at = datetime.now()
+    user.bio_moderation_provider = "admin"
+    user.bio_moderation_model = "manual"
+    user.bio_moderation_raw_json = None
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"Bio di {user.nome} approvata. L'utente può pubblicare offerte.",
+        "user": serialize_admin_user_detail(user),
+    })
+
+
+@app.route("/api/admin/users/review", methods=["GET"])
+@admin_required
+def api_admin_users_in_review():
+    """Lista utenti con bio o foto in revisione."""
+    users = (
+        User.query.options(selectinload(User.photos))
+        .filter(
+            User.is_admin.is_(False),
+            db.or_(
+                User.bio_moderation_status.in_(list(MODERATION_RESTRICTED_STATUSES)),
+                User.photo_moderation_status.in_(list(MODERATION_RESTRICTED_STATUSES)),
+            )
+        )
+        .order_by(User.created_at.desc())
+        .all()
+    )
+
+    return jsonify({
+        "success": True,
+        "users": [serialize_admin_user_summary(user) for user in users],
     })
 
 
@@ -8243,6 +8831,15 @@ def api_user_update():
         "success": True,
         "message": "Profilo aggiornato con successo!",
         "gallery_filenames": current_user.gallery_filenames,
+        "moderation_restricted": is_user_moderation_restricted(current_user),
+        "bio_moderation_status": getattr(current_user, "bio_moderation_status", MODERATION_STATUS_APPROVED),
+        "bio_moderation_reason": getattr(current_user, "bio_moderation_reason", "") or "",
+        "photo_moderation_status": getattr(current_user, "photo_moderation_status", MODERATION_STATUS_APPROVED),
+        "moderation_message": (
+            get_user_moderation_block_message(current_user)
+            if is_user_moderation_restricted(current_user)
+            else ""
+        ),
         "primary_photo_url": url_for(
             "uploaded_file",
             filename=current_user.gallery_filenames[0],
