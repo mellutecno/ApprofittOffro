@@ -7,34 +7,34 @@ class AppTheme {
   static const bool useMusicAiPalette = true;
 
   static const cream =
-      useMusicAiPalette ? Color(0xFF080B12) : Color(0xFFF6F0E7);
+      useMusicAiPalette ? Color(0xFF151D34) : Color(0xFFF6F0E7);
   static const paper =
-      useMusicAiPalette ? Color(0xFF0F1422) : Color(0xFFFFFBF7);
-  static const sand = useMusicAiPalette ? Color(0xFF1A2336) : Color(0xFFE6D8C8);
+      useMusicAiPalette ? Color(0xFF1B2946) : Color(0xFFFFFBF7);
+  static const sand = useMusicAiPalette ? Color(0xFF27385E) : Color(0xFFE6D8C8);
   static const peach =
-      useMusicAiPalette ? Color(0xFF222C44) : Color(0xFFD8A484);
+      useMusicAiPalette ? Color(0xFF314A78) : Color(0xFFD8A484);
   static const orange =
-      useMusicAiPalette ? Color(0xFF755CFF) : Color(0xFFAD5A3C);
+      useMusicAiPalette ? Color(0xFF927AFF) : Color(0xFFAD5A3C);
   static const brown =
-      useMusicAiPalette ? Color(0xFFDDE5FF) : Color(0xFF49362D);
+      useMusicAiPalette ? Color(0xFFF0F5FF) : Color(0xFF49362D);
   static const espresso =
-      useMusicAiPalette ? Color(0xFFF4F7FF) : Color(0xFF221914);
-  static const sage = useMusicAiPalette ? Color(0xFF38CCFF) : Color(0xFF96A182);
-  static const mist = useMusicAiPalette ? Color(0xFF121A2B) : Color(0xFFF3E8DA);
+      useMusicAiPalette ? Color(0xFFFFFFFF) : Color(0xFF221914);
+  static const sage = useMusicAiPalette ? Color(0xFF55DFFF) : Color(0xFF96A182);
+  static const mist = useMusicAiPalette ? Color(0xFF223154) : Color(0xFFF3E8DA);
   static const cardBorder =
-      useMusicAiPalette ? Color(0xFF2D3A59) : Color(0xFFD8C5AE);
-  static const moss = useMusicAiPalette ? Color(0xFF49A5FF) : Color(0xFF657353);
-  static const gold = useMusicAiPalette ? Color(0xFF9A7DFF) : Color(0xFFD3A24E);
+      useMusicAiPalette ? Color(0xFF4A5F91) : Color(0xFFD8C5AE);
+  static const moss = useMusicAiPalette ? Color(0xFF62BDFF) : Color(0xFF657353);
+  static const gold = useMusicAiPalette ? Color(0xFFB79FFF) : Color(0xFFD3A24E);
   static const berry =
-      useMusicAiPalette ? Color(0xFF4C37C9) : Color(0xFF6A4744);
-  static const plum = useMusicAiPalette ? Color(0xFF6A4CFF) : Color(0xFF5E4A63);
+      useMusicAiPalette ? Color(0xFF6752E8) : Color(0xFF6A4744);
+  static const plum = useMusicAiPalette ? Color(0xFF7B62FF) : Color(0xFF5E4A63);
   static const vividViolet =
-      useMusicAiPalette ? Color(0xFFC94DFF) : Color(0xFF7A4EC7);
+      useMusicAiPalette ? Color(0xFFE06BFF) : Color(0xFF7A4EC7);
   static const shadow = Color(0x18000000);
 
   static const heroGradient = useMusicAiPalette
       ? LinearGradient(
-          colors: [Color(0xFF121A31), Color(0xFF2A1F66), Color(0xFF154763)],
+          colors: [Color(0xFF1F2D55), Color(0xFF4630A4), Color(0xFF1674A6)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         )
@@ -46,7 +46,7 @@ class AppTheme {
 
   static const accentGradient = useMusicAiPalette
       ? LinearGradient(
-          colors: [Color(0xFF7B63FF), Color(0xFF3DD0FF)],
+          colors: [Color(0xFF9A80FF), Color(0xFF48DDFF)],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         )
@@ -58,7 +58,7 @@ class AppTheme {
 
   static const surfaceGradient = useMusicAiPalette
       ? LinearGradient(
-          colors: [Color(0xFF0F1422), Color(0xFF141C2E)],
+          colors: [Color(0xFF1B2946), Color(0xFF233357)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         )
@@ -70,7 +70,7 @@ class AppTheme {
 
   static const elevatedSurfaceGradient = useMusicAiPalette
       ? LinearGradient(
-          colors: [Color(0xFF12192A), Color(0xFF172038), Color(0xFF1B2842)],
+          colors: [Color(0xFF203159), Color(0xFF273A68), Color(0xFF28456F)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         )
@@ -82,7 +82,7 @@ class AppTheme {
 
   static const softAccentGradient = useMusicAiPalette
       ? LinearGradient(
-          colors: [Color(0xFF1D2540), Color(0xFF202B49)],
+          colors: [Color(0xFF2A3A63), Color(0xFF314B78)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         )

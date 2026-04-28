@@ -39,6 +39,9 @@ class _ProfilePageState extends State<ProfilePage> {
   static final Uri _playStoreUri = Uri.parse(
     'https://play.google.com/store/apps/details?id=com.mellutecno.approfittoffro',
   );
+  static final Uri _privacyPolicyUri = Uri.parse(
+    'https://www.approfittoffro.it/static/privacy_policy.html',
+  );
   bool _archiveExpanded = false;
   bool _communityExpanded = false;
   bool _reviewsExpanded = false;
@@ -2181,6 +2184,11 @@ class _ProfilePageState extends State<ProfilePage> {
                     fallbackMessage:
                         'Non riesco ad aprire il Play Store adesso.',
                   ),
+                  onPrivacyPolicy: () => _openExternalLink(
+                    _privacyPolicyUri,
+                    fallbackMessage:
+                        'Non riesco ad aprire la privacy policy adesso.',
+                  ),
                   onDeleteAccount: widget.authController.isBusy
                       ? null
                       : _confirmDeleteAccount,
@@ -3774,6 +3782,7 @@ class _SettingsCard extends StatelessWidget {
     required this.onEditProfile,
     required this.onSecurity,
     required this.onCheckUpdates,
+    required this.onPrivacyPolicy,
     required this.onDeleteAccount,
     required this.onLogout,
   });
@@ -3783,6 +3792,7 @@ class _SettingsCard extends StatelessWidget {
   final VoidCallback onEditProfile;
   final VoidCallback onSecurity;
   final VoidCallback onCheckUpdates;
+  final VoidCallback onPrivacyPolicy;
   final VoidCallback? onDeleteAccount;
   final VoidCallback? onLogout;
 
@@ -3872,6 +3882,14 @@ class _SettingsCard extends StatelessWidget {
                             color: Color(0xFFE07800),
                           ),
                           label: const Text('Aggiorna la tua app'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: onPrivacyPolicy,
+                          icon: const Icon(
+                            Icons.privacy_tip_outlined,
+                            color: Color(0xFFE07800),
+                          ),
+                          label: const Text('Informativa privacy'),
                         ),
                         OutlinedButton.icon(
                           onPressed: onLogout,
