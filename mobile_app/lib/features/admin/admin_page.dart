@@ -869,13 +869,7 @@ class _AdminPageState extends State<AdminPage> {
               children: [
                 _StatusPill(
                   label: offer.mealType.toUpperCase(),
-                  color: offer.mealType == 'colazione'
-                      ? const Color(0xFFDD4B82)
-                      : offer.mealType == 'pranzo'
-                          ? const Color(0xFF7640C8)
-                          : offer.mealType == 'ape'
-                              ? const Color(0xFFE05533)
-                              : const Color(0xFF2E8AD1),
+                  color: AppTheme.offerGreen,
                 ),
                 _StatusPill(
                   label: offer.status,

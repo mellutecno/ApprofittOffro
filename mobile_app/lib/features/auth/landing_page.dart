@@ -772,18 +772,7 @@ class _PublicOfferCard extends StatelessWidget {
   }
 
   Color _mealColor(String type) {
-    switch (type) {
-      case 'colazione':
-        return const Color(0xFFD49B00);
-      case 'pranzo':
-        return const Color(0xFF3D8B5A);
-      case 'cena':
-        return const Color(0xFF7A4EC7);
-      case 'ape':
-        return const Color(0xFFE05533);
-      default:
-        return const Color(0xFFE86E35);
-    }
+    return AppTheme.offerGreen;
   }
 
   String _formatWhenLabel(DateTime value) {

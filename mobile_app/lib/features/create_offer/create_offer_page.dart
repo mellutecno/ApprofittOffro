@@ -718,7 +718,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
   Widget _buildMapPickerSheet(BuildContext context) {
     final theme = Theme.of(context);
-    final darkPalette = AppTheme.useMusicAiPalette;
+    const darkPalette = AppTheme.useMusicAiPalette;
 
     return FractionallySizedBox(
       heightFactor: 0.88,
@@ -2265,7 +2265,7 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final darkPalette = AppTheme.useMusicAiPalette;
+    const darkPalette = AppTheme.useMusicAiPalette;
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: SizedBox(
@@ -2399,15 +2399,9 @@ class _MealChoiceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final darkPalette = AppTheme.useMusicAiPalette;
+    const darkPalette = AppTheme.useMusicAiPalette;
     final selected = currentValue == value;
-    final color = switch (value) {
-      'colazione' => const Color(0xFFD49B00),
-      'pranzo' => const Color(0xFF3D8B5A),
-      'cena' => const Color(0xFF7A4EC7),
-      'ape' => const Color(0xFFE05533),
-      _ => AppTheme.orange,
-    };
+    const color = AppTheme.offerGreen;
 
     return SizedBox(
       width: double.infinity,

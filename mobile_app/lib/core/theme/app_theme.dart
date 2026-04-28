@@ -30,6 +30,7 @@ class AppTheme {
   static const plum = useMusicAiPalette ? Color(0xFF6A4CFF) : Color(0xFF5E4A63);
   static const vividViolet =
       useMusicAiPalette ? Color(0xFFC94DFF) : Color(0xFF7A4EC7);
+  static const offerGreen = Color(0xFF28C76F);
   static const shadow = Color(0x18000000);
 
   static const heroGradient = useMusicAiPalette

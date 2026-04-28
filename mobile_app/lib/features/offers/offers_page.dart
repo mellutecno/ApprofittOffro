@@ -750,16 +750,7 @@ class _OfferPreviewCard extends StatelessWidget {
   }
 
   Color _mealColor(String type) {
-    switch (type) {
-      case 'colazione':
-        return const Color(0xFFD49B00);
-      case 'pranzo':
-        return const Color(0xFF3D8B5A);
-      case 'cena':
-        return const Color(0xFF7A4EC7);
-      default:
-        return AppTheme.orange;
-    }
+    return AppTheme.offerGreen;
   }
 
   String _formatWhenLabel(BuildContext context, DateTime value) {
@@ -1076,7 +1067,7 @@ class _MealChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final darkPalette = AppTheme.useMusicAiPalette;
+    const darkPalette = AppTheme.useMusicAiPalette;
     final chip = SizedBox(
       height: 48,
       child: FilterChip(
@@ -1090,9 +1081,9 @@ class _MealChip extends StatelessWidget {
             ? AppTheme.sand
             : AppTheme.paper.withValues(alpha: 0.92),
         selectedColor: _colorForValue(value).withValues(
-          alpha: darkPalette ? 0.26 : 0.16,
+          alpha: darkPalette ? 0.34 : 0.22,
         ),
-        side: BorderSide(color: _colorForValue(value).withValues(alpha: 0.22)),
+        side: BorderSide(color: _colorForValue(value).withValues(alpha: 0.42)),
         labelStyle: TextStyle(
           color: selected
               ? _colorForValue(value)
@@ -1114,18 +1105,7 @@ class _MealChip extends StatelessWidget {
   }
 
   Color _colorForValue(String input) {
-    switch (input) {
-      case 'colazione':
-        return const Color(0xFFD49B00);
-      case 'pranzo':
-        return const Color(0xFF3D8B5A);
-      case 'cena':
-        return const Color(0xFF7A4EC7);
-      case 'ape':
-        return const Color(0xFFE05533);
-      default:
-        return Colors.grey;
-    }
+    return AppTheme.offerGreen;
   }
 }
 
