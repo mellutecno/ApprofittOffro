@@ -6,12 +6,14 @@ class AdminDashboardStats {
     required this.admins,
     required this.futureOffers,
     required this.pastOffers,
+    required this.chats,
   });
 
   final int users;
   final int admins;
   final int futureOffers;
   final int pastOffers;
+  final int chats;
 
   factory AdminDashboardStats.fromJson(Map<String, dynamic> json) {
     return AdminDashboardStats(
@@ -19,6 +21,7 @@ class AdminDashboardStats {
       admins: json['admins'] as int? ?? 0,
       futureOffers: json['future_offers'] as int? ?? 0,
       pastOffers: json['past_offers'] as int? ?? 0,
+      chats: json['chats'] as int? ?? 0,
     );
   }
 }
@@ -247,7 +250,8 @@ class AdminOfferSummary {
       bookingClosed: false,
       descrizione: description,
       fotoLocale: photoFilename,
-      fotoLocaleGallery: photoFilename.isEmpty ? const <String>[] : <String>[photoFilename],
+      fotoLocaleGallery:
+          photoFilename.isEmpty ? const <String>[] : <String>[photoFilename],
       fotoLocaleCount: photoFilename.isEmpty ? 0 : 1,
       autoreNome: author.name,
       autoreId: author.id,
@@ -276,12 +280,14 @@ class AdminDashboardData {
     required this.users,
     required this.futureOffers,
     required this.pastOffers,
+    required this.chats,
   });
 
   final AdminDashboardStats stats;
   final List<AdminUserSummary> users;
   final List<AdminOfferSummary> futureOffers;
   final List<AdminOfferSummary> pastOffers;
+  final List<AdminChatSummary> chats;
 
   factory AdminDashboardData.fromJson(Map<String, dynamic> json) {
     return AdminDashboardData(
@@ -300,6 +306,87 @@ class AdminDashboardData {
           .cast<Map<String, dynamic>>()
           .map(AdminOfferSummary.fromJson)
           .toList(),
+      chats: (json['chats'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(AdminChatSummary.fromJson)
+          .toList(),
+    );
+  }
+}
+
+class AdminChatUserSummary {
+  const AdminChatUserSummary({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.photoFilename,
+  });
+
+  final int id;
+  final String name;
+  final String email;
+  final String photoFilename;
+
+  factory AdminChatUserSummary.fromJson(Map<String, dynamic> json) {
+    return AdminChatUserSummary(
+      id: json['id'] as int? ?? 0,
+      name: (json['nome'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+      photoFilename: (json['foto'] ?? '').toString(),
+    );
+  }
+}
+
+class AdminChatSummary {
+  const AdminChatSummary({
+    required this.id,
+    required this.chatId,
+    required this.offerId,
+    required this.offerTitle,
+    required this.offerAddress,
+    required this.offerDate,
+    required this.userA,
+    required this.userB,
+    required this.lastMessage,
+    required this.lastMessageType,
+    required this.lastMessageTime,
+    required this.messageCount,
+    required this.clearedAt,
+  });
+
+  final int id;
+  final String chatId;
+  final int offerId;
+  final String offerTitle;
+  final String offerAddress;
+  final DateTime? offerDate;
+  final AdminChatUserSummary userA;
+  final AdminChatUserSummary userB;
+  final String lastMessage;
+  final String lastMessageType;
+  final DateTime? lastMessageTime;
+  final int messageCount;
+  final DateTime? clearedAt;
+
+  factory AdminChatSummary.fromJson(Map<String, dynamic> json) {
+    return AdminChatSummary(
+      id: json['id'] as int? ?? 0,
+      chatId: (json['chat_id'] ?? '').toString(),
+      offerId: json['offer_id'] as int? ?? 0,
+      offerTitle: (json['offer_title'] ?? '').toString(),
+      offerAddress: (json['offer_address'] ?? '').toString(),
+      offerDate: _parseDate(json['offer_date']),
+      userA: AdminChatUserSummary.fromJson(
+        json['user_a'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+      ),
+      userB: AdminChatUserSummary.fromJson(
+        json['user_b'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+      ),
+      lastMessage: (json['last_message'] ?? '').toString(),
+      lastMessageType: (json['last_message_type'] ?? 'text').toString(),
+      lastMessageTime: _parseDate(json['last_message_time']),
+      messageCount: json['message_count'] as int? ?? 0,
+      clearedAt: _parseDate(json['cleared_at']),
     );
   }
 }

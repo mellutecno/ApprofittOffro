@@ -723,6 +723,22 @@ class ApiClient {
         'Comunicazione inviata con successo.';
   }
 
+  Future<String> deleteAdminChat(
+    int chatThreadId, {
+    String motivazione = '',
+  }) async {
+    final response = await _send(
+      method: 'DELETE',
+      path: '/api/admin/chats/$chatThreadId',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'motivazione': motivazione}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ??
+        'Chat eliminata e partecipanti avvisati.';
+  }
+
   Future<String> updateProfile({
     required String nome,
     required String email,

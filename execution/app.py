@@ -3532,6 +3532,47 @@ def serialize_admin_offer_summary(offer):
     }
 
 
+def serialize_admin_chat_user(user):
+    """Serializza un partecipante chat per il pannello admin mobile."""
+    if not user:
+        return {
+            "id": 0,
+            "nome": "Utente rimosso",
+            "email": "",
+            "foto": "",
+        }
+    return {
+        "id": user.id,
+        "nome": user.nome or "Utente",
+        "email": user.email or "",
+        "foto": get_primary_photo_filename(user) or "",
+    }
+
+
+def serialize_admin_chat_summary(thread):
+    """Serializza una conversazione chat per il pannello admin mobile."""
+    user_a = User.query.options(selectinload(User.photos)).get(thread.user_a_id)
+    user_b = User.query.options(selectinload(User.photos)).get(thread.user_b_id)
+    offer = Offer.query.get(thread.offer_id)
+    last_activity = chat_thread_last_activity(thread)
+    message_count = ChatMessage.query.filter_by(thread_id=thread.id).count()
+    return {
+        "id": thread.id,
+        "chat_id": build_chat_thread_key(thread.offer_id, thread.user_a_id, thread.user_b_id),
+        "offer_id": thread.offer_id,
+        "offer_title": offer.nome_locale if offer else "Evento non disponibile",
+        "offer_address": offer.indirizzo if offer else "",
+        "offer_date": offer.data_ora.isoformat() if offer and offer.data_ora else "",
+        "user_a": serialize_admin_chat_user(user_a),
+        "user_b": serialize_admin_chat_user(user_b),
+        "last_message": (thread.last_message or "").strip(),
+        "last_message_type": (thread.last_message_type or "text").strip().lower(),
+        "last_message_time": datetime_to_iso_z(last_activity),
+        "message_count": int(message_count or 0),
+        "cleared_at": datetime_to_iso_z(thread.cleared_at),
+    }
+
+
 def serialize_pending_claim_request(claim, *, viewer=None, followed_user_ids=None):
     """Serializza una richiesta pendente verso l'host proprietario dell'offerta."""
     offer = claim.offerta
@@ -6195,6 +6236,13 @@ def purge_chat_thread_if_expired(thread, *, now=None):
     if not is_chat_thread_expired(thread, now=now):
         return False
 
+    delete_chat_thread_payload(thread)
+    db.session.delete(thread)
+    return True
+
+
+def delete_chat_thread_payload(thread):
+    """Elimina messaggi e allegati di un thread chat, lasciando gestire il thread al chiamante."""
     expected_audio_prefix = build_chat_audio_prefix(
         thread.offer_id,
         thread.user_a_id,
@@ -6209,6 +6257,7 @@ def purge_chat_thread_if_expired(thread, *, now=None):
     audio_paths_to_delete = set()
     media_paths_to_delete = set()
     messages = ChatMessage.query.filter_by(thread_id=thread.id).all()
+    deleted_messages = len(messages)
     for message in messages:
         normalized_audio = sanitize_chat_audio_path(message.audio_path)
         if normalized_audio and normalized_audio.startswith(expected_audio_prefix):
@@ -6218,13 +6267,20 @@ def purge_chat_thread_if_expired(thread, *, now=None):
             media_paths_to_delete.add(normalized_media)
         db.session.delete(message)
 
+    deleted_audio_files = 0
     for audio_path in audio_paths_to_delete:
         upload_storage.delete(audio_path)
+        deleted_audio_files += 1
+    deleted_media_files = 0
     for media_path in media_paths_to_delete:
         upload_storage.delete(media_path)
+        deleted_media_files += 1
 
-    db.session.delete(thread)
-    return True
+    return {
+        "deleted_messages": deleted_messages,
+        "deleted_audio_files": deleted_audio_files,
+        "deleted_media_files": deleted_media_files,
+    }
 
 
 @app.route("/api/push/chat-notification", methods=["POST"])
@@ -7289,32 +7345,7 @@ def api_chat_clear():
             "deleted_media_files": 0,
         })
 
-    expected_audio_prefix = build_chat_audio_prefix(offer_id, current_user.id, receiver_id)
-    expected_media_prefix = build_chat_media_prefix(offer_id, current_user.id, receiver_id)
-    audio_paths_to_delete = set()
-    media_paths_to_delete = set()
-
-    messages = ChatMessage.query.filter_by(thread_id=thread.id).all()
-    deleted_messages = len(messages)
-    for message in messages:
-        normalized_audio = sanitize_chat_audio_path(message.audio_path)
-        if normalized_audio and normalized_audio.startswith(expected_audio_prefix):
-            audio_paths_to_delete.add(normalized_audio)
-        normalized_media = sanitize_chat_audio_path(message.media_path)
-        if normalized_media and normalized_media.startswith(expected_media_prefix):
-            media_paths_to_delete.add(normalized_media)
-        db.session.delete(message)
-
-    deleted_audio_files = 0
-    for audio_path in audio_paths_to_delete:
-        upload_storage.delete(audio_path)
-        deleted_audio_files += 1
-
-    deleted_media_files = 0
-    for media_path in media_paths_to_delete:
-        upload_storage.delete(media_path)
-        deleted_media_files += 1
-
+    delete_result = delete_chat_thread_payload(thread)
     now = chat_now_utc()
     thread.last_message = ""
     thread.last_message_type = "text"
@@ -7327,9 +7358,7 @@ def api_chat_clear():
 
     return jsonify({
         "success": True,
-        "deleted_messages": deleted_messages,
-        "deleted_audio_files": deleted_audio_files,
-        "deleted_media_files": deleted_media_files,
+        **delete_result,
     })
 
 
@@ -7691,6 +7720,16 @@ def api_admin_delete_user(user_id):
 def api_admin_dashboard():
     """Espone dati aggregati per il pannello amministratore mobile."""
     now = local_now()
+    chat_threads = ChatThread.query.order_by(ChatThread.updated_at.desc()).all()
+    purged_chat_threads = False
+    chat_now = chat_now_utc()
+    for thread in chat_threads:
+        if purge_chat_thread_if_expired(thread, now=chat_now):
+            purged_chat_threads = True
+    if purged_chat_threads:
+        db.session.commit()
+        chat_threads = ChatThread.query.order_by(ChatThread.updated_at.desc()).all()
+
     all_offers = (
         Offer.query.options(
             selectinload(Offer.autore).selectinload(User.photos),
@@ -7722,6 +7761,7 @@ def api_admin_dashboard():
             "admins": admins_count,
             "future_offers": len(upcoming_offers),
             "past_offers": len(past_offers),
+            "chats": len(chat_threads),
         },
         "users": [
             serialize_admin_user_summary(user)
@@ -7735,6 +7775,95 @@ def api_admin_dashboard():
             serialize_admin_offer_summary(offer)
             for offer in past_offers
         ],
+        "chats": [
+            serialize_admin_chat_summary(thread)
+            for thread in chat_threads
+        ],
+    })
+
+
+@app.route("/api/admin/chats/<int:thread_id>", methods=["DELETE"])
+@admin_required
+def api_admin_delete_chat(thread_id):
+    """Svuota una chat dal pannello admin e avvisa entrambi i partecipanti."""
+    thread = ChatThread.query.get(thread_id)
+    if not thread:
+        return jsonify({"success": False, "error": "Chat non trovata."}), 404
+
+    if purge_chat_thread_if_expired(thread, now=chat_now_utc()):
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "message": "Chat gia' scaduta: eliminata dalla pulizia automatica a 30 giorni.",
+            "deleted_messages": 0,
+            "deleted_audio_files": 0,
+            "deleted_media_files": 0,
+            "push_sent": 0,
+        })
+
+    data = request.get_json(silent=True) or {}
+    reason = str(data.get("motivazione", "")).strip()
+    if len(reason) > 500:
+        return jsonify({
+            "success": False,
+            "error": "La motivazione deve restare entro 500 caratteri.",
+        }), 400
+
+    user_a = User.query.options(selectinload(User.photos)).get(thread.user_a_id)
+    user_b = User.query.options(selectinload(User.photos)).get(thread.user_b_id)
+    delete_result = delete_chat_thread_payload(thread)
+    now = chat_now_utc()
+    notice_text = "La chat e' stata eliminata dall'amministratore."
+    if reason:
+        notice_text = f"{notice_text} Motivo: {reason}"
+
+    notice = ChatMessage(
+        thread_id=thread.id,
+        sender_id=current_user.id,
+        sender_name="Amministrazione",
+        message_type="text",
+        text=notice_text,
+        created_at=now,
+    )
+    db.session.add(notice)
+    thread.last_message = "Chat eliminata dall'amministratore"
+    thread.last_message_type = "text"
+    thread.last_message_time = now
+    thread.last_sender_id = current_user.id
+    thread.updated_at = now
+    thread.cleared_at = now
+    thread.cleared_by_id = current_user.id
+    db.session.commit()
+
+    push_body = notice_text[:140]
+    push_sent = 0
+    participants = ((user_a, user_b), (user_b, user_a))
+    for receiver, other_user in participants:
+        if not receiver:
+            continue
+        push_sent += send_push_to_user(
+            receiver,
+            title="Chat eliminata dall'amministratore",
+            body=push_body,
+            target="chat",
+            extra_data={
+                "offer_id": thread.offer_id,
+                "chat_with_user_id": other_user.id if other_user else "",
+                "chat_with_name": other_user.nome if other_user else "Utente",
+                "chat_with_photo_filename": (
+                    get_primary_photo_filename(other_user) if other_user else ""
+                ),
+                "type": "chat_cleared",
+                "admin_removed": "true",
+            },
+        )
+
+    return jsonify({
+        "success": True,
+        "message": "Chat eliminata e partecipanti avvisati.",
+        **delete_result,
+        "push_sent": push_sent,
+        "chat": serialize_admin_chat_summary(thread),
     })
 
 

@@ -12,7 +12,8 @@ import 'admin_edit_user_page.dart';
 enum _AdminSection {
   users('Utenti'),
   futureOffers('Eventi futuri'),
-  pastOffers('Eventi passati');
+  pastOffers('Eventi passati'),
+  chats('Chat');
 
   const _AdminSection(this.label);
 
@@ -51,12 +52,14 @@ class _AdminPageState extends State<AdminPage> {
   late Future<AdminDashboardData> _dashboardFuture;
   late final TextEditingController _userSearchController;
   late final TextEditingController _offerSearchController;
+  late final TextEditingController _chatSearchController;
 
   _AdminSection _selectedSection = _AdminSection.users;
   String _userQuery = '';
   String _selectedGender = '';
   String _selectedAgeRange = '';
   String _offerQuery = '';
+  String _chatQuery = '';
   DateTime? _offerFromDate;
   DateTime? _offerToDate;
 
@@ -66,12 +69,14 @@ class _AdminPageState extends State<AdminPage> {
     _dashboardFuture = widget.authController.apiClient.fetchAdminDashboard();
     _userSearchController = TextEditingController();
     _offerSearchController = TextEditingController();
+    _chatSearchController = TextEditingController();
   }
 
   @override
   void dispose() {
     _userSearchController.dispose();
     _offerSearchController.dispose();
+    _chatSearchController.dispose();
     super.dispose();
   }
 
@@ -190,6 +195,25 @@ class _AdminPageState extends State<AdminPage> {
     }).toList();
   }
 
+  List<AdminChatSummary> _filteredChats(AdminDashboardData data) {
+    final query = _chatQuery.trim().toLowerCase();
+    return data.chats.where((chat) {
+      if (query.isEmpty) {
+        return true;
+      }
+      final haystack = [
+        chat.userA.name,
+        chat.userA.email,
+        chat.userB.name,
+        chat.userB.email,
+        chat.offerTitle,
+        chat.offerAddress,
+        chat.lastMessage,
+      ].join(' ').toLowerCase();
+      return haystack.contains(query);
+    }).toList();
+  }
+
   Future<void> _pickOfferDate({
     required bool isStart,
   }) async {
@@ -235,6 +259,13 @@ class _AdminPageState extends State<AdminPage> {
       _offerFromDate = null;
       _offerToDate = null;
       _offerSearchController.clear();
+    });
+  }
+
+  void _resetChatFilters() {
+    setState(() {
+      _chatQuery = '';
+      _chatSearchController.clear();
     });
   }
 
@@ -470,6 +501,76 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _confirmDeleteChat(AdminChatSummary chat) async {
+    final reasonController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Elimina chat'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${chat.userA.name} - ${chat.userB.name}'),
+              const SizedBox(height: 6),
+              Text(
+                chat.offerTitle,
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.72),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonController,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Motivazione opzionale',
+                  hintText: 'Se la inserisci verra mostrata agli utenti.',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annulla'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Elimina'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      reasonController.dispose();
+      return;
+    }
+
+    try {
+      final result = await widget.authController.apiClient.deleteAdminChat(
+        chat.id,
+        motivazione: reasonController.text.trim(),
+      );
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text(result)));
+      await _reloadDashboard();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      reasonController.dispose();
+    }
+  }
+
   Widget _buildAvatar({
     required String filename,
     required String fallback,
@@ -502,6 +603,7 @@ class _AdminPageState extends State<AdminPage> {
       (label: 'Admin', value: stats.admins),
       (label: 'Futuri', value: stats.futureOffers),
       (label: 'Passati', value: stats.pastOffers),
+      (label: 'Chat', value: stats.chats),
     ];
 
     return GridView.builder(
@@ -518,9 +620,11 @@ class _AdminPageState extends State<AdminPage> {
         final item = items[index];
         return DecoratedBox(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.72),
+            gradient: AppTheme.softAccentGradient,
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppTheme.cardBorder),
+            border: Border.all(
+              color: AppTheme.vividViolet.withValues(alpha: 0.34),
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -692,6 +796,54 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildChatsFilters(List<AdminChatSummary> filteredChats) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Trova chat',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: AppTheme.brown,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _chatSearchController,
+              onChanged: (value) => setState(() => _chatQuery = value),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search_rounded),
+                labelText: 'Cerca per utenti, email, evento o messaggi',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text(
+                  '${filteredChats.length} chat trovate',
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.72),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: _resetChatFilters,
+                  icon: const Icon(Icons.restart_alt_rounded),
+                  label: const Text('Azzera'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<Widget> _buildSectionItems(AdminDashboardData data) {
     switch (_selectedSection) {
       case _AdminSection.users:
@@ -730,6 +882,18 @@ class _AdminPageState extends State<AdminPage> {
           ];
         }
         return filteredOffers.map(_buildOfferCard).toList();
+      case _AdminSection.chats:
+        final filteredChats = _filteredChats(data);
+        if (filteredChats.isEmpty) {
+          return const [
+            _AdminEmptyState(
+              title: 'Nessuna chat da mostrare',
+              subtitle:
+                  'Le chat oltre 30 giorni vengono pulite automaticamente.',
+            ),
+          ];
+        }
+        return filteredChats.map(_buildChatCard).toList();
     }
   }
 
@@ -968,6 +1132,124 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildChatCard(AdminChatSummary chat) {
+    final lastMessage = chat.lastMessage.trim().isEmpty
+        ? 'Nessun messaggio salvato'
+        : chat.lastMessage.trim();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _StatusPill(
+                  label: '${chat.messageCount} messaggi',
+                  color: AppTheme.sage,
+                ),
+                if (chat.clearedAt != null)
+                  const _StatusPill(
+                    label: 'Gia eliminata',
+                    color: AppTheme.vividViolet,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                _buildAvatar(
+                  filename: chat.userA.photoFilename,
+                  fallback: chat.userA.name,
+                  radius: 22,
+                ),
+                const SizedBox(width: 8),
+                _buildAvatar(
+                  filename: chat.userB.photoFilename,
+                  fallback: chat.userB.name,
+                  radius: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '${chat.userA.name} - ${chat.userB.name}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: AppTheme.brown,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              chat.offerTitle,
+              style: const TextStyle(
+                color: AppTheme.brown,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            if (chat.offerDate != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                _formatDateTime(chat.offerDate),
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.72),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            if (chat.offerAddress.trim().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                chat.offerAddress,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.68),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              lastMessage,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppTheme.brown.withValues(alpha: 0.78),
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Ultima attivita: ${_formatDateTime(chat.lastMessageTime)}',
+              style: TextStyle(
+                color: AppTheme.brown.withValues(alpha: 0.62),
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: 210,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFBE3455),
+                ),
+                onPressed: () => _confirmDeleteChat(chat),
+                icon: const Icon(Icons.forum_outlined),
+                label: const Text('Elimina chat'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<AdminDashboardData>(
@@ -1025,10 +1307,12 @@ class _AdminPageState extends State<AdminPage> {
         final filteredUsers = _filteredUsers(dashboard);
         final filteredFutureOffers = _filteredOffers(dashboard.futureOffers);
         final filteredPastOffers = _filteredOffers(dashboard.pastOffers);
+        final filteredChats = _filteredChats(dashboard);
         final currentCount = switch (_selectedSection) {
           _AdminSection.users => filteredUsers.length,
           _AdminSection.futureOffers => filteredFutureOffers.length,
           _AdminSection.pastOffers => filteredPastOffers.length,
+          _AdminSection.chats => filteredChats.length,
         };
         final items = _buildSectionItems(dashboard);
 
@@ -1040,7 +1324,7 @@ class _AdminPageState extends State<AdminPage> {
               SliverAppBar(
                 pinned: true,
                 toolbarHeight: kToolbarHeight,
-                backgroundColor: Colors.transparent,
+                backgroundColor: AppTheme.cream,
                 surfaceTintColor: Colors.transparent,
                 shadowColor: Colors.transparent,
                 elevation: 0,
@@ -1069,29 +1353,39 @@ class _AdminPageState extends State<AdminPage> {
                     eyebrow: 'ADMIN',
                     title: 'Controllo completo della piattaforma',
                     subtitle:
-                        'Gestisci utenti, monitora eventi futuri e passati, elimina account o tavoli problematici e contatta chi serve direttamente dal telefono.',
+                        'Gestisci utenti, chat ed eventi futuri o passati, elimina account o tavoli problematici e contatta chi serve direttamente dal telefono.',
                     centered: true,
                     footer: Column(
                       children: [
                         _buildStatsGrid(dashboard.stats),
                         const SizedBox(height: 14),
-                        SizedBox(
-                          width: double.infinity,
-                          child: SegmentedButton<_AdminSection>(
-                            segments: _AdminSection.values
-                                .map(
-                                  (section) => ButtonSegment<_AdminSection>(
-                                    value: section,
-                                    label: Text(section.label),
-                                  ),
-                                )
-                                .toList(),
-                            selected: <_AdminSection>{_selectedSection},
-                            onSelectionChanged: (selection) {
-                              setState(
-                                  () => _selectedSection = selection.first);
-                            },
-                          ),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minWidth: constraints.maxWidth,
+                                ),
+                                child: SegmentedButton<_AdminSection>(
+                                  segments: _AdminSection.values
+                                      .map(
+                                        (section) =>
+                                            ButtonSegment<_AdminSection>(
+                                          value: section,
+                                          label: Text(section.label),
+                                        ),
+                                      )
+                                      .toList(),
+                                  selected: <_AdminSection>{_selectedSection},
+                                  onSelectionChanged: (selection) {
+                                    setState(() =>
+                                        _selectedSection = selection.first);
+                                  },
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -1103,11 +1397,13 @@ class _AdminPageState extends State<AdminPage> {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
                   child: _selectedSection == _AdminSection.users
                       ? _buildUsersFilters(filteredUsers)
-                      : _buildOffersFilters(
-                          _selectedSection == _AdminSection.futureOffers
-                              ? filteredFutureOffers
-                              : filteredPastOffers,
-                        ),
+                      : _selectedSection == _AdminSection.chats
+                          ? _buildChatsFilters(filteredChats)
+                          : _buildOffersFilters(
+                              _selectedSection == _AdminSection.futureOffers
+                                  ? filteredFutureOffers
+                                  : filteredPastOffers,
+                            ),
                 ),
               ),
               SliverToBoxAdapter(
