@@ -4871,11 +4871,6 @@ def api_get_offers():
         has_started = o.data_ora <= now
         author_rating = get_user_rating(o.autore.id)
         
-        # Scarta l'offerta se si trova oltre il raggio specificato dal filtro
-        if radius_km is not None:
-            if dist > radius_km:
-                continue
-
         # Controlla se l'utente corrente ha già approfittato
         current_claim = None
         already_claimed = False
@@ -4903,6 +4898,11 @@ def api_get_offers():
                 and not is_own
             ):
                 host_whatsapp_link = build_whatsapp_offer_link(current_user, o.autore, o)
+
+        # Il raggio filtra gli eventi degli altri; i propri restano nel payload
+        # per tenere sempre visibile il promemoria di gestione nel menu Approfitta.
+        if radius_km is not None and not is_own and dist > radius_km:
+            continue
 
         claim_status = get_mobile_claim_status(current_claim)
         if current_claim is None and (o.stato != "attiva" or o.posti_disponibili <= 0):

@@ -565,13 +565,24 @@ class _ProfileOffersReminder extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            gradient: AppTheme.accentGradient,
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF6A4CFF),
+                Color(0xFF4C37C9),
+                Color(0xFF1B2D88),
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
             borderRadius: BorderRadius.circular(18),
-            boxShadow: const [
+            border: Border.all(
+              color: AppTheme.vividViolet.withValues(alpha: 0.42),
+            ),
+            boxShadow: [
               BoxShadow(
-                color: AppTheme.shadow,
-                blurRadius: 16,
-                offset: Offset(0, 8),
+                color: AppTheme.vividViolet.withValues(alpha: 0.22),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
