@@ -1801,6 +1801,11 @@ class _ProfilePageState extends State<ProfilePage> {
           return Scaffold(
             appBar: AppBar(
               toolbarHeight: kToolbarHeight,
+              backgroundColor: AppTheme.cream,
+              surfaceTintColor: AppTheme.cream,
+              shadowColor: Colors.transparent,
+              elevation: 0,
+              scrolledUnderElevation: 0,
               leading: const SizedBox.shrink(),
               leadingWidth: kToolbarHeight,
               centerTitle: true,
@@ -1819,6 +1824,11 @@ class _ProfilePageState extends State<ProfilePage> {
         return Scaffold(
           appBar: AppBar(
             toolbarHeight: kToolbarHeight,
+            backgroundColor: AppTheme.cream,
+            surfaceTintColor: AppTheme.cream,
+            shadowColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
             leading: const SizedBox.shrink(),
             leadingWidth: kToolbarHeight,
             centerTitle: true,

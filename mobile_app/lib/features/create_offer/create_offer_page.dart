@@ -57,6 +57,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   final _scrollController = ScrollController();
   final _venueSectionKey = GlobalKey();
   final ValueNotifier<int> _mapPickerRefreshTick = ValueNotifier(0);
+  final Completer<GoogleMapController> _mapControllerCompleter = Completer();
 
   String? _mealType;
   int _totalSeats = 1;
@@ -67,12 +68,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   bool _deleting = false;
   bool _isLocating = false;
   bool _initialLocationRequested = false;
-  bool _initialMapReady = true;
-  bool _userLocationLayerEnabled = false;
+  bool _initialMapReady = !AppConfig.googleMapsEnabled;
   bool _loadingNearbyPlaces = false;
   bool _resolvingMapTapAddress = false;
   bool _nearbyPlacesLoaded = false;
-  int _mapInstance = 0;
   GoogleMapController? _mapController;
   BuildContext? _mapPickerSheetContext;
   LatLng _currentMapCenter = _fallbackMapTarget;
@@ -116,6 +115,19 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   List<String> get _existingGalleryUrls => _existingGalleryFilenames
       .map(widget.authController.apiClient.buildUploadUrl)
       .toList();
+
+  LatLng? get _profileMapTarget {
+    final user = widget.authController.currentUser;
+    final latitude = user?.latitude;
+    final longitude = user?.longitude;
+    if (latitude == null || longitude == null) {
+      return null;
+    }
+    if (latitude.abs() > 90 || longitude.abs() > 180) {
+      return null;
+    }
+    return LatLng(latitude, longitude);
+  }
 
   String? get _visiblePublicationTimingWarning {
     final warning = _publicationTimingWarning;
@@ -194,6 +206,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         _initialLocationRequested = true;
       }
     } else if (AppConfig.googleMapsEnabled) {
+      final profileTarget = _profileMapTarget;
+      if (profileTarget != null) {
+        _currentMapCenter = profileTarget;
+        _initialMapReady = true;
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(_bootstrapCurrentLocation());
       });
@@ -223,6 +240,11 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: kToolbarHeight,
+        backgroundColor: AppTheme.cream,
+        surfaceTintColor: AppTheme.cream,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         leading: const SizedBox.shrink(),
         leadingWidth: kToolbarHeight,
         centerTitle: true,
@@ -666,9 +688,14 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
 
+    if (!_initialLocationRequested) {
+      await _bootstrapCurrentLocation();
+    }
+    if (!mounted) {
+      return;
+    }
+
     _mapDraftSelection ??= _currentCommittedPlaceCandidate();
-    _mapController = null;
-    _mapInstance++;
     _refreshMapPicker();
 
     await showModalBottomSheet<void>(
@@ -678,14 +705,6 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         _mapPickerSheetContext = sheetContext;
-        if (!_initialLocationRequested) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted || _mapPickerSheetContext == null) {
-              return;
-            }
-            unawaited(_bootstrapCurrentLocation());
-          });
-        }
         return ValueListenableBuilder<int>(
           valueListenable: _mapPickerRefreshTick,
           builder: (context, _, __) => _buildMapPickerSheet(context),
@@ -693,7 +712,6 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       },
     ).whenComplete(() {
       _mapPickerSheetContext = null;
-      _mapController = null;
       if (mounted && _mapDraftSelection != null) {
         setState(() => _mapDraftSelection = null);
         _refreshMapPicker();
@@ -768,8 +786,6 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                               isBusy: _isLocating ||
                                   _loadingNearbyPlaces ||
                                   _resolvingMapTapAddress,
-                              mapKey: ValueKey('offer-map-$_mapInstance'),
-                              myLocationEnabled: _userLocationLayerEnabled,
                               onMapCreated: _handleMapCreated,
                               onCameraMove: _handleCameraMove,
                               onCameraIdle: () {},
@@ -798,35 +814,20 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                 ),
               ),
               const SizedBox(height: 14),
-              Column(
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _loadingNearbyPlaces || _submitting
-                              ? null
-                              : () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                          label: const Text('Chiudi'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _submitting
-                              ? null
-                              : () => unawaited(_useCurrentLocation()),
-                          icon: const Icon(Icons.my_location_rounded),
-                          label: Text(_isLocating ? 'Cerco GPS...' : 'Usa GPS'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
+                  Expanded(
                     child: OutlinedButton.icon(
+                      onPressed: _loadingNearbyPlaces || _submitting
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                      label: const Text('Chiudi'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
                       onPressed: _submitting || _loadingNearbyPlaces
                           ? null
                           : () => unawaited(_refreshNearbyPlaces(force: true)),
@@ -862,6 +863,16 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       return;
     }
     _initialLocationRequested = true;
+    final profileTarget = _profileMapTarget;
+    if (profileTarget != null &&
+        _selectedLatitude == null &&
+        _selectedLongitude == null) {
+      setState(() {
+        _currentMapCenter = profileTarget;
+        _initialMapReady = true;
+      });
+      await _animateMapTo(profileTarget, zoom: 15.6);
+    }
     await _useCurrentLocation(silent: true);
     if (!mounted) {
       return;
@@ -1009,9 +1020,6 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
   Future<void> _useCurrentLocation({bool silent = false}) async {
     if (_isLocating) {
-      if (!silent) {
-        _showMessage('Sto gia cercando la posizione GPS.');
-      }
       return;
     }
 
@@ -1034,31 +1042,13 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
           'Permesso posizione negato in modo permanente. Riattivalo dalle impostazioni.',
         );
       }
-      if (mounted && !_userLocationLayerEnabled) {
-        setState(() => _userLocationLayerEnabled = true);
-        _refreshMapPicker();
-      }
-
-      final lastKnownPosition = await Geolocator.getLastKnownPosition();
-      if (mounted && lastKnownPosition != null) {
-        final target = LatLng(
-          lastKnownPosition.latitude,
-          lastKnownPosition.longitude,
-        );
-        setState(() {
-          _currentMapCenter = target;
-          _initialMapReady = true;
-        });
-        _refreshMapPicker();
-        await _animateMapTo(target, zoom: 15.8);
-      }
 
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
           timeLimit: Duration(seconds: 12),
         ),
-      ).timeout(const Duration(seconds: 14));
+      );
       if (!mounted) {
         return;
       }
@@ -1087,14 +1077,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
   void _handleMapCreated(GoogleMapController controller) {
     _mapController = controller;
-    unawaited(
-      Future<void>.delayed(const Duration(milliseconds: 250)).then((_) {
-        if (!mounted || _mapController != controller) {
-          return null;
-        }
-        return _animateMapTo(_currentMapCenter);
-      }),
-    );
+    if (!_mapControllerCompleter.isCompleted) {
+      _mapControllerCompleter.complete(controller);
+    }
+    unawaited(_animateMapTo(_currentMapCenter));
   }
 
   void _handleCameraMove(CameraPosition position) {
@@ -1560,7 +1546,10 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
   }
 
   Future<void> _animateMapTo(LatLng target, {double zoom = 15.6}) async {
-    final controller = _mapController;
+    final controller = _mapController ??
+        (_mapControllerCompleter.isCompleted
+            ? await _mapControllerCompleter.future
+            : null);
     if (controller == null) {
       return;
     }
@@ -2222,8 +2211,6 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
     required this.target,
     required this.markers,
     required this.isBusy,
-    required this.mapKey,
-    required this.myLocationEnabled,
     required this.onMapCreated,
     required this.onCameraMove,
     required this.onCameraIdle,
@@ -2235,8 +2222,6 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
   final LatLng target;
   final Set<Marker> markers;
   final bool isBusy;
-  final Key mapKey;
-  final bool myLocationEnabled;
   final ValueChanged<GoogleMapController> onMapCreated;
   final ValueChanged<CameraPosition> onCameraMove;
   final VoidCallback onCameraIdle;
@@ -2254,13 +2239,12 @@ class _GoogleMapsPreviewCard extends StatelessWidget {
         child: Stack(
           children: [
             GoogleMap(
-              key: mapKey,
               onMapCreated: onMapCreated,
               initialCameraPosition: CameraPosition(target: target, zoom: 15.6),
               markers: markers,
               mapToolbarEnabled: false,
               myLocationButtonEnabled: false,
-              myLocationEnabled: myLocationEnabled,
+              myLocationEnabled: true,
               zoomControlsEnabled: false,
               compassEnabled: false,
               scrollGesturesEnabled: true,

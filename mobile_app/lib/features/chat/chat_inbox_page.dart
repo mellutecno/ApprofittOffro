@@ -350,50 +350,64 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_bgTop, _bgBottom],
+    return Scaffold(
+      backgroundColor: AppTheme.cream,
+      appBar: AppBar(
+        toolbarHeight: kToolbarHeight,
+        backgroundColor: AppTheme.cream,
+        surfaceTintColor: AppTheme.cream,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: const SizedBox.shrink(),
+        leadingWidth: kToolbarHeight,
+        centerTitle: true,
+        title: const BrandWordmark(
+          height: 50,
+          alignment: Alignment.center,
         ),
+        actions: const [
+          SizedBox(width: kToolbarHeight),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
-            child: BrandWordmark(
-              height: 50,
-              alignment: Alignment.center,
-            ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [_bgTop, _bgBottom],
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: BrandHeroCard(
-              eyebrow: 'CONVERSAZIONI',
-              title: 'Messaggi attivi',
-              subtitle:
-                  'Qui trovi solo le persone con cui hai gia aperto una chat da un evento confermato.',
-              centered: true,
-              footer: Text(
-                'Apri una conversazione e continua da qui, senza tornare all\'evento. Le chat inattive si cancellano automaticamente dopo 30 giorni.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppTheme.brown,
-                  fontWeight: FontWeight.w700,
-                  height: 1.35,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: BrandHeroCard(
+                eyebrow: 'CONVERSAZIONI',
+                title: 'Messaggi attivi',
+                subtitle:
+                    'Qui trovi solo le persone con cui hai gia aperto una chat da un evento confermato.',
+                centered: true,
+                footer: Text(
+                  'Apri una conversazione e continua da qui, senza tornare all\'evento. Le chat inattive si cancellano automaticamente dopo 30 giorni.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppTheme.brown,
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                  ),
                 ),
               ),
             ),
-          ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _loadInbox,
-              child: _buildContent(),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _loadInbox,
+                child: _buildContent(),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -106,182 +106,185 @@ class _CommunityPageState extends State<CommunityPage> {
         final distanceDraft = _distanceDraftKm ??
             widget.communityController.selectedRadiusKm.toDouble();
         final distanceValue = _normalizeDistanceKm(distanceDraft.round());
-        return RefreshIndicator(
-          onRefresh: () async {
-            await widget.communityController.loadPeople();
-            await widget.authController.refreshCurrentUser();
-          },
-          child: CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                pinned: true,
-                toolbarHeight: kToolbarHeight,
-                backgroundColor: Colors.transparent,
-                surfaceTintColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                elevation: 0,
-                scrolledUnderElevation: 0,
-                leading: const SizedBox.shrink(),
-                leadingWidth: kToolbarHeight,
-                centerTitle: true,
-                title: const BrandWordmark(
-                  height: 50,
-                  alignment: Alignment.center,
-                ),
-                actions: const [
-                  SizedBox(width: kToolbarHeight),
-                ],
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                  child: BrandHeroCard(
-                    eyebrow: 'COMMUNITY',
-                    title: 'Persone da seguire davvero',
-                    subtitle:
-                        'Apri i profili, guarda le foto e costruisci il tuo giro nella community.',
-                    centered: true,
-                    footer: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'Filtra la community',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.brown,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _CommunityDistanceControl(
-                          valueKm: distanceValue,
-                          valueLabel: _distanceDisplayLabel(distanceValue),
-                          resultCount: widget.communityController.people.length,
-                          isExpanded: _isDistanceCardExpanded,
-                          isSaving: widget.communityController.isLoading,
-                          onChanged: (value) {
-                            setState(() => _distanceDraftKm = value);
-                          },
-                          onToggle: () {
-                            setState(
-                              () => _isDistanceCardExpanded =
-                                  !_isDistanceCardExpanded,
-                            );
-                          },
-                          onSave: _saveDistancePreference,
-                          isDirty: distanceValue !=
-                              widget.communityController.selectedRadiusKm,
-                        ),
-                        const SizedBox(height: 12),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 360),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _CommunityFilterTile(
-                                      label: 'Eta',
-                                      value: widget
-                                          .communityController.selectedAgeRange,
-                                      options: _ageRanges,
-                                      onChanged: (value) {
-                                        widget.communityController
-                                            .selectAgeRange(value);
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _CommunityFilterTile(
-                                      label: 'Sesso',
-                                      value: widget
-                                          .communityController.selectedGender,
-                                      options: _genderFilters,
-                                      onChanged: (value) {
-                                        widget.communityController
-                                            .selectGender(value);
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'Nei risultati trovi sempre gli altri profili della community, mai il tuo.',
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                      color: AppTheme.brown
-                                          .withValues(alpha: 0.72),
-                                      fontWeight: FontWeight.w600,
-                                      height: 1.35,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              if (widget.communityController.isLoading)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (widget.communityController.errorMessage != null)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        widget.communityController.errorMessage!,
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-                )
-              else if (widget.communityController.people.isEmpty)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
-                        'Per questa fascia non vedo ancora profili disponibili.',
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-                )
-              else
-                SliverList.builder(
-                  itemCount: widget.communityController.people.length,
-                  itemBuilder: (context, index) {
-                    final person = widget.communityController.people[index];
-                    return _CommunityUserCard(
-                      person: person,
-                      authController: widget.authController,
-                      onToggleFollow: () async {
-                        final message = await widget.communityController
-                            .toggleFollow(person);
-                        if (!context.mounted || message == null) {
-                          return;
-                        }
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(message)),
-                        );
-                      },
-                    );
-                  },
-                ),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        return Scaffold(
+          backgroundColor: AppTheme.cream,
+          appBar: AppBar(
+            toolbarHeight: kToolbarHeight,
+            backgroundColor: AppTheme.cream,
+            surfaceTintColor: AppTheme.cream,
+            shadowColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: const SizedBox.shrink(),
+            leadingWidth: kToolbarHeight,
+            centerTitle: true,
+            title: const BrandWordmark(
+              height: 50,
+              alignment: Alignment.center,
+            ),
+            actions: const [
+              SizedBox(width: kToolbarHeight),
             ],
+          ),
+          body: RefreshIndicator(
+            onRefresh: () async {
+              await widget.communityController.loadPeople();
+              await widget.authController.refreshCurrentUser();
+            },
+            child: CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                    child: BrandHeroCard(
+                      eyebrow: 'COMMUNITY',
+                      title: 'Persone da seguire davvero',
+                      subtitle:
+                          'Apri i profili, guarda le foto e costruisci il tuo giro nella community.',
+                      centered: true,
+                      footer: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'Filtra la community',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.brown,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _CommunityDistanceControl(
+                            valueKm: distanceValue,
+                            valueLabel: _distanceDisplayLabel(distanceValue),
+                            resultCount:
+                                widget.communityController.people.length,
+                            isExpanded: _isDistanceCardExpanded,
+                            isSaving: widget.communityController.isLoading,
+                            onChanged: (value) {
+                              setState(() => _distanceDraftKm = value);
+                            },
+                            onToggle: () {
+                              setState(
+                                () => _isDistanceCardExpanded =
+                                    !_isDistanceCardExpanded,
+                              );
+                            },
+                            onSave: _saveDistancePreference,
+                            isDirty: distanceValue !=
+                                widget.communityController.selectedRadiusKm,
+                          ),
+                          const SizedBox(height: 12),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 360),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _CommunityFilterTile(
+                                        label: 'Eta',
+                                        value: widget.communityController
+                                            .selectedAgeRange,
+                                        options: _ageRanges,
+                                        onChanged: (value) {
+                                          widget.communityController
+                                              .selectAgeRange(value);
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: _CommunityFilterTile(
+                                        label: 'Sesso',
+                                        value: widget
+                                            .communityController.selectedGender,
+                                        options: _genderFilters,
+                                        onChanged: (value) {
+                                          widget.communityController
+                                              .selectGender(value);
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Nei risultati trovi sempre gli altri profili della community, mai il tuo.',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: AppTheme.brown
+                                            .withValues(alpha: 0.72),
+                                        fontWeight: FontWeight.w600,
+                                        height: 1.35,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (widget.communityController.isLoading)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (widget.communityController.errorMessage != null)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          widget.communityController.errorMessage!,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  )
+                else if (widget.communityController.people.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'Per questa fascia non vedo ancora profili disponibili.',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  SliverList.builder(
+                    itemCount: widget.communityController.people.length,
+                    itemBuilder: (context, index) {
+                      final person = widget.communityController.people[index];
+                      return _CommunityUserCard(
+                        person: person,
+                        authController: widget.authController,
+                        onToggleFollow: () async {
+                          final message = await widget.communityController
+                              .toggleFollow(person);
+                          if (!context.mounted || message == null) {
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(message)),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              ],
+            ),
           ),
         );
       },

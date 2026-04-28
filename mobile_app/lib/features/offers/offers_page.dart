@@ -360,184 +360,188 @@ class _OffersPageState extends State<OffersPage> {
             (user.pendingClaimRequests.isNotEmpty ||
                 widget.offersController.hiddenOwnOffersCount > 0);
 
-        return RefreshIndicator(
-          onRefresh: widget.offersController.loadOffers,
-          child: CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                pinned: true,
-                toolbarHeight: kToolbarHeight,
-                backgroundColor: Colors.transparent,
-                surfaceTintColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                elevation: 0,
-                scrolledUnderElevation: 0,
-                leading: const SizedBox.shrink(),
-                leadingWidth: kToolbarHeight,
-                centerTitle: true,
-                title: const BrandWordmark(
-                  height: 50,
-                  alignment: Alignment.center,
-                ),
-                actions: const [
-                  SizedBox(width: kToolbarHeight),
-                ],
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                  child: BrandHeroCard(
-                    eyebrow: 'APPROFITTA',
-                    title: 'Eventi aperti della community',
-                    subtitle:
-                        'Scegli colazione, pranzo o cena e apri gli eventi che ti interessano.',
-                    centered: true,
-                    footer: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        _MealChip(
-                          label: 'APERITIVI',
-                          value: 'ape',
-                          selected:
-                              widget.offersController.selectedMealType == 'ape',
-                          onTap: widget.offersController.toggleMealType,
-                          flex: 3,
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _MealChip(
-                                label: 'Colazioni',
-                                value: 'colazione',
-                                selected:
-                                    widget.offersController.selectedMealType ==
-                                        'colazione',
-                                onTap: widget.offersController.toggleMealType,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _MealChip(
-                                label: 'Pranzi',
-                                value: 'pranzo',
-                                selected:
-                                    widget.offersController.selectedMealType ==
-                                        'pranzo',
-                                onTap: widget.offersController.toggleMealType,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _MealChip(
-                                label: 'Cene',
-                                value: 'cena',
-                                selected:
-                                    widget.offersController.selectedMealType ==
-                                        'cena',
-                                onTap: widget.offersController.toggleMealType,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        _DistancePreferenceControl(
-                          valueKm: _normalizeDistanceForUi(
-                            distanceDraft.round(),
-                          ),
-                          isSaving: _isSavingDistance,
-                          isExpanded: _isDistanceCardExpanded,
-                          distanceLabel: _distanceLabelText(
-                            _normalizeDistanceForUi(
-                              distanceDraft.round(),
-                            ),
-                          ),
-                          onChanged: (value) {
-                            setState(() => _distancePreferenceDraft = value);
-                          },
-                          onToggle: () {
-                            setState(
-                              () => _isDistanceCardExpanded =
-                                  !_isDistanceCardExpanded,
-                            );
-                          },
-                          onSave: _saveDistancePreference,
-                          isDirty: _normalizeDistanceForUi(
-                                distanceDraft.round(),
-                              ) !=
-                              currentActionRadius,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              if (hasOffersToManage)
+        return Scaffold(
+          backgroundColor: AppTheme.cream,
+          appBar: AppBar(
+            toolbarHeight: kToolbarHeight,
+            backgroundColor: AppTheme.cream,
+            surfaceTintColor: AppTheme.cream,
+            shadowColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: const SizedBox.shrink(),
+            leadingWidth: kToolbarHeight,
+            centerTitle: true,
+            title: const BrandWordmark(
+              height: 50,
+              alignment: Alignment.center,
+            ),
+            actions: const [
+              SizedBox(width: kToolbarHeight),
+            ],
+          ),
+          body: RefreshIndicator(
+            onRefresh: widget.offersController.loadOffers,
+            child: CustomScrollView(
+              slivers: [
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                    child: _ProfileOffersReminder(onTap: widget.onGoToProfile),
-                  ),
-                ),
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
-                  child: Text(
-                    'Tutti gli eventi aperti',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.brown,
-                    ),
-                  ),
-                ),
-              ),
-              if (widget.offersController.isLoading)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (widget.offersController.errorMessage != null)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        widget.offersController.errorMessage!,
-                        textAlign: TextAlign.center,
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                    child: BrandHeroCard(
+                      eyebrow: 'APPROFITTA',
+                      title: 'Eventi aperti della community',
+                      subtitle:
+                          'Scegli colazione, pranzo o cena e apri gli eventi che ti interessano.',
+                      centered: true,
+                      footer: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          _MealChip(
+                            label: 'APERITIVI',
+                            value: 'ape',
+                            selected:
+                                widget.offersController.selectedMealType ==
+                                    'ape',
+                            onTap: widget.offersController.toggleMealType,
+                            flex: 3,
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _MealChip(
+                                  label: 'Colazioni',
+                                  value: 'colazione',
+                                  selected: widget
+                                          .offersController.selectedMealType ==
+                                      'colazione',
+                                  onTap: widget.offersController.toggleMealType,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _MealChip(
+                                  label: 'Pranzi',
+                                  value: 'pranzo',
+                                  selected: widget
+                                          .offersController.selectedMealType ==
+                                      'pranzo',
+                                  onTap: widget.offersController.toggleMealType,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _MealChip(
+                                  label: 'Cene',
+                                  value: 'cena',
+                                  selected: widget
+                                          .offersController.selectedMealType ==
+                                      'cena',
+                                  onTap: widget.offersController.toggleMealType,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          _DistancePreferenceControl(
+                            valueKm: _normalizeDistanceForUi(
+                              distanceDraft.round(),
+                            ),
+                            isSaving: _isSavingDistance,
+                            isExpanded: _isDistanceCardExpanded,
+                            distanceLabel: _distanceLabelText(
+                              _normalizeDistanceForUi(
+                                distanceDraft.round(),
+                              ),
+                            ),
+                            onChanged: (value) {
+                              setState(() => _distancePreferenceDraft = value);
+                            },
+                            onToggle: () {
+                              setState(
+                                () => _isDistanceCardExpanded =
+                                    !_isDistanceCardExpanded,
+                              );
+                            },
+                            onSave: _saveDistancePreference,
+                            isDirty: _normalizeDistanceForUi(
+                                  distanceDraft.round(),
+                                ) !=
+                                currentActionRadius,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                )
-              else if (widget.offersController.offers.isEmpty)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
+                ),
+                if (hasOffersToManage)
+                  SliverToBoxAdapter(
                     child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
-                        'Per questa selezione non vedo ancora eventi aperti. Appena arriva un nuovo tavolo, lo troverai qui.',
-                        textAlign: TextAlign.center,
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                      child:
+                          _ProfileOffersReminder(onTap: widget.onGoToProfile),
+                    ),
+                  ),
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+                    child: Text(
+                      'Tutti gli eventi aperti',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.brown,
                       ),
                     ),
                   ),
-                )
-              else
-                SliverList.builder(
-                  itemCount: widget.offersController.offers.length,
-                  itemBuilder: (context, index) {
-                    final offer = widget.offersController.offers[index];
-                    return _OfferPreviewCard(
-                      offer: offer,
-                      apiClient: widget.authController.apiClient,
-                      onOpen: () => _openOfferDetails(context, offer),
-                    );
-                  },
                 ),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-            ],
+                if (widget.offersController.isLoading)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (widget.offersController.errorMessage != null)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          widget.offersController.errorMessage!,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  )
+                else if (widget.offersController.offers.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'Per questa selezione non vedo ancora eventi aperti. Appena arriva un nuovo tavolo, lo troverai qui.',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  SliverList.builder(
+                    itemCount: widget.offersController.offers.length,
+                    itemBuilder: (context, index) {
+                      final offer = widget.offersController.offers[index];
+                      return _OfferPreviewCard(
+                        offer: offer,
+                        apiClient: widget.authController.apiClient,
+                        onOpen: () => _openOfferDetails(context, offer),
+                      );
+                    },
+                  ),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              ],
+            ),
           ),
         );
       },
