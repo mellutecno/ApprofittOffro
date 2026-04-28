@@ -349,7 +349,6 @@ class _ChatPageState extends State<ChatPage> {
       if (!mounted) {
         return;
       }
-      _applyChatAdminState(responsePayload);
       final rawMessages =
           responsePayload['messages'] as List<dynamic>? ?? const [];
       final normalized =
@@ -361,6 +360,10 @@ class _ChatPageState extends State<ChatPage> {
         map['timestamp'] = (map['timestamp'] ?? '').toString();
         return map;
       }).toList();
+      _applyChatAdminState(
+        responsePayload,
+        deletedFromMessages: normalized.any(_looksLikeAdminDeletedNotice),
+      );
       setState(() {
         _messages = normalized;
         _messagesError = null;
@@ -486,9 +489,25 @@ class _ChatPageState extends State<ChatPage> {
     return false;
   }
 
-  void _applyChatAdminState(Map<String, dynamic> payload) {
+  bool _looksLikeAdminDeletedNotice(Map<String, dynamic> message) {
+    final text = (message['text'] ?? '')
+        .toString()
+        .toLowerCase()
+        .replaceAll('è', 'e')
+        .replaceAll('é', 'e')
+        .replaceAll('’', "'");
+    return text.contains('chat') &&
+        text.contains('eliminata') &&
+        text.contains('amministrator');
+  }
+
+  void _applyChatAdminState(
+    Map<String, dynamic> payload, {
+    bool deletedFromMessages = false,
+  }) {
     final adminDeleted = payload['admin_deleted'] == true ||
-        payload['admin_deleted']?.toString().toLowerCase() == 'true';
+        payload['admin_deleted']?.toString().toLowerCase() == 'true' ||
+        deletedFromMessages;
     final deleteAfter = _parseMessageTimestamp(payload['admin_delete_after']);
     final reason = (payload['admin_delete_reason'] ?? '').toString().trim();
     if (!mounted) {
@@ -3014,7 +3033,8 @@ class _ChatPageState extends State<ChatPage> {
         Expanded(
           child: TextField(
             controller: _messageController,
-            enabled: !_isSendingSomething,
+            enabled:
+                !_isSendingSomething && !_chatAdminDeleted && !_chatIsBlocked,
             keyboardType: TextInputType.multiline,
             textInputAction: TextInputAction.newline,
             minLines: 1,
@@ -3040,7 +3060,8 @@ class _ChatPageState extends State<ChatPage> {
         CircleAvatar(
           backgroundColor: AppTheme.cardBorder,
           child: PopupMenuButton<_ChatComposerMediaAction>(
-            enabled: !_isSendingSomething,
+            enabled:
+                !_isSendingSomething && !_chatAdminDeleted && !_chatIsBlocked,
             tooltip: 'Multimediale',
             color: AppTheme.paper,
             surfaceTintColor: Colors.transparent,

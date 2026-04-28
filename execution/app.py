@@ -6253,6 +6253,63 @@ def is_chat_thread_admin_deleted(thread):
     return bool(getattr(thread, "admin_deleted_at", None))
 
 
+def is_admin_deleted_chat_notice(text):
+    normalized = (
+        str(text or "")
+        .strip()
+        .lower()
+        .replace("è", "e")
+        .replace("é", "e")
+        .replace("’", "'")
+    )
+    return (
+        "chat" in normalized
+        and "eliminata" in normalized
+        and "amministrator" in normalized
+    )
+
+
+def extract_admin_delete_reason_from_notice(text):
+    raw = str(text or "").strip()
+    lower = raw.lower()
+    marker = "motivo:"
+    marker_index = lower.find(marker)
+    if marker_index < 0:
+        return ""
+    reason_start = marker_index + len(marker)
+    reason = raw[reason_start:].strip()
+    for end_marker in (" verra", " verrà"):
+        end_index = reason.lower().find(end_marker)
+        if end_index >= 0:
+            reason = reason[:end_index].strip()
+            break
+    return reason.rstrip(". ").strip()
+
+
+def hydrate_admin_deleted_chat_from_notice(thread):
+    if not thread or is_chat_thread_admin_deleted(thread):
+        return False
+
+    notices = (
+        ChatMessage.query.filter(
+            ChatMessage.thread_id == thread.id,
+            ChatMessage.message_type == "system",
+        )
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+        .limit(8)
+        .all()
+    )
+    for notice in notices:
+        if not is_admin_deleted_chat_notice(notice.text):
+            continue
+        deleted_at = notice.created_at or chat_now_utc()
+        thread.admin_deleted_at = deleted_at
+        thread.admin_delete_after = deleted_at + timedelta(hours=1)
+        thread.admin_delete_reason = extract_admin_delete_reason_from_notice(notice.text)
+        return True
+    return False
+
+
 def is_chat_thread_admin_hidden(thread, *, now=None):
     now = now or chat_now_utc()
     delete_after = getattr(thread, "admin_delete_after", None)
@@ -6282,6 +6339,11 @@ def chat_admin_deleted_response(offer_id, actor_user_id, other_user_id):
         create_if_missing=False,
     )
     if not thread or not is_chat_thread_admin_deleted(thread):
+        if thread and hydrate_admin_deleted_chat_from_notice(thread):
+            db.session.commit()
+        else:
+            return None
+    if not is_chat_thread_admin_deleted(thread):
         return None
     message, status = chat_admin_deleted_error(thread)
     return jsonify({
@@ -7196,6 +7258,8 @@ def api_chat_thread_ensure():
     )
     if not thread:
         return jsonify({"success": False, "error": "Thread chat non disponibile."}), 500
+    if hydrate_admin_deleted_chat_from_notice(thread):
+        db.session.commit()
     if is_chat_thread_admin_hidden(thread):
         message, status = chat_admin_deleted_error(thread)
         return jsonify({
@@ -7264,6 +7328,8 @@ def api_chat_messages():
     )
     if not thread:
         return jsonify({"success": True, "messages": []})
+    if hydrate_admin_deleted_chat_from_notice(thread):
+        db.session.commit()
     if is_chat_thread_admin_hidden(thread):
         return jsonify({
             "success": True,
@@ -7378,6 +7444,8 @@ def api_chat_send_message():
     )
     if not thread:
         return jsonify({"success": False, "error": "Thread chat non disponibile."}), 500
+    if hydrate_admin_deleted_chat_from_notice(thread):
+        db.session.commit()
     if is_chat_thread_admin_deleted(thread):
         message, status = chat_admin_deleted_error(thread)
         return jsonify({
@@ -7500,6 +7568,11 @@ def api_chat_inbox():
     if purged_any:
         db.session.commit()
         threads = base_query.all()
+    hydrated_any = False
+    for thread in threads:
+        hydrated_any = hydrate_admin_deleted_chat_from_notice(thread) or hydrated_any
+    if hydrated_any:
+        db.session.commit()
     threads = [
         thread for thread in threads
         if not is_chat_thread_admin_hidden(thread, now=now)
