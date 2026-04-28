@@ -973,6 +973,19 @@ class _ChatPageState extends State<ChatPage> {
   Color get _outgoingVideoBubbleColor =>
       _isMusicAiDark ? const Color(0xFF273B72) : const Color(0xFFF4E8DE);
 
+  EdgeInsets _chatComposerSystemPadding(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final viewPadding = mediaQuery.viewPadding;
+    final keyboardOpen = mediaQuery.viewInsets.bottom > 0;
+    return EdgeInsets.only(
+      left: viewPadding.left,
+      right: viewPadding.right,
+      bottom: keyboardOpen
+          ? 0
+          : math.max(mediaQuery.padding.bottom, viewPadding.bottom),
+    );
+  }
+
   bool _canSaveMessageAttachment(Map<String, dynamic> data) {
     final type = data['type']?.toString().toLowerCase().trim() ?? '';
     if (type == 'audio') {
@@ -3422,47 +3435,51 @@ class _ChatPageState extends State<ChatPage> {
                   },
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                decoration: BoxDecoration(
-                  color:
-                      _isMusicAiDark ? const Color(0xFF0B111C) : Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, -5),
-                    ),
-                  ],
-                ),
-                child: _chatIsBlocked
-                    ? Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.mist,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: AppTheme.cardBorder),
-                        ),
-                        child: Text(
-                          _blockedByMe
-                              ? 'Hai bloccato questo utente. Sbloccalo dal menu per riprendere la chat.'
-                              : 'Questo utente ha bloccato la chat.',
-                          style: const TextStyle(
-                            color: AppTheme.brown,
-                            fontWeight: FontWeight.w600,
+              Padding(
+                padding: _chatComposerSystemPadding(context),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  decoration: BoxDecoration(
+                    color:
+                        _isMusicAiDark ? const Color(0xFF0B111C) : Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, -5),
+                      ),
+                    ],
+                  ),
+                  child: _chatIsBlocked
+                      ? Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                      )
-                    : ((_isPreparingMedia || _isSendingMedia)
-                        ? _buildMediaTransferComposer()
-                        : (_isRecording
-                            ? _buildRecordingComposer()
-                            : _buildTextComposer())),
+                          decoration: BoxDecoration(
+                            color: AppTheme.mist,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: AppTheme.cardBorder),
+                          ),
+                          child: Text(
+                            _blockedByMe
+                                ? 'Hai bloccato questo utente. Sbloccalo dal menu per riprendere la chat.'
+                                : 'Questo utente ha bloccato la chat.',
+                            style: const TextStyle(
+                              color: AppTheme.brown,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                      : ((_isPreparingMedia || _isSendingMedia)
+                          ? _buildMediaTransferComposer()
+                          : (_isRecording
+                              ? _buildRecordingComposer()
+                              : _buildTextComposer())),
+                ),
               ),
             ],
           );
