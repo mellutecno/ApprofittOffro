@@ -1046,11 +1046,16 @@ class _AdminPageState extends State<AdminPage> {
               SliverAppBar(
                 pinned: true,
                 toolbarHeight: kToolbarHeight,
+                backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                elevation: 0,
+                scrolledUnderElevation: 0,
                 leading: const SizedBox.shrink(),
                 leadingWidth: kToolbarHeight,
                 centerTitle: true,
                 title: const BrandWordmark(
-                  height: 44,
+                  height: 50,
                   alignment: Alignment.center,
                 ),
                 actions: [

@@ -226,7 +226,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
         leading: const SizedBox.shrink(),
         leadingWidth: kToolbarHeight,
         centerTitle: true,
-        title: const BrandWordmark(height: 44, alignment: Alignment.center),
+        title: const BrandWordmark(height: 50, alignment: Alignment.center),
         actions: const [
           SizedBox(width: kToolbarHeight),
         ],

@@ -7,34 +7,34 @@ class AppTheme {
   static const bool useMusicAiPalette = true;
 
   static const cream =
-      useMusicAiPalette ? Color(0xFF090D17) : Color(0xFFF6F0E7);
+      useMusicAiPalette ? Color(0xFF080B12) : Color(0xFFF6F0E7);
   static const paper =
-      useMusicAiPalette ? Color(0xFF101728) : Color(0xFFFFFBF7);
-  static const sand = useMusicAiPalette ? Color(0xFF1C2840) : Color(0xFFE6D8C8);
+      useMusicAiPalette ? Color(0xFF0F1422) : Color(0xFFFFFBF7);
+  static const sand = useMusicAiPalette ? Color(0xFF1A2336) : Color(0xFFE6D8C8);
   static const peach =
-      useMusicAiPalette ? Color(0xFF25304B) : Color(0xFFD8A484);
+      useMusicAiPalette ? Color(0xFF222C44) : Color(0xFFD8A484);
   static const orange =
-      useMusicAiPalette ? Color(0xFF8168FF) : Color(0xFFAD5A3C);
+      useMusicAiPalette ? Color(0xFF755CFF) : Color(0xFFAD5A3C);
   static const brown =
-      useMusicAiPalette ? Color(0xFFE2EAFF) : Color(0xFF49362D);
+      useMusicAiPalette ? Color(0xFFDDE5FF) : Color(0xFF49362D);
   static const espresso =
-      useMusicAiPalette ? Color(0xFFF7F9FF) : Color(0xFF221914);
-  static const sage = useMusicAiPalette ? Color(0xFF42D2FF) : Color(0xFF96A182);
-  static const mist = useMusicAiPalette ? Color(0xFF141D2F) : Color(0xFFF3E8DA);
+      useMusicAiPalette ? Color(0xFFF4F7FF) : Color(0xFF221914);
+  static const sage = useMusicAiPalette ? Color(0xFF38CCFF) : Color(0xFF96A182);
+  static const mist = useMusicAiPalette ? Color(0xFF121A2B) : Color(0xFFF3E8DA);
   static const cardBorder =
-      useMusicAiPalette ? Color(0xFF34466B) : Color(0xFFD8C5AE);
-  static const moss = useMusicAiPalette ? Color(0xFF50AEFF) : Color(0xFF657353);
-  static const gold = useMusicAiPalette ? Color(0xFFA489FF) : Color(0xFFD3A24E);
+      useMusicAiPalette ? Color(0xFF2D3A59) : Color(0xFFD8C5AE);
+  static const moss = useMusicAiPalette ? Color(0xFF49A5FF) : Color(0xFF657353);
+  static const gold = useMusicAiPalette ? Color(0xFF9A7DFF) : Color(0xFFD3A24E);
   static const berry =
-      useMusicAiPalette ? Color(0xFF5540D7) : Color(0xFF6A4744);
-  static const plum = useMusicAiPalette ? Color(0xFF7355FF) : Color(0xFF5E4A63);
+      useMusicAiPalette ? Color(0xFF4C37C9) : Color(0xFF6A4744);
+  static const plum = useMusicAiPalette ? Color(0xFF6A4CFF) : Color(0xFF5E4A63);
   static const vividViolet =
-      useMusicAiPalette ? Color(0xFFD35AFF) : Color(0xFF7A4EC7);
+      useMusicAiPalette ? Color(0xFFC94DFF) : Color(0xFF7A4EC7);
   static const shadow = Color(0x18000000);
 
   static const heroGradient = useMusicAiPalette
       ? LinearGradient(
-          colors: [Color(0xFF141E39), Color(0xFF302377), Color(0xFF17607F)],
+          colors: [Color(0xFF121A31), Color(0xFF2A1F66), Color(0xFF154763)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         )
@@ -46,7 +46,7 @@ class AppTheme {
 
   static const accentGradient = useMusicAiPalette
       ? LinearGradient(
-          colors: [Color(0xFF866CFF), Color(0xFF42D7FF)],
+          colors: [Color(0xFF7B63FF), Color(0xFF3DD0FF)],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         )
@@ -58,7 +58,7 @@ class AppTheme {
 
   static const surfaceGradient = useMusicAiPalette
       ? LinearGradient(
-          colors: [Color(0xFF101728), Color(0xFF17233A)],
+          colors: [Color(0xFF0F1422), Color(0xFF141C2E)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         )
@@ -70,7 +70,7 @@ class AppTheme {
 
   static const elevatedSurfaceGradient = useMusicAiPalette
       ? LinearGradient(
-          colors: [Color(0xFF141D31), Color(0xFF1A2844), Color(0xFF203453)],
+          colors: [Color(0xFF12192A), Color(0xFF172038), Color(0xFF1B2842)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         )
@@ -82,7 +82,7 @@ class AppTheme {
 
   static const softAccentGradient = useMusicAiPalette
       ? LinearGradient(
-          colors: [Color(0xFF202B49), Color(0xFF25375C)],
+          colors: [Color(0xFF1D2540), Color(0xFF202B49)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         )
@@ -115,13 +115,14 @@ class AppTheme {
       scaffoldBackgroundColor: cream,
       canvasColor: cream,
       appBarTheme: const AppBarTheme(
-        backgroundColor: paper,
+        backgroundColor: Colors.transparent,
         foregroundColor: espresso,
         elevation: 0,
         toolbarHeight: 72,
         centerTitle: true,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
       ),
       cardTheme: CardThemeData(
         color: paper,
@@ -280,13 +281,14 @@ class AppTheme {
       scaffoldBackgroundColor: cream,
       canvasColor: cream,
       appBarTheme: const AppBarTheme(
-        backgroundColor: paper,
+        backgroundColor: Colors.transparent,
         foregroundColor: espresso,
         elevation: 0,
         toolbarHeight: 72,
         centerTitle: true,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
       ),
       cardTheme: CardThemeData(
         color: paper,

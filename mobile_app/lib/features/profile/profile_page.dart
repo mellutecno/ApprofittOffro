@@ -1804,12 +1804,9 @@ class _ProfilePageState extends State<ProfilePage> {
               leading: const SizedBox.shrink(),
               leadingWidth: kToolbarHeight,
               centerTitle: true,
-              title: const Padding(
-                padding: EdgeInsets.only(left: 8),
-                child: BrandWordmark(
-                  height: 42,
-                  alignment: Alignment.center,
-                ),
+              title: const BrandWordmark(
+                height: 50,
+                alignment: Alignment.center,
               ),
               actions: const [
                 SizedBox(width: kToolbarHeight),
@@ -1825,10 +1822,7 @@ class _ProfilePageState extends State<ProfilePage> {
             leading: const SizedBox.shrink(),
             leadingWidth: kToolbarHeight,
             centerTitle: true,
-            title: const Padding(
-              padding: EdgeInsets.only(left: 8),
-              child: BrandWordmark(height: 42, alignment: Alignment.center),
-            ),
+            title: const BrandWordmark(height: 50, alignment: Alignment.center),
             actions: const [
               SizedBox(width: kToolbarHeight),
             ],

@@ -362,9 +362,9 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(20, 10, 20, 8),
+            padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
             child: BrandWordmark(
-              height: 44,
+              height: 50,
               alignment: Alignment.center,
             ),
           ),
