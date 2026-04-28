@@ -286,6 +286,10 @@ class ChatThread(db.Model):
     last_sender_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     cleared_at = db.Column(db.DateTime, nullable=True)
     cleared_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    admin_deleted_at = db.Column(db.DateTime, nullable=True)
+    admin_delete_after = db.Column(db.DateTime, nullable=True)
+    admin_delete_reason = db.Column(db.Text, nullable=True)
+    admin_deleted_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
 

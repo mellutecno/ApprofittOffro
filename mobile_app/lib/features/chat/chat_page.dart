@@ -134,6 +134,9 @@ class _ChatPageState extends State<ChatPage> {
   String? _playingMessageId;
   String? _messagesError;
   List<Map<String, dynamic>> _messages = const <Map<String, dynamic>>[];
+  bool _chatAdminDeleted = false;
+  DateTime? _chatAdminDeleteAfter;
+  String _chatAdminDeleteReason = '';
   late String _resolvedOtherUserName;
   late String _resolvedOtherUserPhotoFilename;
   int? _resolvedOfferId;
@@ -241,6 +244,7 @@ class _ChatPageState extends State<ChatPage> {
     final resolvedName = (payload['other_user_name'] ?? '').toString().trim();
     final resolvedPhoto =
         (payload['other_user_photo_filename'] ?? '').toString().trim();
+    _applyChatAdminState(payload);
 
     if (canonicalOfferId != null && canonicalOfferId > 0) {
       final previousPresenceOffer = _presenceOfferId;
@@ -337,7 +341,7 @@ class _ChatPageState extends State<ChatPage> {
     }
 
     try {
-      final payload = await widget.apiClient.fetchChatMessages(
+      final responsePayload = await widget.apiClient.fetchChatMessagesPayload(
         offerId: offerId,
         otherUserId: otherUserId,
         limit: 300,
@@ -345,7 +349,11 @@ class _ChatPageState extends State<ChatPage> {
       if (!mounted) {
         return;
       }
-      final normalized = payload.map((entry) {
+      _applyChatAdminState(responsePayload);
+      final rawMessages =
+          responsePayload['messages'] as List<dynamic>? ?? const [];
+      final normalized =
+          rawMessages.whereType<Map<String, dynamic>>().map((entry) {
         final map = Map<String, dynamic>.from(entry);
         map['senderId'] = (map['senderId'] ?? '').toString();
         map['type'] = (map['type'] ?? 'text').toString().toLowerCase();
@@ -462,6 +470,10 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<bool> _ensureCanSendChat() async {
+    if (_chatAdminDeleted) {
+      _showSnack('Chat eliminata dall\'amministratore.');
+      return false;
+    }
     await _refreshBlockStatus();
     if (!_chatIsBlocked) {
       return true;
@@ -472,6 +484,45 @@ class _ChatPageState extends State<ChatPage> {
           : 'Questo utente ha bloccato la chat.',
     );
     return false;
+  }
+
+  void _applyChatAdminState(Map<String, dynamic> payload) {
+    final adminDeleted = payload['admin_deleted'] == true ||
+        payload['admin_deleted']?.toString().toLowerCase() == 'true';
+    final deleteAfter = _parseMessageTimestamp(payload['admin_delete_after']);
+    final reason = (payload['admin_delete_reason'] ?? '').toString().trim();
+    if (!mounted) {
+      _chatAdminDeleted = adminDeleted;
+      _chatAdminDeleteAfter = deleteAfter;
+      _chatAdminDeleteReason = reason;
+      return;
+    }
+    setState(() {
+      _chatAdminDeleted = adminDeleted;
+      _chatAdminDeleteAfter = deleteAfter;
+      _chatAdminDeleteReason = reason;
+    });
+  }
+
+  String get _chatAdminDeletedComposerText {
+    final deleteAfter = _chatAdminDeleteAfter;
+    final reason = _chatAdminDeleteReason.trim();
+    final buffer = StringBuffer('Chat eliminata dall\'amministratore.');
+    if (reason.isNotEmpty) {
+      buffer.write(' Motivo: $reason.');
+    }
+    if (deleteAfter != null && deleteAfter.isAfter(DateTime.now())) {
+      final remaining = deleteAfter.difference(DateTime.now());
+      if (remaining.inMinutes >= 55) {
+        buffer.write(' Verra rimossa definitivamente tra 1 ora.');
+      } else {
+        final minutes = remaining.inMinutes.clamp(1, 54);
+        buffer.write(' Verra rimossa definitivamente tra $minutes minuti.');
+      }
+    } else {
+      buffer.write(' Verra rimossa definitivamente a breve.');
+    }
+    return buffer.toString();
   }
 
   String _messageLocalId(Map<String, dynamic> payload) {
@@ -3451,7 +3502,7 @@ class _ChatPageState extends State<ChatPage> {
                       ),
                     ],
                   ),
-                  child: _chatIsBlocked
+                  child: _chatAdminDeleted
                       ? Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(
@@ -3464,21 +3515,42 @@ class _ChatPageState extends State<ChatPage> {
                             border: Border.all(color: AppTheme.cardBorder),
                           ),
                           child: Text(
-                            _blockedByMe
-                                ? 'Hai bloccato questo utente. Sbloccalo dal menu per riprendere la chat.'
-                                : 'Questo utente ha bloccato la chat.',
+                            _chatAdminDeletedComposerText,
                             style: const TextStyle(
                               color: AppTheme.brown,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                             ),
                             textAlign: TextAlign.center,
                           ),
                         )
-                      : ((_isPreparingMedia || _isSendingMedia)
-                          ? _buildMediaTransferComposer()
-                          : (_isRecording
-                              ? _buildRecordingComposer()
-                              : _buildTextComposer())),
+                      : _chatIsBlocked
+                          ? Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.mist,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: AppTheme.cardBorder),
+                              ),
+                              child: Text(
+                                _blockedByMe
+                                    ? 'Hai bloccato questo utente. Sbloccalo dal menu per riprendere la chat.'
+                                    : 'Questo utente ha bloccato la chat.',
+                                style: const TextStyle(
+                                  color: AppTheme.brown,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            )
+                          : ((_isPreparingMedia || _isSendingMedia)
+                              ? _buildMediaTransferComposer()
+                              : (_isRecording
+                                  ? _buildRecordingComposer()
+                                  : _buildTextComposer())),
                 ),
               ),
             ],

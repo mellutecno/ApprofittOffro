@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -534,7 +536,7 @@ class OfferCard extends StatelessWidget {
                       child: OutlinedButton.icon(
                         onPressed: _callLocalPhone,
                         icon: const Icon(Icons.call_outlined),
-                        label: const Text('Vuoi prenotare?'),
+                        label: const Text('Chiama il locale'),
                       ),
                     ),
                   ],
@@ -855,8 +857,8 @@ class _ReminderButtonState extends State<_ReminderButton> {
         borderRadius: BorderRadius.circular(999),
         onTap: () => _openReminderDialog(context),
         child: Ink(
-          width: 42,
-          height: 42,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
             color: hasReminders
                 ? reminderBackground
@@ -869,7 +871,7 @@ class _ReminderButtonState extends State<_ReminderButton> {
                 ? Icons.notifications_active
                 : Icons.notifications_none,
             color: hasReminders ? reminderIconColor : AppTheme.vividViolet,
-            size: 20,
+            size: hasReminders ? 20 : 26,
           ),
         ),
       ),
@@ -887,18 +889,71 @@ class _ReminderButtonState extends State<_ReminderButton> {
     if (result != null) {
       await _saveReminders(result);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result.isEmpty
-                  ? 'Promemoria disattivati'
-                  : 'Promemoria impostati a ${result.join(', ')} min prima',
-            ),
-          ),
+        _showFloatingReminderMessage(
+          context,
+          result.isEmpty
+              ? 'Promemoria disattivati'
+              : 'Promemoria impostati a ${result.join(', ')} min prima',
         );
       }
     }
   }
+}
+
+void _showFloatingReminderMessage(BuildContext context, String message) {
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+    return;
+  }
+
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (context) {
+      final top = MediaQuery.of(context).padding.top + 86;
+      return Positioned(
+        top: top,
+        left: 18,
+        right: 18,
+        child: Material(
+          color: Colors.transparent,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppTheme.paper,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppTheme.vividViolet),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.28),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                child: Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppTheme.espresso,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  overlay.insert(entry);
+  Timer(const Duration(seconds: 3), entry.remove);
 }
 
 class _ReminderDialog extends StatefulWidget {

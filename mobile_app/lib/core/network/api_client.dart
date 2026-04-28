@@ -1173,7 +1173,7 @@ class ApiClient {
     return payload;
   }
 
-  Future<List<Map<String, dynamic>>> fetchChatMessages({
+  Future<Map<String, dynamic>> fetchChatMessagesPayload({
     required int offerId,
     required int otherUserId,
     int limit = 200,
@@ -1192,6 +1192,19 @@ class ApiClient {
     );
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
+    return payload;
+  }
+
+  Future<List<Map<String, dynamic>>> fetchChatMessages({
+    required int offerId,
+    required int otherUserId,
+    int limit = 200,
+  }) async {
+    final payload = await fetchChatMessagesPayload(
+      offerId: offerId,
+      otherUserId: otherUserId,
+      limit: limit,
+    );
     final rawMessages = payload['messages'] as List<dynamic>? ?? const [];
     return rawMessages
         .whereType<Map<String, dynamic>>()

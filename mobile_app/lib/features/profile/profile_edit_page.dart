@@ -469,9 +469,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       width: 100,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
+        gradient: AppTheme.softAccentGradient,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.cardBorder),
+        border: Border.all(
+          color: AppTheme.vividViolet.withValues(alpha: 0.34),
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -524,9 +526,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       width: 100,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
+        gradient: AppTheme.softAccentGradient,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.cardBorder),
+        border: Border.all(
+          color: AppTheme.vividViolet.withValues(alpha: 0.34),
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

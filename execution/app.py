@@ -1544,6 +1544,12 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("status", "ALTER TABLE claims ADD COLUMN status VARCHAR(20) DEFAULT 'accepted'"),
                 ("hidden_by_guest", "ALTER TABLE claims ADD COLUMN hidden_by_guest INTEGER DEFAULT 0"),
             ],
+            "chat_threads": [
+                ("admin_deleted_at", "ALTER TABLE chat_threads ADD COLUMN admin_deleted_at DATETIME"),
+                ("admin_delete_after", "ALTER TABLE chat_threads ADD COLUMN admin_delete_after DATETIME"),
+                ("admin_delete_reason", "ALTER TABLE chat_threads ADD COLUMN admin_delete_reason TEXT"),
+                ("admin_deleted_by_id", "ALTER TABLE chat_threads ADD COLUMN admin_deleted_by_id INTEGER"),
+            ],
         }
 
         for table_name, columns in legacy_columns.items():
@@ -1634,6 +1640,18 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "ALTER TABLE offers ADD COLUMN IF NOT EXISTS booking_lead_override_minutes INTEGER"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS admin_deleted_at TIMESTAMP"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS admin_delete_after TIMESTAMP"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS admin_delete_reason TEXT"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS admin_deleted_by_id INTEGER"
             )
             conn.exec_driver_sql(
                 """
@@ -3570,6 +3588,7 @@ def serialize_admin_chat_summary(thread):
         "last_message_time": datetime_to_iso_z(last_activity),
         "message_count": int(message_count or 0),
         "cleared_at": datetime_to_iso_z(thread.cleared_at),
+        **build_admin_deleted_chat_payload(thread),
     }
 
 
@@ -6230,6 +6249,48 @@ def is_chat_thread_expired(thread, *, now=None):
     return last_activity <= (now - timedelta(days=CHAT_RETENTION_DAYS))
 
 
+def is_chat_thread_admin_deleted(thread):
+    return bool(getattr(thread, "admin_deleted_at", None))
+
+
+def is_chat_thread_admin_hidden(thread, *, now=None):
+    now = now or chat_now_utc()
+    delete_after = getattr(thread, "admin_delete_after", None)
+    return bool(delete_after and delete_after <= now)
+
+
+def build_admin_deleted_chat_payload(thread):
+    return {
+        "admin_deleted": is_chat_thread_admin_deleted(thread),
+        "admin_deleted_at": datetime_to_iso_z(getattr(thread, "admin_deleted_at", None)),
+        "admin_delete_after": datetime_to_iso_z(getattr(thread, "admin_delete_after", None)),
+        "admin_delete_reason": getattr(thread, "admin_delete_reason", None) or "",
+    }
+
+
+def chat_admin_deleted_error(thread):
+    if is_chat_thread_admin_hidden(thread):
+        return "Chat eliminata definitivamente dall'amministratore.", 410
+    return "Questa chat e' stata eliminata dall'amministratore.", 403
+
+
+def chat_admin_deleted_response(offer_id, actor_user_id, other_user_id):
+    thread = get_or_create_chat_thread(
+        offer_id=offer_id,
+        user_id=actor_user_id,
+        other_user_id=other_user_id,
+        create_if_missing=False,
+    )
+    if not thread or not is_chat_thread_admin_deleted(thread):
+        return None
+    message, status = chat_admin_deleted_error(thread)
+    return jsonify({
+        "success": False,
+        "error": message,
+        **build_admin_deleted_chat_payload(thread),
+    }), status
+
+
 def purge_chat_thread_if_expired(thread, *, now=None):
     """Elimina definitivamente thread+messaggi+file se inattivo oltre retention."""
     now = now or chat_now_utc()
@@ -6375,6 +6436,13 @@ def api_chat_message_notification():
     if chat_error:
         message, status = chat_error
         return jsonify({"success": False, "error": message}), status
+    admin_deleted_response = chat_admin_deleted_response(
+        offer_id,
+        current_user.id,
+        receiver_id,
+    )
+    if admin_deleted_response:
+        return admin_deleted_response
 
     blocked_by_me, blocked_by_other = get_chat_block_status(
         current_user.id,
@@ -6430,6 +6498,13 @@ def api_chat_clear_notification():
     if chat_error:
         message, status = chat_error
         return jsonify({"success": False, "error": message}), status
+    admin_deleted_response = chat_admin_deleted_response(
+        offer_id,
+        current_user.id,
+        receiver_id,
+    )
+    if admin_deleted_response:
+        return admin_deleted_response
 
     receiver = User.query.get(receiver_id)
     if not receiver:
@@ -6478,6 +6553,13 @@ def api_chat_audio_upload():
     if chat_error:
         message, status = chat_error
         return jsonify({"success": False, "error": message}), status
+    admin_deleted_response = chat_admin_deleted_response(
+        offer_id,
+        current_user.id,
+        receiver_id,
+    )
+    if admin_deleted_response:
+        return admin_deleted_response
 
     blocked_by_me, blocked_by_other = get_chat_block_status(current_user.id, receiver_id)
     if blocked_by_me:
@@ -6710,6 +6792,13 @@ def api_chat_media_upload():
     if chat_error:
         message, status = chat_error
         return jsonify({"success": False, "error": message}), status
+    admin_deleted_response = chat_admin_deleted_response(
+        offer_id,
+        current_user.id,
+        receiver_id,
+    )
+    if admin_deleted_response:
+        return admin_deleted_response
 
     blocked_by_me, blocked_by_other = get_chat_block_status(current_user.id, receiver_id)
     if blocked_by_me:
@@ -7107,6 +7196,13 @@ def api_chat_thread_ensure():
     )
     if not thread:
         return jsonify({"success": False, "error": "Thread chat non disponibile."}), 500
+    if is_chat_thread_admin_hidden(thread):
+        message, status = chat_admin_deleted_error(thread)
+        return jsonify({
+            "success": False,
+            "error": message,
+            **build_admin_deleted_chat_payload(thread),
+        }), status
 
     if thread.updated_at is None:
         thread.updated_at = chat_now_utc()
@@ -7123,6 +7219,7 @@ def api_chat_thread_ensure():
         "other_user_photo_filename": (
             get_primary_photo_filename(other_user) if other_user else ""
         ),
+        **build_admin_deleted_chat_payload(thread),
     })
 
 
@@ -7167,6 +7264,13 @@ def api_chat_messages():
     )
     if not thread:
         return jsonify({"success": True, "messages": []})
+    if is_chat_thread_admin_hidden(thread):
+        return jsonify({
+            "success": True,
+            "messages": [],
+            "chat_id": build_chat_thread_key(thread.offer_id, thread.user_a_id, thread.user_b_id),
+            **build_admin_deleted_chat_payload(thread),
+        })
 
     messages = (
         ChatMessage.query.filter_by(thread_id=thread.id)
@@ -7178,6 +7282,7 @@ def api_chat_messages():
         "success": True,
         "messages": [serialize_chat_message(message) for message in messages],
         "chat_id": build_chat_thread_key(thread.offer_id, thread.user_a_id, thread.user_b_id),
+        **build_admin_deleted_chat_payload(thread),
     })
 
 
@@ -7273,6 +7378,13 @@ def api_chat_send_message():
     )
     if not thread:
         return jsonify({"success": False, "error": "Thread chat non disponibile."}), 500
+    if is_chat_thread_admin_deleted(thread):
+        message, status = chat_admin_deleted_error(thread)
+        return jsonify({
+            "success": False,
+            "error": message,
+            **build_admin_deleted_chat_payload(thread),
+        }), status
 
     message = ChatMessage(
         thread_id=thread.id,
@@ -7330,6 +7442,13 @@ def api_chat_clear():
     if chat_error:
         message, status = chat_error
         return jsonify({"success": False, "error": message}), status
+    admin_deleted_response = chat_admin_deleted_response(
+        offer_id,
+        current_user.id,
+        receiver_id,
+    )
+    if admin_deleted_response:
+        return admin_deleted_response
 
     thread = get_or_create_chat_thread(
         offer_id=offer_id,
@@ -7381,6 +7500,10 @@ def api_chat_inbox():
     if purged_any:
         db.session.commit()
         threads = base_query.all()
+    threads = [
+        thread for thread in threads
+        if not is_chat_thread_admin_hidden(thread, now=now)
+    ]
 
     thread_by_pair = {}
     for thread in threads:
@@ -7423,6 +7546,7 @@ def api_chat_inbox():
                 ),
                 "last_message": (thread.last_message or "").strip(),
                 "last_message_time": datetime_to_iso_z(sort_time),
+                **build_admin_deleted_chat_payload(thread),
             },
         ))
 
@@ -7813,9 +7937,13 @@ def api_admin_delete_chat(thread_id):
     user_b = User.query.options(selectinload(User.photos)).get(thread.user_b_id)
     delete_result = delete_chat_thread_payload(thread)
     now = chat_now_utc()
+    delete_after = now + timedelta(hours=1)
     notice_text = "La chat e' stata eliminata dall'amministratore."
     if reason:
         notice_text = f"{notice_text} Motivo: {reason}"
+    notice_text = (
+        f"{notice_text} Verra' rimossa definitivamente tra 1 ora."
+    )
 
     notice = ChatMessage(
         thread_id=thread.id,
@@ -7833,9 +7961,13 @@ def api_admin_delete_chat(thread_id):
     thread.updated_at = now
     thread.cleared_at = now
     thread.cleared_by_id = current_user.id
+    thread.admin_deleted_at = now
+    thread.admin_delete_after = delete_after
+    thread.admin_delete_reason = reason or ""
+    thread.admin_deleted_by_id = current_user.id
     db.session.commit()
 
-    push_body = notice_text[:140]
+    push_body = "Chat eliminata dall'amministratore. Apri l'app per leggere motivo e tempi."
     push_sent = 0
     participants = ((user_a, user_b), (user_b, user_a))
     for receiver, other_user in participants:
@@ -7860,7 +7992,7 @@ def api_admin_delete_chat(thread_id):
 
     return jsonify({
         "success": True,
-        "message": "Chat eliminata e partecipanti avvisati.",
+        "message": "Chat bloccata, avviso inviato e rimozione definitiva prevista tra 1 ora.",
         **delete_result,
         "push_sent": push_sent,
         "chat": serialize_admin_chat_summary(thread),

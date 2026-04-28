@@ -916,8 +916,8 @@ class _CompactReminderButtonState extends State<_CompactReminderButton> {
         borderRadius: BorderRadius.circular(999),
         onTap: () => _openReminderDialog(context),
         child: Ink(
-          width: 40,
-          height: 40,
+          width: 46,
+          height: 46,
           decoration: BoxDecoration(
             color: hasReminders
                 ? reminderBackground
@@ -930,7 +930,7 @@ class _CompactReminderButtonState extends State<_CompactReminderButton> {
                 ? Icons.notifications_active
                 : Icons.notifications_none,
             color: hasReminders ? reminderIconColor : AppTheme.vividViolet,
-            size: 18,
+            size: hasReminders ? 18 : 25,
           ),
         ),
       ),
@@ -948,18 +948,71 @@ class _CompactReminderButtonState extends State<_CompactReminderButton> {
     if (result != null) {
       await _saveReminders(result);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result.isEmpty
-                  ? 'Promemoria disattivati'
-                  : 'Promemoria impostati a ${result.join(', ')} min prima',
-            ),
-          ),
+        _showFloatingReminderMessage(
+          context,
+          result.isEmpty
+              ? 'Promemoria disattivati'
+              : 'Promemoria impostati a ${result.join(', ')} min prima',
         );
       }
     }
   }
+}
+
+void _showFloatingReminderMessage(BuildContext context, String message) {
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+    return;
+  }
+
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (context) {
+      final top = MediaQuery.of(context).padding.top + 86;
+      return Positioned(
+        top: top,
+        left: 18,
+        right: 18,
+        child: Material(
+          color: Colors.transparent,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppTheme.paper,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppTheme.vividViolet),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.28),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                child: Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppTheme.espresso,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  overlay.insert(entry);
+  Timer(const Duration(seconds: 3), entry.remove);
 }
 
 class _ReminderDialog extends StatefulWidget {
