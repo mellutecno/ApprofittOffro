@@ -19,7 +19,6 @@
       --line: rgba(145, 185, 255, 0.42);
       --line-strong: rgba(180, 215, 255, 0.68);
       --accent-gradient: linear-gradient(135deg, #a65cff 0%, #7b4dff 48%, #2457ff 100%);
-      --button-gradient: linear-gradient(135deg, #5a2fc2 0%, #3d2ca6 48%, #15329c 100%);
       --card-gradient: linear-gradient(180deg, rgba(10, 20, 48, 0.99) 0%, rgba(17, 39, 86, 0.99) 100%);
       --shadow-heavy: 0 32px 78px rgba(0, 0, 0, 0.62);
     }
@@ -85,11 +84,20 @@
       background: linear-gradient(135deg, rgba(8, 17, 40, 0.99) 0%, rgba(18, 38, 84, 0.98) 100%);
     }
 
-    .top-logo-card img {
+    .brand-logo {
       position: relative;
       z-index: 1;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .top-logo-card img {
+      display: block;
       width: min(100%, 720px);
       height: auto;
+      margin: 0 auto;
       filter: saturate(1.08) contrast(1.06) brightness(1.02);
     }
 
@@ -177,27 +185,6 @@
       border-bottom: 2px solid rgba(139, 108, 255, 0.72);
     }
 
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-top: 30px;
-    }
-
-    .button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 48px;
-      padding: 0 18px;
-      border-radius: 16px;
-      background: var(--button-gradient);
-      border: 1px solid rgba(129, 122, 255, 0.74);
-      box-shadow: 0 14px 30px rgba(35, 50, 160, 0.42);
-      color: #ffffff;
-      font-weight: 900;
-    }
-
     @media (max-width: 780px) {
       .page {
         width: min(100% - 18px, 980px);
@@ -227,9 +214,9 @@
 <body>
   <main class="page">
     <section class="top-logo-card" aria-label="ApprofittOffro">
-      <a href="/">
+      <div class="brand-logo">
         <img src="/static/img/wordmark-web.png" alt="ApprofittOffro">
-      </a>
+      </div>
     </section>
 
     <section class="privacy-card">
@@ -323,10 +310,6 @@
       <p>
         Questa informativa pu&ograve; essere aggiornata nel tempo. La versione pi&ugrave; recente sar&agrave; pubblicata a questo stesso URL.
       </p>
-
-      <div class="actions">
-        <a class="button" href="/">Torna alla landing</a>
-      </div>
     </section>
   </main>
 </body>
