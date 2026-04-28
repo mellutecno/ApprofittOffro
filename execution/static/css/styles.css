@@ -230,8 +230,8 @@ li {
 
 .priority-card {
     padding: 28px 30px;
-    background: linear-gradient(135deg, #24105f 0%, #7a38ff 48%, #173fd1 100%) !important;
-    box-shadow: var(--shadow-heavy), 0 0 46px rgba(139, 108, 255, 0.36);
+    background: linear-gradient(135deg, #11182b 0%, #1a2550 55%, #102f82 100%) !important;
+    box-shadow: var(--shadow-heavy);
 }
 
 .priority-card h2,
@@ -265,10 +265,10 @@ li {
     border-radius: 16px;
     font-weight: 900;
     letter-spacing: 0.01em;
-    background: var(--accent-gradient) !important;
+    background: linear-gradient(135deg, #5a2fc2 0%, #3d2ca6 48%, #15329c 100%) !important;
     color: #ffffff !important;
-    border: 1px solid var(--line-strong) !important;
-    box-shadow: 0 14px 30px rgba(91, 76, 255, 0.34);
+    border: 1px solid rgba(129, 122, 255, 0.74) !important;
+    box-shadow: 0 14px 30px rgba(35, 50, 160, 0.42);
 }
 
 .priority-hint {
@@ -761,8 +761,8 @@ li {
     font-size: 0.84rem;
     font-weight: 900;
     letter-spacing: 0.01em;
-    background: var(--accent-gradient) !important;
-    border: 1px solid var(--line-strong) !important;
+    background: linear-gradient(135deg, #5a2fc2 0%, #3d2ca6 48%, #15329c 100%) !important;
+    border: 1px solid rgba(129, 122, 255, 0.68) !important;
     color: #ffffff !important;
 }
 
