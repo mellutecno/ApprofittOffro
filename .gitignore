@@ -11,6 +11,9 @@ functions/.runtimeconfig.json
 credentials.json
 token.json
 
+# Chiavi di firma Android / Play Store
+approfittoffro_signing/
+
 # File intermedi / temporanei
 .tmp/
 .test_profile/
