@@ -670,9 +670,6 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
     _mapController = null;
     _mapInstance++;
     _refreshMapPicker();
-    if (!_initialLocationRequested) {
-      unawaited(_bootstrapCurrentLocation());
-    }
 
     await showModalBottomSheet<void>(
       context: context,
@@ -681,6 +678,14 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         _mapPickerSheetContext = sheetContext;
+        if (!_initialLocationRequested) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || _mapPickerSheetContext == null) {
+              return;
+            }
+            unawaited(_bootstrapCurrentLocation());
+          });
+        }
         return ValueListenableBuilder<int>(
           valueListenable: _mapPickerRefreshTick,
           builder: (context, _, __) => _buildMapPickerSheet(context),
@@ -793,20 +798,35 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                 ),
               ),
               const SizedBox(height: 14),
-              Row(
+              Column(
                 children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _loadingNearbyPlaces || _submitting
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                      label: const Text('Chiudi'),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _loadingNearbyPlaces || _submitting
+                              ? null
+                              : () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                          label: const Text('Chiudi'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _submitting
+                              ? null
+                              : () => unawaited(_useCurrentLocation()),
+                          icon: const Icon(Icons.my_location_rounded),
+                          label: Text(_isLocating ? 'Cerco GPS...' : 'Usa GPS'),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
                       onPressed: _submitting || _loadingNearbyPlaces
                           ? null
                           : () => unawaited(_refreshNearbyPlaces(force: true)),
@@ -989,6 +1009,9 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
 
   Future<void> _useCurrentLocation({bool silent = false}) async {
     if (_isLocating) {
+      if (!silent) {
+        _showMessage('Sto gia cercando la posizione GPS.');
+      }
       return;
     }
 
@@ -1035,7 +1058,7 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
           accuracy: LocationAccuracy.high,
           timeLimit: Duration(seconds: 12),
         ),
-      );
+      ).timeout(const Duration(seconds: 14));
       if (!mounted) {
         return;
       }
