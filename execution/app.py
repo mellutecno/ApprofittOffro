@@ -195,15 +195,29 @@ OPENAI_MODERATION_MODEL = os.getenv(
 ).strip()
 OPENAI_MODERATION_TIMEOUT_SECONDS = parse_float_env("OPENAI_MODERATION_TIMEOUT_SECONDS", 12)
 OPENAI_MODERATION_REVIEW_THRESHOLD = parse_float_env("OPENAI_MODERATION_REVIEW_THRESHOLD", 0.75)
+OPENAI_MODERATION_ILLICIT_REVIEW_THRESHOLD = parse_float_env(
+    "OPENAI_MODERATION_ILLICIT_REVIEW_THRESHOLD",
+    0.15,
+)
 MODERATION_FAIL_CLOSED = os.getenv(
     "MODERATION_FAIL_CLOSED",
     "",
 ).strip().lower() in {"1", "true", "yes", "on"}
 LOCAL_MODERATION_KEYWORDS = {
+    "arma",
+    "armi",
+    "cocaina",
+    "crack",
+    "droga",
+    "droghe",
+    "eroina",
     "porno",
     "sesso",
     "sessuale",
     "sex",
+    "spaccio",
+    "spacciare",
+    "spacciatore",
     "xxx",
     "nudo",
     "nuda",
@@ -3039,6 +3053,16 @@ def extract_moderation_reason_and_score(result):
     return "", None
 
 
+def moderation_score_requires_review(reason, score):
+    if score is None:
+        return False
+    normalized_reason = str(reason or "").strip().lower()
+    threshold = OPENAI_MODERATION_REVIEW_THRESHOLD
+    if normalized_reason.startswith("illicit"):
+        threshold = OPENAI_MODERATION_ILLICIT_REVIEW_THRESHOLD
+    return float(score or 0) >= threshold
+
+
 def call_openai_moderation_api(moderation_input):
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
@@ -3087,7 +3111,7 @@ def build_moderation_result(api_result, api_error, *, checked_at, keyword_reason
             status = MODERATION_STATUS_REVIEW
         elif bool(first_result.get("flagged")):
             status = MODERATION_STATUS_REVIEW
-        elif score is not None and score >= OPENAI_MODERATION_REVIEW_THRESHOLD:
+        elif moderation_score_requires_review(reason, score):
             status = MODERATION_STATUS_REVIEW
         if status == MODERATION_STATUS_REVIEW and not reason:
             reason = "openai_flagged"
