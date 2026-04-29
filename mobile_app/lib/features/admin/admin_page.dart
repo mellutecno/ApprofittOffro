@@ -22,9 +22,14 @@ enum _AdminSection {
 }
 
 class AdminPage extends StatefulWidget {
-  const AdminPage({super.key, required this.authController});
+  const AdminPage({
+    super.key,
+    required this.authController,
+    this.showReturnToProfile = false,
+  });
 
   final AuthController authController;
+  final bool showReturnToProfile;
 
   @override
   State<AdminPage> createState() => _AdminPageState();
@@ -1552,201 +1557,218 @@ class _AdminPageState extends State<AdminPage> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<AdminDashboardData>(
-      future: _dashboardFuture,
-      builder: (context, snapshot) {
-        final data = snapshot.data;
-        final isLoading =
-            snapshot.connectionState == ConnectionState.waiting && data == null;
-        final error = snapshot.hasError ? snapshot.error.toString() : null;
+    return Material(
+      color: AppTheme.cream,
+      child: FutureBuilder<AdminDashboardData>(
+        future: _dashboardFuture,
+        builder: (context, snapshot) {
+          final data = snapshot.data;
+          final isLoading =
+              snapshot.connectionState == ConnectionState.waiting &&
+                  data == null;
+          final error = snapshot.hasError ? snapshot.error.toString() : null;
 
-        if (isLoading) {
-          return ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            children: const [
-              SizedBox(
-                height: 420,
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ],
-          );
-        }
-
-        if (error != null && data == null) {
-          return RefreshIndicator(
-            onRefresh: _reloadDashboard,
-            child: ListView(
+          if (isLoading) {
+            return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(24),
-              children: [
-                const SizedBox(height: 80),
-                Text(
-                  'Non riesco a caricare il pannello admin adesso.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  error,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppTheme.brown.withValues(alpha: 0.72),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                FilledButton(
-                  onPressed: _reloadDashboard,
-                  child: const Text('Riprova'),
+              children: const [
+                SizedBox(
+                  height: 420,
+                  child: Center(child: CircularProgressIndicator()),
                 ),
               ],
-            ),
-          );
-        }
+            );
+          }
 
-        final dashboard = data!;
-        final filteredUsers = _filteredUsers(dashboard);
-        final filteredReviewUsers = _filteredReviewUsers(dashboard);
-        final filteredFutureOffers = _filteredOffers(dashboard.futureOffers);
-        final filteredPastOffers = _filteredOffers(dashboard.pastOffers);
-        final filteredChats = _filteredChats(dashboard);
-        final currentCount = switch (_selectedSection) {
-          _AdminSection.users => filteredUsers.length,
-          _AdminSection.reviewUsers => filteredReviewUsers.length,
-          _AdminSection.futureOffers => filteredFutureOffers.length,
-          _AdminSection.pastOffers => filteredPastOffers.length,
-          _AdminSection.chats => filteredChats.length,
-        };
-        final items = _buildSectionItems(dashboard);
-
-        return RefreshIndicator(
-          onRefresh: _reloadDashboard,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverAppBar(
-                pinned: true,
-                toolbarHeight: kToolbarHeight,
-                backgroundColor: AppTheme.cream,
-                surfaceTintColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                elevation: 0,
-                scrolledUnderElevation: 0,
-                leading: const SizedBox.shrink(),
-                leadingWidth: kToolbarHeight,
-                centerTitle: true,
-                title: const BrandWordmark(
-                  height: 50,
-                  alignment: Alignment.center,
-                ),
-                actions: [
-                  IconButton(
-                    onPressed: widget.authController.isBusy
-                        ? null
-                        : widget.authController.logout,
-                    icon: const Icon(Icons.logout),
-                    tooltip: 'Esci',
+          if (error != null && data == null) {
+            return RefreshIndicator(
+              onRefresh: _reloadDashboard,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(24),
+                children: [
+                  const SizedBox(height: 80),
+                  Text(
+                    'Non riesco a caricare il pannello admin adesso.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    error,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppTheme.brown.withValues(alpha: 0.72),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  FilledButton(
+                    onPressed: _reloadDashboard,
+                    child: const Text('Riprova'),
                   ),
                 ],
               ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                  child: BrandHeroCard(
-                    eyebrow: 'ADMIN',
-                    title: 'Controllo completo della piattaforma',
-                    subtitle:
-                        'Gestisci utenti, chat ed eventi futuri o passati, elimina account o tavoli problematici e contatta chi serve direttamente dal telefono.',
-                    centered: true,
-                    footer: Column(
-                      children: [
-                        _buildStatsGrid(dashboard.stats),
-                        const SizedBox(height: 14),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            return SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  minWidth: constraints.maxWidth,
-                                ),
-                                child: SegmentedButton<_AdminSection>(
-                                  segments: _AdminSection.values
-                                      .map(
-                                        (section) =>
-                                            ButtonSegment<_AdminSection>(
-                                          value: section,
-                                          label: Text(section.label),
-                                        ),
-                                      )
-                                      .toList(),
-                                  selected: <_AdminSection>{_selectedSection},
-                                  onSelectionChanged: (selection) {
-                                    setState(() =>
-                                        _selectedSection = selection.first);
-                                  },
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-                  child: _selectedSection == _AdminSection.users ||
-                          _selectedSection == _AdminSection.reviewUsers
-                      ? _buildUsersFilters(
-                          _selectedSection == _AdminSection.users
-                              ? filteredUsers
-                              : filteredReviewUsers,
+            );
+          }
+
+          final dashboard = data!;
+          final filteredUsers = _filteredUsers(dashboard);
+          final filteredReviewUsers = _filteredReviewUsers(dashboard);
+          final filteredFutureOffers = _filteredOffers(dashboard.futureOffers);
+          final filteredPastOffers = _filteredOffers(dashboard.pastOffers);
+          final filteredChats = _filteredChats(dashboard);
+          final currentCount = switch (_selectedSection) {
+            _AdminSection.users => filteredUsers.length,
+            _AdminSection.reviewUsers => filteredReviewUsers.length,
+            _AdminSection.futureOffers => filteredFutureOffers.length,
+            _AdminSection.pastOffers => filteredPastOffers.length,
+            _AdminSection.chats => filteredChats.length,
+          };
+          final items = _buildSectionItems(dashboard);
+
+          return RefreshIndicator(
+            onRefresh: _reloadDashboard,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverAppBar(
+                  pinned: true,
+                  toolbarHeight: kToolbarHeight,
+                  backgroundColor: AppTheme.cream,
+                  surfaceTintColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  elevation: 0,
+                  scrolledUnderElevation: 0,
+                  leading: widget.showReturnToProfile
+                      ? IconButton(
+                          onPressed: () => Navigator.of(context).maybePop(),
+                          icon: const Icon(Icons.arrow_back_rounded),
+                          tooltip: 'Torna al profilo',
                         )
-                      : _selectedSection == _AdminSection.chats
-                          ? _buildChatsFilters(filteredChats)
-                          : _buildOffersFilters(
-                              _selectedSection == _AdminSection.futureOffers
-                                  ? filteredFutureOffers
-                                  : filteredPastOffers,
-                            ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Text(
-                    '${_selectedSection.label} • $currentCount risultati',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: AppTheme.brown,
-                    ),
+                      : const SizedBox.shrink(),
+                  leadingWidth: kToolbarHeight,
+                  centerTitle: true,
+                  title: const BrandWordmark(
+                    height: 50,
+                    alignment: Alignment.center,
                   ),
+                  actions: [
+                    if (widget.showReturnToProfile)
+                      IconButton(
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const Icon(Icons.person_rounded),
+                        tooltip: 'Torna a Io',
+                      )
+                    else
+                      IconButton(
+                        onPressed: widget.authController.isBusy
+                            ? null
+                            : widget.authController.logout,
+                        icon: const Icon(Icons.logout),
+                        tooltip: 'Esci',
+                      ),
+                  ],
                 ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    children: items
-                        .map(
-                          (item) => Padding(
-                            padding: const EdgeInsets.only(bottom: 2),
-                            child: item,
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    child: BrandHeroCard(
+                      eyebrow: 'ADMIN',
+                      title: 'Controllo completo della piattaforma',
+                      subtitle:
+                          'Gestisci utenti, chat ed eventi futuri o passati, elimina account o tavoli problematici e contatta chi serve direttamente dal telefono.',
+                      centered: true,
+                      footer: Column(
+                        children: [
+                          _buildStatsGrid(dashboard.stats),
+                          const SizedBox(height: 14),
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minWidth: constraints.maxWidth,
+                                  ),
+                                  child: SegmentedButton<_AdminSection>(
+                                    segments: _AdminSection.values
+                                        .map(
+                                          (section) =>
+                                              ButtonSegment<_AdminSection>(
+                                            value: section,
+                                            label: Text(section.label),
+                                          ),
+                                        )
+                                        .toList(),
+                                    selected: <_AdminSection>{_selectedSection},
+                                    onSelectionChanged: (selection) {
+                                      setState(() =>
+                                          _selectedSection = selection.first);
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        )
-                        .toList(),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-            ],
-          ),
-        );
-      },
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                    child: _selectedSection == _AdminSection.users ||
+                            _selectedSection == _AdminSection.reviewUsers
+                        ? _buildUsersFilters(
+                            _selectedSection == _AdminSection.users
+                                ? filteredUsers
+                                : filteredReviewUsers,
+                          )
+                        : _selectedSection == _AdminSection.chats
+                            ? _buildChatsFilters(filteredChats)
+                            : _buildOffersFilters(
+                                _selectedSection == _AdminSection.futureOffers
+                                    ? filteredFutureOffers
+                                    : filteredPastOffers,
+                              ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                    child: Text(
+                      '${_selectedSection.label} • $currentCount risultati',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.brown,
+                      ),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: items
+                          .map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 2),
+                              child: item,
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

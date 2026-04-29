@@ -1783,7 +1783,10 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _openAdminPanel() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => AdminPage(authController: widget.authController),
+        builder: (_) => AdminPage(
+          authController: widget.authController,
+          showReturnToProfile: true,
+        ),
       ),
     );
     if (mounted) {
