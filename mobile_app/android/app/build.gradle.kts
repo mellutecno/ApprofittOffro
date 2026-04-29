@@ -60,13 +60,26 @@ android {
         create("play") {
             dimension = "distribution"
             applicationId = "com.mellutecno.approfittoffro"
-            versionCode = 3038
+            versionCode = 3039
+            ndk {
+                abiFilters.add("arm64-v8a")
+            }
         }
     }
 
     lint {
         checkReleaseBuilds = false
         abortOnError = false
+    }
+
+    packaging {
+        jniLibs {
+            excludes += setOf(
+                "lib/armeabi-v7a/**",
+                "lib/x86/**",
+                "lib/x86_64/**",
+            )
+        }
     }
 
     signingConfigs {
