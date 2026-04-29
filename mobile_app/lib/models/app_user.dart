@@ -157,6 +157,7 @@ class AppUser {
     required this.nome,
     required this.email,
     required this.isAdmin,
+    required this.canAccessAdmin,
     required this.usesGoogleAuth,
     required this.canChangePassword,
     required this.photoFilename,
@@ -193,6 +194,7 @@ class AppUser {
   final String nome;
   final String email;
   final bool isAdmin;
+  final bool canAccessAdmin;
   final bool usesGoogleAuth;
   final bool canChangePassword;
   final String photoFilename;
@@ -243,6 +245,8 @@ class AppUser {
       nome: (json['nome'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
       isAdmin: json['is_admin'] == true,
+      canAccessAdmin:
+          json['can_access_admin'] == true || json['is_admin'] == true,
       usesGoogleAuth: json['uses_google_auth'] == true,
       canChangePassword: json['can_change_password'] == true,
       photoFilename: (json['foto'] ?? '').toString(),

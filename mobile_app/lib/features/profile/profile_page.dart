@@ -12,6 +12,7 @@ import '../../models/app_user.dart';
 import '../../models/offer.dart';
 import '../../models/public_profile.dart';
 import '../../models/user_preview.dart';
+import '../admin/admin_page.dart';
 import '../auth/auth_controller.dart';
 import '../create_offer/create_offer_page.dart';
 import '../offers/offer_card.dart';
@@ -1779,6 +1780,17 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _openAdminPanel() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AdminPage(authController: widget.authController),
+      ),
+    );
+    if (mounted) {
+      await widget.authController.refreshCurrentUser();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -2193,6 +2205,9 @@ class _ProfilePageState extends State<ProfilePage> {
                     fallbackMessage:
                         'Non riesco ad aprire la privacy policy adesso.',
                   ),
+                  showAdminPanel:
+                      widget.authController.currentUser?.canAccessAdmin == true,
+                  onOpenAdminPanel: _openAdminPanel,
                   onDeleteAccount: widget.authController.isBusy
                       ? null
                       : _confirmDeleteAccount,
@@ -3776,6 +3791,8 @@ class _SettingsCard extends StatelessWidget {
     required this.onSecurity,
     required this.onCheckUpdates,
     required this.onPrivacyPolicy,
+    required this.showAdminPanel,
+    required this.onOpenAdminPanel,
     required this.onDeleteAccount,
     required this.onLogout,
   });
@@ -3786,6 +3803,8 @@ class _SettingsCard extends StatelessWidget {
   final VoidCallback onSecurity;
   final VoidCallback onCheckUpdates;
   final VoidCallback onPrivacyPolicy;
+  final bool showAdminPanel;
+  final VoidCallback onOpenAdminPanel;
   final VoidCallback? onDeleteAccount;
   final VoidCallback? onLogout;
 
@@ -3884,6 +3903,23 @@ class _SettingsCard extends StatelessWidget {
                           ),
                           label: const Text('Informativa privacy'),
                         ),
+                        if (showAdminPanel)
+                          OutlinedButton.icon(
+                            onPressed: onOpenAdminPanel,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF6E39F5),
+                              side: BorderSide(
+                                color: const Color(
+                                  0xFF6E39F5,
+                                ).withValues(alpha: 0.55),
+                              ),
+                            ),
+                            icon: const Icon(
+                              Icons.admin_panel_settings_rounded,
+                              color: Color(0xFF6E39F5),
+                            ),
+                            label: const Text('Pannello admin'),
+                          ),
                         OutlinedButton.icon(
                           onPressed: onLogout,
                           icon: const Icon(

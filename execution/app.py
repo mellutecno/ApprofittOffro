@@ -3641,6 +3641,24 @@ def is_admin_user(user):
     return bool(getattr(user, "is_admin", False))
 
 
+def get_admin_delegate_emails():
+    raw_emails = os.getenv("ADMIN_DELEGATE_EMAILS", "")
+    return {
+        item.strip().lower()
+        for item in re.split(r"[\s,;]+", raw_emails)
+        if item.strip()
+    }
+
+
+def can_access_admin_area(user):
+    if not user or not getattr(user, "is_authenticated", True):
+        return False
+    if is_admin_user(user):
+        return True
+    email = str(getattr(user, "email", "") or "").strip().lower()
+    return bool(email and email in get_admin_delegate_emails())
+
+
 @app.before_request
 def enforce_session_timeout():
     if request.endpoint == "static":
@@ -3678,7 +3696,7 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated:
             return login_manager.unauthorized()
-        if not is_admin_user(current_user):
+        if not can_access_admin_area(current_user):
             if request.path.startswith("/api/"):
                 return jsonify({"success": False, "error": "Area riservata agli amministratori."}), 403
             flash("Area riservata agli amministratori.", "error")
@@ -4142,6 +4160,7 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
         "lon": user.longitudine if include_private else None,
         "verificato": bool(user.verificato),
         "is_admin": bool(user.is_admin),
+        "can_access_admin": can_access_admin_area(user) if include_private else False,
         "uses_google_auth": bool(user.google_sub) if include_private else False,
         "can_change_password": user_can_change_password(user) if include_private else False,
         "followers_count": user.followers_count,
@@ -4152,7 +4171,7 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
         "is_self": is_self,
         "chat_enabled": bool(user.chat_enabled) if include_private else False,
     }
-    if include_private or is_self or (viewer_is_authenticated and is_admin_user(viewer)):
+    if include_private or is_self or (viewer_is_authenticated and can_access_admin_area(viewer)):
         payload["moderation_restricted"] = is_user_moderation_restricted(user)
         payload["bio_moderation_status"] = getattr(user, "bio_moderation_status", MODERATION_STATUS_APPROVED)
         payload["bio_moderation_reason"] = getattr(user, "bio_moderation_reason", "") or ""
@@ -4518,7 +4537,7 @@ def can_edit_review(review, now=None):
 def can_manage_offer(offer, user):
     return bool(
         user.is_authenticated
-        and (offer.user_id == user.id or is_admin_user(user))
+        and (offer.user_id == user.id or can_access_admin_area(user))
     )
 
 
@@ -5921,13 +5940,14 @@ def api_delete_offer(offer_id):
         for filename in list(getattr(offer, "gallery_filenames", []))
         if filename and filename != "nessuna.jpg"
     ]
+    is_admin_action = can_access_admin_area(current_user) and offer.user_id != current_user.id
 
     remove_offer_with_notifications(
         offer,
         motivazione,
-        acting_admin=current_user if is_admin_user(current_user) else None,
-        notify_owner=is_admin_user(current_user) and offer.user_id != current_user.id,
-        preserve_review_history=is_admin_user(current_user),
+        acting_admin=current_user if is_admin_action else None,
+        notify_owner=is_admin_action,
+        preserve_review_history=is_admin_action,
     )
     db.session.commit()
     if offer.stato != "archiviata_admin":
@@ -5966,12 +5986,12 @@ def api_delete_offer(offer_id):
 def edit_offer_page(offer_id):
     """Schermata per la modifica di un'offerta esistente."""
     offer = Offer.query.get_or_404(offer_id)
-    if not is_admin_user(current_user):
+    if not can_access_admin_area(current_user):
         return redirect(url_for("index"))
     if not can_manage_offer(offer, current_user):
         flash("Non puoi modificare le offerte altrui.", "error")
         return redirect(url_for("dashboard"))
-    allow_admin_timing_bypass = is_admin_user(current_user) and request.args.get("from") == "admin"
+    allow_admin_timing_bypass = can_access_admin_area(current_user) and request.args.get("from") == "admin"
     return_url = url_for("admin_dashboard") if allow_admin_timing_bypass else url_for("dashboard")
     return render_template(
         "create_offer.html",
@@ -6077,7 +6097,7 @@ def api_edit_offer(offer_id):
         data_ora,
     )
     if (
-        (not is_admin_user(current_user))
+        (not can_access_admin_area(current_user))
         and requires_short_notice_override
         and not force_short_notice
     ):
