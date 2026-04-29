@@ -5327,6 +5327,7 @@ def api_register():
         lat = request.form.get("latitudine")
         lon = request.form.get("longitudine")
         citta = request.form.get("citta", "").strip()
+        bio = request.form.get("bio", "").strip()
         eta, eta_error = parse_age_value(eta_raw)
         sesso, sesso_error = parse_gender_value(sesso_raw)
         numero_telefono, phone_error = normalize_phone_number(numero_telefono_raw)
@@ -5349,6 +5350,8 @@ def api_register():
             errors.append(sesso_error)
         if not lat or not lon:
             errors.append("Seleziona la tua posizione sulla mappa.")
+        if len(bio) > 0 and len(bio) < 5:
+            errors.append("Raccontaci qualcosa di piu nella Bio.")
 
         # Controlla email duplicata
         if User.query.filter_by(email=email).first():
@@ -5384,6 +5387,7 @@ def api_register():
             latitudine=float(lat),
             longitudine=float(lon),
             citta=citta,
+            bio=bio,
             verificato=False,
             verification_token=token_verifica
         )
@@ -5397,7 +5401,20 @@ def api_register():
             photo_moderation_results,
             allow_auto_approve=True,
         )
+        bio_moderation_result = None
+        if bio:
+            bio_moderation_result = apply_user_bio_moderation(
+                user,
+                bio,
+                allow_auto_approve=True,
+            )
         db.session.commit()
+        if bio_moderation_result:
+            notify_admin_for_user_moderation(
+                user,
+                bio_moderation_result,
+                content_label="Bio",
+            )
         notify_admin_for_user_moderation(
             user,
             photo_moderation_result,
