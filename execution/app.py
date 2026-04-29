@@ -11,6 +11,7 @@ import sqlite3
 import io
 import tempfile
 import json
+import base64
 from html import escape
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -2659,10 +2660,16 @@ def delete_upload_files(filenames):
         upload_storage.delete(filename)
 
 
-def save_profile_gallery_files(user_key, photos, require_primary_face=True):
+def save_profile_gallery_files(user_key, photos, require_primary_face=True, return_moderation=False):
     """Salva fino a MAX_PROFILE_PHOTOS immagini profilo e verifica il volto sulla prima."""
+    def result(filenames, errors, moderation_results=None):
+        moderation_results = moderation_results or []
+        if return_moderation:
+            return filenames, errors, moderation_results
+        return filenames, errors
+
     if not photos:
-        return [], []
+        return result([], [])
 
     errors = []
     if len(photos) > MAX_PROFILE_PHOTOS:
@@ -2674,9 +2681,10 @@ def save_profile_gallery_files(user_key, photos, require_primary_face=True):
             break
 
     if errors:
-        return [], errors
+        return result([], errors)
 
     saved_filenames = []
+    moderation_results = []
     for index, photo in enumerate(photos):
         ext = photo.filename.rsplit(".", 1)[1].lower() if "." in photo.filename else "jpg"
         image_payload = process_image(
@@ -2690,11 +2698,16 @@ def save_profile_gallery_files(user_key, photos, require_primary_face=True):
             if not verifica["valida"]:
                 delete_upload_files(saved_filenames)
                 dettaglio = verifica.get("errore", "Il volto non e stato riconosciuto in modo affidabile.")
-                return [], [
+                return result([], [
                     "La prima foto deve mostrare chiaramente il volto della persona. "
                     "Carica come prima immagine una foto reale, frontale o comunque ben visibile. "
                     f"Dettaglio: {dettaglio}"
-                ]
+                ])
+
+        moderation_results.append({
+            "filename": image_payload["filename"],
+            "result": moderate_image_payload(image_payload),
+        })
 
         upload_storage.save_bytes(
             image_payload["filename"],
@@ -2703,7 +2716,7 @@ def save_profile_gallery_files(user_key, photos, require_primary_face=True):
         )
         saved_filenames.append(image_payload["filename"])
 
-    return saved_filenames, []
+    return result(saved_filenames, [], moderation_results)
 
 
 def replace_user_gallery(user, filenames):
@@ -2890,6 +2903,19 @@ def resolve_google_user(identity_payload):
     db.session.flush()
     if photo_filename:
         replace_user_gallery(user, [photo_filename])
+        photo_moderation_result = apply_user_photo_moderation(
+            user,
+            [{
+                "filename": photo_filename,
+                "result": moderate_saved_profile_photo(photo_filename),
+            }],
+            allow_auto_approve=True,
+        )
+        notify_admin_for_user_moderation(
+            user,
+            photo_moderation_result,
+            content_label="Foto profilo",
+        )
     db.session.commit()
     return user, True, True
 
@@ -3011,14 +3037,14 @@ def extract_moderation_reason_and_score(result):
     return "", None
 
 
-def call_openai_moderation_api(text):
+def call_openai_moderation_api(moderation_input):
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         return None, "missing_api_key"
 
     payload = json.dumps({
         "model": OPENAI_MODERATION_MODEL,
-        "input": text or "",
+        "input": moderation_input if moderation_input is not None else "",
     }).encode("utf-8")
     request_obj = Request(
         OPENAI_MODERATION_URL,
@@ -3040,18 +3066,13 @@ def call_openai_moderation_api(text):
         return None, f"{type(exc).__name__}:{str(exc)[:180]}"
 
 
-def moderate_text_content(text, *, user=None, content_type="bio", content_table=None, content_id=None):
-    cleaned_text = (text or "").strip()
-    checked_at = datetime.now()
+def build_moderation_result(api_result, api_error, *, checked_at, keyword_reason=""):
     provider = "openai"
     model = OPENAI_MODERATION_MODEL
     raw_json = None
     reason = ""
     score = None
     status = MODERATION_STATUS_APPROVED
-
-    keyword_reason = local_moderation_keyword_reason(cleaned_text)
-    api_result, api_error = call_openai_moderation_api(cleaned_text)
 
     if api_result:
         raw_json = json.dumps(api_result, ensure_ascii=False)
@@ -3076,23 +3097,10 @@ def moderate_text_content(text, *, user=None, content_type="bio", content_table=
         raw_json = json.dumps({"error": api_error})
         status = MODERATION_STATUS_REVIEW
     elif api_error:
-        provider = "local"
-        model = "keyword-fallback"
         raw_json = json.dumps({"error": api_error})
-
-    db.session.add(AiModerationLog(
-        user_id=getattr(user, "id", None),
-        content_type=content_type,
-        content_table=content_table,
-        content_id=content_id,
-        status=status,
-        reason=reason or None,
-        score=score,
-        provider=provider,
-        model=model,
-        raw_json=raw_json,
-        created_at=checked_at,
-    ))
+        if keyword_reason is not None:
+            provider = "local"
+            model = "keyword-fallback"
 
     return {
         "status": status,
@@ -3104,6 +3112,66 @@ def moderate_text_content(text, *, user=None, content_type="bio", content_table=
         "raw_json": raw_json,
         "api_error": api_error,
     }
+
+
+def add_ai_moderation_log(result, *, user=None, content_type="bio", content_table=None, content_id=None):
+    db.session.add(AiModerationLog(
+        user_id=getattr(user, "id", None),
+        content_type=content_type,
+        content_table=content_table,
+        content_id=content_id,
+        status=result["status"],
+        reason=result["reason"] or None,
+        score=result["score"],
+        provider=result["provider"],
+        model=result["model"],
+        raw_json=result["raw_json"],
+        created_at=result["checked_at"],
+    ))
+
+
+def moderate_text_content(text, *, user=None, content_type="bio", content_table=None, content_id=None):
+    cleaned_text = (text or "").strip()
+    checked_at = datetime.now()
+
+    keyword_reason = local_moderation_keyword_reason(cleaned_text)
+    api_result, api_error = call_openai_moderation_api(cleaned_text)
+    result = build_moderation_result(
+        api_result,
+        api_error,
+        checked_at=checked_at,
+        keyword_reason=keyword_reason,
+    )
+    add_ai_moderation_log(
+        result,
+        user=user,
+        content_type=content_type,
+        content_table=content_table,
+        content_id=content_id,
+    )
+    return result
+
+
+def moderate_image_payload(image_payload):
+    checked_at = datetime.now()
+    image_bytes = image_payload.get("bytes") or b""
+    image_content_type = image_payload.get("content_type") or "image/jpeg"
+    data_url = (
+        f"data:{image_content_type};base64,"
+        f"{base64.b64encode(image_bytes).decode('ascii')}"
+    )
+    api_result, api_error = call_openai_moderation_api([
+        {
+            "type": "image_url",
+            "image_url": {"url": data_url},
+        }
+    ])
+    return build_moderation_result(
+        api_result,
+        api_error,
+        checked_at=checked_at,
+        keyword_reason=None,
+    )
 
 
 def apply_user_bio_moderation(user, bio_text, *, allow_auto_approve=False):
@@ -3128,6 +3196,155 @@ def apply_user_bio_moderation(user, bio_text, *, allow_auto_approve=False):
     user.bio_moderation_model = result["model"]
     user.bio_moderation_raw_json = result["raw_json"]
     return result
+
+
+def photo_moderation_state_from_photo(photo):
+    return {
+        "status": getattr(photo, "moderation_status", MODERATION_STATUS_APPROVED),
+        "reason": getattr(photo, "moderation_reason", "") or "",
+        "score": getattr(photo, "moderation_score", None),
+        "checked_at": getattr(photo, "moderation_checked_at", None),
+        "provider": getattr(photo, "moderation_provider", None),
+        "model": getattr(photo, "moderation_model", None),
+        "raw_json": getattr(photo, "moderation_raw_json", None),
+        "status_field": getattr(photo, "status", "approved"),
+        "reason_field": getattr(photo, "reason", "") or "",
+        "moderated_by": getattr(photo, "moderated_by", None),
+        "moderated_at": getattr(photo, "moderated_at", None),
+    }
+
+
+def apply_photo_moderation_state(photo, state):
+    status = state.get("status") or MODERATION_STATUS_APPROVED
+    reason = state.get("reason") or ""
+    photo.moderation_status = status
+    photo.moderation_reason = reason
+    photo.moderation_score = state.get("score")
+    photo.moderation_checked_at = state.get("checked_at")
+    photo.moderation_provider = state.get("provider")
+    photo.moderation_model = state.get("model")
+    photo.moderation_raw_json = state.get("raw_json")
+    photo.status = state.get("status_field") or ("approved" if status == MODERATION_STATUS_APPROVED else status)
+    photo.reason = state.get("reason_field") or reason
+    photo.moderated_by = state.get("moderated_by")
+    photo.moderated_at = state.get("moderated_at")
+
+
+def choose_restricted_photo_state(photo_states):
+    restricted_states = [
+        state
+        for state in photo_states
+        if is_moderation_status_restricted(state.get("status"))
+    ]
+    if not restricted_states:
+        return None
+    return max(
+        restricted_states,
+        key=lambda state: float(state.get("score") or 0),
+    )
+
+
+def apply_user_photo_moderation(
+    user,
+    uploaded_photo_moderation_results,
+    *,
+    previous_photo_states=None,
+    allow_auto_approve=False,
+):
+    previous_photo_states = previous_photo_states or {}
+    results_by_filename = {
+        item.get("filename"): item.get("result")
+        for item in uploaded_photo_moderation_results or []
+        if item.get("filename") and item.get("result")
+    }
+    db.session.flush()
+
+    photo_states = []
+    for photo in list(getattr(user, "photos", [])):
+        result = results_by_filename.get(photo.filename)
+        if result:
+            state = {
+                "status": result["status"],
+                "reason": result["reason"],
+                "score": result["score"],
+                "checked_at": result["checked_at"],
+                "provider": result["provider"],
+                "model": result["model"],
+                "raw_json": result["raw_json"],
+                "status_field": "approved" if result["status"] == MODERATION_STATUS_APPROVED else result["status"],
+                "reason_field": result["reason"],
+                "moderated_by": None,
+                "moderated_at": None,
+            }
+            apply_photo_moderation_state(photo, state)
+            add_ai_moderation_log(
+                result,
+                user=user,
+                content_type="profile_photo",
+                content_table="user_photos",
+                content_id=photo.id,
+            )
+        elif photo.filename in previous_photo_states:
+            state = previous_photo_states[photo.filename]
+            apply_photo_moderation_state(photo, state)
+        else:
+            state = photo_moderation_state_from_photo(photo)
+        photo_states.append(state)
+
+    previous_status = getattr(user, "photo_moderation_status", MODERATION_STATUS_APPROVED)
+    restricted_state = choose_restricted_photo_state(photo_states)
+    if restricted_state:
+        user.photo_moderation_status = restricted_state.get("status") or MODERATION_STATUS_REVIEW
+        user.photo_moderation_reason = restricted_state.get("reason") or "openai_flagged"
+        user.photo_moderation_score = restricted_state.get("score")
+        user.photo_moderation_checked_at = restricted_state.get("checked_at")
+        user.photo_moderation_provider = restricted_state.get("provider")
+        user.photo_moderation_model = restricted_state.get("model")
+        user.photo_moderation_raw_json = restricted_state.get("raw_json")
+    elif is_moderation_status_restricted(previous_status) and not allow_auto_approve:
+        user.photo_moderation_status = MODERATION_STATUS_REVIEW
+        user.photo_moderation_reason = "pending_admin_approval"
+        user.photo_moderation_score = None
+        user.photo_moderation_checked_at = datetime.now()
+        user.photo_moderation_provider = "admin"
+        user.photo_moderation_model = "manual"
+        user.photo_moderation_raw_json = None
+    else:
+        user.photo_moderation_status = MODERATION_STATUS_APPROVED
+        user.photo_moderation_reason = ""
+        user.photo_moderation_score = None
+        user.photo_moderation_checked_at = datetime.now()
+        user.photo_moderation_provider = "openai"
+        user.photo_moderation_model = OPENAI_MODERATION_MODEL
+        user.photo_moderation_raw_json = None
+
+    return {
+        "status": user.photo_moderation_status,
+        "reason": user.photo_moderation_reason or "",
+        "score": user.photo_moderation_score,
+        "checked_at": user.photo_moderation_checked_at,
+        "provider": user.photo_moderation_provider or "openai",
+        "model": user.photo_moderation_model or OPENAI_MODERATION_MODEL,
+        "raw_json": user.photo_moderation_raw_json,
+        "api_error": "",
+    }
+
+
+def moderate_saved_profile_photo(filename):
+    try:
+        image_bytes, content_type = upload_storage.read(filename)
+    except Exception as exc:
+        return build_moderation_result(
+            None,
+            f"read_error:{str(exc)[:180]}",
+            checked_at=datetime.now(),
+            keyword_reason=None,
+        )
+    return moderate_image_payload({
+        "filename": filename,
+        "bytes": image_bytes,
+        "content_type": content_type,
+    })
 
 
 def notify_admin_for_user_moderation(user, result, *, content_label="Bio"):
@@ -3166,6 +3383,7 @@ def notify_admin_for_user_moderation(user, result, *, content_label="Bio"):
 
 def validate_profile_update_input(user, source, *, foto_files=None, require_primary_face=True):
     uploaded_gallery_filenames = []
+    photo_moderation_results = []
     source = source or {}
 
     nome = str(source.get("nome", user.nome) or "").strip()
@@ -3274,10 +3492,11 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
                 errors.append("Latitudine e longitudine devono essere numeri validi.")
 
     if foto_files:
-        uploaded_gallery_filenames, photo_errors = save_profile_gallery_files(
+        uploaded_gallery_filenames, photo_errors, photo_moderation_results = save_profile_gallery_files(
             user.id,
             foto_files,
             require_primary_face=require_primary_face and not existing_gallery_filenames,
+            return_moderation=True,
         )
         errors.extend(photo_errors)
 
@@ -3303,6 +3522,7 @@ def validate_profile_update_input(user, source, *, foto_files=None, require_prim
         "new_password": new_password if password_change_requested else "",
         "final_gallery_filenames": final_gallery_filenames,
         "uploaded_gallery_filenames": uploaded_gallery_filenames,
+        "photo_moderation_results": photo_moderation_results,
     }
 
     return payload, errors
@@ -3312,6 +3532,12 @@ def save_profile_update_for_user(user, payload, *, verified=None, allow_moderati
     old_gallery_filenames = []
     uploaded_gallery_filenames = payload.get("uploaded_gallery_filenames", [])
     final_gallery_filenames = payload.get("final_gallery_filenames", list(user.gallery_filenames))
+    photo_moderation_results = payload.get("photo_moderation_results", [])
+    previous_photo_states = {
+        photo.filename: photo_moderation_state_from_photo(photo)
+        for photo in list(getattr(user, "photos", []))
+    }
+    photo_moderation_result = None
 
     user.nome = payload["nome"]
     user.email = payload["email"]
@@ -3343,6 +3569,12 @@ def save_profile_update_for_user(user, payload, *, verified=None, allow_moderati
 
     if final_gallery_filenames != list(user.gallery_filenames):
         old_gallery_filenames = replace_user_gallery(user, final_gallery_filenames)
+        photo_moderation_result = apply_user_photo_moderation(
+            user,
+            photo_moderation_results,
+            previous_photo_states=previous_photo_states,
+            allow_auto_approve=allow_moderation_auto_approve,
+        )
 
     try:
         db.session.commit()
@@ -3355,6 +3587,12 @@ def save_profile_update_for_user(user, payload, *, verified=None, allow_moderati
     db.session.expire(user, ["photos"])
     delete_upload_files(old_gallery_filenames)
     notify_admin_for_user_moderation(user, bio_moderation_result, content_label="Bio")
+    if photo_moderation_result:
+        notify_admin_for_user_moderation(
+            user,
+            photo_moderation_result,
+            content_label="Foto profilo",
+        )
     return True, [], old_gallery_filenames
 
 
@@ -5077,6 +5315,7 @@ def api_register():
     from flask_login import logout_user
     logout_user() # Assicura che la registrazione parta da un contesto pulito (Shared Device Fix)
     photo_filenames = []
+    photo_moderation_results = []
     try:
         nome = request.form.get("nome", "").strip()
         email = request.form.get("email", "").strip().lower()
@@ -5123,7 +5362,12 @@ def api_register():
         if errors:
             return jsonify({"success": False, "errors": errors}), 400
 
-        photo_filenames, photo_errors = save_profile_gallery_files("new", foto_files, require_primary_face=True)
+        photo_filenames, photo_errors, photo_moderation_results = save_profile_gallery_files(
+            "new",
+            foto_files,
+            require_primary_face=True,
+            return_moderation=True,
+        )
         if photo_errors:
             return jsonify({"success": False, "errors": photo_errors}), 400
 
@@ -5148,7 +5392,17 @@ def api_register():
         db.session.add(user)
         db.session.flush()
         replace_user_gallery(user, photo_filenames)
+        photo_moderation_result = apply_user_photo_moderation(
+            user,
+            photo_moderation_results,
+            allow_auto_approve=True,
+        )
         db.session.commit()
+        notify_admin_for_user_moderation(
+            user,
+            photo_moderation_result,
+            content_label="Foto profilo",
+        )
 
         # La verifica registrazione merita un invio immediato, non solo su thread.
         link_verifica = url_for('verify_email', token=token_verifica, _external=True)
@@ -8982,6 +9236,7 @@ def api_user_update():
         "bio_moderation_status": getattr(current_user, "bio_moderation_status", MODERATION_STATUS_APPROVED),
         "bio_moderation_reason": getattr(current_user, "bio_moderation_reason", "") or "",
         "photo_moderation_status": getattr(current_user, "photo_moderation_status", MODERATION_STATUS_APPROVED),
+        "photo_moderation_reason": getattr(current_user, "photo_moderation_reason", "") or "",
         "moderation_message": (
             get_user_moderation_block_message(current_user)
             if is_user_moderation_restricted(current_user)
