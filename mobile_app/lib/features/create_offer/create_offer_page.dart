@@ -546,8 +546,8 @@ class _CreateOfferPageState extends State<CreateOfferPage> {
                       ),
                     ),
                     validator: (value) {
-                      if ((value ?? '').trim().length < 30) {
-                        return 'Scrivi almeno 30 caratteri.';
+                      if ((value ?? '').trim().length < 5) {
+                        return 'Scrivi almeno 5 caratteri.';
                       }
                       return null;
                     },

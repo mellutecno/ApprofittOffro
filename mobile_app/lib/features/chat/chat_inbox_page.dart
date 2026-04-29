@@ -390,7 +390,7 @@ class _ChatInboxPageState extends State<ChatInboxPage> {
                     'Qui trovi solo le persone con cui hai gia aperto una chat da un evento confermato.',
                 centered: true,
                 footer: Text(
-                  'Apri una conversazione e continua da qui, senza tornare all\'evento. Le chat inattive si cancellano automaticamente dopo 30 giorni.',
+                  'Apri una conversazione e continua da qui, senza tornare all\'evento. Le chat si cancellano automaticamente dopo 30 giorni.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: AppTheme.brown,

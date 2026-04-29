@@ -2189,34 +2189,80 @@ class _ProfilePageState extends State<ProfilePage> {
                   },
                 ),
                 const SizedBox(height: 20),
-                _SettingsCard(
-                  isExpanded: _settingsExpanded,
-                  onToggle: () {
-                    setState(() {
-                      _settingsExpanded = !_settingsExpanded;
-                    });
-                  },
-                  onEditProfile: _openEditProfile,
-                  onSecurity: _openSettings,
-                  onCheckUpdates: () => _openExternalLink(
-                    _playStoreUri,
-                    fallbackMessage:
-                        'Non riesco ad aprire il Play Store adesso.',
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: () {
+                            setState(() {
+                              _communityExpanded = !_communityExpanded;
+                            });
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.people_outline_rounded,
+                                  color: Color(0xFF3D8B5A),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'La tua community',
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                Icon(
+                                  _communityExpanded
+                                      ? Icons.expand_less_rounded
+                                      : Icons.expand_more_rounded,
+                                  color: AppTheme.espresso,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (_communityExpanded) ...[
+                          const SizedBox(height: 14),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    _communityExpanded = false;
+                                  });
+                                  _openCommunitySheet(followers: true);
+                                },
+                                icon: const Icon(Icons.person_add_outlined,
+                                    color: Color(0xFF3D8B5A)),
+                                label: const Text('Chi ti segue'),
+                              ),
+                              const SizedBox(width: 12),
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    _communityExpanded = false;
+                                  });
+                                  _openCommunitySheet(followers: false);
+                                },
+                                icon: const Icon(Icons.person_remove_outlined,
+                                    color: Color(0xFF3D8B5A)),
+                                label: const Text('I tuoi seguiti'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                  onPrivacyPolicy: () => _openExternalLink(
-                    _privacyPolicyUri,
-                    fallbackMessage:
-                        'Non riesco ad aprire la privacy policy adesso.',
-                  ),
-                  showAdminPanel:
-                      widget.authController.currentUser?.canAccessAdmin == true,
-                  onOpenAdminPanel: _openAdminPanel,
-                  onDeleteAccount: widget.authController.isBusy
-                      ? null
-                      : _confirmDeleteAccount,
-                  onLogout: widget.authController.isBusy
-                      ? null
-                      : widget.authController.logout,
                 ),
                 const SizedBox(height: 20),
                 _ReviewsSection(
@@ -2266,31 +2312,28 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         if (_archiveExpanded) ...[
                           const SizedBox(height: 14),
-                          Text(
-                            'Riapri gli eventi passati per rivedere luogo, partecipanti e profili. Le recensioni si gestiscono dalla sezione Recensioni.',
-                            style: TextStyle(
-                              color: AppTheme.brown.withValues(alpha: 0.78),
-                              fontWeight: FontWeight.w700,
-                              height: 1.35,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               OutlinedButton.icon(
-                                onPressed: () => _openArchivedOffersSheet(
-                                  claimed: false,
-                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _archiveExpanded = false;
+                                  });
+                                  _openArchivedOffersSheet(claimed: false);
+                                },
                                 icon: const Icon(Icons.event_available_outlined,
                                     color: Color(0xFFD49B00)),
                                 label: const Text('Host'),
                               ),
                               const SizedBox(width: 12),
                               OutlinedButton.icon(
-                                onPressed: () => _openArchivedOffersSheet(
-                                  claimed: true,
-                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _archiveExpanded = false;
+                                  });
+                                  _openArchivedOffersSheet(claimed: true);
+                                },
                                 icon: const Icon(Icons.groups_2_outlined,
                                     color: Color(0xFFD49B00)),
                                 label: const Text('Guest'),
@@ -2303,72 +2346,60 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        InkWell(
-                          borderRadius: BorderRadius.circular(18),
-                          onTap: () {
-                            setState(() {
-                              _communityExpanded = !_communityExpanded;
-                            });
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.people_outline_rounded,
-                                  color: Color(0xFF3D8B5A),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    'La tua community',
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                                Icon(
-                                  _communityExpanded
-                                      ? Icons.expand_less_rounded
-                                      : Icons.expand_more_rounded,
-                                  color: AppTheme.espresso,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        if (_communityExpanded) ...[
-                          const SizedBox(height: 14),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              OutlinedButton.icon(
-                                onPressed: () =>
-                                    _openCommunitySheet(followers: true),
-                                icon: const Icon(Icons.person_add_outlined,
-                                    color: Color(0xFF3D8B5A)),
-                                label: const Text('Chi ti segue'),
-                              ),
-                              const SizedBox(width: 12),
-                              OutlinedButton.icon(
-                                onPressed: () =>
-                                    _openCommunitySheet(followers: false),
-                                icon: const Icon(Icons.person_remove_outlined,
-                                    color: Color(0xFF3D8B5A)),
-                                label: const Text('I tuoi seguiti'),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                _SettingsCard(
+                  isExpanded: _settingsExpanded,
+                  expandUp: true,
+                  onToggle: () {
+                    setState(() {
+                      _settingsExpanded = !_settingsExpanded;
+                    });
+                  },
+                  onEditProfile: () {
+                    setState(() {
+                      _settingsExpanded = false;
+                    });
+                    _openEditProfile();
+                  },
+                  onSecurity: () {
+                    setState(() {
+                      _settingsExpanded = false;
+                    });
+                    _openSettings();
+                  },
+                  onCheckUpdates: () {
+                    setState(() {
+                      _settingsExpanded = false;
+                    });
+                    _openExternalLink(
+                      _playStoreUri,
+                      fallbackMessage:
+                          'Non riesco ad aprire il Play Store adesso.',
+                    );
+                  },
+                  onPrivacyPolicy: () {
+                    setState(() {
+                      _settingsExpanded = false;
+                    });
+                    _openExternalLink(
+                      _privacyPolicyUri,
+                      fallbackMessage:
+                          'Non riesco ad aprire la privacy policy adesso.',
+                    );
+                  },
+                  showAdminPanel:
+                      widget.authController.currentUser?.canAccessAdmin == true,
+                  onOpenAdminPanel: () {
+                    setState(() {
+                      _settingsExpanded = false;
+                    });
+                    _openAdminPanel();
+                  },
+                  onDeleteAccount: widget.authController.isBusy
+                      ? null
+                      : _confirmDeleteAccount,
+                  onLogout: widget.authController.isBusy
+                      ? null
+                      : widget.authController.logout,
                 ),
                 const SizedBox(height: 24),
               ],
@@ -3789,6 +3820,7 @@ class _UserListTile extends StatelessWidget {
 class _SettingsCard extends StatelessWidget {
   const _SettingsCard({
     required this.isExpanded,
+    this.expandUp = false,
     required this.onToggle,
     required this.onEditProfile,
     required this.onSecurity,
@@ -3801,6 +3833,7 @@ class _SettingsCard extends StatelessWidget {
   });
 
   final bool isExpanded;
+  final bool expandUp;
   final VoidCallback onToggle;
   final VoidCallback onEditProfile;
   final VoidCallback onSecurity;
@@ -3811,8 +3844,143 @@ class _SettingsCard extends StatelessWidget {
   final VoidCallback? onDeleteAccount;
   final VoidCallback? onLogout;
 
+  Widget _buildHeader(BuildContext context) {
+    final icon = expandUp
+        ? (isExpanded ? Icons.expand_more_rounded : Icons.expand_less_rounded)
+        : (isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded);
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onToggle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.settings_rounded,
+              color: Color(0xFFE07800),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Impostazioni',
+                style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+            ),
+            Icon(
+              icon,
+              color: AppTheme.espresso,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildContent(BuildContext context) {
+    return [
+      Text(
+        'Gestisci rapidamente il tuo profilo da qui.',
+        style: TextStyle(
+          color: AppTheme.brown.withValues(alpha: 0.76),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(height: 12),
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 520;
+          return GridView.count(
+            crossAxisCount: isWide ? 2 : 1,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: isWide ? 3.6 : 4.4,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              OutlinedButton.icon(
+                onPressed: onEditProfile,
+                icon: const Icon(
+                  Icons.edit_outlined,
+                  color: Color(0xFFE07800),
+                ),
+                label: const Text('Modifica profilo'),
+              ),
+              OutlinedButton.icon(
+                onPressed: onSecurity,
+                icon: const Icon(
+                  Icons.fingerprint,
+                  color: Color(0xFFE07800),
+                ),
+                label: const Text('Entra con impronta'),
+              ),
+              OutlinedButton.icon(
+                onPressed: onCheckUpdates,
+                icon: const Icon(
+                  Icons.system_update_alt_rounded,
+                  color: Color(0xFFE07800),
+                ),
+                label: const Text('Aggiorna la tua app'),
+              ),
+              OutlinedButton.icon(
+                onPressed: onPrivacyPolicy,
+                icon: const Icon(
+                  Icons.privacy_tip_outlined,
+                  color: Color(0xFFE07800),
+                ),
+                label: const Text('Informativa privacy'),
+              ),
+              if (showAdminPanel)
+                OutlinedButton.icon(
+                  onPressed: onOpenAdminPanel,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF6E39F5),
+                    side: BorderSide(
+                      color: const Color(
+                        0xFF6E39F5,
+                      ).withValues(alpha: 0.55),
+                    ),
+                  ),
+                  icon: const Icon(
+                    Icons.admin_panel_settings_rounded,
+                    color: Color(0xFF6E39F5),
+                  ),
+                  label: const Text('Pannello admin'),
+                ),
+              OutlinedButton.icon(
+                onPressed: onLogout,
+                icon: const Icon(
+                  Icons.logout_rounded,
+                  color: Color(0xFF8A4336),
+                ),
+                label: const Text('Esci da questo dispositivo'),
+              ),
+            ],
+          );
+        },
+      ),
+      const SizedBox(height: 10),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: onDeleteAccount,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF8A4336),
+            side: const BorderSide(color: Color(0xFFD7B4AC)),
+          ),
+          icon: const Icon(
+            Icons.delete_outline_rounded,
+            color: Color(0xFF8A4336),
+          ),
+          label: const Text('Cancella il tuo profilo'),
+        ),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
+    final content = _buildContent(context);
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Container(
@@ -3824,133 +3992,14 @@ class _SettingsCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              InkWell(
-                borderRadius: BorderRadius.circular(18),
-                onTap: onToggle,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.settings_rounded,
-                        color: Color(0xFFE07800),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Impostazioni',
-                          style: Theme.of(context).textTheme.titleMedium,
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      Icon(
-                        isExpanded
-                            ? Icons.expand_less_rounded
-                            : Icons.expand_more_rounded,
-                        color: AppTheme.espresso,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (isExpanded) ...[
+              if (isExpanded && expandUp) ...[
+                ...content,
                 const SizedBox(height: 14),
-                Text(
-                  'Gestisci rapidamente il tuo profilo da qui.',
-                  style: TextStyle(
-                    color: AppTheme.brown.withValues(alpha: 0.76),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isWide = constraints.maxWidth >= 520;
-                    return GridView.count(
-                      crossAxisCount: isWide ? 2 : 1,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
-                      childAspectRatio: isWide ? 3.6 : 4.4,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: onEditProfile,
-                          icon: const Icon(
-                            Icons.edit_outlined,
-                            color: Color(0xFFE07800),
-                          ),
-                          label: const Text('Modifica profilo'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: onSecurity,
-                          icon: const Icon(
-                            Icons.fingerprint,
-                            color: Color(0xFFE07800),
-                          ),
-                          label: const Text('Entra con impronta'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: onCheckUpdates,
-                          icon: const Icon(
-                            Icons.system_update_alt_rounded,
-                            color: Color(0xFFE07800),
-                          ),
-                          label: const Text('Aggiorna la tua app'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: onPrivacyPolicy,
-                          icon: const Icon(
-                            Icons.privacy_tip_outlined,
-                            color: Color(0xFFE07800),
-                          ),
-                          label: const Text('Informativa privacy'),
-                        ),
-                        if (showAdminPanel)
-                          OutlinedButton.icon(
-                            onPressed: onOpenAdminPanel,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF6E39F5),
-                              side: BorderSide(
-                                color: const Color(
-                                  0xFF6E39F5,
-                                ).withValues(alpha: 0.55),
-                              ),
-                            ),
-                            icon: const Icon(
-                              Icons.admin_panel_settings_rounded,
-                              color: Color(0xFF6E39F5),
-                            ),
-                            label: const Text('Pannello admin'),
-                          ),
-                        OutlinedButton.icon(
-                          onPressed: onLogout,
-                          icon: const Icon(
-                            Icons.logout_rounded,
-                            color: Color(0xFF8A4336),
-                          ),
-                          label: const Text('Esci da questo dispositivo'),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: onDeleteAccount,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF8A4336),
-                      side: const BorderSide(color: Color(0xFFD7B4AC)),
-                    ),
-                    icon: const Icon(
-                      Icons.delete_outline_rounded,
-                      color: Color(0xFF8A4336),
-                    ),
-                    label: const Text('Cancella il tuo profilo'),
-                  ),
-                ),
+              ],
+              _buildHeader(context),
+              if (isExpanded && !expandUp) ...[
+                const SizedBox(height: 14),
+                ...content,
               ],
             ],
           ),
@@ -4123,22 +4172,32 @@ class _ReviewsSectionState extends State<_ReviewsSection> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       OutlinedButton.icon(
-                        onPressed: () => widget.onOpenReviewHistory(
-                          title: 'Ricevute',
-                          reviews: received,
-                          isReceived: true,
-                        ),
+                        onPressed: () {
+                          setState(() {
+                            _expanded = false;
+                          });
+                          widget.onOpenReviewHistory(
+                            title: 'Ricevute',
+                            reviews: received,
+                            isReceived: true,
+                          );
+                        },
                         icon: const Icon(Icons.inbox_rounded,
                             color: Color(0xFF7A4EC7)),
                         label: Text('Ricevute (${received.length})'),
                       ),
                       const SizedBox(width: 12),
                       OutlinedButton.icon(
-                        onPressed: () => widget.onOpenReviewHistory(
-                          title: 'Effettuate',
-                          reviews: given,
-                          isReceived: false,
-                        ),
+                        onPressed: () {
+                          setState(() {
+                            _expanded = false;
+                          });
+                          widget.onOpenReviewHistory(
+                            title: 'Effettuate',
+                            reviews: given,
+                            isReceived: false,
+                          );
+                        },
                         icon: const Icon(Icons.edit_note_rounded,
                             color: Color(0xFF7A4EC7)),
                         label: Text('Effettuate (${given.length})'),

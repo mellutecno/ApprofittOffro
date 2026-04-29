@@ -3917,6 +3917,12 @@ def render_public_landing():
 def index():
     return render_public_landing()
 
+
+@app.route("/favicon.ico")
+def favicon():
+    return redirect(url_for("static", filename="favicon.ico"))
+
+
 @app.route("/register")
 def register_page():
     return redirect(url_for("index"))
@@ -6083,8 +6089,8 @@ def api_edit_offer(offer_id):
         errors.append("Seleziona la posizione del locale sulla mappa.")
     if not data_ora_str:
         errors.append("Seleziona data e ora.")
-    if not descrizione or len(descrizione) < 30:
-        errors.append("La descrizione è obbligatoria e deve contenere almeno 30 caratteri.")
+    if not descrizione or len(descrizione) < 5:
+        errors.append("La descrizione deve contenere almeno 5 caratteri.")
     current_gallery = [
         filename
         for filename in list(getattr(offer, "gallery_filenames", []))
@@ -6243,8 +6249,8 @@ def api_create_offer():
         errors.append("Seleziona la posizione del locale sulla mappa.")
     if not data_ora_str:
         errors.append("Seleziona data e ora.")
-    if not descrizione or len(descrizione) < 30:
-        errors.append("La descrizione è obbligatoria e deve contenere almeno 30 caratteri.")
+    if not descrizione or len(descrizione) < 5:
+        errors.append("La descrizione deve contenere almeno 5 caratteri.")
     for foto_locale in foto_files:
         if not allowed_file(foto_locale.filename):
             errors.append("Formato foto evento non valido (usa JPG, PNG o WEBP).")
