@@ -201,6 +201,8 @@ MODERATION_FAIL_CLOSED = os.getenv(
 ).strip().lower() in {"1", "true", "yes", "on"}
 LOCAL_MODERATION_KEYWORDS = {
     "porno",
+    "sesso",
+    "sessuale",
     "sex",
     "xxx",
     "nudo",
@@ -3079,7 +3081,11 @@ def build_moderation_result(api_result, api_error, *, checked_at, keyword_reason
         results = api_result.get("results") or []
         first_result = results[0] if results else {}
         reason, score = extract_moderation_reason_and_score(first_result)
-        if bool(first_result.get("flagged")):
+        if keyword_reason:
+            reason = keyword_reason
+            score = max(float(score or 0), 1.0)
+            status = MODERATION_STATUS_REVIEW
+        elif bool(first_result.get("flagged")):
             status = MODERATION_STATUS_REVIEW
         elif score is not None and score >= OPENAI_MODERATION_REVIEW_THRESHOLD:
             status = MODERATION_STATUS_REVIEW
