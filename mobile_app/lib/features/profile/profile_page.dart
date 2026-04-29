@@ -49,6 +49,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _settingsExpanded = false;
   int _socialTabIndex = 0;
   bool _showCommunityList = false;
+  final GlobalKey _settingsContentKey = GlobalKey();
   late Future<List<Offer>> _myOffersFuture;
   late Future<List<Offer>> _myClaimsFuture;
   late Future<ReviewHistoryBundle> _reviewHistoryFuture;
@@ -86,6 +87,22 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<ReviewHistoryBundle> _loadReviewHistory() {
     return widget.authController.apiClient.fetchMyReviewHistory();
+  }
+
+  void _scrollSettingsContentIntoView() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final settingsContext = _settingsContentKey.currentContext;
+      if (!mounted || settingsContext == null) {
+        return;
+      }
+      Scrollable.ensureVisible(
+        settingsContext,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+        alignment: 0.18,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+      );
+    });
   }
 
   Future<void> _showReviewParticipantsSheet(Offer offer) async {
@@ -2349,10 +2366,15 @@ class _ProfilePageState extends State<ProfilePage> {
                 _SettingsCard(
                   isExpanded: _settingsExpanded,
                   expandUp: true,
+                  contentKey: _settingsContentKey,
                   onToggle: () {
+                    final shouldExpand = !_settingsExpanded;
                     setState(() {
-                      _settingsExpanded = !_settingsExpanded;
+                      _settingsExpanded = shouldExpand;
                     });
+                    if (shouldExpand) {
+                      _scrollSettingsContentIntoView();
+                    }
                   },
                   onEditProfile: () {
                     setState(() {
@@ -3821,6 +3843,7 @@ class _SettingsCard extends StatelessWidget {
   const _SettingsCard({
     required this.isExpanded,
     this.expandUp = false,
+    this.contentKey,
     required this.onToggle,
     required this.onEditProfile,
     required this.onSecurity,
@@ -3834,6 +3857,7 @@ class _SettingsCard extends StatelessWidget {
 
   final bool isExpanded;
   final bool expandUp;
+  final Key? contentKey;
   final VoidCallback onToggle;
   final VoidCallback onEditProfile;
   final VoidCallback onSecurity;
@@ -3877,105 +3901,111 @@ class _SettingsCard extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildContent(BuildContext context) {
-    return [
-      Text(
-        'Gestisci rapidamente il tuo profilo da qui.',
-        style: TextStyle(
-          color: AppTheme.brown.withValues(alpha: 0.76),
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      const SizedBox(height: 12),
-      LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 520;
-          return GridView.count(
-            crossAxisCount: isWide ? 2 : 1,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: isWide ? 3.6 : 4.4,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              OutlinedButton.icon(
-                onPressed: onEditProfile,
-                icon: const Icon(
-                  Icons.edit_outlined,
-                  color: Color(0xFFE07800),
-                ),
-                label: const Text('Modifica profilo'),
-              ),
-              OutlinedButton.icon(
-                onPressed: onSecurity,
-                icon: const Icon(
-                  Icons.fingerprint,
-                  color: Color(0xFFE07800),
-                ),
-                label: const Text('Entra con impronta'),
-              ),
-              OutlinedButton.icon(
-                onPressed: onCheckUpdates,
-                icon: const Icon(
-                  Icons.system_update_alt_rounded,
-                  color: Color(0xFFE07800),
-                ),
-                label: const Text('Aggiorna la tua app'),
-              ),
-              OutlinedButton.icon(
-                onPressed: onPrivacyPolicy,
-                icon: const Icon(
-                  Icons.privacy_tip_outlined,
-                  color: Color(0xFFE07800),
-                ),
-                label: const Text('Informativa privacy'),
-              ),
-              if (showAdminPanel)
-                OutlinedButton.icon(
-                  onPressed: onOpenAdminPanel,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF6E39F5),
-                    side: BorderSide(
-                      color: const Color(
-                        0xFF6E39F5,
-                      ).withValues(alpha: 0.55),
+  Widget _buildContent(BuildContext context) {
+    return KeyedSubtree(
+      key: contentKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Gestisci rapidamente il tuo profilo da qui.',
+            style: TextStyle(
+              color: AppTheme.brown.withValues(alpha: 0.76),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 520;
+              return GridView.count(
+                crossAxisCount: isWide ? 2 : 1,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: isWide ? 3.6 : 4.4,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onEditProfile,
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      color: Color(0xFFE07800),
                     ),
+                    label: const Text('Modifica profilo'),
                   ),
-                  icon: const Icon(
-                    Icons.admin_panel_settings_rounded,
-                    color: Color(0xFF6E39F5),
+                  OutlinedButton.icon(
+                    onPressed: onSecurity,
+                    icon: const Icon(
+                      Icons.fingerprint,
+                      color: Color(0xFFE07800),
+                    ),
+                    label: const Text('Entra con impronta'),
                   ),
-                  label: const Text('Pannello admin'),
-                ),
-              OutlinedButton.icon(
-                onPressed: onLogout,
-                icon: const Icon(
-                  Icons.logout_rounded,
-                  color: Color(0xFF8A4336),
-                ),
-                label: const Text('Esci da questo dispositivo'),
+                  OutlinedButton.icon(
+                    onPressed: onCheckUpdates,
+                    icon: const Icon(
+                      Icons.system_update_alt_rounded,
+                      color: Color(0xFFE07800),
+                    ),
+                    label: const Text('Aggiorna la tua app'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onPrivacyPolicy,
+                    icon: const Icon(
+                      Icons.privacy_tip_outlined,
+                      color: Color(0xFFE07800),
+                    ),
+                    label: const Text('Informativa privacy'),
+                  ),
+                  if (showAdminPanel)
+                    OutlinedButton.icon(
+                      onPressed: onOpenAdminPanel,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF6E39F5),
+                        side: BorderSide(
+                          color: const Color(
+                            0xFF6E39F5,
+                          ).withValues(alpha: 0.55),
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.admin_panel_settings_rounded,
+                        color: Color(0xFF6E39F5),
+                      ),
+                      label: const Text('Pannello admin'),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: onLogout,
+                    icon: const Icon(
+                      Icons.logout_rounded,
+                      color: Color(0xFF8A4336),
+                    ),
+                    label: const Text('Esci da questo dispositivo'),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onDeleteAccount,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF8A4336),
+                side: const BorderSide(color: Color(0xFFD7B4AC)),
               ),
-            ],
-          );
-        },
-      ),
-      const SizedBox(height: 10),
-      SizedBox(
-        width: double.infinity,
-        child: OutlinedButton.icon(
-          onPressed: onDeleteAccount,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: const Color(0xFF8A4336),
-            side: const BorderSide(color: Color(0xFFD7B4AC)),
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                color: Color(0xFF8A4336),
+              ),
+              label: const Text('Cancella il tuo profilo'),
+            ),
           ),
-          icon: const Icon(
-            Icons.delete_outline_rounded,
-            color: Color(0xFF8A4336),
-          ),
-          label: const Text('Cancella il tuo profilo'),
-        ),
+        ],
       ),
-    ];
+    );
   }
 
   @override
@@ -3993,13 +4023,13 @@ class _SettingsCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (isExpanded && expandUp) ...[
-                ...content,
+                content,
                 const SizedBox(height: 14),
               ],
               _buildHeader(context),
               if (isExpanded && !expandUp) ...[
                 const SizedBox(height: 14),
-                ...content,
+                content,
               ],
             ],
           ),
