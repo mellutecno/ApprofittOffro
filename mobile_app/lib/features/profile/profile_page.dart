@@ -2376,46 +2376,21 @@ class _ProfilePageState extends State<ProfilePage> {
                       _scrollSettingsContentIntoView();
                     }
                   },
-                  onEditProfile: () {
-                    setState(() {
-                      _settingsExpanded = false;
-                    });
-                    _openEditProfile();
-                  },
-                  onSecurity: () {
-                    setState(() {
-                      _settingsExpanded = false;
-                    });
-                    _openSettings();
-                  },
-                  onCheckUpdates: () {
-                    setState(() {
-                      _settingsExpanded = false;
-                    });
-                    _openExternalLink(
-                      _playStoreUri,
-                      fallbackMessage:
-                          'Non riesco ad aprire il Play Store adesso.',
-                    );
-                  },
-                  onPrivacyPolicy: () {
-                    setState(() {
-                      _settingsExpanded = false;
-                    });
-                    _openExternalLink(
-                      _privacyPolicyUri,
-                      fallbackMessage:
-                          'Non riesco ad aprire la privacy policy adesso.',
-                    );
-                  },
+                  onEditProfile: _openEditProfile,
+                  onSecurity: _openSettings,
+                  onCheckUpdates: () => _openExternalLink(
+                    _playStoreUri,
+                    fallbackMessage:
+                        'Non riesco ad aprire il Play Store adesso.',
+                  ),
+                  onPrivacyPolicy: () => _openExternalLink(
+                    _privacyPolicyUri,
+                    fallbackMessage:
+                        'Non riesco ad aprire la privacy policy adesso.',
+                  ),
                   showAdminPanel:
                       widget.authController.currentUser?.canAccessAdmin == true,
-                  onOpenAdminPanel: () {
-                    setState(() {
-                      _settingsExpanded = false;
-                    });
-                    _openAdminPanel();
-                  },
+                  onOpenAdminPanel: _openAdminPanel,
                   onDeleteAccount: widget.authController.isBusy
                       ? null
                       : _confirmDeleteAccount,
