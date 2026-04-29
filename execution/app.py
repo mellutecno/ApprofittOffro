@@ -199,6 +199,10 @@ OPENAI_MODERATION_ILLICIT_REVIEW_THRESHOLD = parse_float_env(
     "OPENAI_MODERATION_ILLICIT_REVIEW_THRESHOLD",
     0.15,
 )
+OPENAI_MODERATION_SEXUAL_REVIEW_THRESHOLD = parse_float_env(
+    "OPENAI_MODERATION_SEXUAL_REVIEW_THRESHOLD",
+    0.15,
+)
 MODERATION_FAIL_CLOSED = os.getenv(
     "MODERATION_FAIL_CLOSED",
     "",
@@ -3060,6 +3064,8 @@ def moderation_score_requires_review(reason, score):
     threshold = OPENAI_MODERATION_REVIEW_THRESHOLD
     if normalized_reason.startswith("illicit"):
         threshold = OPENAI_MODERATION_ILLICIT_REVIEW_THRESHOLD
+    elif normalized_reason.startswith("sexual"):
+        threshold = OPENAI_MODERATION_SEXUAL_REVIEW_THRESHOLD
     return float(score or 0) >= threshold
 
 
