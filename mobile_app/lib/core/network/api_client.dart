@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../../models/app_user.dart';
+import '../../models/app_notification.dart';
 import '../../models/admin_dashboard.dart';
 import '../../models/offer.dart';
 import '../../models/place_candidate.dart';
@@ -31,6 +32,16 @@ class ReviewHistoryBundle {
 
   final List<UserReview> received;
   final List<UserReview> given;
+}
+
+class AppNotificationBundle {
+  const AppNotificationBundle({
+    required this.notifications,
+    required this.unreadCount,
+  });
+
+  final List<AppNotification> notifications;
+  final int unreadCount;
 }
 
 typedef UploadProgressCallback = void Function(int sentBytes, int totalBytes);
@@ -270,6 +281,47 @@ class ApiClient {
       path: '/api/push/token',
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'token': token}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+  }
+
+  Future<AppNotificationBundle> fetchNotifications() async {
+    final response = await _send(method: 'GET', path: '/api/notifications');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    final notifications = (payload['notifications'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>()
+        .map(AppNotification.fromJson)
+        .toList();
+    return AppNotificationBundle(
+      notifications: notifications,
+      unreadCount: payload['unread_count'] as int? ?? 0,
+    );
+  }
+
+  Future<void> markNotificationRead(int notificationId) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/notifications/$notificationId/read',
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/notifications/read-all',
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+  }
+
+  Future<void> deleteNotification(int notificationId) async {
+    final response = await _send(
+      method: 'DELETE',
+      path: '/api/notifications/$notificationId',
     );
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);

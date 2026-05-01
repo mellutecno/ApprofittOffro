@@ -68,6 +68,7 @@ from models import (
     ChatMessage,
     DevicePushToken,
     NotificationDeliveryLog,
+    AppNotification,
     UserReminder,
     AiModerationLog,
     BugReport,
@@ -1746,6 +1747,22 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 )
             """)
 
+        if not table_exists("app_notifications"):
+            cur.execute("""
+                CREATE TABLE app_notifications (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    title VARCHAR(160) NOT NULL,
+                    body TEXT NOT NULL,
+                    target VARCHAR(64) NOT NULL DEFAULT 'notifications',
+                    extra_data_json TEXT,
+                    read_at DATETIME,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    expires_at DATETIME NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users (id)
+                )
+            """)
+
         if table_exists("users"):
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)")
             cur.execute("CREATE INDEX IF NOT EXISTS ix_users_bio_moderation_status ON users (bio_moderation_status)")
@@ -1762,6 +1779,9 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
             cur.execute("CREATE INDEX IF NOT EXISTS ix_bug_reports_user_id ON bug_reports (user_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS ix_bug_reports_status ON bug_reports (status)")
             cur.execute("CREATE INDEX IF NOT EXISTS ix_bug_reports_created_at ON bug_reports (created_at)")
+        if table_exists("app_notifications"):
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_app_notifications_user_expires ON app_notifications (user_id, expires_at)")
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_app_notifications_user_read ON app_notifications (user_id, read_at)")
 
         conn.commit()
     finally:
@@ -1949,6 +1969,27 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "CREATE INDEX IF NOT EXISTS ix_bug_reports_created_at ON bug_reports (created_at)"
+            )
+            conn.exec_driver_sql(
+                """
+                CREATE TABLE IF NOT EXISTS app_notifications (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    title VARCHAR(160) NOT NULL,
+                    body TEXT NOT NULL,
+                    target VARCHAR(64) NOT NULL DEFAULT 'notifications',
+                    extra_data_json TEXT,
+                    read_at TIMESTAMP,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP NOT NULL
+                )
+                """
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_app_notifications_user_expires ON app_notifications (user_id, expires_at)"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_app_notifications_user_read ON app_notifications (user_id, read_at)"
             )
     except Exception as exc:
         print(f"[SCHEMA_COMPAT_ERROR] {exc}")
@@ -2190,6 +2231,8 @@ def build_push_target_deeplink(target):
     normalized = str(target or "").strip().lower()
     if normalized == "pending-requests":
         return f"{PUSH_DEEP_LINK_BASE}profile/pending-requests"
+    if normalized == "notifications":
+        return f"{PUSH_DEEP_LINK_BASE}profile/notifications"
     if normalized == "profile":
         return f"{PUSH_DEEP_LINK_BASE}profile"
     if normalized == "offers":
@@ -2209,9 +2252,51 @@ def deactivate_push_token(token_record, *, reason=""):
     )
 
 
+def purge_expired_app_notifications(user_id=None):
+    now = datetime.now()
+    query = AppNotification.query.filter(AppNotification.expires_at <= now)
+    if user_id is not None:
+        query = query.filter(AppNotification.user_id == user_id)
+    deleted = query.delete(synchronize_session=False)
+    if deleted:
+        db.session.commit()
+    return deleted
+
+
+def create_app_notification(user, *, title, body, target="notifications", extra_data=None):
+    """Salva una copia interna dell'avviso, visibile nel profilo per 24 ore."""
+    if not user:
+        return None
+    clean_title = str(title or "").strip()[:160]
+    clean_body = str(body or "").strip()
+    if not clean_title and not clean_body:
+        return None
+    now = datetime.now()
+    notification = AppNotification(
+        user_id=user.id,
+        title=clean_title or "ApprofittOffro",
+        body=clean_body,
+        target=str(target or "notifications").strip()[:64] or "notifications",
+        extra_data_json=json.dumps(extra_data or {}, ensure_ascii=False),
+        created_at=now,
+        expires_at=now + timedelta(hours=24),
+    )
+    db.session.add(notification)
+    db.session.commit()
+    purge_expired_app_notifications(user.id)
+    return notification
+
+
 def send_push_to_user(user, *, title, body, target="login", extra_data=None):
     if not user:
         return 0
+    create_app_notification(
+        user,
+        title=title,
+        body=body,
+        target=target,
+        extra_data=extra_data,
+    )
     if not push_delivery_enabled():
         print(
             f"[PUSH_SKIP] Firebase non configurato. user={getattr(user, 'id', None)} title={title}"
@@ -6927,6 +7012,100 @@ def notify_admin_for_bug_report(report):
     )
 
 
+def serialize_app_notification(notification):
+    try:
+        extra_data = json.loads(notification.extra_data_json or "{}")
+    except Exception:
+        extra_data = {}
+    return {
+        "id": notification.id,
+        "title": notification.title or "ApprofittOffro",
+        "body": notification.body or "",
+        "target": notification.target or "notifications",
+        "extra_data": extra_data,
+        "read_at": notification.read_at.isoformat() if notification.read_at else "",
+        "created_at": notification.created_at.isoformat() if notification.created_at else "",
+        "expires_at": notification.expires_at.isoformat() if notification.expires_at else "",
+        "is_read": notification.read_at is not None,
+    }
+
+
+@app.route("/api/notifications", methods=["GET"])
+@login_required
+def api_list_app_notifications():
+    """Centro notifiche: restituisce solo avvisi non scaduti nelle ultime 24 ore."""
+    purge_expired_app_notifications(current_user.id)
+    now = datetime.now()
+    notifications = (
+        AppNotification.query
+        .filter(
+            AppNotification.user_id == current_user.id,
+            AppNotification.expires_at > now,
+        )
+        .order_by(AppNotification.created_at.desc(), AppNotification.id.desc())
+        .limit(100)
+        .all()
+    )
+    unread_count = sum(1 for item in notifications if item.read_at is None)
+    return jsonify({
+        "success": True,
+        "notifications": [serialize_app_notification(item) for item in notifications],
+        "unread_count": unread_count,
+    })
+
+
+@app.route("/api/notifications/<int:notification_id>/read", methods=["POST"])
+@login_required
+def api_mark_app_notification_read(notification_id):
+    notification = AppNotification.query.filter_by(
+        id=notification_id,
+        user_id=current_user.id,
+    ).first()
+    if not notification:
+        return jsonify({"success": False, "error": "Notifica non trovata."}), 404
+    if notification.expires_at <= datetime.now():
+        db.session.delete(notification)
+        db.session.commit()
+        return jsonify({"success": False, "error": "Notifica scaduta."}), 404
+    if notification.read_at is None:
+        notification.read_at = datetime.now()
+        db.session.commit()
+    return jsonify({
+        "success": True,
+        "notification": serialize_app_notification(notification),
+    })
+
+
+@app.route("/api/notifications/read-all", methods=["POST"])
+@login_required
+def api_mark_all_app_notifications_read():
+    purge_expired_app_notifications(current_user.id)
+    now = datetime.now()
+    notifications = AppNotification.query.filter(
+        AppNotification.user_id == current_user.id,
+        AppNotification.expires_at > now,
+        AppNotification.read_at.is_(None),
+    ).all()
+    for notification in notifications:
+        notification.read_at = now
+    if notifications:
+        db.session.commit()
+    return jsonify({"success": True, "updated": len(notifications)})
+
+
+@app.route("/api/notifications/<int:notification_id>", methods=["DELETE"])
+@login_required
+def api_delete_app_notification(notification_id):
+    notification = AppNotification.query.filter_by(
+        id=notification_id,
+        user_id=current_user.id,
+    ).first()
+    if notification:
+        db.session.delete(notification)
+        db.session.commit()
+    return jsonify({"success": True, "message": "Notifica chiusa."})
+
+
 def notify_user_for_bug_report_review(report):
     """Avvisa l'utente quando l'admin valida o respinge una segnalazione bug."""
     user = report.user
@@ -6967,7 +7146,7 @@ def notify_user_for_bug_report_review(report):
         user,
         title=title,
         body=push_body[:180],
-        target="profile",
+        target="notifications",
         extra_data={
             "type": "bug_report_review",
             "bug_report_id": report.id,

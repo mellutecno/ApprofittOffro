@@ -36,6 +36,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
   int _profileRefreshVersion = 0;
+  int _notificationCenterRequest = 0;
   late final OffersController _offersController;
   late final CommunityController _communityController;
   bool _mandatoryProfileFlowOpen = false;
@@ -121,9 +122,16 @@ class _HomeShellState extends State<HomeShell> {
       return;
     }
 
+    var opensNotificationCenter = false;
     if (!_isAdminUser) {
       if (target.isChat) {
         unawaited(_openChatFromLaunchTarget(target));
+      } else if (target == AppLaunchTarget.notifications) {
+        opensNotificationCenter = true;
+        setState(() {
+          _selectedIndex = _profileTabIndex;
+          _notificationCenterRequest++;
+        });
       } else if (target == AppLaunchTarget.pendingRequests ||
           target == AppLaunchTarget.profile) {
         if (_selectedIndex != _profileTabIndex) {
@@ -135,7 +143,9 @@ class _HomeShellState extends State<HomeShell> {
     }
 
     widget.onLaunchTargetHandled?.call();
-    unawaited(_refreshAfterNotificationOpen());
+    if (!opensNotificationCenter) {
+      unawaited(_refreshAfterNotificationOpen());
+    }
   }
 
   Future<void> _openChatFromLaunchTarget(AppLaunchTarget target) async {
@@ -426,6 +436,7 @@ class _HomeShellState extends State<HomeShell> {
               key: ValueKey<int>(_profileRefreshVersion),
               authController: widget.authController,
               onGoToChat: () => setState(() => _selectedIndex = 2),
+              notificationCenterRequest: _notificationCenterRequest,
             ),
           ];
     final selectedIndex = _selectedIndex.clamp(0, pages.length - 1);

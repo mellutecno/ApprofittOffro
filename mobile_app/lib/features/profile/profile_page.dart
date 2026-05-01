@@ -16,6 +16,7 @@ import '../admin/admin_page.dart';
 import '../auth/auth_controller.dart';
 import '../create_offer/create_offer_page.dart';
 import '../offers/offer_card.dart';
+import 'notification_center_sheet.dart';
 import 'profile_edit_page.dart';
 import 'profile_gallery_viewer_page.dart';
 import 'public_profile_page.dart';
@@ -25,10 +26,12 @@ class ProfilePage extends StatefulWidget {
     super.key,
     required this.authController,
     required this.onGoToChat,
+    this.notificationCenterRequest = 0,
   });
 
   final AuthController authController;
   final VoidCallback onGoToChat;
+  final int notificationCenterRequest;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -53,6 +56,7 @@ class _ProfilePageState extends State<ProfilePage> {
   late Future<List<Offer>> _myOffersFuture;
   late Future<List<Offer>> _myClaimsFuture;
   late Future<ReviewHistoryBundle> _reviewHistoryFuture;
+  int _handledNotificationCenterRequest = 0;
 
   @override
   void initState() {
@@ -61,6 +65,30 @@ class _ProfilePageState extends State<ProfilePage> {
     _myClaimsFuture = _loadMyClaims();
     _reviewHistoryFuture = _loadReviewHistory();
     unawaited(widget.authController.refreshCurrentUser());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openNotificationCenterIfRequested();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.notificationCenterRequest !=
+        widget.notificationCenterRequest) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openNotificationCenterIfRequested();
+      });
+    }
+  }
+
+  void _openNotificationCenterIfRequested() {
+    if (!mounted ||
+        widget.notificationCenterRequest <= 0 ||
+        _handledNotificationCenterRequest == widget.notificationCenterRequest) {
+      return;
+    }
+    _handledNotificationCenterRequest = widget.notificationCenterRequest;
+    _openNotificationsCenter();
   }
 
   Future<List<Offer>> _loadMyOffers() async {
@@ -1676,6 +1704,21 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _openNotificationsCenter() async {
+    if (!mounted) {
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => NotificationCenterSheet(
+        apiClient: widget.authController.apiClient,
+      ),
+    );
+  }
+
   Future<void> _confirmDeleteAccount() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -2410,6 +2453,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     }
                   },
                   onEditProfile: _openEditProfile,
+                  onNotifications: _openNotificationsCenter,
                   onSecurity: _openSettings,
                   onCheckUpdates: () => _openExternalLink(
                     _playStoreUri,
@@ -3854,6 +3898,7 @@ class _SettingsCard extends StatelessWidget {
     this.contentKey,
     required this.onToggle,
     required this.onEditProfile,
+    required this.onNotifications,
     required this.onSecurity,
     required this.onCheckUpdates,
     required this.onPrivacyPolicy,
@@ -3868,6 +3913,7 @@ class _SettingsCard extends StatelessWidget {
   final Key? contentKey;
   final VoidCallback onToggle;
   final VoidCallback onEditProfile;
+  final VoidCallback onNotifications;
   final VoidCallback onSecurity;
   final VoidCallback onCheckUpdates;
   final VoidCallback onPrivacyPolicy;
@@ -3941,6 +3987,14 @@ class _SettingsCard extends StatelessWidget {
                       color: Color(0xFFE07800),
                     ),
                     label: const Text('Modifica profilo'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onNotifications,
+                    icon: const Icon(
+                      Icons.notifications_active_rounded,
+                      color: Color(0xFFE07800),
+                    ),
+                    label: const Text('Centro notifiche'),
                   ),
                   OutlinedButton.icon(
                     onPressed: onSecurity,

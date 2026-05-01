@@ -339,6 +339,8 @@ class PushNotificationsService {
         return AppLaunchTarget.pendingRequests;
       case 'profile':
         return AppLaunchTarget.profile;
+      case 'notifications':
+        return AppLaunchTarget.notifications;
       case 'offers':
         return AppLaunchTarget.offers;
       case 'login':

@@ -174,8 +174,14 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
     if (host == 'profile' && segments.contains('pending-requests')) {
       return AppLaunchTarget.pendingRequests;
     }
+    if (host == 'profile' && segments.contains('notifications')) {
+      return AppLaunchTarget.notifications;
+    }
     if (host == 'profile' || target == 'profile') {
       return AppLaunchTarget.profile;
+    }
+    if (host == 'notifications' || target == 'notifications') {
+      return AppLaunchTarget.notifications;
     }
     if (host == 'offers' || target == 'offers') {
       return AppLaunchTarget.offers;

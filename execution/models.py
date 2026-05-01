@@ -463,6 +463,29 @@ class NotificationDeliveryLog(db.Model):
         )
 
 
+class AppNotification(db.Model):
+    """Avviso interno mostrato nel centro notifiche dell'app per 24 ore."""
+    __tablename__ = "app_notifications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    title = db.Column(db.String(160), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    target = db.Column(db.String(64), nullable=False, default="notifications")
+    extra_data_json = db.Column(db.Text, nullable=True)
+    read_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+
+    user = db.relationship(
+        "User",
+        backref=db.backref("app_notifications", lazy=True, cascade="all, delete-orphan"),
+    )
+
+    def __repr__(self):
+        return f"<AppNotification user={self.user_id} target={self.target}>"
+
+
 class AiModerationLog(db.Model):
     """Registro delle decisioni automatiche di moderazione."""
     __tablename__ = "ai_moderation_logs"

@@ -16,6 +16,7 @@ class AppLaunchTarget {
   static const login = AppLaunchTarget._('login');
   static const offers = AppLaunchTarget._('offers');
   static const profile = AppLaunchTarget._('profile');
+  static const notifications = AppLaunchTarget._('notifications');
   static const pendingRequests = AppLaunchTarget._('pendingRequests');
   static const chatRequest = AppLaunchTarget._('chatRequest');
 
