@@ -188,6 +188,7 @@ class AppUser {
     required this.reviewsReceived,
     required this.reviewsGiven,
     required this.chatEnabled,
+    required this.approfittOffroPoints,
   });
 
   final int id;
@@ -225,6 +226,7 @@ class AppUser {
   final List<UserReview> reviewsReceived;
   final List<UserReview> reviewsGiven;
   final bool chatEnabled;
+  final int approfittOffroPoints;
 
   bool get hasAnyProfilePhoto =>
       photoFilename.trim().isNotEmpty ||
@@ -302,6 +304,7 @@ class AppUser {
           .map(UserReview.fromJson)
           .toList(),
       chatEnabled: json['chat_enabled'] == true,
+      approfittOffroPoints: json['approfittoffro_points'] as int? ?? 0,
     );
   }
 }

@@ -8,6 +8,7 @@ class AdminDashboardStats {
     required this.pastOffers,
     required this.chats,
     required this.reviewUsers,
+    required this.bugReportsPending,
   });
 
   final int users;
@@ -16,6 +17,7 @@ class AdminDashboardStats {
   final int pastOffers;
   final int chats;
   final int reviewUsers;
+  final int bugReportsPending;
 
   factory AdminDashboardStats.fromJson(Map<String, dynamic> json) {
     return AdminDashboardStats(
@@ -25,6 +27,7 @@ class AdminDashboardStats {
       pastOffers: json['past_offers'] as int? ?? 0,
       chats: json['chats'] as int? ?? 0,
       reviewUsers: json['review_users'] as int? ?? 0,
+      bugReportsPending: json['bug_reports_pending'] as int? ?? 0,
     );
   }
 }
@@ -339,6 +342,7 @@ class AdminDashboardData {
     required this.pastOffers,
     required this.chats,
     required this.reviewUsers,
+    required this.bugReports,
   });
 
   final AdminDashboardStats stats;
@@ -347,6 +351,7 @@ class AdminDashboardData {
   final List<AdminOfferSummary> pastOffers;
   final List<AdminChatSummary> chats;
   final List<AdminUserSummary> reviewUsers;
+  final List<AdminBugReportSummary> bugReports;
 
   factory AdminDashboardData.fromJson(Map<String, dynamic> json) {
     return AdminDashboardData(
@@ -372,6 +377,10 @@ class AdminDashboardData {
       reviewUsers: (json['review_users'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>()
           .map(AdminUserSummary.fromJson)
+          .toList(),
+      bugReports: (json['bug_reports'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(AdminBugReportSummary.fromJson)
           .toList(),
     );
   }
@@ -450,6 +459,75 @@ class AdminChatSummary {
       lastMessageTime: _parseDate(json['last_message_time']),
       messageCount: json['message_count'] as int? ?? 0,
       clearedAt: _parseDate(json['cleared_at']),
+    );
+  }
+}
+
+class AdminBugReportUserSummary {
+  const AdminBugReportUserSummary({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.photoFilename,
+    required this.approfittOffroPoints,
+  });
+
+  final int id;
+  final String name;
+  final String email;
+  final String photoFilename;
+  final int approfittOffroPoints;
+
+  factory AdminBugReportUserSummary.fromJson(Map<String, dynamic> json) {
+    return AdminBugReportUserSummary(
+      id: json['id'] as int? ?? 0,
+      name: (json['nome'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+      photoFilename: (json['foto'] ?? '').toString(),
+      approfittOffroPoints: json['approfittoffro_points'] as int? ?? 0,
+    );
+  }
+}
+
+class AdminBugReportSummary {
+  const AdminBugReportSummary({
+    required this.id,
+    required this.message,
+    required this.screenContext,
+    required this.status,
+    required this.awardedPoints,
+    required this.adminNote,
+    required this.createdAt,
+    required this.reviewedAt,
+    required this.user,
+  });
+
+  final int id;
+  final String message;
+  final String screenContext;
+  final String status;
+  final int awardedPoints;
+  final String adminNote;
+  final DateTime? createdAt;
+  final DateTime? reviewedAt;
+  final AdminBugReportUserSummary user;
+
+  bool get isPending => status == 'pending';
+  bool get isApproved => status == 'approved';
+
+  factory AdminBugReportSummary.fromJson(Map<String, dynamic> json) {
+    return AdminBugReportSummary(
+      id: json['id'] as int? ?? 0,
+      message: (json['message'] ?? '').toString(),
+      screenContext: (json['screen_context'] ?? '').toString(),
+      status: (json['status'] ?? 'pending').toString(),
+      awardedPoints: json['awarded_points'] as int? ?? 0,
+      adminNote: (json['admin_note'] ?? '').toString(),
+      createdAt: _parseDate(json['created_at']),
+      reviewedAt: _parseDate(json['reviewed_at']),
+      user: AdminBugReportUserSummary.fromJson(
+        json['user'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+      ),
     );
   }
 }

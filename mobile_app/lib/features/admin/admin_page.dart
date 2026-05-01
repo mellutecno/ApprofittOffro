@@ -14,7 +14,8 @@ enum _AdminSection {
   reviewUsers('Review'),
   futureOffers('Eventi futuri'),
   pastOffers('Eventi passati'),
-  chats('Chat');
+  chats('Chat'),
+  bugReports('Bug report');
 
   const _AdminSection(this.label);
 
@@ -321,6 +322,41 @@ class _AdminPageState extends State<AdminPage> {
       default:
         return AppTheme.vividViolet;
     }
+  }
+
+  String _bugReportStatusLabel(String value) {
+    switch (value) {
+      case 'approved':
+        return 'Approvata';
+      case 'rejected':
+        return 'Respinta';
+      default:
+        return 'Da validare';
+    }
+  }
+
+  Color _bugReportStatusColor(String value) {
+    switch (value) {
+      case 'approved':
+        return AppTheme.offerGreen;
+      case 'rejected':
+        return const Color(0xFFBE3455);
+      default:
+        return AppTheme.orange;
+    }
+  }
+
+  List<AdminBugReportSummary> _sortedBugReports(AdminDashboardData data) {
+    final reports = List<AdminBugReportSummary>.from(data.bugReports);
+    reports.sort((a, b) {
+      if (a.isPending != b.isPending) {
+        return a.isPending ? -1 : 1;
+      }
+      final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+    return reports;
   }
 
   Future<void> _updateUserModeration(
@@ -698,6 +734,100 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _confirmBugReportDecision(
+    AdminBugReportSummary report, {
+    required bool approve,
+  }) async {
+    final pointsController = TextEditingController(text: '10');
+    final noteController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            approve ? 'Approva segnalazione' : 'Respingi segnalazione',
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                report.user.name,
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                report.message,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (approve) ...[
+                const SizedBox(height: 14),
+                TextField(
+                  controller: pointsController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'ApprofittOffro Points',
+                    hintText: 'Punti da assegnare',
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: noteController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Nota admin opzionale',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annulla'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(approve ? 'Approva' : 'Respingi'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      pointsController.dispose();
+      noteController.dispose();
+      return;
+    }
+
+    try {
+      final points =
+          approve ? int.tryParse(pointsController.text.trim()) ?? 0 : 0;
+      final result = await widget.authController.apiClient.reviewAdminBugReport(
+        reportId: report.id,
+        status: approve ? 'approved' : 'rejected',
+        points: points,
+        adminNote: noteController.text.trim(),
+      );
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text(result)));
+      await _reloadDashboard();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      pointsController.dispose();
+      noteController.dispose();
+    }
+  }
+
   Widget _buildAvatar({
     required String filename,
     required String fallback,
@@ -732,6 +862,7 @@ class _AdminPageState extends State<AdminPage> {
       (label: 'Passati', value: stats.pastOffers),
       (label: 'Chat', value: stats.chats),
       (label: 'Review', value: stats.reviewUsers),
+      (label: 'Bug', value: stats.bugReportsPending),
     ];
 
     return GridView.builder(
@@ -972,6 +1103,33 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildBugReportsSummary(List<AdminBugReportSummary> reports) {
+    final pendingCount = reports.where((report) => report.isPending).length;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.bug_report_rounded,
+              color: AppTheme.vividViolet,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '$pendingCount segnalazioni da validare. I punti vengono assegnati solo dopo approvazione admin.',
+                style: const TextStyle(
+                  color: AppTheme.brown,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<Widget> _buildSectionItems(AdminDashboardData data) {
     switch (_selectedSection) {
       case _AdminSection.users:
@@ -1034,6 +1192,18 @@ class _AdminPageState extends State<AdminPage> {
           ];
         }
         return filteredChats.map(_buildChatCard).toList();
+      case _AdminSection.bugReports:
+        final bugReports = _sortedBugReports(data);
+        if (bugReports.isEmpty) {
+          return const [
+            _AdminEmptyState(
+              title: 'Nessuna segnalazione bug',
+              subtitle:
+                  'Quando un utente segnala un problema, lo troverai qui per validare gli ApprofittOffro Points.',
+            ),
+          ];
+        }
+        return bugReports.map(_buildBugReportCard).toList();
     }
   }
 
@@ -1555,6 +1725,135 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildBugReportCard(AdminBugReportSummary report) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _StatusPill(
+                  label: _bugReportStatusLabel(report.status),
+                  color: _bugReportStatusColor(report.status),
+                ),
+                if (report.awardedPoints > 0)
+                  _StatusPill(
+                    label: '${report.awardedPoints} Points',
+                    color: AppTheme.vividViolet,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildAvatar(
+                  filename: report.user.photoFilename,
+                  fallback: report.user.name,
+                  radius: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        report.user.name,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: AppTheme.brown,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        report.user.email,
+                        style: TextStyle(
+                          color: AppTheme.brown.withValues(alpha: 0.72),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${report.user.approfittOffroPoints} ApprofittOffro Points totali',
+                        style: TextStyle(
+                          color: AppTheme.vividViolet.withValues(alpha: 0.92),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              report.message,
+              style: TextStyle(
+                color: AppTheme.brown.withValues(alpha: 0.84),
+                height: 1.35,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '${report.screenContext.isEmpty ? 'App' : report.screenContext} - ${_formatDateTime(report.createdAt)}',
+              style: TextStyle(
+                color: AppTheme.brown.withValues(alpha: 0.62),
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+            if (report.adminNote.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Nota admin: ${report.adminNote}',
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.7),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            if (report.isPending) ...[
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  SizedBox(
+                    width: 190,
+                    child: FilledButton.icon(
+                      onPressed: () => _confirmBugReportDecision(
+                        report,
+                        approve: true,
+                      ),
+                      icon: const Icon(Icons.workspace_premium_rounded),
+                      label: const Text('Assegna punti'),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 170,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _confirmBugReportDecision(
+                        report,
+                        approve: false,
+                      ),
+                      icon: const Icon(Icons.close_rounded),
+                      label: const Text('Respingi'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -1617,12 +1916,14 @@ class _AdminPageState extends State<AdminPage> {
           final filteredFutureOffers = _filteredOffers(dashboard.futureOffers);
           final filteredPastOffers = _filteredOffers(dashboard.pastOffers);
           final filteredChats = _filteredChats(dashboard);
+          final bugReports = _sortedBugReports(dashboard);
           final currentCount = switch (_selectedSection) {
             _AdminSection.users => filteredUsers.length,
             _AdminSection.reviewUsers => filteredReviewUsers.length,
             _AdminSection.futureOffers => filteredFutureOffers.length,
             _AdminSection.pastOffers => filteredPastOffers.length,
             _AdminSection.chats => filteredChats.length,
+            _AdminSection.bugReports => bugReports.length,
           };
           final items = _buildSectionItems(dashboard);
 
@@ -1718,20 +2019,23 @@ class _AdminPageState extends State<AdminPage> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-                    child: _selectedSection == _AdminSection.users ||
-                            _selectedSection == _AdminSection.reviewUsers
-                        ? _buildUsersFilters(
-                            _selectedSection == _AdminSection.users
-                                ? filteredUsers
-                                : filteredReviewUsers,
-                          )
-                        : _selectedSection == _AdminSection.chats
-                            ? _buildChatsFilters(filteredChats)
-                            : _buildOffersFilters(
-                                _selectedSection == _AdminSection.futureOffers
-                                    ? filteredFutureOffers
-                                    : filteredPastOffers,
-                              ),
+                    child: _selectedSection == _AdminSection.bugReports
+                        ? _buildBugReportsSummary(bugReports)
+                        : _selectedSection == _AdminSection.users ||
+                                _selectedSection == _AdminSection.reviewUsers
+                            ? _buildUsersFilters(
+                                _selectedSection == _AdminSection.users
+                                    ? filteredUsers
+                                    : filteredReviewUsers,
+                              )
+                            : _selectedSection == _AdminSection.chats
+                                ? _buildChatsFilters(filteredChats)
+                                : _buildOffersFilters(
+                                    _selectedSection ==
+                                            _AdminSection.futureOffers
+                                        ? filteredFutureOffers
+                                        : filteredPastOffers,
+                                  ),
                   ),
                 ),
                 SliverToBoxAdapter(

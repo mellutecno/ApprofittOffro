@@ -70,10 +70,14 @@ from models import (
     NotificationDeliveryLog,
     UserReminder,
     AiModerationLog,
+    BugReport,
     MODERATION_STATUS_APPROVED,
     MODERATION_STATUS_REVIEW,
     MODERATION_STATUS_REJECTED,
     MODERATION_RESTRICTED_STATUSES,
+    BUG_REPORT_STATUS_PENDING,
+    BUG_REPORT_STATUS_APPROVED,
+    BUG_REPORT_STATUS_REJECTED,
 )
 from verify_photo import verifica_volto
 from upload_storage import create_upload_storage, StorageObjectNotFound
@@ -1610,6 +1614,7 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("password_reset_sent_at", "ALTER TABLE users ADD COLUMN password_reset_sent_at DATETIME"),
                 ("is_admin", "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"),
                 ("admin_verified_notified_at", "ALTER TABLE users ADD COLUMN admin_verified_notified_at DATETIME"),
+                ("approfittoffro_points", "ALTER TABLE users ADD COLUMN approfittoffro_points INTEGER NOT NULL DEFAULT 0"),
             ],
             "offers": [
                 ("foto_locale", "ALTER TABLE offers ADD COLUMN foto_locale VARCHAR(256)"),
@@ -1723,6 +1728,24 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 )
             """)
 
+        if not table_exists("bug_reports"):
+            cur.execute("""
+                CREATE TABLE bug_reports (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    message TEXT NOT NULL,
+                    screen_context VARCHAR(120),
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                    awarded_points INTEGER NOT NULL DEFAULT 0,
+                    admin_note TEXT,
+                    reviewed_by_id INTEGER,
+                    reviewed_at DATETIME,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES users (id),
+                    FOREIGN KEY(reviewed_by_id) REFERENCES users (id)
+                )
+            """)
+
         if table_exists("users"):
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)")
             cur.execute("CREATE INDEX IF NOT EXISTS ix_users_bio_moderation_status ON users (bio_moderation_status)")
@@ -1735,6 +1758,10 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
         if table_exists("ai_moderation_logs"):
             cur.execute("CREATE INDEX IF NOT EXISTS ix_ai_moderation_logs_user_id ON ai_moderation_logs (user_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS ix_ai_moderation_logs_content ON ai_moderation_logs (content_type, content_id)")
+        if table_exists("bug_reports"):
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_bug_reports_user_id ON bug_reports (user_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_bug_reports_status ON bug_reports (status)")
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_bug_reports_created_at ON bug_reports (created_at)")
 
         conn.commit()
     finally:
@@ -1754,6 +1781,9 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_verified_notified_at DATETIME"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS approfittoffro_points INTEGER NOT NULL DEFAULT 0"
             )
             conn.exec_driver_sql(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token VARCHAR(100)"
@@ -1894,6 +1924,31 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "CREATE INDEX IF NOT EXISTS ix_ai_moderation_logs_content ON ai_moderation_logs (content_type, content_id)"
+            )
+            conn.exec_driver_sql(
+                """
+                CREATE TABLE IF NOT EXISTS bug_reports (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    message TEXT NOT NULL,
+                    screen_context VARCHAR(120),
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                    awarded_points INTEGER NOT NULL DEFAULT 0,
+                    admin_note TEXT,
+                    reviewed_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    reviewed_at TIMESTAMP,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_bug_reports_user_id ON bug_reports (user_id)"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_bug_reports_status ON bug_reports (status)"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_bug_reports_created_at ON bug_reports (created_at)"
             )
     except Exception as exc:
         print(f"[SCHEMA_COMPAT_ERROR] {exc}")
@@ -4199,6 +4254,11 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
         "can_access_admin": can_access_admin_area(user) if include_private else False,
         "uses_google_auth": bool(user.google_sub) if include_private else False,
         "can_change_password": user_can_change_password(user) if include_private else False,
+        "approfittoffro_points": (
+            int(getattr(user, "approfittoffro_points", 0) or 0)
+            if include_private
+            else 0
+        ),
         "followers_count": user.followers_count,
         "following_count": user.following_count,
         "rating_average": rating_info["average"],
@@ -4278,6 +4338,7 @@ def serialize_admin_user_summary(user):
         "reviews_count": len(user.reviews_ricevute),
         "rating_average": rating_info["average"],
         "rating_count": rating_info["count"],
+        "approfittoffro_points": int(getattr(user, "approfittoffro_points", 0) or 0),
     }
 
 
@@ -4388,6 +4449,35 @@ def serialize_admin_chat_summary(thread):
         "message_count": int(message_count or 0),
         "cleared_at": datetime_to_iso_z(thread.cleared_at),
         **build_admin_deleted_chat_payload(thread),
+    }
+
+
+def serialize_bug_report(report):
+    """Serializza una segnalazione bug con dati utente e stato validazione."""
+    user = report.user
+    reviewer = report.reviewed_by
+    return {
+        "id": report.id,
+        "message": report.message or "",
+        "screen_context": report.screen_context or "",
+        "status": report.status or BUG_REPORT_STATUS_PENDING,
+        "awarded_points": int(report.awarded_points or 0),
+        "admin_note": report.admin_note or "",
+        "created_at": report.created_at.isoformat() if report.created_at else "",
+        "reviewed_at": report.reviewed_at.isoformat() if report.reviewed_at else "",
+        "user": {
+            "id": user.id if user else 0,
+            "nome": user.nome if user else "Utente rimosso",
+            "email": user.email if user else "",
+            "foto": get_primary_photo_filename(user) if user else "",
+            "approfittoffro_points": int(
+                getattr(user, "approfittoffro_points", 0) or 0
+            ) if user else 0,
+        },
+        "reviewed_by": {
+            "id": reviewer.id if reviewer else 0,
+            "nome": reviewer.nome if reviewer else "",
+        },
     }
 
 
@@ -6802,6 +6892,88 @@ def api_user_me():
     })
 
 
+def notify_admin_for_bug_report(report):
+    """Invia all'admin la segnalazione bug appena creata."""
+    admin_email = (
+        os.getenv("BUG_REPORT_EMAIL")
+        or os.getenv("ADMIN_EMAIL")
+        or app.config.get("MAIL_USERNAME")
+        or ""
+    ).strip()
+    if not admin_email:
+        print(f"[BUG_REPORT_EMAIL_SKIP] report_id={report.id} nessuna email admin configurata")
+        return False
+
+    user = report.user
+    safe_name = escape(user.nome if user else "Utente rimosso")
+    safe_email = escape(user.email if user else "")
+    safe_message = escape(report.message or "").replace("\n", "<br>")
+    safe_context = escape(report.screen_context or "App")
+    html = f"""
+    <h2>Nuova segnalazione bug ApprofittOffro</h2>
+    <p><b>ID segnalazione:</b> {report.id}</p>
+    <p><b>Utente:</b> {safe_name}</p>
+    <p><b>Email:</b> {safe_email}</p>
+    <p><b>Contesto:</b> {safe_context}</p>
+    <p><b>Messaggio:</b></p>
+    <blockquote>{safe_message}</blockquote>
+    <p>La segnalazione e' in attesa di validazione admin prima di assegnare ApprofittOffro Points.</p>
+    """
+    return send_email_html(
+        "Nuova segnalazione bug ApprofittOffro",
+        [admin_email],
+        html,
+        background=True,
+    )
+
+
+@app.route("/api/bug-reports", methods=["POST"])
+@login_required
+def api_submit_bug_report():
+    """Riceve una segnalazione bug dall'app e la mette in attesa di validazione."""
+    if is_admin_user(current_user):
+        return jsonify({
+            "success": False,
+            "error": "Usa un account utente standard per inviare segnalazioni bug.",
+        }), 403
+
+    data = request.get_json(silent=True) or {}
+    message = str(data.get("message", "")).strip()
+    screen_context = str(data.get("screen_context", "")).strip()[:120]
+
+    if len(message) < 5:
+        return jsonify({
+            "success": False,
+            "error": "Scrivi almeno qualche parola per descrivere il bug.",
+        }), 400
+    if len(message) > 2000:
+        return jsonify({
+            "success": False,
+            "error": "La segnalazione deve restare entro 2000 caratteri.",
+        }), 400
+
+    report = BugReport(
+        user_id=current_user.id,
+        message=message,
+        screen_context=screen_context or "App",
+        status=BUG_REPORT_STATUS_PENDING,
+        created_at=datetime.now(),
+    )
+    db.session.add(report)
+    db.session.commit()
+
+    notify_admin_for_bug_report(report)
+
+    return jsonify({
+        "success": True,
+        "message": (
+            "Segnalazione inviata. Se l'admin la conferma, riceverai "
+            "ApprofittOffro Points."
+        ),
+        "report": serialize_bug_report(report),
+    })
+
+
 @app.route("/api/user/live-location", methods=["POST"])
 @login_required
 def api_user_live_location():
@@ -8825,6 +8997,18 @@ def api_admin_dashboard():
         user for user in users
         if is_user_moderation_restricted(user)
     ]
+    bug_reports = (
+        BugReport.query.options(
+            selectinload(BugReport.user).selectinload(User.photos),
+            selectinload(BugReport.reviewed_by),
+        )
+        .order_by(BugReport.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    pending_bug_reports_count = BugReport.query.filter_by(
+        status=BUG_REPORT_STATUS_PENDING,
+    ).count()
 
     return jsonify({
         "success": True,
@@ -8835,6 +9019,7 @@ def api_admin_dashboard():
             "past_offers": len(past_offers),
             "chats": len(chat_threads),
             "review_users": len(review_users),
+            "bug_reports_pending": pending_bug_reports_count,
         },
         "users": [
             serialize_admin_user_summary(user)
@@ -8856,6 +9041,71 @@ def api_admin_dashboard():
             serialize_admin_chat_summary(thread)
             for thread in chat_threads
         ],
+        "bug_reports": [
+            serialize_bug_report(report)
+            for report in bug_reports
+        ],
+    })
+
+
+@app.route("/api/admin/bug-reports/<int:report_id>/review", methods=["POST"])
+@admin_required
+def api_admin_review_bug_report(report_id):
+    """Approva o respinge una segnalazione bug e assegna punti solo se validata."""
+    report = BugReport.query.options(selectinload(BugReport.user)).get(report_id)
+    if not report:
+        return jsonify({"success": False, "error": "Segnalazione non trovata."}), 404
+
+    data = request.get_json(silent=True) or {}
+    status = str(data.get("status", "")).strip().lower()
+    note = str(data.get("admin_note", "")).strip()[:500]
+
+    if status not in {BUG_REPORT_STATUS_APPROVED, BUG_REPORT_STATUS_REJECTED}:
+        return jsonify({"success": False, "error": "Decisione non valida."}), 400
+
+    try:
+        requested_points = int(data.get("points", 0) or 0)
+    except (TypeError, ValueError):
+        requested_points = 0
+
+    points = max(0, min(requested_points, 500))
+    if status == BUG_REPORT_STATUS_APPROVED and points <= 0:
+        return jsonify({
+            "success": False,
+            "error": "Inserisci almeno 1 ApprofittOffro Point da assegnare.",
+        }), 400
+
+    user = report.user
+    if not user:
+        return jsonify({"success": False, "error": "Utente della segnalazione non trovato."}), 404
+
+    previous_status = report.status
+    previous_points = int(report.awarded_points or 0)
+    current_total = int(getattr(user, "approfittoffro_points", 0) or 0)
+
+    if previous_status == BUG_REPORT_STATUS_APPROVED:
+        current_total -= previous_points
+    if status == BUG_REPORT_STATUS_APPROVED:
+        current_total += points
+
+    user.approfittoffro_points = max(0, current_total)
+    report.status = status
+    report.awarded_points = points if status == BUG_REPORT_STATUS_APPROVED else 0
+    report.admin_note = note
+    report.reviewed_by_id = current_user.id
+    report.reviewed_at = datetime.now()
+    db.session.commit()
+
+    message = (
+        f"Segnalazione approvata: assegnati {report.awarded_points} ApprofittOffro Points."
+        if status == BUG_REPORT_STATUS_APPROVED
+        else "Segnalazione respinta: nessun punto assegnato."
+    )
+    return jsonify({
+        "success": True,
+        "message": message,
+        "report": serialize_bug_report(report),
+        "user_points": user.approfittoffro_points,
     })
 
 

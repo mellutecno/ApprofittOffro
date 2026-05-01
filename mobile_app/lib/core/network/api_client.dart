@@ -227,6 +227,24 @@ class ApiClient {
     return AppUser.fromJson(payload['user'] as Map<String, dynamic>);
   }
 
+  Future<String> submitBugReport({
+    required String message,
+    String screenContext = 'App',
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/bug-reports',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'message': message,
+        'screen_context': screenContext,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Segnalazione inviata.';
+  }
+
   Future<void> registerPushToken({
     required String token,
     required String platform,
@@ -316,6 +334,27 @@ class ApiClient {
         .cast<Map<String, dynamic>>()
         .map(AdminUserSummary.fromJson)
         .toList();
+  }
+
+  Future<String> reviewAdminBugReport({
+    required int reportId,
+    required String status,
+    int points = 0,
+    String adminNote = '',
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/admin/bug-reports/$reportId/review',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'status': status,
+        'points': points,
+        'admin_note': adminNote,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Segnalazione aggiornata.';
   }
 
   Future<List<UserPreview>> fetchPeople({

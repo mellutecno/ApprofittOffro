@@ -11,6 +11,7 @@ import 'core/network/session_store.dart';
 import 'core/notifications/push_notifications_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/brand_wordmark.dart';
+import 'core/widgets/bug_report_overlay.dart';
 import 'features/auth/landing_page.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/login_page.dart';
@@ -212,6 +213,24 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      builder: (context, child) {
+        final content = child ?? const SizedBox.shrink();
+        return AnimatedBuilder(
+          animation: _authController,
+          builder: (context, _) {
+            final showBugReporter = _authController.isAuthenticated &&
+                _biometricChecked &&
+                !_biometricRequired;
+            if (!showBugReporter) {
+              return content;
+            }
+            return BugReportOverlay(
+              apiClient: _authController.apiClient,
+              child: content,
+            );
+          },
+        );
+      },
       home: FutureBuilder<void>(
         future: _bootstrapFuture,
         builder: (context, snapshot) {

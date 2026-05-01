@@ -47,6 +47,10 @@ MODERATION_RESTRICTED_STATUSES = {
     "blocked",
 }
 
+BUG_REPORT_STATUS_PENDING = "pending"
+BUG_REPORT_STATUS_APPROVED = "approved"
+BUG_REPORT_STATUS_REJECTED = "rejected"
+
 
 class User(UserMixin, db.Model):
     """Utente registrato."""
@@ -96,6 +100,7 @@ class User(UserMixin, db.Model):
     admin_verified_notified_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     chat_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    approfittoffro_points = db.Column(db.Integer, default=0, nullable=False)
 
     # Relazioni
     offerte = db.relationship("Offer", backref="autore", lazy=True)
@@ -177,6 +182,29 @@ class User(UserMixin, db.Model):
 
     def __repr__(self):
         return f"<User {self.nome} ({self.email})>"
+
+
+class BugReport(db.Model):
+    """Segnalazione bug inviata dagli utenti e validata dall'amministratore."""
+    __tablename__ = "bug_reports"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    screen_context = db.Column(db.String(120), nullable=True)
+    status = db.Column(db.String(20), default=BUG_REPORT_STATUS_PENDING, nullable=False)
+    awarded_points = db.Column(db.Integer, default=0, nullable=False)
+    admin_note = db.Column(db.Text, nullable=True)
+    reviewed_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    user = db.relationship(
+        "User",
+        foreign_keys=[user_id],
+        backref=db.backref("bug_reports", lazy=True, cascade="all, delete-orphan"),
+    )
+    reviewed_by = db.relationship("User", foreign_keys=[reviewed_by_id])
 
 
 class Offer(db.Model):
