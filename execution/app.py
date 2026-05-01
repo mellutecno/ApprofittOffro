@@ -6927,6 +6927,74 @@ def notify_admin_for_bug_report(report):
     )
 
 
+def notify_user_for_bug_report_review(report):
+    """Avvisa l'utente quando l'admin valida o respinge una segnalazione bug."""
+    user = report.user
+    if not user:
+        return {"email_sent": False, "push_sent": 0}
+
+    note = (report.admin_note or "").strip()
+    safe_name = escape(user.nome or "Utente")
+    safe_message = escape(report.message or "").replace("\n", "<br>")
+    safe_note = escape(note).replace("\n", "<br>")
+    points = int(report.awarded_points or 0)
+    approved = report.status == BUG_REPORT_STATUS_APPROVED
+
+    if approved:
+        title = "Bug approvato"
+        push_body = (
+            f"L'amministratore ha approvato la tua segnalazione: "
+            f"hai ricevuto {points} ApprofittOffro Points."
+        )
+        subject = "Segnalazione bug approvata su ApprofittOffro"
+        intro = (
+            f"la tua segnalazione bug e' stata approvata. "
+            f"Hai ricevuto <b>{points} ApprofittOffro Points</b>."
+        )
+    else:
+        title = "Segnalazione bug verificata"
+        push_body = "L'amministratore ha verificato la tua segnalazione bug: nessun punto assegnato."
+        subject = "Segnalazione bug verificata su ApprofittOffro"
+        intro = (
+            "la tua segnalazione bug e' stata verificata, ma non sono stati "
+            "assegnati ApprofittOffro Points."
+        )
+
+    if note:
+        push_body = f"{push_body} Nota: {note[:90]}"
+
+    push_sent = send_push_to_user(
+        user,
+        title=title,
+        body=push_body[:180],
+        target="profile",
+        extra_data={
+            "type": "bug_report_review",
+            "bug_report_id": report.id,
+            "bug_report_status": report.status,
+            "awarded_points": points,
+        },
+    )
+
+    email_sent = False
+    if not push_sent and user.email:
+        email_sent = send_email_html(
+            subject,
+            [user.email],
+            f"""
+            <h2>{escape(title)}</h2>
+            <p>Ciao {safe_name}, {intro}</p>
+            <p><b>La tua segnalazione:</b></p>
+            <blockquote>{safe_message}</blockquote>
+            {f"<p><b>Nota dell'amministratore:</b></p><blockquote>{safe_note}</blockquote>" if note else ""}
+            <p>Puoi vedere il totale degli ApprofittOffro Points nel tuo profilo.</p>
+            """,
+            background=True,
+        )
+
+    return {"email_sent": email_sent, "push_sent": push_sent}
+
+
 @app.route("/api/bug-reports", methods=["POST"])
 @login_required
 def api_submit_bug_report():
@@ -9095,6 +9163,7 @@ def api_admin_review_bug_report(report_id):
     report.reviewed_by_id = current_user.id
     report.reviewed_at = datetime.now()
     db.session.commit()
+    notification_result = notify_user_for_bug_report_review(report)
 
     message = (
         f"Segnalazione approvata: assegnati {report.awarded_points} ApprofittOffro Points."
@@ -9106,6 +9175,9 @@ def api_admin_review_bug_report(report_id):
         "message": message,
         "report": serialize_bug_report(report),
         "user_points": user.approfittoffro_points,
+        "user_notified": bool(
+            notification_result["email_sent"] or notification_result["push_sent"]
+        ),
     })
 
 

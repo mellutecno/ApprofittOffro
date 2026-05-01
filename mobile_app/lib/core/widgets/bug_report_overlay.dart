@@ -24,7 +24,8 @@ class BugReportOverlay extends StatefulWidget {
 }
 
 class _BugReportOverlayState extends State<BugReportOverlay> {
-  static const double _buttonSize = 56;
+  static const double _buttonWidth = 156;
+  static const double _buttonHeight = 50;
   double? _left;
   double? _top;
   bool _dialogOpen = false;
@@ -42,11 +43,14 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
   void _move(DragUpdateDetails details, BoxConstraints constraints) {
     final mediaQuery = MediaQuery.of(context);
     const minLeft = 12.0;
-    final maxLeft = math.max(minLeft, constraints.maxWidth - _buttonSize - 12);
+    final maxLeft = math.max(minLeft, constraints.maxWidth - _buttonWidth - 12);
     final minTop = mediaQuery.viewPadding.top + 12;
     final maxTop = math.max(
       minTop,
-      constraints.maxHeight - _buttonSize - mediaQuery.viewPadding.bottom - 92,
+      constraints.maxHeight -
+          _buttonHeight -
+          mediaQuery.viewPadding.bottom -
+          92,
     );
     setState(() {
       _left = ((_left ?? maxLeft) + details.delta.dx).clamp(minLeft, maxLeft);
@@ -179,11 +183,11 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
         const minLeft = 12.0;
         final minTop = mediaQuery.viewPadding.top + 12;
         final maxLeft =
-            math.max(minLeft, constraints.maxWidth - _buttonSize - 12);
+            math.max(minLeft, constraints.maxWidth - _buttonWidth - 12);
         final maxTop = math.max(
           minTop,
           constraints.maxHeight -
-              _buttonSize -
+              _buttonHeight -
               mediaQuery.viewPadding.bottom -
               92,
         );
@@ -204,8 +208,11 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
                     message: 'Segnala un bug',
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
                         gradient: AppTheme.accentGradient,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.18),
+                        ),
                         boxShadow: [
                           BoxShadow(
                             color: AppTheme.vividViolet.withValues(alpha: 0.38),
@@ -215,12 +222,33 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
                         ],
                       ),
                       child: const SizedBox(
-                        width: _buttonSize,
-                        height: _buttonSize,
-                        child: Icon(
-                          Icons.bug_report_rounded,
-                          color: Colors.white,
-                          size: 28,
+                        width: _buttonWidth,
+                        height: _buttonHeight,
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 15),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.bug_report_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                              SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  'Segnala bug',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
