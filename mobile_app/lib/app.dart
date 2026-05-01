@@ -37,6 +37,9 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
   bool _biometricRequired = false;
   bool _biometricAuthenticated = false;
   bool _biometricChecked = false;
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
   final BiometricAuthService _biometricService = BiometricAuthService();
 
   @override
@@ -200,6 +203,8 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
+      scaffoldMessengerKey: _scaffoldMessengerKey,
       title: 'ApprofittOffro',
       theme: AppTheme.light(),
       debugShowCheckedModeBanner: false,
@@ -226,6 +231,8 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
             }
             return BugReportOverlay(
               apiClient: _authController.apiClient,
+              navigatorKey: _navigatorKey,
+              scaffoldMessengerKey: _scaffoldMessengerKey,
               child: content,
             );
           },

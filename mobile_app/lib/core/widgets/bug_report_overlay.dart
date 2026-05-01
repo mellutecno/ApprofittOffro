@@ -9,10 +9,14 @@ class BugReportOverlay extends StatefulWidget {
   const BugReportOverlay({
     super.key,
     required this.apiClient,
+    required this.navigatorKey,
+    required this.scaffoldMessengerKey,
     required this.child,
   });
 
   final ApiClient apiClient;
+  final GlobalKey<NavigatorState> navigatorKey;
+  final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey;
   final Widget child;
 
   @override
@@ -24,6 +28,16 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
   double? _left;
   double? _top;
   bool _dialogOpen = false;
+
+  void _showSnackBar(String message) {
+    final messenger = widget.scaffoldMessengerKey.currentState;
+    if (messenger == null) {
+      return;
+    }
+    messenger
+      ..removeCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   void _move(DragUpdateDetails details, BoxConstraints constraints) {
     final mediaQuery = MediaQuery.of(context);
@@ -46,14 +60,24 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
     }
     setState(() => _dialogOpen = true);
     final controller = TextEditingController();
-    final messenger = ScaffoldMessenger.maybeOf(context);
     var isSubmitting = false;
+    final navigator = widget.navigatorKey.currentState;
+    final dialogContext = navigator?.overlay?.context;
+
+    if (dialogContext == null) {
+      controller.dispose();
+      if (mounted) {
+        setState(() => _dialogOpen = false);
+      }
+      _showSnackBar('Non riesco ad aprire la segnalazione adesso.');
+      return;
+    }
 
     bool? sent;
     try {
       sent = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) {
+        context: dialogContext,
+        builder: (alertContext) {
           return StatefulBuilder(
             builder: (context, setDialogState) {
               return AlertDialog(
@@ -87,7 +111,7 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
                   TextButton(
                     onPressed: isSubmitting
                         ? null
-                        : () => Navigator.of(dialogContext).pop(false),
+                        : () => Navigator.of(alertContext).pop(false),
                     child: const Text('Annulla'),
                   ),
                   FilledButton.icon(
@@ -96,37 +120,29 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
                         : () async {
                             final message = controller.text.trim();
                             if (message.length < 5) {
-                              messenger?.showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Scrivi almeno qualche parola sul bug.',
-                                  ),
-                                ),
+                              _showSnackBar(
+                                'Scrivi almeno qualche parola sul bug.',
                               );
                               return;
                             }
                             setDialogState(() => isSubmitting = true);
-                            final navigator = Navigator.of(dialogContext);
+                            final dialogNavigator = Navigator.of(alertContext);
                             try {
                               final result = await widget.apiClient
                                   .submitBugReport(message: message);
                               if (!mounted) {
                                 return;
                               }
-                              messenger?.showSnackBar(
-                                SnackBar(content: Text(result)),
-                              );
-                              if (navigator.mounted) {
-                                navigator.pop(true);
+                              _showSnackBar(result);
+                              if (dialogNavigator.mounted) {
+                                dialogNavigator.pop(true);
                               }
                             } catch (error) {
                               if (!mounted) {
                                 return;
                               }
                               setDialogState(() => isSubmitting = false);
-                              messenger?.showSnackBar(
-                                SnackBar(content: Text(error.toString())),
-                              );
+                              _showSnackBar(error.toString());
                             }
                           },
                     icon: isSubmitting
