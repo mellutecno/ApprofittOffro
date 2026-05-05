@@ -8,6 +8,7 @@ import 'package:geocoding/geocoding.dart' as geocoding;
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/media/profile_photo_cropper.dart';
@@ -52,6 +53,7 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _isLocating = false;
   bool _isResolvingAddress = false;
   bool _initialLocationRequested = false;
+  bool _legalAccepted = false;
   bool _mapReady = !AppConfig.googleMapsEnabled;
   GoogleMapController? _mapController;
   LatLng _currentMapCenter = _fallbackMapTarget;
@@ -411,6 +413,10 @@ class _RegisterPageState extends State<RegisterPage> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    if (!_legalAccepted) {
+      _showMessage('Accetta Termini, Privacy e Regolamento Community.');
+      return;
+    }
     if (_latitude == null || _longitude == null) {
       _showMessage('Scegli il tuo indirizzo dalla mappa.');
       return;
@@ -472,6 +478,11 @@ class _RegisterPageState extends State<RegisterPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  Future<void> _openLegalLink(String url) async {
+    final uri = Uri.parse(url);
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -661,6 +672,46 @@ class _RegisterPageState extends State<RegisterPage> {
                                 ),
                               ],
                               const SizedBox(height: 20),
+                              CheckboxListTile(
+                                value: _legalAccepted,
+                                onChanged: _isSaving
+                                    ? null
+                                    : (value) => setState(
+                                          () => _legalAccepted = value ?? false,
+                                        ),
+                                activeColor: AppTheme.vividViolet,
+                                contentPadding: EdgeInsets.zero,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                title: const Text(
+                                  'Accetto Termini, Privacy e Regolamento Community',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                subtitle: Wrap(
+                                  spacing: 8,
+                                  children: [
+                                    TextButton(
+                                      onPressed: () => _openLegalLink(
+                                        AppConfig.termsAndConditionsUrl,
+                                      ),
+                                      child: const Text('Termini'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => _openLegalLink(
+                                        AppConfig.privacyPolicyUrl,
+                                      ),
+                                      child: const Text('Privacy'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => _openLegalLink(
+                                        AppConfig.communityRulesUrl,
+                                      ),
+                                      child: const Text('Regolamento'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
                               FilledButton(
                                 onPressed: _isSaving ? null : _submit,
                                 child: _isSaving

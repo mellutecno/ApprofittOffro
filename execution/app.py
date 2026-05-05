@@ -72,6 +72,7 @@ from models import (
     UserReminder,
     AiModerationLog,
     BugReport,
+    ContentReport,
     MODERATION_STATUS_APPROVED,
     MODERATION_STATUS_REVIEW,
     MODERATION_STATUS_REJECTED,
@@ -79,6 +80,12 @@ from models import (
     BUG_REPORT_STATUS_PENDING,
     BUG_REPORT_STATUS_APPROVED,
     BUG_REPORT_STATUS_REJECTED,
+    LEGAL_TERMS_VERSION,
+    LEGAL_PRIVACY_VERSION,
+    CONTENT_REPORT_STATUS_PENDING,
+    CONTENT_REPORT_STATUS_REVIEWED,
+    CONTENT_REPORT_STATUS_DISMISSED,
+    CONTENT_REPORT_TARGET_TYPES,
 )
 from verify_photo import verifica_volto
 from upload_storage import create_upload_storage, StorageObjectNotFound
@@ -307,6 +314,10 @@ COMMUNITY_GENDER_FILTERS = [
 ]
 PUSH_PLATFORM_ANDROID = "android"
 PUSH_DEEP_LINK_BASE = "approfittoffro://"
+PUBLIC_SITE_BASE_URL = os.getenv("PUBLIC_SITE_BASE_URL", "https://www.approfittoffro.it").strip().rstrip("/")
+PRIVACY_POLICY_URL = f"{PUBLIC_SITE_BASE_URL}/static/privacy_policy.html"
+TERMS_AND_CONDITIONS_URL = f"{PUBLIC_SITE_BASE_URL}/static/terms_and_conditions.html"
+COMMUNITY_RULES_URL = f"{PUBLIC_SITE_BASE_URL}/static/community_rules.html"
 FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 PUSH_CHANNEL_ID = "approfittoffro_alerts"
 UPCOMING_EVENT_REMINDER_HOURS = 0.5  # 30 minuti
@@ -1616,6 +1627,10 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("is_admin", "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"),
                 ("admin_verified_notified_at", "ALTER TABLE users ADD COLUMN admin_verified_notified_at DATETIME"),
                 ("approfittoffro_points", "ALTER TABLE users ADD COLUMN approfittoffro_points INTEGER NOT NULL DEFAULT 0"),
+                ("terms_accepted_version", "ALTER TABLE users ADD COLUMN terms_accepted_version VARCHAR(32)"),
+                ("terms_accepted_at", "ALTER TABLE users ADD COLUMN terms_accepted_at DATETIME"),
+                ("privacy_acknowledged_version", "ALTER TABLE users ADD COLUMN privacy_acknowledged_version VARCHAR(32)"),
+                ("privacy_acknowledged_at", "ALTER TABLE users ADD COLUMN privacy_acknowledged_at DATETIME"),
             ],
             "offers": [
                 ("foto_locale", "ALTER TABLE offers ADD COLUMN foto_locale VARCHAR(256)"),
@@ -1757,6 +1772,32 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 )
             """)
 
+        if not table_exists("content_reports"):
+            cur.execute("""
+                CREATE TABLE content_reports (
+                    id INTEGER PRIMARY KEY,
+                    reporter_id INTEGER NOT NULL,
+                    target_type VARCHAR(40) NOT NULL,
+                    target_id INTEGER,
+                    reported_user_id INTEGER,
+                    offer_id INTEGER,
+                    chat_thread_id INTEGER,
+                    message TEXT NOT NULL,
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                    admin_note TEXT,
+                    reviewed_by_id INTEGER,
+                    reviewed_at DATETIME,
+                    admin_archived_at DATETIME,
+                    admin_archived_by_id INTEGER,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(reporter_id) REFERENCES users (id),
+                    FOREIGN KEY(reported_user_id) REFERENCES users (id),
+                    FOREIGN KEY(offer_id) REFERENCES offers (id),
+                    FOREIGN KEY(chat_thread_id) REFERENCES chat_threads (id),
+                    FOREIGN KEY(reviewed_by_id) REFERENCES users (id)
+                )
+            """)
+
         if not table_exists("app_notifications"):
             cur.execute("""
                 CREATE TABLE app_notifications (
@@ -1789,6 +1830,11 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
             cur.execute("CREATE INDEX IF NOT EXISTS ix_bug_reports_user_id ON bug_reports (user_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS ix_bug_reports_status ON bug_reports (status)")
             cur.execute("CREATE INDEX IF NOT EXISTS ix_bug_reports_created_at ON bug_reports (created_at)")
+        if table_exists("content_reports"):
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_content_reports_reporter_id ON content_reports (reporter_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_content_reports_reported_user_id ON content_reports (reported_user_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_content_reports_status ON content_reports (status)")
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_content_reports_created_at ON content_reports (created_at)")
         if table_exists("app_notifications"):
             cur.execute("CREATE INDEX IF NOT EXISTS ix_app_notifications_user_expires ON app_notifications (user_id, expires_at)")
             cur.execute("CREATE INDEX IF NOT EXISTS ix_app_notifications_user_read ON app_notifications (user_id, read_at)")
@@ -1814,6 +1860,18 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS approfittoffro_points INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_version VARCHAR(32)"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_acknowledged_version VARCHAR(32)"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_acknowledged_at TIMESTAMP"
             )
             conn.exec_driver_sql(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token VARCHAR(100)"
@@ -1995,6 +2053,39 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "CREATE INDEX IF NOT EXISTS ix_bug_reports_created_at ON bug_reports (created_at)"
+            )
+            conn.exec_driver_sql(
+                """
+                CREATE TABLE IF NOT EXISTS content_reports (
+                    id SERIAL PRIMARY KEY,
+                    reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    target_type VARCHAR(40) NOT NULL,
+                    target_id INTEGER,
+                    reported_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    offer_id INTEGER REFERENCES offers(id) ON DELETE SET NULL,
+                    chat_thread_id INTEGER REFERENCES chat_threads(id) ON DELETE SET NULL,
+                    message TEXT NOT NULL,
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                    admin_note TEXT,
+                    reviewed_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    reviewed_at TIMESTAMP,
+                    admin_archived_at TIMESTAMP,
+                    admin_archived_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_content_reports_reporter_id ON content_reports (reporter_id)"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_content_reports_reported_user_id ON content_reports (reported_user_id)"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_content_reports_status ON content_reports (status)"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_content_reports_created_at ON content_reports (created_at)"
             )
             conn.exec_driver_sql(
                 """
@@ -2311,6 +2402,61 @@ def create_app_notification(user, *, title, body, target="notifications", extra_
     db.session.commit()
     purge_expired_app_notifications(user.id)
     return notification
+
+
+def user_has_accepted_current_legal(user):
+    if not user:
+        return False
+    return (
+        getattr(user, "terms_accepted_version", None) == LEGAL_TERMS_VERSION
+        and getattr(user, "privacy_acknowledged_version", None) == LEGAL_PRIVACY_VERSION
+        and getattr(user, "terms_accepted_at", None) is not None
+        and getattr(user, "privacy_acknowledged_at", None) is not None
+    )
+
+
+def build_legal_status_payload(user):
+    accepted = user_has_accepted_current_legal(user)
+    return {
+        "current_terms_version": LEGAL_TERMS_VERSION,
+        "current_privacy_version": LEGAL_PRIVACY_VERSION,
+        "terms_url": TERMS_AND_CONDITIONS_URL,
+        "privacy_url": PRIVACY_POLICY_URL,
+        "community_rules_url": COMMUNITY_RULES_URL,
+        "accepted": accepted,
+        "terms_accepted_version": getattr(user, "terms_accepted_version", "") or "",
+        "terms_accepted_at": (
+            user.terms_accepted_at.isoformat()
+            if getattr(user, "terms_accepted_at", None)
+            else ""
+        ),
+        "privacy_acknowledged_version": getattr(user, "privacy_acknowledged_version", "") or "",
+        "privacy_acknowledged_at": (
+            user.privacy_acknowledged_at.isoformat()
+            if getattr(user, "privacy_acknowledged_at", None)
+            else ""
+        ),
+    }
+
+
+def accept_current_legal_for_user(user):
+    now = datetime.now()
+    user.terms_accepted_version = LEGAL_TERMS_VERSION
+    user.terms_accepted_at = now
+    user.privacy_acknowledged_version = LEGAL_PRIVACY_VERSION
+    user.privacy_acknowledged_at = now
+
+
+def require_legal_acceptance_json(user=None):
+    target_user = user or current_user
+    if is_admin_user(target_user) or user_has_accepted_current_legal(target_user):
+        return None
+    return jsonify({
+        "success": False,
+        "error": "Prima di continuare devi accettare Termini, Regolamento Community e Informativa privacy.",
+        "legal_required": True,
+        "legal": build_legal_status_payload(target_user),
+    }), 403
 
 
 def send_push_to_user(user, *, title, body, target="login", extra_data=None):
@@ -4603,6 +4749,213 @@ def serialize_bug_report(report):
     }
 
 
+def serialize_content_report_user(user):
+    if not user:
+        return {
+            "id": 0,
+            "nome": "Utente rimosso",
+            "email": "",
+            "foto": "",
+        }
+    return {
+        "id": user.id,
+        "nome": user.nome or "Utente",
+        "email": user.email or "",
+        "foto": get_primary_photo_filename(user) or "",
+    }
+
+
+def serialize_content_report(report):
+    """Serializza una segnalazione contenuto per il pannello admin mobile."""
+    reviewer = report.reviewed_by
+    offer = report.offer
+    chat_thread = report.chat_thread
+    return {
+        "id": report.id,
+        "target_type": report.target_type or "user",
+        "target_id": int(report.target_id or 0),
+        "message": report.message or "",
+        "status": report.status or CONTENT_REPORT_STATUS_PENDING,
+        "admin_note": report.admin_note or "",
+        "created_at": report.created_at.isoformat() if report.created_at else "",
+        "reviewed_at": report.reviewed_at.isoformat() if report.reviewed_at else "",
+        "admin_archived_at": (
+            report.admin_archived_at.isoformat() if report.admin_archived_at else ""
+        ),
+        "is_archived": report.admin_archived_at is not None,
+        "reporter": serialize_content_report_user(report.reporter),
+        "reported_user": serialize_content_report_user(report.reported_user),
+        "offer": {
+            "id": offer.id if offer else 0,
+            "nome_locale": offer.nome_locale if offer else "",
+            "indirizzo": offer.indirizzo if offer else "",
+            "data_ora": offer.data_ora.isoformat() if offer and offer.data_ora else "",
+        },
+        "chat": {
+            "id": chat_thread.id if chat_thread else 0,
+            "chat_id": (
+                build_chat_thread_key(
+                    chat_thread.offer_id,
+                    chat_thread.user_a_id,
+                    chat_thread.user_b_id,
+                )
+                if chat_thread
+                else ""
+            ),
+        },
+        "reviewed_by": {
+            "id": reviewer.id if reviewer else 0,
+            "nome": reviewer.nome if reviewer else "",
+        },
+    }
+
+
+def resolve_content_report_target(data):
+    """Normalizza i riferimenti di una segnalazione contenuto."""
+    target_type = str(data.get("target_type", "user") or "user").strip().lower()
+    if target_type not in CONTENT_REPORT_TARGET_TYPES:
+        raise ValueError("Tipo segnalazione non valido.")
+
+    def parse_optional_int(key):
+        raw = data.get(key)
+        if raw in (None, ""):
+            return None
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
+
+    target_id = parse_optional_int("target_id")
+    reported_user_id = parse_optional_int("reported_user_id")
+    offer_id = parse_optional_int("offer_id")
+    chat_thread_id = parse_optional_int("chat_thread_id")
+    offer = None
+    chat_thread = None
+    reported_user = None
+
+    if target_type in {"user", "profile_photo"}:
+        reported_user_id = reported_user_id or target_id
+        if not reported_user_id:
+            raise ValueError("Utente da segnalare non valido.")
+        reported_user = User.query.get(reported_user_id)
+        if not reported_user or is_admin_user(reported_user):
+            raise ValueError("Profilo da segnalare non trovato.")
+        target_id = target_id or reported_user.id
+
+    elif target_type in {"offer", "offer_photo"}:
+        offer_id = offer_id or target_id
+        offer = Offer.query.options(selectinload(Offer.autore)).get(offer_id)
+        if not offer:
+            raise ValueError("Evento da segnalare non trovato.")
+        reported_user = offer.autore
+        reported_user_id = reported_user.id if reported_user else None
+        target_id = target_id or offer.id
+
+    elif target_type in {"chat", "message"}:
+        if chat_thread_id:
+            chat_thread = ChatThread.query.get(chat_thread_id)
+        if chat_thread is None and offer_id and reported_user_id:
+            chat_thread = get_or_create_chat_thread(
+                offer_id=offer_id,
+                user_id=current_user.id,
+                other_user_id=reported_user_id,
+                create_if_missing=False,
+            )
+        if chat_thread:
+            offer_id = chat_thread.offer_id
+            if chat_thread.user_a_id == current_user.id:
+                reported_user_id = chat_thread.user_b_id
+            elif chat_thread.user_b_id == current_user.id:
+                reported_user_id = chat_thread.user_a_id
+        if not reported_user_id:
+            raise ValueError("Utente della chat da segnalare non valido.")
+        reported_user = User.query.get(reported_user_id)
+        if not reported_user:
+            raise ValueError("Utente della chat da segnalare non trovato.")
+        offer = Offer.query.get(offer_id) if offer_id else None
+        target_id = target_id or (chat_thread.id if chat_thread else None)
+
+    elif target_type == "review":
+        review_id = target_id
+        review = Review.query.get(review_id)
+        if not review:
+            raise ValueError("Recensione da segnalare non trovata.")
+        reported_user_id = reported_user_id or review.reviewer_id
+        reported_user = User.query.get(reported_user_id)
+        offer = review.offerta
+        offer_id = review.offer_id
+
+    if reported_user_id == current_user.id:
+        raise ValueError("Non puoi segnalare te stesso.")
+
+    return {
+        "target_type": target_type,
+        "target_id": target_id,
+        "reported_user_id": reported_user_id,
+        "offer_id": offer_id,
+        "chat_thread_id": chat_thread.id if chat_thread else chat_thread_id,
+        "reported_user": reported_user,
+        "offer": offer,
+        "chat_thread": chat_thread,
+    }
+
+
+def notify_admin_for_content_report(report):
+    """Avvisa gli admin quando arriva una segnalazione contenuto."""
+    title = "Nuova segnalazione contenuto"
+    reporter = report.reporter
+    reported = report.reported_user
+    body = (
+        f"{reporter.nome if reporter else 'Un utente'} ha segnalato "
+        f"{reported.nome if reported else report.target_type}."
+    )
+    admins = User.query.filter_by(is_admin=True).all()
+    push_count = 0
+    for admin in admins:
+        push_count += send_push_to_user(
+            admin,
+            title=title,
+            body=body,
+            target="admin",
+            extra_data={
+                "content_report_id": report.id,
+                "target_type": report.target_type,
+            },
+        )
+
+    admin_email = (
+        os.getenv("CONTENT_REPORT_EMAIL")
+        or os.getenv("ADMIN_EMAIL")
+        or app.config.get("MAIL_USERNAME")
+        or ""
+    ).strip()
+    email_sent = False
+    if admin_email:
+        safe_reporter = escape(reporter.nome if reporter else "Utente rimosso")
+        safe_reported = escape(reported.nome if reported else "Contenuto")
+        safe_message = escape(report.message or "").replace("\n", "<br>")
+        safe_type = escape(report.target_type or "contenuto")
+        html = f"""
+        <h2>Nuova segnalazione contenuto ApprofittOffro</h2>
+        <p><b>ID segnalazione:</b> {report.id}</p>
+        <p><b>Tipo:</b> {safe_type}</p>
+        <p><b>Segnalante:</b> {safe_reporter}</p>
+        <p><b>Segnalato:</b> {safe_reported}</p>
+        <p><b>Motivo:</b></p>
+        <blockquote>{safe_message}</blockquote>
+        <p>Apri il pannello admin mobile per gestirla.</p>
+        """
+        email_sent = send_email_html(
+            title,
+            [admin_email],
+            html,
+            background=True,
+        )
+
+    return {"push_sent": push_count > 0, "email_sent": email_sent}
+
+
 def serialize_pending_claim_request(claim, *, viewer=None, followed_user_ids=None):
     """Serializza una richiesta pendente verso l'host proprietario dell'offerta."""
     offer = claim.offerta
@@ -5601,6 +5954,9 @@ def api_register():
         lon = request.form.get("longitudine")
         citta = request.form.get("citta", "").strip()
         bio = request.form.get("bio", "").strip()
+        accepted_terms = str(request.form.get("accepted_terms", "")).strip().lower() in {"1", "true", "yes", "on"}
+        accepted_privacy = str(request.form.get("accepted_privacy", "")).strip().lower() in {"1", "true", "yes", "on"}
+        accepted_rules = str(request.form.get("accepted_community_rules", "")).strip().lower() in {"1", "true", "yes", "on"}
         eta, eta_error = parse_age_value(eta_raw)
         sesso, sesso_error = parse_gender_value(sesso_raw)
         numero_telefono, phone_error = normalize_phone_number(numero_telefono_raw)
@@ -5625,6 +5981,8 @@ def api_register():
             errors.append("Seleziona la tua posizione sulla mappa.")
         if len(bio) > 0 and len(bio) < 5:
             errors.append("Raccontaci qualcosa di piu nella Bio.")
+        if not (accepted_terms and accepted_privacy and accepted_rules):
+            errors.append("Per registrarti devi accettare Termini, Privacy e Regolamento Community.")
 
         # Controlla email duplicata
         if User.query.filter_by(email=email).first():
@@ -5665,6 +6023,7 @@ def api_register():
             verification_token=token_verifica
         )
         user.set_password(password)
+        accept_current_legal_for_user(user)
 
         db.session.add(user)
         db.session.flush()
@@ -6257,6 +6616,9 @@ def api_edit_offer(offer_id):
     profile_error = require_complete_profile_json()
     if profile_error:
         return profile_error
+    legal_error = require_legal_acceptance_json()
+    if legal_error:
+        return legal_error
 
     offer = Offer.query.get_or_404(offer_id)
     if not can_manage_offer(offer, current_user):
@@ -6434,6 +6796,9 @@ def api_create_offer():
     profile_error = require_complete_profile_json()
     if profile_error:
         return profile_error
+    legal_error = require_legal_acceptance_json()
+    if legal_error:
+        return legal_error
 
     tipo_pasto = request.form.get("tipo_pasto", "")
     nome_locale = request.form.get("nome_locale", "").strip()
@@ -6585,6 +6950,9 @@ def api_claim_offer(offer_id):
     profile_error = require_complete_profile_json()
     if profile_error:
         return profile_error
+    legal_error = require_legal_acceptance_json()
+    if legal_error:
+        return legal_error
 
     offer = db.session.get(Offer, offer_id)
 
@@ -7007,10 +7375,45 @@ def api_user_me():
             status=CLAIM_STATUS_ACCEPTED,
         ).count(),
     }
+    user_payload["legal"] = build_legal_status_payload(current_user)
 
     return jsonify({
         "success": True,
         "user": user_payload,
+    })
+
+
+@app.route("/api/legal/status", methods=["GET"])
+@login_required
+def api_legal_status():
+    """Restituisce lo stato di accettazione documenti legali per l'app."""
+    return jsonify({
+        "success": True,
+        "legal": build_legal_status_payload(current_user),
+    })
+
+
+@app.route("/api/legal/accept", methods=["POST"])
+@login_required
+def api_legal_accept():
+    """Salva accettazione di Termini, Regolamento Community e Privacy."""
+    data = request.get_json(silent=True) or {}
+    accepted_terms = bool(data.get("accepted_terms"))
+    accepted_privacy = bool(data.get("accepted_privacy"))
+    accepted_rules = bool(data.get("accepted_community_rules"))
+
+    if not (accepted_terms and accepted_privacy and accepted_rules):
+        return jsonify({
+            "success": False,
+            "error": "Devi confermare Termini, Privacy e Regolamento Community.",
+        }), 400
+
+    accept_current_legal_for_user(current_user)
+    db.session.commit()
+    return jsonify({
+        "success": True,
+        "message": "Accettazione salvata. Puoi continuare a usare ApprofittOffro.",
+        "legal": build_legal_status_payload(current_user),
     })
 
 
@@ -7258,6 +7661,9 @@ def notify_user_for_bug_report_review(report):
 @login_required
 def api_submit_bug_report():
     """Riceve una segnalazione bug dall'app e la mette in attesa di validazione."""
+    legal_error = require_legal_acceptance_json()
+    if legal_error:
+        return legal_error
     if is_admin_user(current_user):
         return jsonify({
             "success": False,
@@ -8736,6 +9142,9 @@ def api_chat_messages():
 @login_required
 def api_chat_send_message():
     """Salva un messaggio chat (text/audio/image/file) nel DB server."""
+    legal_error = require_legal_acceptance_json()
+    if legal_error:
+        return legal_error
     data = request.get_json(silent=True) or {}
     raw_offer_id = data.get("offer_id")
     raw_receiver_id = data.get("receiver_id")
@@ -9232,6 +9641,9 @@ def api_follow_user(user_id):
     """Segue un utente da mobile/web app JSON."""
     if is_admin_user(current_user):
         return jsonify({"success": False, "error": "Operazione non disponibile per gli amministratori."}), 403
+    legal_error = require_legal_acceptance_json()
+    if legal_error:
+        return legal_error
     moderation_error = require_moderation_clear_json(current_user)
     if moderation_error:
         return moderation_error
@@ -9282,6 +9694,114 @@ def api_unfollow_user(user_id):
         "message": f"Non segui più {user.nome}.",
         "is_following": False,
         "followers_count": user.followers_count,
+    })
+
+
+@app.route("/api/users/<int:user_id>/block", methods=["POST"])
+@login_required
+def api_block_user(user_id):
+    """Blocca un profilo dall'app, riusando la stessa protezione della chat."""
+    if is_admin_user(current_user):
+        return jsonify({"success": False, "error": "Operazione non disponibile per gli amministratori."}), 403
+    legal_error = require_legal_acceptance_json()
+    if legal_error:
+        return legal_error
+    if user_id == current_user.id:
+        return jsonify({"success": False, "error": "Non puoi bloccare te stesso."}), 400
+
+    user = User.query.get(user_id)
+    if not user or is_admin_user(user):
+        return jsonify({"success": False, "error": "Utente non trovato."}), 404
+
+    existing = UserBlock.query.filter_by(
+        blocker_id=current_user.id,
+        blocked_id=user.id,
+    ).first()
+    if not existing:
+        db.session.add(UserBlock(blocker_id=current_user.id, blocked_id=user.id))
+        db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"Hai bloccato {user.nome}. Non potrete scrivervi finche non lo sblocchi.",
+        "blocked": True,
+    })
+
+
+@app.route("/api/users/<int:user_id>/unblock", methods=["POST"])
+@login_required
+def api_unblock_user(user_id):
+    """Sblocca un profilo dall'app."""
+    if is_admin_user(current_user):
+        return jsonify({"success": False, "error": "Operazione non disponibile per gli amministratori."}), 403
+    user = User.query.get(user_id)
+    if not user or is_admin_user(user):
+        return jsonify({"success": False, "error": "Utente non trovato."}), 404
+
+    existing = UserBlock.query.filter_by(
+        blocker_id=current_user.id,
+        blocked_id=user.id,
+    ).first()
+    if existing:
+        db.session.delete(existing)
+        db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"Hai sbloccato {user.nome}.",
+        "blocked": False,
+    })
+
+
+@app.route("/api/reports", methods=["POST"])
+@login_required
+def api_submit_content_report():
+    """Riceve segnalazioni di profili, eventi, chat o altri contenuti."""
+    if is_admin_user(current_user):
+        return jsonify({"success": False, "error": "Usa un account utente standard per inviare segnalazioni."}), 403
+    legal_error = require_legal_acceptance_json()
+    if legal_error:
+        return legal_error
+    moderation_error = require_moderation_clear_json(current_user)
+    if moderation_error:
+        return moderation_error
+
+    data = request.get_json(silent=True) or request.form or {}
+    message = str(data.get("message", "") or "").strip()
+    if len(message) < 8:
+        return jsonify({
+            "success": False,
+            "error": "Scrivi almeno qualche parola per spiegare la segnalazione.",
+        }), 400
+    if len(message) > 1200:
+        return jsonify({
+            "success": False,
+            "error": "Segnalazione troppo lunga: resta entro 1200 caratteri.",
+        }), 400
+
+    try:
+        target = resolve_content_report_target(data)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+
+    report = ContentReport(
+        reporter_id=current_user.id,
+        target_type=target["target_type"],
+        target_id=target["target_id"],
+        reported_user_id=target["reported_user_id"],
+        offer_id=target["offer_id"],
+        chat_thread_id=target["chat_thread_id"],
+        message=message,
+        status=CONTENT_REPORT_STATUS_PENDING,
+    )
+    db.session.add(report)
+    db.session.commit()
+    notify_admin_for_content_report(report)
+
+    return jsonify({
+        "success": True,
+        "message": "Segnalazione inviata. L'amministratore la controllera appena possibile.",
+        "report": serialize_content_report(report),
     })
 
 
@@ -9359,8 +9879,23 @@ def api_admin_dashboard():
         .limit(100)
         .all()
     )
+    content_reports = (
+        ContentReport.query.options(
+            selectinload(ContentReport.reporter).selectinload(User.photos),
+            selectinload(ContentReport.reported_user).selectinload(User.photos),
+            selectinload(ContentReport.offer),
+            selectinload(ContentReport.chat_thread),
+            selectinload(ContentReport.reviewed_by),
+        )
+        .order_by(ContentReport.created_at.desc())
+        .limit(100)
+        .all()
+    )
     pending_bug_reports_count = BugReport.query.filter_by(
         status=BUG_REPORT_STATUS_PENDING,
+    ).count()
+    pending_content_reports_count = ContentReport.query.filter_by(
+        status=CONTENT_REPORT_STATUS_PENDING,
     ).count()
 
     return jsonify({
@@ -9373,6 +9908,7 @@ def api_admin_dashboard():
             "chats": len(chat_threads),
             "review_users": len(review_users),
             "bug_reports_pending": pending_bug_reports_count,
+            "content_reports_pending": pending_content_reports_count,
         },
         "users": [
             serialize_admin_user_summary(user)
@@ -9397,6 +9933,10 @@ def api_admin_dashboard():
         "bug_reports": [
             serialize_bug_report(report)
             for report in bug_reports
+        ],
+        "content_reports": [
+            serialize_content_report(report)
+            for report in content_reports
         ],
     })
 
@@ -9499,6 +10039,95 @@ def api_admin_archive_bug_report(report_id):
         "success": True,
         "message": message,
         "report": serialize_bug_report(report),
+    })
+
+
+@app.route("/api/admin/content-reports/<int:report_id>/review", methods=["POST"])
+@admin_required
+def api_admin_review_content_report(report_id):
+    """Gestisce una segnalazione contenuto senza assegnare punti."""
+    report = ContentReport.query.options(
+        selectinload(ContentReport.reporter),
+        selectinload(ContentReport.reported_user),
+        selectinload(ContentReport.offer),
+        selectinload(ContentReport.chat_thread),
+        selectinload(ContentReport.reviewed_by),
+    ).get(report_id)
+    if not report:
+        return jsonify({"success": False, "error": "Segnalazione non trovata."}), 404
+
+    data = request.get_json(silent=True) or {}
+    status = str(data.get("status", "")).strip().lower()
+    note = str(data.get("admin_note", "")).strip()[:800]
+    if status not in {CONTENT_REPORT_STATUS_REVIEWED, CONTENT_REPORT_STATUS_DISMISSED}:
+        return jsonify({"success": False, "error": "Decisione non valida."}), 400
+    if status == CONTENT_REPORT_STATUS_REVIEWED and len(note) < 4:
+        return jsonify({
+            "success": False,
+            "error": "Inserisci una nota admin minima su cosa hai verificato.",
+        }), 400
+
+    report.status = status
+    report.admin_note = note
+    report.reviewed_by_id = current_user.id
+    report.reviewed_at = datetime.now()
+    db.session.commit()
+
+    if report.reporter:
+        send_push_to_user(
+            report.reporter,
+            title="Segnalazione controllata",
+            body=(
+                "L'amministratore ha preso in carico la tua segnalazione."
+                if status == CONTENT_REPORT_STATUS_REVIEWED
+                else "La tua segnalazione e stata archiviata senza interventi."
+            ),
+            target="notifications",
+            extra_data={"content_report_id": report.id},
+        )
+
+    return jsonify({
+        "success": True,
+        "message": "Segnalazione contenuto aggiornata.",
+        "report": serialize_content_report(report),
+    })
+
+
+@app.route("/api/admin/content-reports/<int:report_id>/archive", methods=["POST"])
+@admin_required
+def api_admin_archive_content_report(report_id):
+    """Archivia o ripristina una segnalazione contenuto nel pannello admin."""
+    report = ContentReport.query.options(
+        selectinload(ContentReport.reporter),
+        selectinload(ContentReport.reported_user),
+        selectinload(ContentReport.offer),
+        selectinload(ContentReport.chat_thread),
+        selectinload(ContentReport.reviewed_by),
+    ).get(report_id)
+    if not report:
+        return jsonify({"success": False, "error": "Segnalazione non trovata."}), 404
+
+    data = request.get_json(silent=True) or {}
+    archived = bool(data.get("archived", True))
+    if archived:
+        if report.status == CONTENT_REPORT_STATUS_PENDING:
+            return jsonify({
+                "success": False,
+                "error": "Prima gestisci la segnalazione, poi archiviala.",
+            }), 400
+        report.admin_archived_at = datetime.now()
+        report.admin_archived_by_id = current_user.id
+        message = "Segnalazione contenuto archiviata."
+    else:
+        report.admin_archived_at = None
+        report.admin_archived_by_id = None
+        message = "Segnalazione contenuto ripristinata."
+
+    db.session.commit()
+    return jsonify({
+        "success": True,
+        "message": message,
+        "report": serialize_content_report(report),
     })
 
 

@@ -44,6 +44,39 @@ class AppNotificationBundle {
   final int unreadCount;
 }
 
+class LegalStatus {
+  const LegalStatus({
+    required this.accepted,
+    required this.termsUrl,
+    required this.privacyUrl,
+    required this.communityRulesUrl,
+    required this.currentTermsVersion,
+    required this.currentPrivacyVersion,
+  });
+
+  final bool accepted;
+  final String termsUrl;
+  final String privacyUrl;
+  final String communityRulesUrl;
+  final String currentTermsVersion;
+  final String currentPrivacyVersion;
+
+  factory LegalStatus.fromJson(Map<String, dynamic> json) {
+    return LegalStatus(
+      accepted: json['accepted'] == true,
+      termsUrl:
+          (json['terms_url'] ?? AppConfig.termsAndConditionsUrl).toString(),
+      privacyUrl:
+          (json['privacy_url'] ?? AppConfig.privacyPolicyUrl).toString(),
+      communityRulesUrl:
+          (json['community_rules_url'] ?? AppConfig.communityRulesUrl)
+              .toString(),
+      currentTermsVersion: (json['current_terms_version'] ?? '').toString(),
+      currentPrivacyVersion: (json['current_privacy_version'] ?? '').toString(),
+    );
+  }
+}
+
 typedef UploadProgressCallback = void Function(int sentBytes, int totalBytes);
 
 class ApiClient {
@@ -199,6 +232,9 @@ class ApiClient {
       'latitudine': latitude,
       'longitudine': longitude,
       'citta': citta,
+      'accepted_terms': 'true',
+      'accepted_privacy': 'true',
+      'accepted_community_rules': 'true',
     });
 
     for (final photoPath in photoPaths) {
@@ -236,6 +272,33 @@ class ApiClient {
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return AppUser.fromJson(payload['user'] as Map<String, dynamic>);
+  }
+
+  Future<LegalStatus> fetchLegalStatus() async {
+    final response = await _send(method: 'GET', path: '/api/legal/status');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return LegalStatus.fromJson(
+      payload['legal'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+    );
+  }
+
+  Future<LegalStatus> acceptLegalDocuments() async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/legal/accept',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'accepted_terms': true,
+        'accepted_privacy': true,
+        'accepted_community_rules': true,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return LegalStatus.fromJson(
+      payload['legal'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+    );
   }
 
   Future<String> submitBugReport({
@@ -439,6 +502,40 @@ class ApiClient {
     return payload['message']?.toString() ?? 'Segnalazione aggiornata.';
   }
 
+  Future<String> reviewAdminContentReport({
+    required int reportId,
+    required String status,
+    String adminNote = '',
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/admin/content-reports/$reportId/review',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'status': status,
+        'admin_note': adminNote,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Segnalazione aggiornata.';
+  }
+
+  Future<String> setAdminContentReportArchived({
+    required int reportId,
+    required bool archived,
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/admin/content-reports/$reportId/archive',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'archived': archived}),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Segnalazione aggiornata.';
+  }
+
   Future<List<UserPreview>> fetchPeople({
     String ageRange = '',
     String gender = '',
@@ -477,6 +574,58 @@ class ApiClient {
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return PublicProfile.fromJson(payload);
+  }
+
+  Future<String> submitContentReport({
+    required String targetType,
+    int? targetId,
+    int? reportedUserId,
+    int? offerId,
+    int? chatThreadId,
+    required String message,
+  }) async {
+    final body = <String, dynamic>{
+      'target_type': targetType,
+      'message': message,
+    };
+    if (targetId != null && targetId > 0) {
+      body['target_id'] = targetId;
+    }
+    if (reportedUserId != null && reportedUserId > 0) {
+      body['reported_user_id'] = reportedUserId;
+    }
+    if (offerId != null && offerId > 0) {
+      body['offer_id'] = offerId;
+    }
+    if (chatThreadId != null && chatThreadId > 0) {
+      body['chat_thread_id'] = chatThreadId;
+    }
+
+    final response = await _send(
+      method: 'POST',
+      path: '/api/reports',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Segnalazione inviata.';
+  }
+
+  Future<Map<String, dynamic>> blockUser({required int userId}) async {
+    final response =
+        await _send(method: 'POST', path: '/api/users/$userId/block');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
+  }
+
+  Future<Map<String, dynamic>> unblockUser({required int userId}) async {
+    final response =
+        await _send(method: 'POST', path: '/api/users/$userId/unblock');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
   }
 
   Future<Map<String, dynamic>> followUser(int userId) async {

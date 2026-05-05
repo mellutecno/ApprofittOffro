@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/biometric_auth_service.dart';
+import '../../core/config/app_config.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_guide_sheet.dart';
@@ -47,7 +48,13 @@ class _ProfilePageState extends State<ProfilePage> {
     'https://play.google.com/store/apps/details?id=com.mellutecno.approfittoffro',
   );
   static final Uri _privacyPolicyUri = Uri.parse(
-    'https://www.approfittoffro.it/static/privacy_policy.html',
+    AppConfig.privacyPolicyUrl,
+  );
+  static final Uri _termsUri = Uri.parse(
+    AppConfig.termsAndConditionsUrl,
+  );
+  static final Uri _communityRulesUri = Uri.parse(
+    AppConfig.communityRulesUrl,
   );
   bool _archiveExpanded = false;
   bool _communityExpanded = false;
@@ -2474,6 +2481,15 @@ class _ProfilePageState extends State<ProfilePage> {
                     fallbackMessage:
                         'Non riesco ad aprire la privacy policy adesso.',
                   ),
+                  onTerms: () => _openExternalLink(
+                    _termsUri,
+                    fallbackMessage: 'Non riesco ad aprire i termini adesso.',
+                  ),
+                  onCommunityRules: () => _openExternalLink(
+                    _communityRulesUri,
+                    fallbackMessage:
+                        'Non riesco ad aprire il regolamento adesso.',
+                  ),
                   showAdminPanel:
                       widget.authController.currentUser?.canAccessAdmin == true,
                   onOpenAdminPanel: _openAdminPanel,
@@ -3912,6 +3928,8 @@ class _SettingsCard extends StatelessWidget {
     required this.onSecurity,
     required this.onCheckUpdates,
     required this.onPrivacyPolicy,
+    required this.onTerms,
+    required this.onCommunityRules,
     required this.showAdminPanel,
     required this.onOpenAdminPanel,
     required this.onDeleteAccount,
@@ -3928,6 +3946,8 @@ class _SettingsCard extends StatelessWidget {
   final VoidCallback onSecurity;
   final VoidCallback onCheckUpdates;
   final VoidCallback onPrivacyPolicy;
+  final VoidCallback onTerms;
+  final VoidCallback onCommunityRules;
   final bool showAdminPanel;
   final VoidCallback onOpenAdminPanel;
   final VoidCallback? onDeleteAccount;
@@ -4038,6 +4058,22 @@ class _SettingsCard extends StatelessWidget {
                       color: Color(0xFFE07800),
                     ),
                     label: const Text('Informativa privacy'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onTerms,
+                    icon: const Icon(
+                      Icons.gavel_outlined,
+                      color: Color(0xFFE07800),
+                    ),
+                    label: const Text('Termini e condizioni'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onCommunityRules,
+                    icon: const Icon(
+                      Icons.verified_user_outlined,
+                      color: Color(0xFFE07800),
+                    ),
+                    label: const Text('Regolamento community'),
                   ),
                   if (showAdminPanel)
                     OutlinedButton.icon(

@@ -45,6 +45,12 @@ class AppConfig {
   );
 
   static const String androidNotificationChannelId = 'approfittoffro_alerts';
+  static const String privacyPolicyUrl =
+      'https://www.approfittoffro.it/static/privacy_policy.html';
+  static const String termsAndConditionsUrl =
+      'https://www.approfittoffro.it/static/terms_and_conditions.html';
+  static const String communityRulesUrl =
+      'https://www.approfittoffro.it/static/community_rules.html';
 
   static bool get firebaseMessagingConfigured =>
       firebaseApiKey.isNotEmpty &&

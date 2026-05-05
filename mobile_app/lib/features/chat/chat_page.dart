@@ -20,9 +20,11 @@ import 'package:video_compress/video_compress.dart';
 import '../../core/chat/chat_presence_tracker.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/content_report_sheet.dart';
 
 enum _ChatMenuAction {
   clearForEveryone,
+  reportChat,
   blockUser,
   unblockUser,
 }
@@ -688,10 +690,33 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  Future<void> _reportChat() async {
+    final offerId = _parsedOfferId;
+    final otherUserId = _parsedOtherUserId;
+    if (offerId == null ||
+        otherUserId == null ||
+        offerId <= 0 ||
+        otherUserId <= 0) {
+      _showSnack('Dati chat non validi per la segnalazione.');
+      return;
+    }
+    await showContentReportSheet(
+      context: context,
+      apiClient: widget.apiClient,
+      title: 'Segnala chat',
+      targetType: 'chat',
+      offerId: offerId,
+      reportedUserId: otherUserId,
+    );
+  }
+
   Future<void> _onMenuSelected(_ChatMenuAction action) async {
     switch (action) {
       case _ChatMenuAction.clearForEveryone:
         await _clearChatForEveryone();
+        break;
+      case _ChatMenuAction.reportChat:
+        await _reportChat();
         break;
       case _ChatMenuAction.blockUser:
         await _toggleBlockUser(block: true);
@@ -3251,6 +3276,10 @@ class _ChatPageState extends State<ChatPage> {
               const PopupMenuItem(
                 value: _ChatMenuAction.clearForEveryone,
                 child: Text('Elimina chat per tutti'),
+              ),
+              const PopupMenuItem(
+                value: _ChatMenuAction.reportChat,
+                child: Text('Segnala chat'),
               ),
               PopupMenuItem(
                 value: _blockedByMe

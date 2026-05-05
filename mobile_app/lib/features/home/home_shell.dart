@@ -7,6 +7,7 @@ import '../../core/guide/app_guide_preferences.dart';
 import '../../core/navigation/app_launch_target.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_guide_sheet.dart';
+import '../../core/widgets/legal_acceptance_sheet.dart';
 import '../admin/admin_page.dart';
 import '../auth/auth_controller.dart';
 import '../chat/chat_inbox_page.dart';
@@ -49,6 +50,8 @@ class _HomeShellState extends State<HomeShell> {
   bool _reviewAlertVisible = false;
   bool _startupGuideHandled = false;
   bool _startupGuideInFlight = false;
+  bool _legalGateHandled = false;
+  bool _legalGateOpen = false;
   String? _lastReviewsAlertSignature;
 
   bool get _isAdminUser => widget.authController.currentUser?.isAdmin == true;
@@ -70,6 +73,7 @@ class _HomeShellState extends State<HomeShell> {
     widget.authController.addListener(_handleAuthStateChanged);
     _offersController.addListener(_handleOffersStateChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_maybeShowLegalGate());
       unawaited(_maybeOpenMandatoryProfileSetup());
       unawaited(_refreshUnreadNotifications());
       _applyLaunchTargetIfNeeded();
@@ -106,6 +110,7 @@ class _HomeShellState extends State<HomeShell> {
 
   void _handleAuthStateChanged() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_maybeShowLegalGate());
       unawaited(_maybeOpenMandatoryProfileSetup());
       unawaited(_offersController.loadOffers());
       if (!_isAdminUser) {
@@ -391,6 +396,9 @@ class _HomeShellState extends State<HomeShell> {
     if (!mounted || _mandatoryProfileFlowOpen) {
       return;
     }
+    if (_legalGateOpen || !_legalGateHandled) {
+      return;
+    }
     if (!widget.authController.isAuthenticated) {
       return;
     }
@@ -435,6 +443,8 @@ class _HomeShellState extends State<HomeShell> {
         !mounted ||
         _isAdminUser ||
         !widget.authController.isAuthenticated ||
+        _legalGateOpen ||
+        !_legalGateHandled ||
         widget.launchTarget != null ||
         _mandatoryProfileFlowOpen ||
         (widget.authController.currentUser?.needsMandatoryProfileSetup ??
@@ -469,6 +479,43 @@ class _HomeShellState extends State<HomeShell> {
       }
     } finally {
       _startupGuideInFlight = false;
+    }
+  }
+
+  Future<void> _maybeShowLegalGate() async {
+    if (_legalGateHandled ||
+        _legalGateOpen ||
+        !mounted ||
+        _isAdminUser ||
+        !widget.authController.isAuthenticated) {
+      return;
+    }
+
+    _legalGateOpen = true;
+    try {
+      final status = await widget.authController.apiClient.fetchLegalStatus();
+      if (!mounted) {
+        return;
+      }
+      if (!status.accepted) {
+        final accepted = await showLegalAcceptanceSheet(
+          context: context,
+          apiClient: widget.authController.apiClient,
+          initialStatus: status,
+        );
+        if (accepted) {
+          await widget.authController.refreshCurrentUser();
+        }
+      }
+      _legalGateHandled = true;
+    } catch (_) {
+      _legalGateHandled = true;
+    } finally {
+      _legalGateOpen = false;
+      if (mounted) {
+        unawaited(_maybeOpenMandatoryProfileSetup());
+        unawaited(_maybeShowStartupGuide());
+      }
     }
   }
 

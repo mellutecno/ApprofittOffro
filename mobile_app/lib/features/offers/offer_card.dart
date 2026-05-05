@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/content_report_sheet.dart';
 import '../../models/offer.dart';
 import '../profile/public_profile_page.dart';
 import '../profile/profile_gallery_viewer_page.dart';
@@ -185,7 +186,13 @@ class OfferCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      if (allowProfileOpen)
+                      if (!offer.isOwn)
+                        IconButton(
+                          onPressed: () => _reportOffer(context),
+                          icon: const Icon(Icons.report_problem_outlined),
+                          tooltip: 'Segnala evento',
+                        )
+                      else if (allowProfileOpen)
                         const Icon(Icons.chevron_right_rounded),
                     ],
                   ),
@@ -623,6 +630,18 @@ class OfferCard extends StatelessWidget {
           userId: userId,
         ),
       ),
+    );
+  }
+
+  Future<void> _reportOffer(BuildContext context) async {
+    await showContentReportSheet(
+      context: context,
+      apiClient: apiClient,
+      title: 'Segnala evento',
+      targetType: 'offer',
+      targetId: offer.id,
+      offerId: offer.id,
+      reportedUserId: offer.autoreId,
     );
   }
 

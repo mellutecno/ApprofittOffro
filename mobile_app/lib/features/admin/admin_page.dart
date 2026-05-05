@@ -15,6 +15,7 @@ enum _AdminSection {
   futureOffers('Eventi futuri'),
   pastOffers('Eventi passati'),
   chats('Chat'),
+  contentReports('Segnalazioni'),
   bugReports('Bug report');
 
   const _AdminSection(this.label);
@@ -362,8 +363,48 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  String _contentReportStatusLabel(String value) {
+    switch (value) {
+      case 'reviewed':
+        return 'Gestita';
+      case 'dismissed':
+        return 'Archiviata';
+      default:
+        return 'Da controllare';
+    }
+  }
+
+  Color _contentReportStatusColor(String value) {
+    switch (value) {
+      case 'reviewed':
+        return AppTheme.offerGreen;
+      case 'dismissed':
+        return AppTheme.brown;
+      default:
+        return AppTheme.orange;
+    }
+  }
+
   List<AdminBugReportSummary> _sortedBugReports(AdminDashboardData data) {
     final reports = List<AdminBugReportSummary>.from(data.bugReports);
+    reports.sort((a, b) {
+      if (a.isPending != b.isPending) {
+        return a.isPending ? -1 : 1;
+      }
+      if (a.isArchived != b.isArchived) {
+        return a.isArchived ? 1 : -1;
+      }
+      final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+    return reports;
+  }
+
+  List<AdminContentReportSummary> _sortedContentReports(
+    AdminDashboardData data,
+  ) {
+    final reports = List<AdminContentReportSummary>.from(data.contentReports);
     reports.sort((a, b) {
       if (a.isPending != b.isPending) {
         return a.isPending ? -1 : 1;
@@ -881,6 +922,112 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  Future<void> _confirmContentReportDecision(
+    AdminContentReportSummary report, {
+    required bool reviewed,
+  }) async {
+    final noteController = TextEditingController(text: report.adminNote);
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title:
+              Text(reviewed ? 'Segnalazione gestita' : 'Ignora segnalazione'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${report.reporter.name} -> ${report.reportedUser.name}',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              Text(report.message,
+                  maxLines: 4, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 12),
+              TextField(
+                controller: noteController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: reviewed ? 'Nota admin' : 'Nota admin opzionale',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annulla'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(reviewed ? 'Segna gestita' : 'Ignora'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      noteController.dispose();
+      return;
+    }
+
+    try {
+      final result =
+          await widget.authController.apiClient.reviewAdminContentReport(
+        reportId: report.id,
+        status: reviewed ? 'reviewed' : 'dismissed',
+        adminNote: noteController.text.trim(),
+      );
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text(result)));
+      await _reloadDashboard();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      noteController.dispose();
+    }
+  }
+
+  Future<void> _setContentReportArchived(
+    AdminContentReportSummary report, {
+    required bool archived,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result =
+          await widget.authController.apiClient.setAdminContentReportArchived(
+        reportId: report.id,
+        archived: archived,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        final key = _rowKey(_AdminSection.contentReports, report.id);
+        if (archived) {
+          _expandedAdminRows.remove(key);
+        } else {
+          _expandedAdminRows.add(key);
+        }
+      });
+      messenger.showSnackBar(SnackBar(content: Text(result)));
+      await _reloadDashboard();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
   Widget _buildAvatar({
     required String filename,
     required String fallback,
@@ -915,6 +1062,7 @@ class _AdminPageState extends State<AdminPage> {
       (label: 'Passati', value: stats.pastOffers),
       (label: 'Chat', value: stats.chats),
       (label: 'Review', value: stats.reviewUsers),
+      (label: 'Segnal.', value: stats.contentReportsPending),
       (label: 'Bug', value: stats.bugReportsPending),
     ];
 
@@ -1200,6 +1348,51 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildContentReportsSummary(List<AdminContentReportSummary> reports) {
+    final pendingCount = reports.where((report) => report.isPending).length;
+    final archivedCount = reports.where((report) => report.isArchived).length;
+    final reviewedCount = reports
+        .where((report) => !report.isPending && !report.isArchived)
+        .length;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.report_problem_rounded,
+                  color: AppTheme.vividViolet,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Segnalazioni contenuto: $pendingCount nuove',
+                    style: const TextStyle(
+                      color: AppTheme.brown,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 17,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$reviewedCount gestite, $archivedCount archiviate. Apri una riga per rivedere o archiviare.',
+              style: TextStyle(
+                color: AppTheme.brown.withValues(alpha: 0.72),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildExpandableAdminItem({
     required _AdminSection section,
     required int id,
@@ -1328,6 +1521,27 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildCompactContentReportItem(AdminContentReportSummary report) {
+    final subtitleParts = <String>[
+      _contentReportStatusLabel(report.status),
+      _formatDateTime(report.createdAt),
+      report.targetType,
+      report.message,
+    ];
+    return _buildExpandableAdminItem(
+      section: _AdminSection.contentReports,
+      id: report.id,
+      title: '${report.reporter.name} segnala ${report.reportedUser.name}',
+      subtitle: subtitleParts.join(' - '),
+      icon: Icons.report_problem_rounded,
+      color: report.isArchived
+          ? AppTheme.brown
+          : _contentReportStatusColor(report.status),
+      trailingLabel: report.isPending ? 'Nuova' : '',
+      expandedBuilder: () => _buildContentReportCard(report),
+    );
+  }
+
   List<Widget> _buildSectionItems(AdminDashboardData data) {
     switch (_selectedSection) {
       case _AdminSection.users:
@@ -1404,6 +1618,18 @@ class _AdminPageState extends State<AdminPage> {
           ];
         }
         return filteredChats.map(_buildCompactChatItem).toList();
+      case _AdminSection.contentReports:
+        final reports = _sortedContentReports(data);
+        if (reports.isEmpty) {
+          return const [
+            _AdminEmptyState(
+              title: 'Nessuna segnalazione contenuto',
+              subtitle:
+                  'Qui arrivano profili, chat o eventi segnalati dagli utenti.',
+            ),
+          ];
+        }
+        return reports.map(_buildCompactContentReportItem).toList();
       case _AdminSection.bugReports:
         final bugReports = _sortedBugReports(data);
         if (bugReports.isEmpty) {
@@ -1937,6 +2163,157 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildContentReportCard(AdminContentReportSummary report) {
+    final isArchived = report.isArchived;
+    final offerText = report.offerTitle.trim().isEmpty
+        ? ''
+        : '${report.offerTitle} - ${report.offerAddress}';
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(isArchived ? 14 : 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _StatusPill(
+                  label: _contentReportStatusLabel(report.status),
+                  color: _contentReportStatusColor(report.status),
+                ),
+                _StatusPill(
+                  label: report.targetType,
+                  color: AppTheme.vividViolet,
+                ),
+                if (isArchived)
+                  const _StatusPill(
+                    label: 'Archiviata',
+                    color: AppTheme.brown,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildAvatar(
+                  filename: report.reporter.photoFilename,
+                  fallback: report.reporter.name,
+                  radius: 22,
+                ),
+                const SizedBox(width: 10),
+                const Icon(Icons.arrow_forward_rounded, color: AppTheme.brown),
+                const SizedBox(width: 10),
+                _buildAvatar(
+                  filename: report.reportedUser.photoFilename,
+                  fallback: report.reportedUser.name,
+                  radius: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '${report.reporter.name} segnala ${report.reportedUser.name}',
+                    style: const TextStyle(
+                      color: AppTheme.brown,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 17,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (offerText.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                offerText,
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.72),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Text(
+              report.message,
+              maxLines: isArchived ? 2 : null,
+              overflow: isArchived ? TextOverflow.ellipsis : null,
+              style: TextStyle(
+                color: AppTheme.brown.withValues(alpha: 0.84),
+                height: 1.35,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _formatDateTime(report.createdAt),
+              style: TextStyle(
+                color: AppTheme.brown.withValues(alpha: 0.62),
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+            if (report.adminNote.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Nota admin: ${report.adminNote}',
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.7),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                SizedBox(
+                  width: 170,
+                  child: FilledButton.icon(
+                    onPressed: () => _confirmContentReportDecision(
+                      report,
+                      reviewed: true,
+                    ),
+                    icon: const Icon(Icons.verified_rounded),
+                    label: const Text('Gestita'),
+                  ),
+                ),
+                SizedBox(
+                  width: 150,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _confirmContentReportDecision(
+                      report,
+                      reviewed: false,
+                    ),
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('Ignora'),
+                  ),
+                ),
+                if (!report.isPending)
+                  SizedBox(
+                    width: 150,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _setContentReportArchived(
+                        report,
+                        archived: !isArchived,
+                      ),
+                      icon: Icon(
+                        isArchived
+                            ? Icons.unarchive_rounded
+                            : Icons.archive_rounded,
+                      ),
+                      label: Text(isArchived ? 'Riapri' : 'Archivia'),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBugReportCard(AdminBugReportSummary report) {
     final isArchived = report.isArchived;
     return Card(
@@ -2337,6 +2714,7 @@ class _AdminPageState extends State<AdminPage> {
           final filteredFutureOffers = _filteredOffers(dashboard.futureOffers);
           final filteredPastOffers = _filteredOffers(dashboard.pastOffers);
           final filteredChats = _filteredChats(dashboard);
+          final contentReports = _sortedContentReports(dashboard);
           final bugReports = _sortedBugReports(dashboard);
           final currentCount = switch (_selectedSection) {
             _AdminSection.users => filteredUsers.length,
@@ -2344,6 +2722,7 @@ class _AdminPageState extends State<AdminPage> {
             _AdminSection.futureOffers => filteredFutureOffers.length,
             _AdminSection.pastOffers => filteredPastOffers.length,
             _AdminSection.chats => filteredChats.length,
+            _AdminSection.contentReports => contentReports.length,
             _AdminSection.bugReports => bugReports.length,
           };
           final items = _buildSectionItems(dashboard);
@@ -2442,21 +2821,24 @@ class _AdminPageState extends State<AdminPage> {
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
                     child: _selectedSection == _AdminSection.bugReports
                         ? _buildBugReportsSummary(bugReports)
-                        : _selectedSection == _AdminSection.users ||
-                                _selectedSection == _AdminSection.reviewUsers
-                            ? _buildUsersFilters(
-                                _selectedSection == _AdminSection.users
-                                    ? filteredUsers
-                                    : filteredReviewUsers,
-                              )
-                            : _selectedSection == _AdminSection.chats
-                                ? _buildChatsFilters(filteredChats)
-                                : _buildOffersFilters(
+                        : _selectedSection == _AdminSection.contentReports
+                            ? _buildContentReportsSummary(contentReports)
+                            : _selectedSection == _AdminSection.users ||
                                     _selectedSection ==
-                                            _AdminSection.futureOffers
-                                        ? filteredFutureOffers
-                                        : filteredPastOffers,
-                                  ),
+                                        _AdminSection.reviewUsers
+                                ? _buildUsersFilters(
+                                    _selectedSection == _AdminSection.users
+                                        ? filteredUsers
+                                        : filteredReviewUsers,
+                                  )
+                                : _selectedSection == _AdminSection.chats
+                                    ? _buildChatsFilters(filteredChats)
+                                    : _buildOffersFilters(
+                                        _selectedSection ==
+                                                _AdminSection.futureOffers
+                                            ? filteredFutureOffers
+                                            : filteredPastOffers,
+                                      ),
                   ),
                 ),
                 SliverToBoxAdapter(

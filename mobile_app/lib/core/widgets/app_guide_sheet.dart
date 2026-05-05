@@ -54,6 +54,7 @@ class _AppGuideSheetState extends State<_AppGuideSheet> {
       bullets: [
         'Vedi profili reali della tua zona e puoi aprire le schede pubbliche.',
         'Gli utenti in revisione non vengono mostrati finche l\'admin non li approva.',
+        'Dalla scheda profilo puoi bloccare o segnalare un utente se qualcosa non va.',
         'Le recensioni aiutano a capire con chi stai organizzando un incontro.',
       ],
     ),
@@ -80,6 +81,7 @@ class _AppGuideSheetState extends State<_AppGuideSheet> {
       title: 'Impostazioni',
       bullets: [
         'Da qui apri privacy, centro notifiche, sicurezza, aggiornamenti e questa guida.',
+        'Termini e Condizioni e Regolamento Community restano sempre disponibili.',
         'Il centro notifiche conserva per 24 ore gli avvisi importanti dell\'app.',
         'Se hai accesso admin, puoi entrare nel pannello senza uscire dal tuo utente.',
       ],

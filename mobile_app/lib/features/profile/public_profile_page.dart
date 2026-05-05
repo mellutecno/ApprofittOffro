@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
+import '../../core/widgets/content_report_sheet.dart';
 import '../../models/public_profile.dart';
 import '../../models/user_preview.dart';
 import 'profile_gallery_viewer_page.dart';
@@ -25,11 +26,27 @@ class PublicProfilePage extends StatefulWidget {
 class _PublicProfilePageState extends State<PublicProfilePage> {
   late Future<PublicProfile> _future;
   bool _isTogglingFollow = false;
+  bool _isTogglingBlock = false;
+  bool _blockedByMe = false;
 
   @override
   void initState() {
     super.initState();
     _future = widget.apiClient.fetchPublicUser(widget.userId);
+    _loadBlockStatus();
+  }
+
+  Future<void> _loadBlockStatus() async {
+    try {
+      final payload = await widget.apiClient
+          .fetchChatBlockStatus(otherUserId: widget.userId);
+      if (!mounted) {
+        return;
+      }
+      setState(() => _blockedByMe = payload['blocked_by_me'] == true);
+    } catch (_) {
+      // La scheda profilo resta utilizzabile anche se lo stato blocco non arriva.
+    }
   }
 
   Future<void> _reload() async {
@@ -318,6 +335,72 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
         setState(() => _isTogglingFollow = false);
       }
     }
+  }
+
+  Future<void> _toggleBlock(PublicProfile profile) async {
+    final block = !_blockedByMe;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(block ? 'Bloccare profilo?' : 'Sbloccare profilo?'),
+        content: Text(
+          block
+              ? 'Non potrete scrivervi finche non lo sblocchi.'
+              : 'Dopo lo sblocco potrete tornare a scrivervi.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(block ? 'Blocca' : 'Sblocca'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+
+    setState(() => _isTogglingBlock = true);
+    try {
+      final payload = block
+          ? await widget.apiClient.blockUser(userId: profile.user.id)
+          : await widget.apiClient.unblockUser(userId: profile.user.id);
+      if (!mounted) {
+        return;
+      }
+      setState(() => _blockedByMe = block);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(
+                payload['message']?.toString() ?? 'Operazione completata.')),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isTogglingBlock = false);
+      }
+    }
+  }
+
+  Future<void> _reportProfile(PublicProfile profile) async {
+    await showContentReportSheet(
+      context: context,
+      apiClient: widget.apiClient,
+      title: 'Segnala profilo',
+      targetType: 'user',
+      targetId: profile.user.id,
+      reportedUserId: profile.user.id,
+    );
   }
 
   Future<void> _openReviewEditor(
@@ -627,6 +710,32 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                         _isTogglingFollow ? null : () => _toggleFollow(profile),
                     child: Text(
                         profile.user.isFollowing ? 'Non seguire piu' : 'Segui'),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _isTogglingBlock
+                              ? null
+                              : () => _toggleBlock(profile),
+                          icon: Icon(
+                            _blockedByMe
+                                ? Icons.lock_open_rounded
+                                : Icons.block_rounded,
+                          ),
+                          label: Text(_blockedByMe ? 'Sblocca' : 'Blocca'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _reportProfile(profile),
+                          icon: const Icon(Icons.report_problem_outlined),
+                          label: const Text('Segnala'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
                 if (profile.user.bio.isNotEmpty) ...[

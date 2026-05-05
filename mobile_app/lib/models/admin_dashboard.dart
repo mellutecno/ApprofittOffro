@@ -9,6 +9,7 @@ class AdminDashboardStats {
     required this.chats,
     required this.reviewUsers,
     required this.bugReportsPending,
+    required this.contentReportsPending,
   });
 
   final int users;
@@ -18,6 +19,7 @@ class AdminDashboardStats {
   final int chats;
   final int reviewUsers;
   final int bugReportsPending;
+  final int contentReportsPending;
 
   factory AdminDashboardStats.fromJson(Map<String, dynamic> json) {
     return AdminDashboardStats(
@@ -28,6 +30,7 @@ class AdminDashboardStats {
       chats: json['chats'] as int? ?? 0,
       reviewUsers: json['review_users'] as int? ?? 0,
       bugReportsPending: json['bug_reports_pending'] as int? ?? 0,
+      contentReportsPending: json['content_reports_pending'] as int? ?? 0,
     );
   }
 }
@@ -343,6 +346,7 @@ class AdminDashboardData {
     required this.chats,
     required this.reviewUsers,
     required this.bugReports,
+    required this.contentReports,
   });
 
   final AdminDashboardStats stats;
@@ -352,6 +356,7 @@ class AdminDashboardData {
   final List<AdminChatSummary> chats;
   final List<AdminUserSummary> reviewUsers;
   final List<AdminBugReportSummary> bugReports;
+  final List<AdminContentReportSummary> contentReports;
 
   factory AdminDashboardData.fromJson(Map<String, dynamic> json) {
     return AdminDashboardData(
@@ -381,6 +386,10 @@ class AdminDashboardData {
       bugReports: (json['bug_reports'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>()
           .map(AdminBugReportSummary.fromJson)
+          .toList(),
+      contentReports: (json['content_reports'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>()
+          .map(AdminContentReportSummary.fromJson)
           .toList(),
     );
   }
@@ -537,6 +546,68 @@ class AdminBugReportSummary {
       user: AdminBugReportUserSummary.fromJson(
         json['user'] as Map<String, dynamic>? ?? const <String, dynamic>{},
       ),
+    );
+  }
+}
+
+class AdminContentReportSummary {
+  const AdminContentReportSummary({
+    required this.id,
+    required this.targetType,
+    required this.targetId,
+    required this.message,
+    required this.status,
+    required this.adminNote,
+    required this.createdAt,
+    required this.reviewedAt,
+    required this.archivedAt,
+    required this.isArchived,
+    required this.reporter,
+    required this.reportedUser,
+    required this.offerTitle,
+    required this.offerAddress,
+  });
+
+  final int id;
+  final String targetType;
+  final int targetId;
+  final String message;
+  final String status;
+  final String adminNote;
+  final DateTime? createdAt;
+  final DateTime? reviewedAt;
+  final DateTime? archivedAt;
+  final bool isArchived;
+  final AdminBugReportUserSummary reporter;
+  final AdminBugReportUserSummary reportedUser;
+  final String offerTitle;
+  final String offerAddress;
+
+  bool get isPending => status == 'pending';
+
+  factory AdminContentReportSummary.fromJson(Map<String, dynamic> json) {
+    final offer =
+        json['offer'] as Map<String, dynamic>? ?? const <String, dynamic>{};
+    return AdminContentReportSummary(
+      id: json['id'] as int? ?? 0,
+      targetType: (json['target_type'] ?? 'user').toString(),
+      targetId: json['target_id'] as int? ?? 0,
+      message: (json['message'] ?? '').toString(),
+      status: (json['status'] ?? 'pending').toString(),
+      adminNote: (json['admin_note'] ?? '').toString(),
+      createdAt: _parseDate(json['created_at']),
+      reviewedAt: _parseDate(json['reviewed_at']),
+      archivedAt: _parseDate(json['admin_archived_at']),
+      isArchived: json['is_archived'] == true,
+      reporter: AdminBugReportUserSummary.fromJson(
+        json['reporter'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+      ),
+      reportedUser: AdminBugReportUserSummary.fromJson(
+        json['reported_user'] as Map<String, dynamic>? ??
+            const <String, dynamic>{},
+      ),
+      offerTitle: (offer['nome_locale'] ?? '').toString(),
+      offerAddress: (offer['indirizzo'] ?? '').toString(),
     );
   }
 }

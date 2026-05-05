@@ -51,6 +51,22 @@ BUG_REPORT_STATUS_PENDING = "pending"
 BUG_REPORT_STATUS_APPROVED = "approved"
 BUG_REPORT_STATUS_REJECTED = "rejected"
 
+LEGAL_TERMS_VERSION = "2026-05-05"
+LEGAL_PRIVACY_VERSION = "2026-05-05"
+
+CONTENT_REPORT_STATUS_PENDING = "pending"
+CONTENT_REPORT_STATUS_REVIEWED = "reviewed"
+CONTENT_REPORT_STATUS_DISMISSED = "dismissed"
+CONTENT_REPORT_TARGET_TYPES = {
+    "user",
+    "profile_photo",
+    "offer",
+    "offer_photo",
+    "chat",
+    "message",
+    "review",
+}
+
 
 class User(UserMixin, db.Model):
     """Utente registrato."""
@@ -101,6 +117,10 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now)
     chat_enabled = db.Column(db.Boolean, default=False, nullable=False)
     approfittoffro_points = db.Column(db.Integer, default=0, nullable=False)
+    terms_accepted_version = db.Column(db.String(32), nullable=True)
+    terms_accepted_at = db.Column(db.DateTime, nullable=True)
+    privacy_acknowledged_version = db.Column(db.String(32), nullable=True)
+    privacy_acknowledged_at = db.Column(db.DateTime, nullable=True)
 
     # Relazioni
     offerte = db.relationship("Offer", backref="autore", lazy=True)
@@ -208,6 +228,42 @@ class BugReport(db.Model):
         foreign_keys=[user_id],
         backref=db.backref("bug_reports", lazy=True, cascade="all, delete-orphan"),
     )
+    reviewed_by = db.relationship("User", foreign_keys=[reviewed_by_id])
+    admin_archived_by = db.relationship("User", foreign_keys=[admin_archived_by_id])
+
+
+class ContentReport(db.Model):
+    """Segnalazione di profili, eventi, chat o contenuti inviata dagli utenti."""
+    __tablename__ = "content_reports"
+
+    id = db.Column(db.Integer, primary_key=True)
+    reporter_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    target_type = db.Column(db.String(40), nullable=False)
+    target_id = db.Column(db.Integer, nullable=True)
+    reported_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    offer_id = db.Column(db.Integer, db.ForeignKey("offers.id"), nullable=True)
+    chat_thread_id = db.Column(db.Integer, db.ForeignKey("chat_threads.id"), nullable=True)
+    message = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default=CONTENT_REPORT_STATUS_PENDING, nullable=False)
+    admin_note = db.Column(db.Text, nullable=True)
+    reviewed_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    admin_archived_at = db.Column(db.DateTime, nullable=True)
+    admin_archived_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    reporter = db.relationship(
+        "User",
+        foreign_keys=[reporter_id],
+        backref=db.backref("content_reports_sent", lazy=True, cascade="all, delete-orphan"),
+    )
+    reported_user = db.relationship(
+        "User",
+        foreign_keys=[reported_user_id],
+        backref=db.backref("content_reports_received", lazy=True),
+    )
+    offer = db.relationship("Offer", backref=db.backref("content_reports", lazy=True))
+    chat_thread = db.relationship("ChatThread", backref=db.backref("content_reports", lazy=True))
     reviewed_by = db.relationship("User", foreign_keys=[reviewed_by_id])
     admin_archived_by = db.relationship("User", foreign_keys=[admin_archived_by_id])
 
