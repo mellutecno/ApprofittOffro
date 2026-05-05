@@ -3522,6 +3522,235 @@ def moderate_image_payload(image_payload):
     )
 
 
+def moderation_result_is_restricted(result):
+    return is_moderation_status_restricted((result or {}).get("status"))
+
+
+def moderation_score_label(result):
+    score = (result or {}).get("score")
+    if score is None:
+        return "n/d"
+    try:
+        return f"{float(score):.3f}"
+    except (TypeError, ValueError):
+        return str(score)
+
+
+def get_strongest_moderation_result(results):
+    clean_results = [result for result in (results or []) if result]
+    if not clean_results:
+        return None
+    restricted_results = [
+        result for result in clean_results
+        if moderation_result_is_restricted(result)
+    ]
+    candidates = restricted_results or clean_results
+    return max(candidates, key=lambda result: float(result.get("score") or 0))
+
+
+def moderation_block_response(result, *, label="contenuto"):
+    message = (
+        f"Questo {label} deve essere controllato dall'amministratore "
+        "prima di essere pubblicato."
+    )
+    return jsonify({
+        "success": False,
+        "error": message,
+        "errors": [message],
+        "moderation_status": (result or {}).get("status") or MODERATION_STATUS_REVIEW,
+        "moderation_reason": (result or {}).get("reason") or "openai_flagged",
+        "moderation_score": (result or {}).get("score"),
+    }), 403
+
+
+def build_auto_moderation_report_message(content_label, result, *, content_preview="", blocked=True):
+    reason = (result or {}).get("reason") or "openai_flagged"
+    score = moderation_score_label(result)
+    preview = str(content_preview or "").strip()
+    if len(preview) > 1200:
+        preview = f"{preview[:1200]}..."
+
+    action = (
+        f"{content_label} bloccato prima della pubblicazione"
+        if blocked
+        else f"{content_label} da verificare"
+    )
+    message = (
+        f"Moderazione automatica: {action}.\n"
+        f"Motivo: {reason}\n"
+        f"Score: {score}"
+    )
+    if preview:
+        message = f"{message}\n\nContenuto:\n{preview}"
+    return message
+
+
+def create_auto_moderation_report(
+    user,
+    *,
+    target_type,
+    content_label,
+    result,
+    content_preview="",
+    target_id=None,
+    reported_user_id=None,
+    offer_id=None,
+    chat_thread_id=None,
+    blocked=True,
+):
+    normalized_target_type = str(target_type or "").strip().lower()
+    if normalized_target_type not in CONTENT_REPORT_TARGET_TYPES:
+        normalized_target_type = "message"
+
+    report = ContentReport(
+        reporter_id=getattr(user, "id", None),
+        target_type=normalized_target_type,
+        target_id=target_id,
+        reported_user_id=reported_user_id or getattr(user, "id", None),
+        offer_id=offer_id,
+        chat_thread_id=chat_thread_id,
+        message=build_auto_moderation_report_message(
+            content_label,
+            result,
+            content_preview=content_preview,
+            blocked=blocked,
+        ),
+        status=CONTENT_REPORT_STATUS_PENDING,
+    )
+    db.session.add(report)
+    return report
+
+
+def block_content_for_moderation(
+    result,
+    *,
+    user,
+    target_type,
+    content_label,
+    response_label="contenuto",
+    content_preview="",
+    target_id=None,
+    reported_user_id=None,
+    offer_id=None,
+    chat_thread_id=None,
+):
+    report = create_auto_moderation_report(
+        user,
+        target_type=target_type,
+        content_label=content_label,
+        result=result,
+        content_preview=content_preview,
+        target_id=target_id,
+        reported_user_id=reported_user_id,
+        offer_id=offer_id,
+        chat_thread_id=chat_thread_id,
+    )
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "error": f"Moderazione non salvata: {exc}",
+            "errors": [f"Moderazione non salvata: {exc}"],
+        }), 500
+
+    notify_admin_for_content_report(report)
+    return moderation_block_response(result, label=response_label)
+
+
+def moderate_image_content(image_payload, *, user=None, content_type="image", content_table=None, content_id=None):
+    result = moderate_image_payload(image_payload)
+    add_ai_moderation_log(
+        result,
+        user=user,
+        content_type=content_type,
+        content_table=content_table,
+        content_id=content_id,
+    )
+    return result
+
+
+def moderate_saved_upload_image(filename, *, user=None, content_type="image", content_table=None, content_id=None):
+    try:
+        image_bytes, content_type_header = upload_storage.read(filename)
+    except Exception as exc:
+        result = build_moderation_result(
+            None,
+            f"read_error:{str(exc)[:180]}",
+            checked_at=datetime.now(),
+            keyword_reason=None,
+        )
+        add_ai_moderation_log(
+            result,
+            user=user,
+            content_type=content_type,
+            content_table=content_table,
+            content_id=content_id,
+        )
+        return result
+
+    return moderate_image_content(
+        {
+            "filename": filename,
+            "bytes": image_bytes,
+            "content_type": content_type_header,
+        },
+        user=user,
+        content_type=content_type,
+        content_table=content_table,
+        content_id=content_id,
+    )
+
+
+def apply_offer_moderation_result(offer, result, *, prefix):
+    setattr(offer, f"{prefix}_moderation_status", result["status"])
+    setattr(offer, f"{prefix}_moderation_reason", result["reason"])
+    setattr(offer, f"{prefix}_moderation_score", result["score"])
+    setattr(offer, f"{prefix}_moderation_checked_at", result["checked_at"])
+    setattr(offer, f"{prefix}_moderation_provider", result["provider"])
+    setattr(offer, f"{prefix}_moderation_model", result["model"])
+    setattr(offer, f"{prefix}_moderation_raw_json", result["raw_json"])
+
+
+def build_profile_extra_moderation_text(payload):
+    fields = [
+        ("nome", payload.get("nome")),
+        ("citta", payload.get("citta")),
+        ("cibi_preferiti", payload.get("cibi_preferiti")),
+        ("intolleranze", payload.get("intolleranze")),
+    ]
+    parts = [
+        f"{label}: {str(value or '').strip()}"
+        for label, value in fields
+        if str(value or "").strip()
+    ]
+    return "\n".join(parts)
+
+
+def apply_user_profile_text_moderation(user, payload):
+    moderation_text = build_profile_extra_moderation_text(payload)
+    if not moderation_text:
+        return None
+
+    result = moderate_text_content(
+        moderation_text,
+        user=user,
+        content_type="profile_text",
+        content_table="users",
+        content_id=getattr(user, "id", None),
+    )
+    if moderation_result_is_restricted(result):
+        user.bio_moderation_status = result["status"]
+        user.bio_moderation_reason = f"profile_text:{result['reason'] or 'openai_flagged'}"[:100]
+        user.bio_moderation_score = result["score"]
+        user.bio_moderation_checked_at = result["checked_at"]
+        user.bio_moderation_provider = result["provider"]
+        user.bio_moderation_model = result["model"]
+        user.bio_moderation_raw_json = result["raw_json"]
+    return result
+
+
 def apply_user_bio_moderation(user, bio_text, *, allow_auto_approve=False):
     result = moderate_text_content(
         bio_text,
@@ -3907,6 +4136,7 @@ def save_profile_update_for_user(user, payload, *, verified=None, allow_moderati
         payload["bio"] or "",
         allow_auto_approve=allow_moderation_auto_approve,
     )
+    profile_text_moderation_result = apply_user_profile_text_moderation(user, payload)
 
     if payload.get("new_password"):
         user.set_password(payload["new_password"])
@@ -3935,6 +4165,12 @@ def save_profile_update_for_user(user, payload, *, verified=None, allow_moderati
     db.session.expire(user, ["photos"])
     delete_upload_files(old_gallery_filenames)
     notify_admin_for_user_moderation(user, bio_moderation_result, content_label="Bio")
+    if moderation_result_is_restricted(profile_text_moderation_result):
+        notify_admin_for_user_moderation(
+            user,
+            profile_text_moderation_result,
+            content_label="Dati profilo",
+        )
     if photo_moderation_result:
         notify_admin_for_user_moderation(
             user,
@@ -4903,13 +5139,24 @@ def resolve_content_report_target(data):
 
 def notify_admin_for_content_report(report):
     """Avvisa gli admin quando arriva una segnalazione contenuto."""
-    title = "Nuova segnalazione contenuto"
+    is_auto_moderation = str(report.message or "").startswith("Moderazione automatica:")
+    title = (
+        "Moderazione automatica contenuto"
+        if is_auto_moderation
+        else "Nuova segnalazione contenuto"
+    )
     reporter = report.reporter
     reported = report.reported_user
-    body = (
-        f"{reporter.nome if reporter else 'Un utente'} ha segnalato "
-        f"{reported.nome if reported else report.target_type}."
-    )
+    if is_auto_moderation:
+        body = (
+            "Un contenuto e' stato bloccato prima della pubblicazione: "
+            f"{reported.nome if reported else report.target_type}."
+        )
+    else:
+        body = (
+            f"{reporter.nome if reporter else 'Un utente'} ha segnalato "
+            f"{reported.nome if reported else report.target_type}."
+        )
     admins = User.query.filter_by(is_admin=True).all()
     push_count = 0
     for admin in admins:
@@ -6040,12 +6287,27 @@ def api_register():
                 bio,
                 allow_auto_approve=True,
             )
+        profile_text_moderation_result = apply_user_profile_text_moderation(
+            user,
+            {
+                "nome": nome,
+                "citta": citta,
+                "cibi_preferiti": "",
+                "intolleranze": "",
+            },
+        )
         db.session.commit()
         if bio_moderation_result:
             notify_admin_for_user_moderation(
                 user,
                 bio_moderation_result,
                 content_label="Bio",
+            )
+        if moderation_result_is_restricted(profile_text_moderation_result):
+            notify_admin_for_user_moderation(
+                user,
+                profile_text_moderation_result,
+                content_label="Dati profilo",
             )
         notify_admin_for_user_moderation(
             user,
@@ -6729,12 +6991,77 @@ def api_edit_offer(offer_id):
                 f"Non puoi scendere sotto {occupied_seats} posti: ci sono gia partecipanti confermati."
             ],
         }), 400
+
+    description_moderation_result = moderate_text_content(
+        descrizione,
+        user=current_user,
+        content_type="offer_description",
+        content_table="offers",
+        content_id=offer.id,
+    )
+    if moderation_result_is_restricted(description_moderation_result):
+        return block_content_for_moderation(
+            description_moderation_result,
+            user=current_user,
+            target_type="offer",
+            content_label="descrizione evento",
+            response_label="descrizione",
+            content_preview=descrizione,
+            target_id=offer.id,
+            reported_user_id=offer.user_id,
+            offer_id=offer.id,
+        )
+    title_moderation_result = moderate_text_content(
+        nome_locale,
+        user=current_user,
+        content_type="offer_title",
+        content_table="offers",
+        content_id=offer.id,
+    )
+    if moderation_result_is_restricted(title_moderation_result):
+        return block_content_for_moderation(
+            title_moderation_result,
+            user=current_user,
+            target_type="offer",
+            content_label="nome locale evento",
+            response_label="nome locale",
+            content_preview=nome_locale,
+            target_id=offer.id,
+            reported_user_id=offer.user_id,
+            offer_id=offer.id,
+        )
+
     uploaded_photo_filenames, photo_errors = save_offer_gallery_files(
         offer.user_id,
         foto_files,
     )
     if photo_errors:
         return jsonify({"success": False, "errors": photo_errors}), 400
+    uploaded_photo_moderation_results = [
+        moderate_saved_upload_image(
+            filename,
+            user=current_user,
+            content_type="offer_photo",
+            content_table="offers",
+            content_id=offer.id,
+        )
+        for filename in uploaded_photo_filenames
+    ]
+    uploaded_photo_moderation_result = get_strongest_moderation_result(
+        uploaded_photo_moderation_results
+    )
+    if moderation_result_is_restricted(uploaded_photo_moderation_result):
+        delete_upload_files(uploaded_photo_filenames)
+        return block_content_for_moderation(
+            uploaded_photo_moderation_result,
+            user=current_user,
+            target_type="offer_photo",
+            content_label="foto evento",
+            response_label="foto",
+            target_id=offer.id,
+            reported_user_id=offer.user_id,
+            offer_id=offer.id,
+        )
     final_gallery_filenames = existing_photo_filenames + uploaded_photo_filenames
 
     offer.tipo_pasto = tipo_pasto
@@ -6758,6 +7085,17 @@ def api_edit_offer(offer_id):
         else None
     )
     offer.descrizione = descrizione
+    apply_offer_moderation_result(
+        offer,
+        description_moderation_result,
+        prefix="description",
+    )
+    if uploaded_photo_moderation_result:
+        apply_offer_moderation_result(
+            offer,
+            uploaded_photo_moderation_result,
+            prefix="photo",
+        )
     old_gallery_filenames = []
     if final_gallery_filenames != current_gallery:
         old_gallery_filenames = replace_offer_gallery(offer, final_gallery_filenames)
@@ -6865,12 +7203,70 @@ def api_create_offer():
             "errors": [get_offer_publication_too_late_message(tipo_pasto)],
         }), 409
 
+    description_moderation_result = moderate_text_content(
+        descrizione,
+        user=current_user,
+        content_type="offer_description",
+        content_table="offers",
+        content_id=None,
+    )
+    if moderation_result_is_restricted(description_moderation_result):
+        return block_content_for_moderation(
+            description_moderation_result,
+            user=current_user,
+            target_type="offer",
+            content_label="descrizione evento",
+            response_label="descrizione",
+            content_preview=descrizione,
+            reported_user_id=current_user.id,
+        )
+    title_moderation_result = moderate_text_content(
+        nome_locale,
+        user=current_user,
+        content_type="offer_title",
+        content_table="offers",
+        content_id=None,
+    )
+    if moderation_result_is_restricted(title_moderation_result):
+        return block_content_for_moderation(
+            title_moderation_result,
+            user=current_user,
+            target_type="offer",
+            content_label="nome locale evento",
+            response_label="nome locale",
+            content_preview=nome_locale,
+            reported_user_id=current_user.id,
+        )
+
     uploaded_photo_filenames, photo_errors = save_offer_gallery_files(
         current_user.id,
         foto_files,
     )
     if photo_errors:
         return jsonify({"success": False, "errors": photo_errors}), 400
+    uploaded_photo_moderation_results = [
+        moderate_saved_upload_image(
+            filename,
+            user=current_user,
+            content_type="offer_photo",
+            content_table="offers",
+            content_id=None,
+        )
+        for filename in uploaded_photo_filenames
+    ]
+    uploaded_photo_moderation_result = get_strongest_moderation_result(
+        uploaded_photo_moderation_results
+    )
+    if moderation_result_is_restricted(uploaded_photo_moderation_result):
+        delete_upload_files(uploaded_photo_filenames)
+        return block_content_for_moderation(
+            uploaded_photo_moderation_result,
+            user=current_user,
+            target_type="offer_photo",
+            content_label="foto evento",
+            response_label="foto",
+            reported_user_id=current_user.id,
+        )
     filename = uploaded_photo_filenames[0] if uploaded_photo_filenames else 'nessuna.jpg'
 
     offer = Offer(
@@ -6892,6 +7288,17 @@ def api_create_offer():
         descrizione=descrizione,
         foto_locale=filename
     )
+    apply_offer_moderation_result(
+        offer,
+        description_moderation_result,
+        prefix="description",
+    )
+    if uploaded_photo_moderation_result:
+        apply_offer_moderation_result(
+            offer,
+            uploaded_photo_moderation_result,
+            prefix="photo",
+        )
 
     db.session.add(offer)
     try:
@@ -7692,6 +8099,25 @@ def api_submit_bug_report():
             "error": "La segnalazione deve restare entro 2000 caratteri.",
         }), 400
 
+    message_moderation_result = moderate_text_content(
+        message,
+        user=current_user,
+        content_type="bug_report",
+        content_table="bug_reports",
+        content_id=None,
+    )
+    auto_moderation_reports = []
+    if moderation_result_is_restricted(message_moderation_result):
+        auto_moderation_reports.append(create_auto_moderation_report(
+            current_user,
+            target_type="message",
+            content_label="segnalazione bug",
+            result=message_moderation_result,
+            content_preview=message,
+            reported_user_id=current_user.id,
+            blocked=False,
+        ))
+
     report = BugReport(
         user_id=current_user.id,
         message=message,
@@ -7719,10 +8145,29 @@ def api_submit_bug_report():
             return jsonify({"success": False, "error": str(exc)}), 400
         report.screenshot_filename = screenshot_filename
         report.screenshot_original_name = screenshot_original_name
+        screenshot_moderation_result = moderate_saved_upload_image(
+            screenshot_filename,
+            user=current_user,
+            content_type="bug_screenshot",
+            content_table="bug_reports",
+            content_id=report.id,
+        )
+        if moderation_result_is_restricted(screenshot_moderation_result):
+            auto_moderation_reports.append(create_auto_moderation_report(
+                current_user,
+                target_type="message",
+                content_label="screenshot segnalazione bug",
+                result=screenshot_moderation_result,
+                target_id=report.id,
+                reported_user_id=current_user.id,
+                blocked=False,
+            ))
 
     db.session.commit()
 
     notify_admin_for_bug_report(report)
+    for moderation_report in auto_moderation_reports:
+        notify_admin_for_content_report(moderation_report)
 
     return jsonify({
         "success": True,
@@ -8749,6 +9194,28 @@ def api_chat_media_upload():
                 "error": f"Immagine ancora troppo pesante dopo compressione (max {max_mb:.0f} MB).",
             }), 400
 
+        image_moderation_result = moderate_image_content(
+            {
+                "filename": final_name,
+                "bytes": final_bytes,
+                "content_type": final_content_type,
+            },
+            user=current_user,
+            content_type="chat_image",
+            content_table="chat_messages",
+            content_id=None,
+        )
+        if moderation_result_is_restricted(image_moderation_result):
+            return block_content_for_moderation(
+                image_moderation_result,
+                user=current_user,
+                target_type="message",
+                content_label="immagine chat",
+                response_label="immagine",
+                reported_user_id=current_user.id,
+                offer_id=offer_id,
+            )
+
     prefix = build_chat_media_prefix(offer_id, current_user.id, receiver_id)
     media_path = f"{prefix}{uuid.uuid4().hex[:24]}.{final_extension}"
     upload_storage.save_bytes(
@@ -9243,6 +9710,47 @@ def api_chat_send_message():
             "error": message,
             **build_admin_deleted_chat_payload(thread),
         }), status
+
+    if message_type == "text":
+        text_moderation_result = moderate_text_content(
+            text,
+            user=current_user,
+            content_type="chat_message",
+            content_table="chat_messages",
+            content_id=None,
+        )
+        if moderation_result_is_restricted(text_moderation_result):
+            return block_content_for_moderation(
+                text_moderation_result,
+                user=current_user,
+                target_type="message",
+                content_label="messaggio chat",
+                response_label="messaggio",
+                content_preview=text,
+                reported_user_id=current_user.id,
+                offer_id=thread.offer_id,
+                chat_thread_id=thread.id,
+            )
+    elif message_type == "image":
+        image_moderation_result = moderate_saved_upload_image(
+            normalized_media_path,
+            user=current_user,
+            content_type="chat_image",
+            content_table="chat_messages",
+            content_id=None,
+        )
+        if moderation_result_is_restricted(image_moderation_result):
+            upload_storage.delete(normalized_media_path)
+            return block_content_for_moderation(
+                image_moderation_result,
+                user=current_user,
+                target_type="message",
+                content_label="immagine chat",
+                response_label="immagine",
+                reported_user_id=current_user.id,
+                offer_id=thread.offer_id,
+                chat_thread_id=thread.id,
+            )
 
     message = ChatMessage(
         thread_id=thread.id,
@@ -9790,6 +10298,14 @@ def api_submit_content_report():
         target = resolve_content_report_target(data)
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
+
+    moderate_text_content(
+        message,
+        user=current_user,
+        content_type="content_report",
+        content_table="content_reports",
+        content_id=None,
+    )
 
     report = ContentReport(
         reporter_id=current_user.id,
@@ -10703,6 +11219,27 @@ def api_create_review():
         reviewed_id=reviewed_id,
         offer_id=offer_id,
     ).first()
+    if commento:
+        review_moderation_result = moderate_text_content(
+            commento,
+            user=current_user,
+            content_type="review",
+            content_table="reviews",
+            content_id=existing.id if existing else None,
+        )
+        if moderation_result_is_restricted(review_moderation_result):
+            return block_content_for_moderation(
+                review_moderation_result,
+                user=current_user,
+                target_type="review",
+                content_label="recensione",
+                response_label="recensione",
+                content_preview=commento,
+                target_id=existing.id if existing else None,
+                reported_user_id=current_user.id,
+                offer_id=offer.id,
+            )
+
     if existing:
         existing.rating = rating
         existing.commento = commento
