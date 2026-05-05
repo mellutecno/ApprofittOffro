@@ -99,6 +99,7 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
     setState(() {
       _dockRight = left + width / 2 >= constraints.maxWidth / 2;
       _dragLeft = null;
+      _expanded = false;
     });
   }
 
