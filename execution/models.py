@@ -192,11 +192,15 @@ class BugReport(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     message = db.Column(db.Text, nullable=False)
     screen_context = db.Column(db.String(120), nullable=True)
+    screenshot_filename = db.Column(db.String(256), nullable=True)
+    screenshot_original_name = db.Column(db.String(256), nullable=True)
     status = db.Column(db.String(20), default=BUG_REPORT_STATUS_PENDING, nullable=False)
     awarded_points = db.Column(db.Integer, default=0, nullable=False)
     admin_note = db.Column(db.Text, nullable=True)
     reviewed_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     reviewed_at = db.Column(db.DateTime, nullable=True)
+    admin_archived_at = db.Column(db.DateTime, nullable=True)
+    admin_archived_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
 
     user = db.relationship(
@@ -205,6 +209,7 @@ class BugReport(db.Model):
         backref=db.backref("bug_reports", lazy=True, cascade="all, delete-orphan"),
     )
     reviewed_by = db.relationship("User", foreign_keys=[reviewed_by_id])
+    admin_archived_by = db.relationship("User", foreign_keys=[admin_archived_by_id])
 
 
 class Offer(db.Model):

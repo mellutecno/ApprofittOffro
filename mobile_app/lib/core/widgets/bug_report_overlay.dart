@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../network/api_client.dart';
 import '../theme/app_theme.dart';
@@ -24,10 +26,15 @@ class BugReportOverlay extends StatefulWidget {
 }
 
 class _BugReportOverlayState extends State<BugReportOverlay> {
-  static const double _buttonWidth = 156;
-  static const double _buttonHeight = 50;
-  double? _left;
+  static const double _collapsedWidth = 44;
+  static const double _expandedWidth = 172;
+  static const double _tabHeight = 54;
+  static const int _maxScreenshotBytes = 12 * 1024 * 1024;
+
+  double? _dragLeft;
   double? _top;
+  bool _dockRight = true;
+  bool _expanded = false;
   bool _dialogOpen = false;
 
   void _showSnackBar(String message) {
@@ -40,22 +47,88 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _move(DragUpdateDetails details, BoxConstraints constraints) {
+  double _tabWidth() => _expanded ? _expandedWidth : _collapsedWidth;
+
+  double _defaultTop(BoxConstraints constraints) {
     final mediaQuery = MediaQuery.of(context);
-    const minLeft = 12.0;
-    final maxLeft = math.max(minLeft, constraints.maxWidth - _buttonWidth - 12);
+    final minTop = mediaQuery.viewPadding.top + 96;
+    final maxTop = math.max(
+      minTop,
+      constraints.maxHeight - _tabHeight - mediaQuery.viewPadding.bottom - 112,
+    );
+    return (constraints.maxHeight * 0.46).clamp(minTop, maxTop).toDouble();
+  }
+
+  double _leftForDock(BoxConstraints constraints, double width) {
+    return _dockRight ? constraints.maxWidth - width : 0;
+  }
+
+  double _clampTop(double value, BoxConstraints constraints) {
+    final mediaQuery = MediaQuery.of(context);
     final minTop = mediaQuery.viewPadding.top + 12;
     final maxTop = math.max(
       minTop,
-      constraints.maxHeight -
-          _buttonHeight -
-          mediaQuery.viewPadding.bottom -
-          92,
+      constraints.maxHeight - _tabHeight - mediaQuery.viewPadding.bottom - 92,
     );
+    return value.clamp(minTop, maxTop).toDouble();
+  }
+
+  void _startMove(BoxConstraints constraints) {
+    final width = _tabWidth();
+    _dragLeft = _leftForDock(constraints, width);
+  }
+
+  void _move(DragUpdateDetails details, BoxConstraints constraints) {
+    final width = _tabWidth();
+    final maxLeft = math.max(0.0, constraints.maxWidth - width);
     setState(() {
-      _left = ((_left ?? maxLeft) + details.delta.dx).clamp(minLeft, maxLeft);
-      _top = ((_top ?? maxTop) + details.delta.dy).clamp(minTop, maxTop);
+      _dragLeft =
+          ((_dragLeft ?? _leftForDock(constraints, width)) + details.delta.dx)
+              .clamp(0.0, maxLeft)
+              .toDouble();
+      _top = _clampTop(
+          (_top ?? _defaultTop(constraints)) + details.delta.dy, constraints);
     });
+  }
+
+  void _endMove(BoxConstraints constraints) {
+    final width = _tabWidth();
+    final left = (_dragLeft ?? _leftForDock(constraints, width))
+        .clamp(0.0, math.max(0.0, constraints.maxWidth - width))
+        .toDouble();
+    setState(() {
+      _dockRight = left + width / 2 >= constraints.maxWidth / 2;
+      _dragLeft = null;
+    });
+  }
+
+  Future<void> _pickScreenshot(
+      StateSetter setDialogState, _AttachmentState attachment) async {
+    try {
+      final image = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        imageQuality: 82,
+      );
+      if (image == null) {
+        return;
+      }
+      final file = File(image.path);
+      final size = await file.length();
+      if (size > _maxScreenshotBytes) {
+        _showSnackBar(
+            'Lo screenshot e troppo pesante. Usa un file sotto i 12 MB.');
+        return;
+      }
+      setDialogState(() {
+        attachment.path = image.path;
+        attachment.name =
+            image.name.isNotEmpty ? image.name : file.uri.pathSegments.last;
+        attachment.size = size;
+      });
+    } catch (error) {
+      _showSnackBar('Non riesco ad allegare lo screenshot: $error');
+    }
   }
 
   Future<void> _openDialog() async {
@@ -64,6 +137,7 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
     }
     setState(() => _dialogOpen = true);
     final controller = TextEditingController();
+    final attachment = _AttachmentState();
     var isSubmitting = false;
     final navigator = widget.navigatorKey.currentState;
     final dialogContext = navigator?.overlay?.context;
@@ -85,31 +159,65 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
           return StatefulBuilder(
             builder: (context, setDialogState) {
               return AlertDialog(
-                title: const Text('Segnala un bug'),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Le segnalazioni vere ci aiutano a migliorare l\'app. Dopo la verifica dell\'admin possono assegnare ApprofittOffro Points, utilizzabili in futuro per vantaggi e tessere socio.',
-                      style: TextStyle(
-                        color: AppTheme.brown.withValues(alpha: 0.78),
-                        height: 1.35,
-                      ),
+                title: const Text('Segnalazione bug'),
+                content: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 430),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Le segnalazioni vere ci aiutano a migliorare l\'app. Dopo la verifica dell\'admin possono assegnare ApprofittOffro Points, utilizzabili in futuro per vantaggi e tessere socio.',
+                          style: TextStyle(
+                            color: AppTheme.brown.withValues(alpha: 0.78),
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: controller,
+                          minLines: 4,
+                          maxLines: 7,
+                          maxLength: 2000,
+                          textInputAction: TextInputAction.newline,
+                          decoration: const InputDecoration(
+                            labelText: 'Descrivi il problema',
+                            hintText:
+                                'Esempio: non riesco ad aprire la chat...',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: isSubmitting
+                              ? null
+                              : () => _pickScreenshot(
+                                    setDialogState,
+                                    attachment,
+                                  ),
+                          icon: const Icon(Icons.attach_file_rounded),
+                          label: Text(
+                            attachment.hasFile
+                                ? 'Cambia screenshot'
+                                : 'Allega screenshot',
+                          ),
+                        ),
+                        if (attachment.hasFile) ...[
+                          const SizedBox(height: 10),
+                          _ScreenshotPreview(
+                            path: attachment.path!,
+                            name: attachment.name ?? 'screenshot',
+                            size: attachment.size,
+                            onRemove: isSubmitting
+                                ? null
+                                : () {
+                                    setDialogState(attachment.clear);
+                                  },
+                          ),
+                        ],
+                      ],
                     ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: controller,
-                      minLines: 4,
-                      maxLines: 7,
-                      maxLength: 2000,
-                      textInputAction: TextInputAction.newline,
-                      decoration: const InputDecoration(
-                        labelText: 'Descrivi il problema',
-                        hintText: 'Esempio: non riesco ad aprire la chat...',
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
                 actions: [
                   TextButton(
@@ -132,8 +240,11 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
                             setDialogState(() => isSubmitting = true);
                             final dialogNavigator = Navigator.of(alertContext);
                             try {
-                              final result = await widget.apiClient
-                                  .submitBugReport(message: message);
+                              final result =
+                                  await widget.apiClient.submitBugReport(
+                                message: message,
+                                screenshotPath: attachment.path,
+                              );
                               if (!mounted) {
                                 return;
                               }
@@ -167,7 +278,10 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
     } finally {
       controller.dispose();
       if (mounted) {
-        setState(() => _dialogOpen = false);
+        setState(() {
+          _dialogOpen = false;
+          _expanded = false;
+        });
       }
     }
     if (sent == true && mounted) {
@@ -175,24 +289,23 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
     }
   }
 
+  void _handleTabTap() {
+    if (_expanded) {
+      _openDialog();
+      return;
+    }
+    setState(() => _expanded = true);
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final mediaQuery = MediaQuery.of(context);
-        const minLeft = 12.0;
-        final minTop = mediaQuery.viewPadding.top + 12;
-        final maxLeft =
-            math.max(minLeft, constraints.maxWidth - _buttonWidth - 12);
-        final maxTop = math.max(
-          minTop,
-          constraints.maxHeight -
-              _buttonHeight -
-              mediaQuery.viewPadding.bottom -
-              92,
-        );
-        final left = (_left ?? maxLeft).clamp(minLeft, maxLeft);
-        final top = (_top ?? maxTop).clamp(minTop, maxTop);
+        final width = _tabWidth();
+        final left = (_dragLeft ?? _leftForDock(constraints, width))
+            .clamp(0.0, math.max(0.0, constraints.maxWidth - width))
+            .toDouble();
+        final top = _clampTop(_top ?? _defaultTop(constraints), constraints);
 
         return Stack(
           children: [
@@ -202,55 +315,16 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
                 left: left,
                 top: top,
                 child: GestureDetector(
+                  onPanStart: (_) => _startMove(constraints),
                   onPanUpdate: (details) => _move(details, constraints),
-                  onTap: _openDialog,
+                  onPanEnd: (_) => _endMove(constraints),
+                  onTap: _handleTabTap,
                   child: Tooltip(
                     message: 'Segnala un bug',
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: AppTheme.accentGradient,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.18),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.vividViolet.withValues(alpha: 0.38),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: const SizedBox(
-                        width: _buttonWidth,
-                        height: _buttonHeight,
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 15),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.bug_report_rounded,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                              SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  'Segnala bug',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    child: _BugSideTab(
+                      dockRight: _dockRight,
+                      expanded: _expanded,
+                      width: width,
                     ),
                   ),
                 ),
@@ -258,6 +332,187 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
           ],
         );
       },
+    );
+  }
+}
+
+class _AttachmentState {
+  String? path;
+  String? name;
+  int size = 0;
+
+  bool get hasFile => path != null && path!.trim().isNotEmpty;
+
+  void clear() {
+    path = null;
+    name = null;
+    size = 0;
+  }
+}
+
+class _BugSideTab extends StatelessWidget {
+  const _BugSideTab({
+    required this.dockRight,
+    required this.expanded,
+    required this.width,
+  });
+
+  final bool dockRight;
+  final bool expanded;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = dockRight
+        ? const BorderRadius.horizontal(left: Radius.circular(24))
+        : const BorderRadius.horizontal(right: Radius.circular(24));
+    final icon = Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: const Icon(
+        Icons.bug_report_rounded,
+        color: Colors.white,
+        size: 20,
+      ),
+    );
+    final label = Expanded(
+      child: AnimatedOpacity(
+        opacity: expanded ? 1 : 0,
+        duration: const Duration(milliseconds: 140),
+        child: const Text(
+          'Segnala bug',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      width: width,
+      height: _BugReportOverlayState._tabHeight,
+      decoration: BoxDecoration(
+        gradient: AppTheme.accentGradient,
+        borderRadius: radius,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.vividViolet.withValues(alpha: 0.38),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: dockRight ? 12 : 7,
+          right: dockRight ? 7 : 12,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: dockRight
+              ? [
+                  if (expanded) label,
+                  icon,
+                ]
+              : [
+                  icon,
+                  if (expanded) label,
+                ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScreenshotPreview extends StatelessWidget {
+  const _ScreenshotPreview({
+    required this.path,
+    required this.name,
+    required this.size,
+    required this.onRemove,
+  });
+
+  final String path;
+  final String name;
+  final int size;
+  final VoidCallback? onRemove;
+
+  String get _sizeLabel {
+    if (size <= 0) {
+      return '';
+    }
+    final mb = size / (1024 * 1024);
+    if (mb >= 1) {
+      return '${mb.toStringAsFixed(1)} MB';
+    }
+    return '${(size / 1024).round()} KB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppTheme.paper.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(path),
+              width: 56,
+              height: 56,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppTheme.brown,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                if (_sizeLabel.isNotEmpty)
+                  Text(
+                    _sizeLabel,
+                    style: TextStyle(
+                      color: AppTheme.brown.withValues(alpha: 0.62),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onRemove,
+            icon: const Icon(Icons.close_rounded),
+            tooltip: 'Rimuovi screenshot',
+          ),
+        ],
+      ),
     );
   }
 }

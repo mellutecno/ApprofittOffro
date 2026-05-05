@@ -352,6 +352,9 @@ class _AdminPageState extends State<AdminPage> {
       if (a.isPending != b.isPending) {
         return a.isPending ? -1 : 1;
       }
+      if (a.isArchived != b.isArchived) {
+        return a.isArchived ? 1 : -1;
+      }
       final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return bDate.compareTo(aDate);
@@ -738,8 +741,10 @@ class _AdminPageState extends State<AdminPage> {
     AdminBugReportSummary report, {
     required bool approve,
   }) async {
-    final pointsController = TextEditingController(text: '10');
-    final noteController = TextEditingController();
+    final pointsController = TextEditingController(
+      text: report.awardedPoints > 0 ? report.awardedPoints.toString() : '10',
+    );
+    final noteController = TextEditingController(text: report.adminNote);
     final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -825,6 +830,30 @@ class _AdminPageState extends State<AdminPage> {
     } finally {
       pointsController.dispose();
       noteController.dispose();
+    }
+  }
+
+  Future<void> _setBugReportArchived(
+    AdminBugReportSummary report, {
+    required bool archived,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final result =
+          await widget.authController.apiClient.setAdminBugReportArchived(
+        reportId: report.id,
+        archived: archived,
+      );
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text(result)));
+      await _reloadDashboard();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -1105,23 +1134,40 @@ class _AdminPageState extends State<AdminPage> {
 
   Widget _buildBugReportsSummary(List<AdminBugReportSummary> reports) {
     final pendingCount = reports.where((report) => report.isPending).length;
+    final archivedCount = reports.where((report) => report.isArchived).length;
+    final reviewedCount = reports
+        .where((report) => !report.isPending && !report.isArchived)
+        .length;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(
-              Icons.bug_report_rounded,
-              color: AppTheme.vividViolet,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                '$pendingCount segnalazioni da validare. I punti vengono assegnati solo dopo approvazione admin.',
-                style: const TextStyle(
-                  color: AppTheme.brown,
-                  fontWeight: FontWeight.w800,
+            Row(
+              children: [
+                const Icon(
+                  Icons.bug_report_rounded,
+                  color: AppTheme.vividViolet,
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '$pendingCount da validare. $reviewedCount gestite. $archivedCount archiviate.',
+                    style: const TextStyle(
+                      color: AppTheme.brown,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Le segnalazioni gestite si possono archiviare e riaprire per cambiare punti o decisione.',
+              style: TextStyle(
+                color: AppTheme.brown.withValues(alpha: 0.68),
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -1726,9 +1772,10 @@ class _AdminPageState extends State<AdminPage> {
   }
 
   Widget _buildBugReportCard(AdminBugReportSummary report) {
+    final isArchived = report.isArchived;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: EdgeInsets.all(isArchived ? 14 : 18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1740,6 +1787,11 @@ class _AdminPageState extends State<AdminPage> {
                   label: _bugReportStatusLabel(report.status),
                   color: _bugReportStatusColor(report.status),
                 ),
+                if (isArchived)
+                  const _StatusPill(
+                    label: 'Archiviata',
+                    color: AppTheme.brown,
+                  ),
                 if (report.awardedPoints > 0)
                   _StatusPill(
                     label: '${report.awardedPoints} Points',
@@ -1792,6 +1844,8 @@ class _AdminPageState extends State<AdminPage> {
             const SizedBox(height: 14),
             Text(
               report.message,
+              maxLines: isArchived ? 2 : null,
+              overflow: isArchived ? TextOverflow.ellipsis : null,
               style: TextStyle(
                 color: AppTheme.brown.withValues(alpha: 0.84),
                 height: 1.35,
@@ -1807,6 +1861,10 @@ class _AdminPageState extends State<AdminPage> {
                 fontSize: 12,
               ),
             ),
+            if (report.screenshotUrl.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _buildBugReportScreenshot(report),
+            ],
             if (report.adminNote.trim().isNotEmpty) ...[
               const SizedBox(height: 10),
               Text(
@@ -1847,8 +1905,85 @@ class _AdminPageState extends State<AdminPage> {
                   ),
                 ],
               ),
+            ] else ...[
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  SizedBox(
+                    width: 190,
+                    child: FilledButton.icon(
+                      onPressed: () => _confirmBugReportDecision(
+                        report,
+                        approve: true,
+                      ),
+                      icon: const Icon(Icons.workspace_premium_rounded),
+                      label: Text(
+                        report.isApproved ? 'Modifica punti' : 'Assegna punti',
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 170,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _confirmBugReportDecision(
+                        report,
+                        approve: false,
+                      ),
+                      icon: const Icon(Icons.block_rounded),
+                      label: const Text('Non valida'),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 150,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _setBugReportArchived(
+                        report,
+                        archived: !isArchived,
+                      ),
+                      icon: Icon(
+                        isArchived
+                            ? Icons.unarchive_rounded
+                            : Icons.archive_rounded,
+                      ),
+                      label: Text(isArchived ? 'Riapri' : 'Archivia'),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBugReportScreenshot(AdminBugReportSummary report) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: AppTheme.cardBorder),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Image.network(
+          report.screenshotUrl,
+          height: 150,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              height: 74,
+              padding: const EdgeInsets.all(14),
+              color: AppTheme.paper,
+              alignment: Alignment.centerLeft,
+              child: const Text(
+                'Screenshot non disponibile',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            );
+          },
         ),
       ),
     );

@@ -241,16 +241,31 @@ class ApiClient {
   Future<String> submitBugReport({
     required String message,
     String screenContext = 'App',
+    String? screenshotPath,
   }) async {
-    final response = await _send(
-      method: 'POST',
-      path: '/api/bug-reports',
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'message': message,
-        'screen_context': screenContext,
-      }),
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/bug-reports'),
     );
+    if ((_cookieHeader ?? '').isNotEmpty) {
+      request.headers['Cookie'] = _cookieHeader!;
+    }
+    request.fields.addAll({
+      'message': message,
+      'screen_context': screenContext,
+    });
+    if (screenshotPath != null && screenshotPath.trim().isNotEmpty) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'screenshot',
+          screenshotPath,
+          filename: File(screenshotPath).uri.pathSegments.last,
+        ),
+      );
+    }
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return payload['message']?.toString() ?? 'Segnalazione inviata.';
@@ -403,6 +418,21 @@ class ApiClient {
         'points': points,
         'admin_note': adminNote,
       }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Segnalazione aggiornata.';
+  }
+
+  Future<String> setAdminBugReportArchived({
+    required int reportId,
+    required bool archived,
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/admin/bug-reports/$reportId/archive',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'archived': archived}),
     );
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);

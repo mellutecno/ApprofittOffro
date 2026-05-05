@@ -37,6 +37,7 @@ class _HomeShellState extends State<HomeShell> {
   int _selectedIndex = 0;
   int _profileRefreshVersion = 0;
   int _notificationCenterRequest = 0;
+  int _unreadNotificationCount = 0;
   late final OffersController _offersController;
   late final CommunityController _communityController;
   bool _mandatoryProfileFlowOpen = false;
@@ -66,6 +67,7 @@ class _HomeShellState extends State<HomeShell> {
     _offersController.addListener(_handleOffersStateChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_maybeOpenMandatoryProfileSetup());
+      unawaited(_refreshUnreadNotifications());
       _applyLaunchTargetIfNeeded();
       _maybeShowProfileManagementAlert();
     });
@@ -107,6 +109,7 @@ class _HomeShellState extends State<HomeShell> {
       if (_isAdminUser && mounted) {
         setState(() => _selectedIndex = _adminTabIndex ?? 0);
       }
+      unawaited(_refreshUnreadNotifications());
       _applyLaunchTargetIfNeeded();
       _maybeShowProfileManagementAlert();
     });
@@ -217,6 +220,23 @@ class _HomeShellState extends State<HomeShell> {
       }
     } finally {
       _launchRefreshInFlight = false;
+    }
+  }
+
+  Future<void> _refreshUnreadNotifications() async {
+    if (!mounted || _isAdminUser || !widget.authController.isAuthenticated) {
+      return;
+    }
+    try {
+      final bundle = await widget.authController.apiClient.fetchNotifications();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _unreadNotificationCount = bundle.unreadCount);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _unreadNotificationCount = 0);
+      }
     }
   }
 
@@ -437,6 +457,7 @@ class _HomeShellState extends State<HomeShell> {
               authController: widget.authController,
               onGoToChat: () => setState(() => _selectedIndex = 2),
               notificationCenterRequest: _notificationCenterRequest,
+              onNotificationsChanged: _refreshUnreadNotifications,
             ),
           ];
     final selectedIndex = _selectedIndex.clamp(0, pages.length - 1);
@@ -513,11 +534,13 @@ class _HomeShellState extends State<HomeShell> {
                   NavigationDestination(
                     icon: _ProfileTabIcon(
                       selected: false,
-                      hasAlert: _hasReviewsToManage(),
+                      hasManagementAlert: _hasReviewsToManage(),
+                      hasNotificationAlert: _unreadNotificationCount > 0,
                     ),
                     selectedIcon: _ProfileTabIcon(
                       selected: true,
-                      hasAlert: _hasReviewsToManage(),
+                      hasManagementAlert: _hasReviewsToManage(),
+                      hasNotificationAlert: _unreadNotificationCount > 0,
                     ),
                     label: 'Io',
                   ),
@@ -540,11 +563,13 @@ class _HomeShellState extends State<HomeShell> {
 class _ProfileTabIcon extends StatelessWidget {
   const _ProfileTabIcon({
     required this.selected,
-    required this.hasAlert,
+    required this.hasManagementAlert,
+    required this.hasNotificationAlert,
   });
 
   final bool selected;
-  final bool hasAlert;
+  final bool hasManagementAlert;
+  final bool hasNotificationAlert;
 
   @override
   Widget build(BuildContext context) {
@@ -559,7 +584,7 @@ class _ProfileTabIcon extends StatelessWidget {
             alignment: Alignment.center,
             child: Icon(icon),
           ),
-          if (hasAlert)
+          if (hasManagementAlert || hasNotificationAlert)
             Positioned(
               right: -2,
               top: -2,
@@ -567,7 +592,9 @@ class _ProfileTabIcon extends StatelessWidget {
                 width: 16,
                 height: 16,
                 decoration: BoxDecoration(
-                  color: AppTheme.orange,
+                  color: hasNotificationAlert
+                      ? AppTheme.vividViolet
+                      : AppTheme.orange,
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(color: AppTheme.paper, width: 1.2),
                 ),

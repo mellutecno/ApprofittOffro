@@ -27,11 +27,13 @@ class ProfilePage extends StatefulWidget {
     required this.authController,
     required this.onGoToChat,
     this.notificationCenterRequest = 0,
+    this.onNotificationsChanged,
   });
 
   final AuthController authController;
   final VoidCallback onGoToChat;
   final int notificationCenterRequest;
+  final Future<void> Function()? onNotificationsChanged;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -1717,6 +1719,7 @@ class _ProfilePageState extends State<ProfilePage> {
         apiClient: widget.authController.apiClient,
       ),
     );
+    await widget.onNotificationsChanged?.call();
   }
 
   Future<void> _confirmDeleteAccount() async {

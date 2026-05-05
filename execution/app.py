@@ -1660,6 +1660,12 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("admin_delete_reason", "ALTER TABLE chat_threads ADD COLUMN admin_delete_reason TEXT"),
                 ("admin_deleted_by_id", "ALTER TABLE chat_threads ADD COLUMN admin_deleted_by_id INTEGER"),
             ],
+            "bug_reports": [
+                ("screenshot_filename", "ALTER TABLE bug_reports ADD COLUMN screenshot_filename VARCHAR(256)"),
+                ("screenshot_original_name", "ALTER TABLE bug_reports ADD COLUMN screenshot_original_name VARCHAR(256)"),
+                ("admin_archived_at", "ALTER TABLE bug_reports ADD COLUMN admin_archived_at DATETIME"),
+                ("admin_archived_by_id", "ALTER TABLE bug_reports ADD COLUMN admin_archived_by_id INTEGER"),
+            ],
         }
 
         for table_name, columns in legacy_columns.items():
@@ -1736,11 +1742,15 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                     user_id INTEGER NOT NULL,
                     message TEXT NOT NULL,
                     screen_context VARCHAR(120),
+                    screenshot_filename VARCHAR(256),
+                    screenshot_original_name VARCHAR(256),
                     status VARCHAR(20) NOT NULL DEFAULT 'pending',
                     awarded_points INTEGER NOT NULL DEFAULT 0,
                     admin_note TEXT,
                     reviewed_by_id INTEGER,
                     reviewed_at DATETIME,
+                    admin_archived_at DATETIME,
+                    admin_archived_by_id INTEGER,
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY(user_id) REFERENCES users (id),
                     FOREIGN KEY(reviewed_by_id) REFERENCES users (id)
@@ -1952,14 +1962,30 @@ def ensure_database_schema_compatibility():
                     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                     message TEXT NOT NULL,
                     screen_context VARCHAR(120),
+                    screenshot_filename VARCHAR(256),
+                    screenshot_original_name VARCHAR(256),
                     status VARCHAR(20) NOT NULL DEFAULT 'pending',
                     awarded_points INTEGER NOT NULL DEFAULT 0,
                     admin_note TEXT,
                     reviewed_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
                     reviewed_at TIMESTAMP,
+                    admin_archived_at TIMESTAMP,
+                    admin_archived_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE bug_reports ADD COLUMN IF NOT EXISTS screenshot_filename VARCHAR(256)"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE bug_reports ADD COLUMN IF NOT EXISTS screenshot_original_name VARCHAR(256)"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE bug_reports ADD COLUMN IF NOT EXISTS admin_archived_at TIMESTAMP"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE bug_reports ADD COLUMN IF NOT EXISTS admin_archived_by_id INTEGER"
             )
             conn.exec_driver_sql(
                 "CREATE INDEX IF NOT EXISTS ix_bug_reports_user_id ON bug_reports (user_id)"
@@ -4541,15 +4567,26 @@ def serialize_bug_report(report):
     """Serializza una segnalazione bug con dati utente e stato validazione."""
     user = report.user
     reviewer = report.reviewed_by
+    screenshot_filename = report.screenshot_filename or ""
     return {
         "id": report.id,
         "message": report.message or "",
         "screen_context": report.screen_context or "",
+        "screenshot_filename": screenshot_filename,
+        "screenshot_url": (
+            url_for("uploaded_file", filename=screenshot_filename, _external=True)
+            if screenshot_filename
+            else ""
+        ),
         "status": report.status or BUG_REPORT_STATUS_PENDING,
         "awarded_points": int(report.awarded_points or 0),
         "admin_note": report.admin_note or "",
         "created_at": report.created_at.isoformat() if report.created_at else "",
         "reviewed_at": report.reviewed_at.isoformat() if report.reviewed_at else "",
+        "admin_archived_at": (
+            report.admin_archived_at.isoformat() if report.admin_archived_at else ""
+        ),
+        "is_archived": report.admin_archived_at is not None,
         "user": {
             "id": user.id if user else 0,
             "nome": user.nome if user else "Utente rimosso",
@@ -6994,6 +7031,17 @@ def notify_admin_for_bug_report(report):
     safe_email = escape(user.email if user else "")
     safe_message = escape(report.message or "").replace("\n", "<br>")
     safe_context = escape(report.screen_context or "App")
+    screenshot_link = ""
+    if report.screenshot_filename:
+        screenshot_url = url_for(
+            "uploaded_file",
+            filename=report.screenshot_filename,
+            _external=True,
+        )
+        screenshot_link = (
+            f'<p><b>Screenshot allegato:</b> '
+            f'<a href="{escape(screenshot_url)}">Apri screenshot</a></p>'
+        )
     html = f"""
     <h2>Nuova segnalazione bug ApprofittOffro</h2>
     <p><b>ID segnalazione:</b> {report.id}</p>
@@ -7002,6 +7050,7 @@ def notify_admin_for_bug_report(report):
     <p><b>Contesto:</b> {safe_context}</p>
     <p><b>Messaggio:</b></p>
     <blockquote>{safe_message}</blockquote>
+    {screenshot_link}
     <p>La segnalazione e' in attesa di validazione admin prima di assegnare ApprofittOffro Points.</p>
     """
     return send_email_html(
@@ -7010,6 +7059,30 @@ def notify_admin_for_bug_report(report):
         html,
         background=True,
     )
+
+
+def save_bug_report_screenshot(file_storage, report_id):
+    """Salva lo screenshot allegato a una segnalazione bug nello storage upload."""
+    if not file_storage or not getattr(file_storage, "filename", ""):
+        return "", ""
+
+    original_name = secure_filename(file_storage.filename or "screenshot.jpg")
+    mimetype = (getattr(file_storage, "mimetype", "") or "").lower()
+    if mimetype and not mimetype.startswith("image/"):
+        raise ValueError("Allega un file immagine valido.")
+
+    extension = os.path.splitext(original_name)[1].lower() or ".jpg"
+    if extension not in {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}:
+        extension = ".jpg"
+
+    target_name = f"bug_reports/report_{report_id}_{uuid.uuid4().hex}{extension}"
+    saved_name = process_image(
+        file_storage,
+        target_name,
+        size=(1400, 1400),
+        quality=82,
+    )
+    return saved_name, original_name
 
 
 def serialize_app_notification(notification):
@@ -7184,7 +7257,13 @@ def api_submit_bug_report():
             "error": "Usa un account utente standard per inviare segnalazioni bug.",
         }), 403
 
-    data = request.get_json(silent=True) or {}
+    if request.content_type and request.content_type.startswith("multipart/"):
+        data = request.form
+        screenshot_file = request.files.get("screenshot")
+    else:
+        data = request.get_json(silent=True) or {}
+        screenshot_file = None
+
     message = str(data.get("message", "")).strip()
     screen_context = str(data.get("screen_context", "")).strip()[:120]
 
@@ -7207,6 +7286,26 @@ def api_submit_bug_report():
         created_at=datetime.now(),
     )
     db.session.add(report)
+    db.session.flush()
+
+    if screenshot_file and getattr(screenshot_file, "filename", ""):
+        if request.content_length and request.content_length > 12 * 1024 * 1024:
+            db.session.rollback()
+            return jsonify({
+                "success": False,
+                "error": "Lo screenshot e' troppo pesante. Usa un'immagine sotto i 12 MB.",
+            }), 400
+        try:
+            screenshot_filename, screenshot_original_name = save_bug_report_screenshot(
+                screenshot_file,
+                report.id,
+            )
+        except ValueError as exc:
+            db.session.rollback()
+            return jsonify({"success": False, "error": str(exc)}), 400
+        report.screenshot_filename = screenshot_filename
+        report.screenshot_original_name = screenshot_original_name
+
     db.session.commit()
 
     notify_admin_for_bug_report(report)
@@ -9357,6 +9456,42 @@ def api_admin_review_bug_report(report_id):
         "user_notified": bool(
             notification_result["email_sent"] or notification_result["push_sent"]
         ),
+    })
+
+
+@app.route("/api/admin/bug-reports/<int:report_id>/archive", methods=["POST"])
+@admin_required
+def api_admin_archive_bug_report(report_id):
+    """Archivia o ripristina una segnalazione bug nel pannello admin."""
+    report = BugReport.query.options(
+        selectinload(BugReport.user),
+        selectinload(BugReport.reviewed_by),
+    ).get(report_id)
+    if not report:
+        return jsonify({"success": False, "error": "Segnalazione non trovata."}), 404
+
+    data = request.get_json(silent=True) or {}
+    archived = bool(data.get("archived", True))
+
+    if archived:
+        if report.status == BUG_REPORT_STATUS_PENDING:
+            return jsonify({
+                "success": False,
+                "error": "Prima approva o respingi la segnalazione, poi archiviala.",
+            }), 400
+        report.admin_archived_at = datetime.now()
+        report.admin_archived_by_id = current_user.id
+        message = "Segnalazione archiviata."
+    else:
+        report.admin_archived_at = None
+        report.admin_archived_by_id = None
+        message = "Segnalazione ripristinata tra quelle gestite."
+
+    db.session.commit()
+    return jsonify({
+        "success": True,
+        "message": message,
+        "report": serialize_bug_report(report),
     })
 
 

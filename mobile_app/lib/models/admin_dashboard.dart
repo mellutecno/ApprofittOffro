@@ -494,22 +494,28 @@ class AdminBugReportSummary {
     required this.id,
     required this.message,
     required this.screenContext,
+    required this.screenshotUrl,
     required this.status,
     required this.awardedPoints,
     required this.adminNote,
     required this.createdAt,
     required this.reviewedAt,
+    required this.archivedAt,
+    required this.isArchived,
     required this.user,
   });
 
   final int id;
   final String message;
   final String screenContext;
+  final String screenshotUrl;
   final String status;
   final int awardedPoints;
   final String adminNote;
   final DateTime? createdAt;
   final DateTime? reviewedAt;
+  final DateTime? archivedAt;
+  final bool isArchived;
   final AdminBugReportUserSummary user;
 
   bool get isPending => status == 'pending';
@@ -520,11 +526,14 @@ class AdminBugReportSummary {
       id: json['id'] as int? ?? 0,
       message: (json['message'] ?? '').toString(),
       screenContext: (json['screen_context'] ?? '').toString(),
+      screenshotUrl: (json['screenshot_url'] ?? '').toString(),
       status: (json['status'] ?? 'pending').toString(),
       awardedPoints: json['awarded_points'] as int? ?? 0,
       adminNote: (json['admin_note'] ?? '').toString(),
       createdAt: _parseDate(json['created_at']),
       reviewedAt: _parseDate(json['reviewed_at']),
+      archivedAt: _parseDate(json['admin_archived_at']),
+      isArchived: json['is_archived'] == true,
       user: AdminBugReportUserSummary.fromJson(
         json['user'] as Map<String, dynamic>? ?? const <String, dynamic>{},
       ),
