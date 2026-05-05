@@ -1054,16 +1054,63 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Widget _buildStatsGrid(AdminDashboardStats stats) {
-    final items = <({String label, int value})>[
-      (label: 'Utenti', value: stats.users),
-      (label: 'Admin', value: stats.admins),
-      (label: 'Futuri', value: stats.futureOffers),
-      (label: 'Passati', value: stats.pastOffers),
-      (label: 'Chat', value: stats.chats),
-      (label: 'Review', value: stats.reviewUsers),
-      (label: 'Segnal.', value: stats.contentReportsPending),
-      (label: 'Bug', value: stats.bugReportsPending),
+  Widget _buildSectionGrid(AdminDashboardStats stats) {
+    final items = <({
+      _AdminSection section,
+      IconData icon,
+      Color color,
+      int value,
+      String suffix,
+    })>[
+      (
+        section: _AdminSection.users,
+        icon: Icons.people_alt_rounded,
+        color: AppTheme.sage,
+        value: stats.users,
+        suffix: 'utenti',
+      ),
+      (
+        section: _AdminSection.reviewUsers,
+        icon: Icons.verified_user_rounded,
+        color: const Color(0xFFFFD34D),
+        value: stats.reviewUsers,
+        suffix: 'review',
+      ),
+      (
+        section: _AdminSection.futureOffers,
+        icon: Icons.event_available_rounded,
+        color: AppTheme.offerGreen,
+        value: stats.futureOffers,
+        suffix: 'futuri',
+      ),
+      (
+        section: _AdminSection.pastOffers,
+        icon: Icons.history_rounded,
+        color: AppTheme.moss,
+        value: stats.pastOffers,
+        suffix: 'passati',
+      ),
+      (
+        section: _AdminSection.chats,
+        icon: Icons.chat_bubble_rounded,
+        color: AppTheme.vividViolet,
+        value: stats.chats,
+        suffix: 'chat',
+      ),
+      (
+        section: _AdminSection.contentReports,
+        icon: Icons.report_rounded,
+        color: AppTheme.plum,
+        value: stats.contentReportsPending,
+        suffix: 'nuove',
+      ),
+      (
+        section: _AdminSection.bugReports,
+        icon: Icons.bug_report_rounded,
+        color: AppTheme.berry,
+        value: stats.bugReportsPending,
+        suffix: 'bug',
+      ),
     ];
 
     return GridView.builder(
@@ -1074,40 +1121,82 @@ class _AdminPageState extends State<AdminPage> {
         crossAxisCount: 2,
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
-        childAspectRatio: 1.7,
+        childAspectRatio: 2.45,
       ),
       itemBuilder: (context, index) {
         final item = items[index];
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: AppTheme.softAccentGradient,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: AppTheme.vividViolet.withValues(alpha: 0.34),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '${item.value}',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: AppTheme.brown,
-                  ),
+        final selected = item.section == _selectedSection;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => setState(() => _selectedSection = item.section),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: selected ? AppTheme.softAccentGradient : null,
+                color: selected ? null : AppTheme.paper.withValues(alpha: 0.78),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: selected
+                      ? item.color.withValues(alpha: 0.78)
+                      : AppTheme.cardBorder,
+                  width: selected ? 1.4 : 1,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  item.label,
-                  style: TextStyle(
-                    color: AppTheme.brown.withValues(alpha: 0.72),
-                    fontWeight: FontWeight.w800,
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: item.color.withValues(alpha: 0.18),
+                          blurRadius: 14,
+                          offset: const Offset(0, 8),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: item.color.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(item.icon, color: item.color, size: 21),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.section.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppTheme.espresso,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${item.value} ${item.suffix}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppTheme.brown.withValues(alpha: 0.72),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -2781,36 +2870,7 @@ class _AdminPageState extends State<AdminPage> {
                       centered: true,
                       footer: Column(
                         children: [
-                          _buildStatsGrid(dashboard.stats),
-                          const SizedBox(height: 14),
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              return SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    minWidth: constraints.maxWidth,
-                                  ),
-                                  child: SegmentedButton<_AdminSection>(
-                                    segments: _AdminSection.values
-                                        .map(
-                                          (section) =>
-                                              ButtonSegment<_AdminSection>(
-                                            value: section,
-                                            label: Text(section.label),
-                                          ),
-                                        )
-                                        .toList(),
-                                    selected: <_AdminSection>{_selectedSection},
-                                    onSelectionChanged: (selection) {
-                                      setState(() =>
-                                          _selectedSection = selection.first);
-                                    },
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                          _buildSectionGrid(dashboard.stats),
                         ],
                       ),
                     ),

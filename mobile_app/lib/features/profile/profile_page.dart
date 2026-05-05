@@ -3976,6 +3976,10 @@ class _SettingsCard extends StatelessWidget {
   final VoidCallback? onDeleteAccount;
   final VoidCallback? onLogout;
 
+  static const Color _settingsViolet = AppTheme.vividViolet;
+  static const Color _settingsBlue = Color(0xFF38CCFF);
+  static const Color _settingsYellow = Color(0xFFFFD34D);
+
   Widget _buildHeader(BuildContext context) {
     final icon = expandUp
         ? (isExpanded ? Icons.expand_more_rounded : Icons.expand_less_rounded)
@@ -3989,7 +3993,7 @@ class _SettingsCard extends StatelessWidget {
           children: [
             const Icon(
               Icons.settings_rounded,
-              color: Color(0xFFE07800),
+              color: _settingsViolet,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -4006,6 +4010,23 @@ class _SettingsCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _settingsAction({
+    required VoidCallback? onPressed,
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppTheme.espresso,
+        side: BorderSide(color: color.withValues(alpha: 0.52)),
+      ),
+      icon: Icon(icon, color: color),
+      label: Text(label),
     );
   }
 
@@ -4034,102 +4055,72 @@ class _SettingsCard extends StatelessWidget {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  OutlinedButton.icon(
+                  _settingsAction(
                     onPressed: onEditProfile,
-                    icon: const Icon(
-                      Icons.edit_outlined,
-                      color: Color(0xFFE07800),
-                    ),
-                    label: const Text('Modifica profilo'),
+                    icon: Icons.edit_outlined,
+                    label: 'Modifica profilo',
+                    color: _settingsViolet,
                   ),
-                  OutlinedButton.icon(
+                  _settingsAction(
                     onPressed: onNotifications,
-                    icon: const Icon(
-                      Icons.notifications_active_rounded,
-                      color: Color(0xFFE07800),
-                    ),
-                    label: const Text('Centro notifiche'),
+                    icon: Icons.notifications_active_rounded,
+                    label: 'Centro notifiche',
+                    color: _settingsBlue,
                   ),
-                  OutlinedButton.icon(
+                  _settingsAction(
                     onPressed: onAppGuide,
-                    icon: const Icon(
-                      Icons.menu_book_rounded,
-                      color: Color(0xFFE07800),
-                    ),
-                    label: const Text('Guida all\'app'),
+                    icon: Icons.menu_book_rounded,
+                    label: 'Guida all\'app',
+                    color: _settingsYellow,
                   ),
-                  OutlinedButton.icon(
+                  _settingsAction(
                     onPressed: onSecurity,
-                    icon: const Icon(
-                      Icons.fingerprint,
-                      color: Color(0xFFE07800),
-                    ),
-                    label: const Text('Entra con impronta'),
+                    icon: Icons.fingerprint,
+                    label: 'Entra con impronta',
+                    color: _settingsViolet,
                   ),
-                  OutlinedButton.icon(
+                  _settingsAction(
                     onPressed: onCheckUpdates,
-                    icon: const Icon(
-                      Icons.system_update_alt_rounded,
-                      color: Color(0xFFE07800),
-                    ),
-                    label: const Text('Aggiorna la tua app'),
+                    icon: Icons.system_update_alt_rounded,
+                    label: 'Aggiorna la tua app',
+                    color: _settingsBlue,
                   ),
-                  OutlinedButton.icon(
+                  _settingsAction(
                     onPressed: onPrivacyPolicy,
-                    icon: const Icon(
-                      Icons.privacy_tip_outlined,
-                      color: Color(0xFFE07800),
-                    ),
-                    label: const Text('Informativa privacy'),
+                    icon: Icons.privacy_tip_outlined,
+                    label: 'Informativa privacy',
+                    color: _settingsYellow,
                   ),
-                  OutlinedButton.icon(
+                  _settingsAction(
                     onPressed: onTerms,
-                    icon: const Icon(
-                      Icons.gavel_outlined,
-                      color: Color(0xFFE07800),
-                    ),
-                    label: const Text('Termini e condizioni'),
+                    icon: Icons.gavel_outlined,
+                    label: 'Termini e condizioni',
+                    color: _settingsViolet,
                   ),
-                  OutlinedButton.icon(
+                  _settingsAction(
                     onPressed: onCommunityRules,
-                    icon: const Icon(
-                      Icons.verified_user_outlined,
-                      color: Color(0xFFE07800),
-                    ),
-                    label: const Text('Regolamento community'),
+                    icon: Icons.verified_user_outlined,
+                    label: 'Regolamento community',
+                    color: _settingsBlue,
                   ),
-                  OutlinedButton.icon(
+                  _settingsAction(
                     onPressed: onAcceptLegalDocuments,
-                    icon: const Icon(
-                      Icons.fact_check_rounded,
-                      color: Color(0xFF6E39F5),
-                    ),
-                    label: const Text('Accetta documenti app'),
+                    icon: Icons.fact_check_rounded,
+                    label: 'Accetta documenti app',
+                    color: _settingsYellow,
                   ),
                   if (showAdminPanel)
-                    OutlinedButton.icon(
+                    _settingsAction(
                       onPressed: onOpenAdminPanel,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF6E39F5),
-                        side: BorderSide(
-                          color: const Color(
-                            0xFF6E39F5,
-                          ).withValues(alpha: 0.55),
-                        ),
-                      ),
-                      icon: const Icon(
-                        Icons.admin_panel_settings_rounded,
-                        color: Color(0xFF6E39F5),
-                      ),
-                      label: const Text('Pannello admin'),
+                      icon: Icons.admin_panel_settings_rounded,
+                      label: 'Pannello admin',
+                      color: _settingsViolet,
                     ),
-                  OutlinedButton.icon(
+                  _settingsAction(
                     onPressed: onLogout,
-                    icon: const Icon(
-                      Icons.logout_rounded,
-                      color: Color(0xFF8A4336),
-                    ),
-                    label: const Text('Esci da questo dispositivo'),
+                    icon: Icons.logout_rounded,
+                    label: 'Esci da questo dispositivo',
+                    color: _settingsBlue,
                   ),
                 ],
               );
@@ -4141,12 +4132,14 @@ class _SettingsCard extends StatelessWidget {
             child: OutlinedButton.icon(
               onPressed: onDeleteAccount,
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF8A4336),
-                side: const BorderSide(color: Color(0xFFD7B4AC)),
+                foregroundColor: AppTheme.espresso,
+                side: BorderSide(
+                  color: _settingsYellow.withValues(alpha: 0.62),
+                ),
               ),
               icon: const Icon(
                 Icons.delete_outline_rounded,
-                color: Color(0xFF8A4336),
+                color: _settingsYellow,
               ),
               label: const Text('Cancella il tuo profilo'),
             ),
@@ -4237,7 +4230,7 @@ class _SettingsBottomSheet extends StatelessWidget {
                   'Richiedi l\'impronta digitale per aprire l\'app',
                 ),
                 value: isBiometricEnabled,
-                activeColor: AppTheme.orange,
+                activeColor: AppTheme.vividViolet,
                 onChanged: onBiometricToggle,
               )
             else
