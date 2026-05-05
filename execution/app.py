@@ -7231,10 +7231,11 @@ def is_live_location_fresh(user, *, now_utc=None):
 
 
 def resolve_user_distance_coordinates(user, *, now_utc=None):
-    """Restituisce coordinate da usare nei filtri community: live -> fallback profilo."""
+    """Restituisce coordinate da usare nei filtri community: GPS live/ultimo -> fallback profilo."""
     now_utc = now_utc or utc_now_naive()
-    if is_live_location_fresh(user, now_utc=now_utc):
-        return float(user.live_latitudine), float(user.live_longitudine), "live"
+    if user.live_latitudine is not None and user.live_longitudine is not None:
+        source = "live" if is_live_location_fresh(user, now_utc=now_utc) else "last_live"
+        return float(user.live_latitudine), float(user.live_longitudine), source
     if user.latitudine is not None and user.longitudine is not None:
         return float(user.latitudine), float(user.longitudine), "profile"
     return None, None, "none"
@@ -9538,18 +9539,24 @@ def api_people():
         people_query = people_query.filter(User.sesso == selected_gender)
 
     people = people_query.order_by(User.eta.asc(), User.nome.asc()).all()
-    if radius_km is not None:
-        filtered_people = []
-        for person in people:
-            person_lat, person_lon, _ = resolve_user_distance_coordinates(
-                person,
-                now_utc=now_utc,
-            )
-            if person_lat is None or person_lon is None:
-                continue
-            if calculate_distance(search_lat, search_lon, person_lat, person_lon) <= radius_km:
-                filtered_people.append(person)
-        people = filtered_people
+    people_with_distance = []
+    for person in people:
+        person_lat, person_lon, person_location_source = resolve_user_distance_coordinates(
+            person,
+            now_utc=now_utc,
+        )
+        if person_lat is None or person_lon is None:
+            continue
+        distance_km = calculate_distance(search_lat, search_lon, person_lat, person_lon)
+        if radius_km is not None and distance_km > radius_km:
+            continue
+        source_rank = 1 if person_location_source == "profile" else 0
+        people_with_distance.append((distance_km, source_rank, person))
+
+    people_with_distance.sort(
+        key=lambda item: (item[0], item[1], item[2].nome.lower())
+    )
+    people = [person for _, _, person in people_with_distance]
     followed_user_ids = get_followed_user_ids(current_user.id)
 
     return jsonify({
