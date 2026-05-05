@@ -546,6 +546,15 @@ class _HomeShellState extends State<HomeShell> {
                   ),
                 ],
           onDestinationSelected: (index) {
+            if (!_isAdminUser &&
+                index == _profileTabIndex &&
+                _unreadNotificationCount > 0) {
+              setState(() {
+                _selectedIndex = _profileTabIndex;
+                _notificationCenterRequest++;
+              });
+              return;
+            }
             if (index == _selectedIndex) {
               if (!_isAdminUser && index == 0) {
                 unawaited(_offersController.loadOffers());
@@ -586,22 +595,38 @@ class _ProfileTabIcon extends StatelessWidget {
           ),
           if (hasManagementAlert || hasNotificationAlert)
             Positioned(
-              right: -2,
-              top: -2,
+              right: -5,
+              top: -5,
               child: Container(
-                width: 16,
-                height: 16,
+                width: hasNotificationAlert ? 21 : 17,
+                height: hasNotificationAlert ? 21 : 17,
                 decoration: BoxDecoration(
                   color: hasNotificationAlert
-                      ? AppTheme.vividViolet
+                      ? const Color(0xFFFFD43B)
                       : AppTheme.orange,
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: AppTheme.paper, width: 1.2),
+                  border: Border.all(
+                    color: hasNotificationAlert
+                        ? AppTheme.vividViolet
+                        : AppTheme.paper,
+                    width: hasNotificationAlert ? 2 : 1.2,
+                  ),
+                  boxShadow: hasNotificationAlert
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.24),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.notifications_rounded,
-                  size: 10,
-                  color: Colors.white,
+                  size: hasNotificationAlert ? 13 : 10,
+                  color: hasNotificationAlert
+                      ? const Color(0xFF251057)
+                      : Colors.white,
                 ),
               ),
             ),

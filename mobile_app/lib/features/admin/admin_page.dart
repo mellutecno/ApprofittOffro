@@ -69,7 +69,7 @@ class _AdminPageState extends State<AdminPage> {
   String _chatQuery = '';
   DateTime? _offerFromDate;
   DateTime? _offerToDate;
-  final Set<int> _expandedArchivedBugReports = <int>{};
+  final Set<String> _expandedAdminRows = <String>{};
 
   @override
   void initState() {
@@ -92,6 +92,21 @@ class _AdminPageState extends State<AdminPage> {
     final future = widget.authController.apiClient.fetchAdminDashboard();
     setState(() => _dashboardFuture = future);
     await future;
+  }
+
+  String _rowKey(_AdminSection section, int id) => '${section.name}:$id';
+
+  bool _isAdminRowExpanded(_AdminSection section, int id) {
+    return _expandedAdminRows.contains(_rowKey(section, id));
+  }
+
+  void _toggleAdminRow(_AdminSection section, int id) {
+    final key = _rowKey(section, id);
+    setState(() {
+      if (!_expandedAdminRows.remove(key)) {
+        _expandedAdminRows.add(key);
+      }
+    });
   }
 
   String _formatDateTime(DateTime? dateTime) {
@@ -849,10 +864,11 @@ class _AdminPageState extends State<AdminPage> {
         return;
       }
       setState(() {
+        final key = _rowKey(_AdminSection.bugReports, report.id);
         if (archived) {
-          _expandedArchivedBugReports.remove(report.id);
+          _expandedAdminRows.remove(key);
         } else {
-          _expandedArchivedBugReports.add(report.id);
+          _expandedAdminRows.add(key);
         }
       });
       messenger.showSnackBar(SnackBar(content: Text(result)));
@@ -863,14 +879,6 @@ class _AdminPageState extends State<AdminPage> {
       }
       messenger.showSnackBar(SnackBar(content: Text(error.toString())));
     }
-  }
-
-  void _toggleArchivedBugReportDetails(AdminBugReportSummary report) {
-    setState(() {
-      if (!_expandedArchivedBugReports.remove(report.id)) {
-        _expandedArchivedBugReports.add(report.id);
-      }
-    });
   }
 
   Widget _buildAvatar({
@@ -1192,6 +1200,134 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
+  Widget _buildExpandableAdminItem({
+    required _AdminSection section,
+    required int id,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    String trailingLabel = '',
+    required Widget Function() expandedBuilder,
+  }) {
+    final expanded = _isAdminRowExpanded(section, id);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _AdminCompactRow(
+          title: title,
+          subtitle: subtitle,
+          icon: icon,
+          color: color,
+          trailingLabel: trailingLabel,
+          expanded: expanded,
+          onTap: () => _toggleAdminRow(section, id),
+        ),
+        if (expanded) ...[
+          const SizedBox(height: 8),
+          expandedBuilder(),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCompactUserItem(AdminUserSummary user) {
+    final trailing = user.isAdmin ? 'Admin' : (user.isVerified ? 'OK' : 'No');
+    return _buildExpandableAdminItem(
+      section: _AdminSection.users,
+      id: user.id,
+      title: user.name,
+      subtitle:
+          '${user.email} - ${user.ageDisplay} - ${user.cityLabel.isEmpty ? user.city : user.cityLabel}',
+      icon: user.isAdmin
+          ? Icons.admin_panel_settings_rounded
+          : Icons.person_rounded,
+      color: user.isAdmin ? AppTheme.vividViolet : AppTheme.sage,
+      trailingLabel: trailing,
+      expandedBuilder: () => _buildUserCard(user),
+    );
+  }
+
+  Widget _buildCompactReviewUserItem(AdminUserSummary user) {
+    final reasons = <String>[];
+    if (user.needsBioReview) {
+      reasons.add('Bio ${user.bioModerationStatus}');
+    }
+    if (user.needsPhotoReview) {
+      reasons.add('Foto ${user.photoModerationStatus}');
+    }
+    return _buildExpandableAdminItem(
+      section: _AdminSection.reviewUsers,
+      id: user.id,
+      title: user.name,
+      subtitle: '${user.email} - ${reasons.join(' - ')}',
+      icon: Icons.gpp_maybe_rounded,
+      color: AppTheme.orange,
+      trailingLabel: 'Review',
+      expandedBuilder: () => _buildReviewUserCard(user),
+    );
+  }
+
+  Widget _buildCompactOfferItem(
+    AdminOfferSummary offer, {
+    required _AdminSection section,
+  }) {
+    return _buildExpandableAdminItem(
+      section: section,
+      id: offer.id,
+      title: offer.localeName,
+      subtitle:
+          '${offer.mealType.toUpperCase()} - ${offer.author.name} - ${_formatDateTime(offer.startsAt)}',
+      icon: Icons.event_available_rounded,
+      color: section == _AdminSection.futureOffers
+          ? AppTheme.offerGreen
+          : AppTheme.orange,
+      trailingLabel: offer.status,
+      expandedBuilder: () => _buildOfferCard(offer),
+    );
+  }
+
+  Widget _buildCompactChatItem(AdminChatSummary chat) {
+    final lastMessage = chat.lastMessage.trim().isEmpty
+        ? 'Nessun messaggio salvato'
+        : chat.lastMessage.trim();
+    return _buildExpandableAdminItem(
+      section: _AdminSection.chats,
+      id: chat.id,
+      title: '${chat.userA.name} - ${chat.userB.name}',
+      subtitle:
+          '${chat.offerTitle} - ${chat.messageCount} messaggi - $lastMessage',
+      icon: Icons.forum_rounded,
+      color: chat.clearedAt != null ? AppTheme.vividViolet : AppTheme.sage,
+      trailingLabel: chat.clearedAt != null ? 'Eliminata' : 'Chat',
+      expandedBuilder: () => _buildChatCard(chat),
+    );
+  }
+
+  Widget _buildCompactBugReportItem(AdminBugReportSummary report) {
+    final subtitleParts = <String>[
+      _bugReportStatusLabel(report.status),
+      _formatDateTime(report.createdAt),
+      if (report.screenshotUrl.trim().isNotEmpty) 'foto allegata',
+      report.message,
+    ];
+    return _buildExpandableAdminItem(
+      section: _AdminSection.bugReports,
+      id: report.id,
+      title: report.user.name,
+      subtitle: subtitleParts.join(' - '),
+      icon: report.isApproved
+          ? Icons.workspace_premium_rounded
+          : Icons.bug_report_rounded,
+      color: report.isArchived
+          ? AppTheme.brown
+          : _bugReportStatusColor(report.status),
+      trailingLabel:
+          report.awardedPoints > 0 ? '+${report.awardedPoints} pt' : '',
+      expandedBuilder: () => _buildBugReportCard(report),
+    );
+  }
+
   List<Widget> _buildSectionItems(AdminDashboardData data) {
     switch (_selectedSection) {
       case _AdminSection.users:
@@ -1205,7 +1341,7 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ];
         }
-        return filteredUsers.map(_buildUserCard).toList();
+        return filteredUsers.map(_buildCompactUserItem).toList();
       case _AdminSection.reviewUsers:
         final filteredUsers = _filteredReviewUsers(data);
         if (filteredUsers.isEmpty) {
@@ -1217,7 +1353,7 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ];
         }
-        return filteredUsers.map(_buildReviewUserCard).toList();
+        return filteredUsers.map(_buildCompactReviewUserItem).toList();
       case _AdminSection.futureOffers:
         final filteredOffers = _filteredOffers(data.futureOffers);
         if (filteredOffers.isEmpty) {
@@ -1229,7 +1365,14 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ];
         }
-        return filteredOffers.map(_buildOfferCard).toList();
+        return filteredOffers
+            .map(
+              (offer) => _buildCompactOfferItem(
+                offer,
+                section: _AdminSection.futureOffers,
+              ),
+            )
+            .toList();
       case _AdminSection.pastOffers:
         final filteredOffers = _filteredOffers(data.pastOffers);
         if (filteredOffers.isEmpty) {
@@ -1241,7 +1384,14 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ];
         }
-        return filteredOffers.map(_buildOfferCard).toList();
+        return filteredOffers
+            .map(
+              (offer) => _buildCompactOfferItem(
+                offer,
+                section: _AdminSection.pastOffers,
+              ),
+            )
+            .toList();
       case _AdminSection.chats:
         final filteredChats = _filteredChats(data);
         if (filteredChats.isEmpty) {
@@ -1253,7 +1403,7 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ];
         }
-        return filteredChats.map(_buildChatCard).toList();
+        return filteredChats.map(_buildCompactChatItem).toList();
       case _AdminSection.bugReports:
         final bugReports = _sortedBugReports(data);
         if (bugReports.isEmpty) {
@@ -1265,7 +1415,7 @@ class _AdminPageState extends State<AdminPage> {
             ),
           ];
         }
-        return bugReports.map(_buildBugReportCard).toList();
+        return bugReports.map(_buildCompactBugReportItem).toList();
     }
   }
 
@@ -1789,10 +1939,6 @@ class _AdminPageState extends State<AdminPage> {
 
   Widget _buildBugReportCard(AdminBugReportSummary report) {
     final isArchived = report.isArchived;
-    final isArchivedExpanded = _expandedArchivedBugReports.contains(report.id);
-    if (isArchived && !isArchivedExpanded) {
-      return _buildArchivedBugReportRow(report);
-    }
     return Card(
       child: Padding(
         padding: EdgeInsets.all(isArchived ? 14 : 18),
@@ -1974,8 +2120,8 @@ class _AdminPageState extends State<AdminPage> {
                     SizedBox(
                       width: 150,
                       child: OutlinedButton.icon(
-                        onPressed: () =>
-                            _toggleArchivedBugReportDetails(report),
+                        onPressed: () => _toggleAdminRow(
+                            _AdminSection.bugReports, report.id),
                         icon: const Icon(Icons.compress_rounded),
                         label: const Text('Comprimi'),
                       ),
@@ -1989,114 +2135,141 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Widget _buildArchivedBugReportRow(AdminBugReportSummary report) {
-    final statusColor = _bugReportStatusColor(report.status);
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => _toggleArchivedBugReportDetails(report),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  report.isApproved
-                      ? Icons.workspace_premium_rounded
-                      : Icons.archive_rounded,
-                  size: 18,
-                  color: statusColor,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            report.user.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppTheme.brown,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
+  Future<void> _openBugReportScreenshot(AdminBugReportSummary report) async {
+    final url = report.screenshotUrl.trim();
+    if (url.isEmpty) {
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final size = MediaQuery.sizeOf(dialogContext);
+        return Dialog(
+          insetPadding: const EdgeInsets.all(12),
+          backgroundColor: Colors.black,
+          child: SizedBox(
+            width: size.width,
+            height: size.height * 0.86,
+            child: SafeArea(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: InteractiveViewer(
+                      minScale: 0.8,
+                      maxScale: 5,
+                      child: Center(
+                        child: Image.network(
+                          url,
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) {
+                              return child;
+                            }
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(20),
+                                child: Text(
+                                  'Screenshot non disponibile',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                        if (report.awardedPoints > 0) ...[
-                          const SizedBox(width: 8),
-                          Text(
-                            '+${report.awardedPoints} pt',
-                            style: const TextStyle(
-                              color: AppTheme.vividViolet,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${_bugReportStatusLabel(report.status)} - ${_formatDateTime(report.createdAt)} - ${report.message}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppTheme.brown.withValues(alpha: 0.62),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton.filled(
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                      tooltip: 'Chiudi screenshot',
+                    ),
+                  ),
+                ],
               ),
-              IconButton(
-                onPressed: () => _toggleArchivedBugReportDetails(report),
-                icon: const Icon(Icons.expand_more_rounded),
-                tooltip: 'Apri segnalazione',
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   Widget _buildBugReportScreenshot(AdminBugReportSummary report) {
-    return ClipRRect(
+    return InkWell(
       borderRadius: BorderRadius.circular(16),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: AppTheme.cardBorder),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Image.network(
-          report.screenshotUrl,
-          height: 150,
-          width: double.infinity,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return Container(
-              height: 74,
-              padding: const EdgeInsets.all(14),
-              color: AppTheme.paper,
-              alignment: Alignment.centerLeft,
-              child: const Text(
-                'Screenshot non disponibile',
-                style: TextStyle(fontWeight: FontWeight.w800),
+      onTap: () => _openBugReportScreenshot(report),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: AppTheme.cardBorder),
+                borderRadius: BorderRadius.circular(16),
               ),
-            );
-          },
+              child: Image.network(
+                report.screenshotUrl,
+                height: 150,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 74,
+                    padding: const EdgeInsets.all(14),
+                    color: AppTheme.paper,
+                    alignment: Alignment.centerLeft,
+                    child: const Text(
+                      'Screenshot non disponibile',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.68),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.open_in_full_rounded,
+                        color: Colors.white,
+                        size: 15,
+                      ),
+                      SizedBox(width: 5),
+                      Text(
+                        'Apri',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -2364,6 +2537,111 @@ class _MiniStat extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminCompactRow extends StatelessWidget {
+  const _AdminCompactRow({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.expanded,
+    required this.onTap,
+    this.trailingLabel = '',
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final bool expanded;
+  final VoidCallback onTap;
+  final String trailingLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppTheme.brown,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppTheme.brown.withValues(alpha: 0.62),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (trailingLabel.trim().isNotEmpty) ...[
+                const SizedBox(width: 8),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
+                    child: Text(
+                      trailingLabel,
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(width: 4),
+              Icon(
+                expanded
+                    ? Icons.expand_less_rounded
+                    : Icons.expand_more_rounded,
+                color: AppTheme.brown.withValues(alpha: 0.64),
+              ),
+            ],
+          ),
         ),
       ),
     );

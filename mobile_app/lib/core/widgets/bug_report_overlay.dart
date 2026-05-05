@@ -168,7 +168,7 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Le segnalazioni vere ci aiutano a migliorare l\'app. Dopo la verifica dell\'admin possono assegnare ApprofittOffro Points, utilizzabili in futuro per vantaggi e tessere socio.',
+                          'Le segnalazioni vere ci aiutano a migliorare l\'app. Dopo la verifica dell\'admin, verranno assegnati degli ApprofittOffro Points, utilizzabili in futuro per vantaggi e tessere Gold.',
                           style: TextStyle(
                             color: AppTheme.brown.withValues(alpha: 0.78),
                             height: 1.35,
