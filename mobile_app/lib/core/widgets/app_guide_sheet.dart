@@ -46,6 +46,7 @@ class _AppGuideSheetState extends State<_AppGuideSheet> {
         'Crei colazioni, aperitivi, pranzi o cene e scegli il locale dalla mappa.',
         'La posizione puo partire dal GPS o dall\'indirizzo salvato nel profilo.',
         'Se inserisci il telefono del locale, dalla scheda evento puoi chiamarlo rapidamente.',
+        'Titolo, descrizione e foto evento possono essere controllati prima della pubblicazione.',
       ],
     ),
     _GuideSectionData(
@@ -64,6 +65,7 @@ class _AppGuideSheetState extends State<_AppGuideSheet> {
       bullets: [
         'Le conversazioni partono dagli eventi e restano disponibili nella sezione Chat.',
         'Le chat si cancellano automaticamente dopo 30 giorni.',
+        'Messaggi e immagini sospette possono essere bloccati e mandati in revisione.',
         'Se un profilo entra in revisione, la chat viene bloccata finche la verifica non finisce.',
       ],
     ),
@@ -92,6 +94,7 @@ class _AppGuideSheetState extends State<_AppGuideSheet> {
       bullets: [
         'La linguetta laterale apre il modulo di segnalazione bug.',
         'Puoi allegare uno screenshot per far capire meglio il problema.',
+        'Testo e screenshot vengono controllati per evitare abusi nelle segnalazioni.',
         'Le segnalazioni vere vengono validate dall\'admin e possono dare ApprofittOffro Points.',
       ],
     ),
@@ -99,8 +102,8 @@ class _AppGuideSheetState extends State<_AppGuideSheet> {
       icon: Icons.verified_user_rounded,
       title: 'Sicurezza',
       bullets: [
-        'Bio e foto possono essere controllate con moderazione automatica e revisione admin.',
-        'I profili sospetti vengono temporaneamente nascosti per proteggere la community.',
+        'Profili, offerte, chat, recensioni, foto, screenshot e segnalazioni possono essere controllati con moderazione automatica e revisione admin.',
+        'I profili sospetti vengono temporaneamente nascosti e i contenuti rischiosi possono essere bloccati.',
         'Le notifiche importanti restano leggibili anche dopo il tap sulla push.',
       ],
     ),
@@ -248,7 +251,8 @@ class _GuideHighlightCard extends StatelessWidget {
           ),
           _GuidePill(
             icon: Icons.admin_panel_settings_rounded,
-            text: 'La moderazione protegge profili, bio, foto e chat.',
+            text:
+                'La moderazione protegge profili, offerte, chat e segnalazioni.',
           ),
         ],
       ),
