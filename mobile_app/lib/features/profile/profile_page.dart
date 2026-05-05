@@ -10,6 +10,7 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_guide_sheet.dart';
 import '../../core/widgets/brand_wordmark.dart';
+import '../../core/widgets/legal_acceptance_sheet.dart';
 import '../../models/app_user.dart';
 import '../../models/offer.dart';
 import '../../models/public_profile.dart';
@@ -1714,6 +1715,25 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _openLegalAcceptance() async {
+    final accepted = await showLegalAcceptanceSheet(
+      context: context,
+      apiClient: widget.authController.apiClient,
+    );
+    if (!mounted || !accepted) {
+      return;
+    }
+    await widget.authController.refreshCurrentUser();
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Documenti accettati correttamente.'),
+      ),
+    );
+  }
+
   Future<void> _openNotificationsCenter() async {
     if (!mounted) {
       return;
@@ -2490,6 +2510,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     fallbackMessage:
                         'Non riesco ad aprire il regolamento adesso.',
                   ),
+                  onAcceptLegalDocuments: _openLegalAcceptance,
                   showAdminPanel:
                       widget.authController.currentUser?.canAccessAdmin == true,
                   onOpenAdminPanel: _openAdminPanel,
@@ -3930,6 +3951,7 @@ class _SettingsCard extends StatelessWidget {
     required this.onPrivacyPolicy,
     required this.onTerms,
     required this.onCommunityRules,
+    required this.onAcceptLegalDocuments,
     required this.showAdminPanel,
     required this.onOpenAdminPanel,
     required this.onDeleteAccount,
@@ -3948,6 +3970,7 @@ class _SettingsCard extends StatelessWidget {
   final VoidCallback onPrivacyPolicy;
   final VoidCallback onTerms;
   final VoidCallback onCommunityRules;
+  final VoidCallback onAcceptLegalDocuments;
   final bool showAdminPanel;
   final VoidCallback onOpenAdminPanel;
   final VoidCallback? onDeleteAccount;
@@ -4074,6 +4097,14 @@ class _SettingsCard extends StatelessWidget {
                       color: Color(0xFFE07800),
                     ),
                     label: const Text('Regolamento community'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onAcceptLegalDocuments,
+                    icon: const Icon(
+                      Icons.fact_check_rounded,
+                      color: Color(0xFF6E39F5),
+                    ),
+                    label: const Text('Accetta documenti app'),
                   ),
                   if (showAdminPanel)
                     OutlinedButton.icon(

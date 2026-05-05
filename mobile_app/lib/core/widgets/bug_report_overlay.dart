@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../network/api_client.dart';
 import '../theme/app_theme.dart';
+import 'legal_acceptance_sheet.dart';
 
 class BugReportOverlay extends StatefulWidget {
   const BugReportOverlay({
@@ -246,13 +247,32 @@ class _BugReportOverlayState extends State<BugReportOverlay> {
                                 message: message,
                                 screenshotPath: attachment.path,
                               );
-                              if (!mounted) {
+                              if (!mounted || !alertContext.mounted) {
                                 return;
                               }
                               _showSnackBar(result);
                               if (dialogNavigator.mounted) {
                                 dialogNavigator.pop(true);
                               }
+                            } on ApiException catch (error) {
+                              if (!mounted || !alertContext.mounted) {
+                                return;
+                              }
+                              setDialogState(() => isSubmitting = false);
+                              if (error.legalRequired) {
+                                final accepted = await showLegalAcceptanceSheet(
+                                  context: alertContext,
+                                  apiClient: widget.apiClient,
+                                  initialStatus: error.legalStatus,
+                                );
+                                if (accepted && mounted) {
+                                  _showSnackBar(
+                                    'Documenti accettati. Puoi inviare la segnalazione.',
+                                  );
+                                }
+                                return;
+                              }
+                              _showSnackBar(error.message);
                             } catch (error) {
                               if (!mounted) {
                                 return;

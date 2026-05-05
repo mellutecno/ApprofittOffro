@@ -509,7 +509,7 @@ class _HomeShellState extends State<HomeShell> {
       }
       _legalGateHandled = true;
     } catch (_) {
-      _legalGateHandled = true;
+      _legalGateHandled = false;
     } finally {
       _legalGateOpen = false;
       if (mounted) {

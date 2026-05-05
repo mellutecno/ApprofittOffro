@@ -15,10 +15,24 @@ import '../config/app_config.dart';
 import 'session_store.dart';
 
 class ApiException implements Exception {
-  ApiException(this.message, {this.statusCode});
+  ApiException(this.message, {this.statusCode, this.payload});
 
   final String message;
   final int? statusCode;
+  final Map<String, dynamic>? payload;
+
+  bool get legalRequired => payload?['legal_required'] == true;
+
+  LegalStatus? get legalStatus {
+    final legal = payload?['legal'];
+    if (legal is Map<String, dynamic>) {
+      return LegalStatus.fromJson(legal);
+    }
+    if (legal is Map) {
+      return LegalStatus.fromJson(legal.cast<String, dynamic>());
+    }
+    return null;
+  }
 
   @override
   String toString() => message;
@@ -1697,15 +1711,23 @@ class ApiClient {
 
     final errors = payload['errors'];
     if (errors is List && errors.isNotEmpty) {
-      throw ApiException(errors.join('\n'), statusCode: statusCode);
+      throw ApiException(
+        errors.join('\n'),
+        statusCode: statusCode,
+        payload: payload,
+      );
     }
 
     final error = payload['error'];
     if (error is String && error.isNotEmpty) {
-      throw ApiException(error, statusCode: statusCode);
+      throw ApiException(error, statusCode: statusCode, payload: payload);
     }
 
-    throw ApiException('Operazione non riuscita.', statusCode: statusCode);
+    throw ApiException(
+      'Operazione non riuscita.',
+      statusCode: statusCode,
+      payload: payload,
+    );
   }
 
   void _storeCookies(http.Response response) {

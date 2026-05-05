@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../network/api_client.dart';
 import '../theme/app_theme.dart';
+import 'legal_acceptance_sheet.dart';
 
 Future<bool> showContentReportSheet({
   required BuildContext context,
@@ -53,6 +54,18 @@ Future<bool> showContentReportSheet({
               Navigator.of(sheetContext).pop(true);
             } on ApiException catch (error) {
               if (!sheetContext.mounted) {
+                return;
+              }
+              if (error.legalRequired) {
+                setSheetState(() => isSending = false);
+                final accepted = await showLegalAcceptanceSheet(
+                  context: sheetContext,
+                  apiClient: apiClient,
+                  initialStatus: error.legalStatus,
+                );
+                if (accepted && sheetContext.mounted) {
+                  await submit();
+                }
                 return;
               }
               ScaffoldMessenger.of(sheetContext).showSnackBar(
