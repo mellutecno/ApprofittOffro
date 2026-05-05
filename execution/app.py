@@ -7068,11 +7068,18 @@ def save_bug_report_screenshot(file_storage, report_id):
 
     original_name = secure_filename(file_storage.filename or "screenshot.jpg")
     mimetype = (getattr(file_storage, "mimetype", "") or "").lower()
-    if mimetype and not mimetype.startswith("image/"):
+    extension = os.path.splitext(original_name)[1].lower() or ".jpg"
+    image_extensions = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
+    generic_mimetypes = {"application/octet-stream", "binary/octet-stream"}
+    if (
+        mimetype
+        and not mimetype.startswith("image/")
+        and mimetype not in generic_mimetypes
+        and extension not in image_extensions
+    ):
         raise ValueError("Allega un file immagine valido.")
 
-    extension = os.path.splitext(original_name)[1].lower() or ".jpg"
-    if extension not in {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}:
+    if extension not in image_extensions:
         extension = ".jpg"
 
     target_name = f"bug_reports/report_{report_id}_{uuid.uuid4().hex}{extension}"

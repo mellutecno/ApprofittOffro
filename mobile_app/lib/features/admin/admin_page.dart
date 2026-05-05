@@ -69,6 +69,7 @@ class _AdminPageState extends State<AdminPage> {
   String _chatQuery = '';
   DateTime? _offerFromDate;
   DateTime? _offerToDate;
+  final Set<int> _expandedArchivedBugReports = <int>{};
 
   @override
   void initState() {
@@ -847,6 +848,13 @@ class _AdminPageState extends State<AdminPage> {
       if (!mounted) {
         return;
       }
+      setState(() {
+        if (archived) {
+          _expandedArchivedBugReports.remove(report.id);
+        } else {
+          _expandedArchivedBugReports.add(report.id);
+        }
+      });
       messenger.showSnackBar(SnackBar(content: Text(result)));
       await _reloadDashboard();
     } catch (error) {
@@ -855,6 +863,14 @@ class _AdminPageState extends State<AdminPage> {
       }
       messenger.showSnackBar(SnackBar(content: Text(error.toString())));
     }
+  }
+
+  void _toggleArchivedBugReportDetails(AdminBugReportSummary report) {
+    setState(() {
+      if (!_expandedArchivedBugReports.remove(report.id)) {
+        _expandedArchivedBugReports.add(report.id);
+      }
+    });
   }
 
   Widget _buildAvatar({
@@ -1773,6 +1789,10 @@ class _AdminPageState extends State<AdminPage> {
 
   Widget _buildBugReportCard(AdminBugReportSummary report) {
     final isArchived = report.isArchived;
+    final isArchivedExpanded = _expandedArchivedBugReports.contains(report.id);
+    if (isArchived && !isArchivedExpanded) {
+      return _buildArchivedBugReportRow(report);
+    }
     return Card(
       child: Padding(
         padding: EdgeInsets.all(isArchived ? 14 : 18),
@@ -1950,10 +1970,103 @@ class _AdminPageState extends State<AdminPage> {
                       label: Text(isArchived ? 'Riapri' : 'Archivia'),
                     ),
                   ),
+                  if (isArchived)
+                    SizedBox(
+                      width: 150,
+                      child: OutlinedButton.icon(
+                        onPressed: () =>
+                            _toggleArchivedBugReportDetails(report),
+                        icon: const Icon(Icons.compress_rounded),
+                        label: const Text('Comprimi'),
+                      ),
+                    ),
                 ],
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildArchivedBugReportRow(AdminBugReportSummary report) {
+    final statusColor = _bugReportStatusColor(report.status);
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => _toggleArchivedBugReportDetails(report),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  report.isApproved
+                      ? Icons.workspace_premium_rounded
+                      : Icons.archive_rounded,
+                  size: 18,
+                  color: statusColor,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            report.user.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppTheme.brown,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        if (report.awardedPoints > 0) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            '+${report.awardedPoints} pt',
+                            style: const TextStyle(
+                              color: AppTheme.vividViolet,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_bugReportStatusLabel(report.status)} - ${_formatDateTime(report.createdAt)} - ${report.message}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppTheme.brown.withValues(alpha: 0.62),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => _toggleArchivedBugReportDetails(report),
+                icon: const Icon(Icons.expand_more_rounded),
+                tooltip: 'Apri segnalazione',
+              ),
+            ],
+          ),
         ),
       ),
     );
