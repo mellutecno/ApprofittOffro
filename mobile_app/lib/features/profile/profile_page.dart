@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/auth/biometric_auth_service.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_guide_sheet.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../../models/app_user.dart';
 import '../../models/offer.dart';
@@ -1722,6 +1723,10 @@ class _ProfilePageState extends State<ProfilePage> {
     await widget.onNotificationsChanged?.call();
   }
 
+  Future<void> _openAppGuide() async {
+    await showAppGuideSheet(context);
+  }
+
   Future<void> _confirmDeleteAccount() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -2457,6 +2462,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   },
                   onEditProfile: _openEditProfile,
                   onNotifications: _openNotificationsCenter,
+                  onAppGuide: _openAppGuide,
                   onSecurity: _openSettings,
                   onCheckUpdates: () => _openExternalLink(
                     _playStoreUri,
@@ -3902,6 +3908,7 @@ class _SettingsCard extends StatelessWidget {
     required this.onToggle,
     required this.onEditProfile,
     required this.onNotifications,
+    required this.onAppGuide,
     required this.onSecurity,
     required this.onCheckUpdates,
     required this.onPrivacyPolicy,
@@ -3917,6 +3924,7 @@ class _SettingsCard extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onEditProfile;
   final VoidCallback onNotifications;
+  final VoidCallback onAppGuide;
   final VoidCallback onSecurity;
   final VoidCallback onCheckUpdates;
   final VoidCallback onPrivacyPolicy;
@@ -3998,6 +4006,14 @@ class _SettingsCard extends StatelessWidget {
                       color: Color(0xFFE07800),
                     ),
                     label: const Text('Centro notifiche'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onAppGuide,
+                    icon: const Icon(
+                      Icons.menu_book_rounded,
+                      color: Color(0xFFE07800),
+                    ),
+                    label: const Text('Guida all\'app'),
                   ),
                   OutlinedButton.icon(
                     onPressed: onSecurity,

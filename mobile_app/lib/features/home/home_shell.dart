@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/chat/chat_presence_tracker.dart';
+import '../../core/guide/app_guide_preferences.dart';
 import '../../core/navigation/app_launch_target.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_guide_sheet.dart';
 import '../admin/admin_page.dart';
 import '../auth/auth_controller.dart';
 import '../chat/chat_inbox_page.dart';
@@ -45,6 +47,8 @@ class _HomeShellState extends State<HomeShell> {
   bool _launchRefreshInFlight = false;
   bool _chatLaunchInFlight = false;
   bool _reviewAlertVisible = false;
+  bool _startupGuideHandled = false;
+  bool _startupGuideInFlight = false;
   String? _lastReviewsAlertSignature;
 
   bool get _isAdminUser => widget.authController.currentUser?.isAdmin == true;
@@ -70,6 +74,7 @@ class _HomeShellState extends State<HomeShell> {
       unawaited(_refreshUnreadNotifications());
       _applyLaunchTargetIfNeeded();
       _maybeShowProfileManagementAlert();
+      unawaited(_maybeShowStartupGuide());
     });
   }
 
@@ -112,6 +117,7 @@ class _HomeShellState extends State<HomeShell> {
       unawaited(_refreshUnreadNotifications());
       _applyLaunchTargetIfNeeded();
       _maybeShowProfileManagementAlert();
+      unawaited(_maybeShowStartupGuide());
     });
   }
 
@@ -418,6 +424,51 @@ class _HomeShellState extends State<HomeShell> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(_maybeOpenMandatoryProfileSetup());
       });
+    } else {
+      unawaited(_maybeShowStartupGuide());
+    }
+  }
+
+  Future<void> _maybeShowStartupGuide() async {
+    if (_startupGuideHandled ||
+        _startupGuideInFlight ||
+        !mounted ||
+        _isAdminUser ||
+        !widget.authController.isAuthenticated ||
+        widget.launchTarget != null ||
+        _mandatoryProfileFlowOpen ||
+        (widget.authController.currentUser?.needsMandatoryProfileSetup ??
+            false)) {
+      return;
+    }
+
+    _startupGuideInFlight = true;
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 650));
+      if (_startupGuideHandled ||
+          !mounted ||
+          _isAdminUser ||
+          widget.launchTarget != null ||
+          _mandatoryProfileFlowOpen ||
+          (widget.authController.currentUser?.needsMandatoryProfileSetup ??
+              false)) {
+        return;
+      }
+      final shouldShow = await AppGuidePreferences.shouldShowAtStartup();
+      if (!mounted || !shouldShow) {
+        _startupGuideHandled = true;
+        return;
+      }
+      _startupGuideHandled = true;
+      final hideAtStartup = await showAppGuideSheet(
+        context,
+        startupMode: true,
+      );
+      if (hideAtStartup) {
+        await AppGuidePreferences.hideCurrentVersionAtStartup();
+      }
+    } finally {
+      _startupGuideInFlight = false;
     }
   }
 
