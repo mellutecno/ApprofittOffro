@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../models/app_user.dart';
 import '../../models/app_notification.dart';
 import '../../models/admin_dashboard.dart';
+import '../../models/app_guide.dart';
 import '../../models/favorite_place.dart';
 import '../../models/offer.dart';
 import '../../models/place_candidate.dart';
@@ -296,6 +297,15 @@ class ApiClient {
     _ensureSuccess(payload, response.statusCode);
     return LegalStatus.fromJson(
       payload['legal'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+    );
+  }
+
+  Future<AppGuideContent> fetchAppGuide() async {
+    final response = await _send(method: 'GET', path: '/api/app-guide');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return AppGuideContent.fromJson(
+      payload['guide'] as Map<String, dynamic>? ?? const <String, dynamic>{},
     );
   }
 

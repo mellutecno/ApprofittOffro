@@ -8,6 +8,7 @@ import '../../core/navigation/app_launch_target.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_guide_sheet.dart';
 import '../../core/widgets/legal_acceptance_sheet.dart';
+import '../../models/app_guide.dart';
 import '../admin/admin_page.dart';
 import '../auth/auth_controller.dart';
 import '../chat/chat_inbox_page.dart';
@@ -464,7 +465,15 @@ class _HomeShellState extends State<HomeShell> {
               false)) {
         return;
       }
-      final shouldShow = await AppGuidePreferences.shouldShowAtStartup();
+      AppGuideContent? guideContent;
+      try {
+        guideContent = await widget.authController.apiClient.fetchAppGuide();
+      } catch (_) {
+        guideContent = AppGuideContent.fallback;
+      }
+      final shouldShow = await AppGuidePreferences.shouldShowAtStartup(
+        guideVersion: guideContent.version,
+      );
       if (!mounted || !shouldShow) {
         _startupGuideHandled = true;
         return;
@@ -472,10 +481,14 @@ class _HomeShellState extends State<HomeShell> {
       _startupGuideHandled = true;
       final hideAtStartup = await showAppGuideSheet(
         context,
+        apiClient: widget.authController.apiClient,
         startupMode: true,
+        initialContent: guideContent,
       );
       if (hideAtStartup) {
-        await AppGuidePreferences.hideCurrentVersionAtStartup();
+        await AppGuidePreferences.hideCurrentVersionAtStartup(
+          guideVersion: guideContent.version,
+        );
       }
     } finally {
       _startupGuideInFlight = false;

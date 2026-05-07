@@ -2676,10 +2676,162 @@ def require_premium_json(user=None):
         "premium_required": True,
         "premium": {
             "monthly_price_label": "0,99 euro al mese",
-            "points_price": 1000,
-            "points_duration_months": 3,
+            "points_note": (
+                "Gli ApprofittOffro Points potranno permettere di ottenere "
+                "mesi Premium gratuiti quando saranno disponibili."
+            ),
         },
     }), 403
+
+
+APP_GUIDE_VERSION = 3
+
+
+def build_app_guide_payload():
+    return {
+        "version": APP_GUIDE_VERSION,
+        "title": "Benvenuto in ApprofittOffro",
+        "subtitle": (
+            "Qui trovi le funzioni principali dell'app, le novita e i punti "
+            "da ricordare per usarla meglio."
+        ),
+        "highlights": [
+            {
+                "icon": "workspace_premium",
+                "text": "Le funzioni Premium sono riconoscibili dal lucchetto dedicato.",
+            },
+            {
+                "icon": "notifications",
+                "text": "Le notifiche restano nel centro notifiche per 24 ore.",
+            },
+            {
+                "icon": "bug_report",
+                "text": "Le segnalazioni bug utili possono ricevere punti.",
+            },
+            {
+                "icon": "admin_panel",
+                "text": "La moderazione protegge profili, offerte, chat e segnalazioni.",
+            },
+        ],
+        "premium_intro": (
+            "Alcune funzioni avanzate sono riservate agli utenti Premium. "
+            "Per ora abbiamo inserito questa prima voce, poi la tabella "
+            "crescera con le prossime novita."
+        ),
+        "premium_note": (
+            "Premium richiede un abbonamento attivo. Gli ApprofittOffro Points "
+            "potranno permettere di ottenere mesi Premium gratuiti quando "
+            "saranno disponibili."
+        ),
+        "premium_features": [
+            {
+                "feature": "Locali preferiti",
+                "status": "Attivo",
+                "details": (
+                    "Salvi i locali che ti interessano e ricevi notifiche "
+                    "dedicate quando viene creato un evento in quel locale."
+                ),
+            },
+        ],
+        "sections": [
+            {
+                "icon": "local_fire",
+                "title": "Approfitta",
+                "bullets": [
+                    "Trovi gli eventi aperti nella tua zona e puoi filtrarli per chilometraggio.",
+                    "I tuoi eventi restano sempre evidenziati con il badge dedicato.",
+                    "La campanella ti permette di inserire un promemoria prima dell'evento.",
+                ],
+            },
+            {
+                "icon": "add_location",
+                "title": "Offri",
+                "bullets": [
+                    "Crei colazioni, aperitivi, pranzi o cene e scegli il locale dalla mappa.",
+                    "La posizione puo partire dal GPS o dall'indirizzo salvato nel profilo.",
+                    "Se inserisci il telefono del locale, dalla scheda evento puoi chiamarlo rapidamente.",
+                    "Titolo, descrizione e foto evento possono essere controllati prima della pubblicazione.",
+                ],
+            },
+            {
+                "icon": "groups",
+                "title": "Community",
+                "bullets": [
+                    "Vedi profili reali della tua zona e puoi aprire le schede pubbliche.",
+                    "Gli utenti in revisione non vengono mostrati finche l'admin non li approva.",
+                    "Dalla scheda profilo puoi bloccare o segnalare un utente se qualcosa non va.",
+                    "Le recensioni aiutano a capire con chi stai organizzando un incontro.",
+                ],
+            },
+            {
+                "icon": "chat",
+                "title": "Chat",
+                "bullets": [
+                    "Le conversazioni partono dagli eventi e restano disponibili nella sezione Chat.",
+                    "Le chat si cancellano automaticamente dopo 30 giorni.",
+                    "Messaggi e immagini sospette possono essere bloccati e mandati in revisione.",
+                    "Se un profilo entra in revisione, la chat viene bloccata finche la verifica non finisce.",
+                ],
+            },
+            {
+                "icon": "person",
+                "title": "Io",
+                "bullets": [
+                    "Gestisci le tue offerte, i tuoi approfitti, la community e le recensioni.",
+                    "In Strumenti profilo trovi modifica profilo, centro notifiche, guida, aggiornamenti e locali preferiti.",
+                    "Archivio eventi tiene separati gli eventi passati come host e come guest.",
+                    "Gli ApprofittOffro Points compariranno nel profilo quando l'admin valida le segnalazioni utili.",
+                ],
+            },
+            {
+                "icon": "settings",
+                "title": "Impostazioni",
+                "bullets": [
+                    "Da qui apri privacy, sicurezza, documenti legali e gestione account.",
+                    "Termini e Condizioni e Regolamento Community restano sempre disponibili.",
+                    "Puoi accettare i documenti dell'app prima di usare segnalazioni e funzioni sensibili.",
+                    "Se hai accesso admin, puoi entrare nel pannello senza uscire dal tuo utente.",
+                ],
+            },
+            {
+                "icon": "workspace_premium",
+                "title": "Premium",
+                "bullets": [
+                    "Le funzioni Premium sono indicate con il lucchetto e la scritta Premium.",
+                    "I locali preferiti sono la prima funzione Premium attiva: salvi un locale e ricevi avvisi quando nasce un evento li.",
+                    "L'abbonamento Premium abilita le funzioni riservate agli abbonati.",
+                    "Gli ApprofittOffro Points potranno permettere di ottenere mesi Premium gratuiti.",
+                ],
+            },
+            {
+                "icon": "bug_report",
+                "title": "Segnala bug",
+                "bullets": [
+                    "La linguetta laterale apre il modulo di segnalazione bug.",
+                    "Puoi allegare uno screenshot per far capire meglio il problema.",
+                    "Testo e screenshot vengono controllati per evitare abusi nelle segnalazioni.",
+                    "Le segnalazioni vere vengono validate dall'admin e possono dare ApprofittOffro Points.",
+                ],
+            },
+            {
+                "icon": "verified_user",
+                "title": "Sicurezza",
+                "bullets": [
+                    "Profili, offerte, chat, recensioni, foto, screenshot e segnalazioni possono essere controllati con moderazione automatica e revisione admin.",
+                    "I profili sospetti vengono temporaneamente nascosti e i contenuti rischiosi possono essere bloccati.",
+                    "Le notifiche importanti restano leggibili anche dopo il tap sulla push.",
+                ],
+            },
+        ],
+    }
+
+
+@app.route("/api/app-guide", methods=["GET"])
+def api_app_guide():
+    return jsonify({
+        "success": True,
+        "guide": build_app_guide_payload(),
+    })
 
 
 def send_push_to_user(user, *, title, body, target="login", extra_data=None):

@@ -1770,7 +1770,10 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _openAppGuide() async {
-    await showAppGuideSheet(context);
+    await showAppGuideSheet(
+      context,
+      apiClient: widget.authController.apiClient,
+    );
   }
 
   Future<void> _openFavoritePlaces() async {
@@ -4041,7 +4044,7 @@ class _PremiumFeatureSheet extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Questa funzione sara disponibile con Premium: 0,99 euro al mese oppure 3 mesi gratis usando 1000 ApprofittOffro Points.',
+              'Questa funzione e riservata agli utenti Premium con abbonamento attivo. In futuro gli ApprofittOffro Points potranno permettere di ottenere mesi Premium gratuiti.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: AppTheme.brown.withValues(alpha: 0.78),

@@ -794,7 +794,7 @@ class _FavoritePlaceButtonState extends State<_FavoritePlaceButton> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'I locali preferiti saranno disponibili per gli utenti Premium: abbonamento a 0,99 euro al mese oppure 3 mesi gratis con 1000 ApprofittOffro Points.',
+                  'I locali preferiti sono disponibili per gli utenti Premium con abbonamento attivo. In futuro gli ApprofittOffro Points potranno permettere di ottenere mesi Premium gratuiti.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: AppTheme.brown.withValues(alpha: 0.78),
