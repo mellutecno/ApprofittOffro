@@ -129,6 +129,8 @@ class _OffersPageState extends State<OffersPage> {
                       },
                       onFavoritePlaceChanged:
                           widget.offersController.loadOffers,
+                      isPremiumUser:
+                          widget.authController.currentUser?.isPremium == true,
                       allowProfileOpen: true,
                       onEditOwn: null,
                       onArchive: offer.isOwn

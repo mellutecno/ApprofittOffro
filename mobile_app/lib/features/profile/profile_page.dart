@@ -32,12 +32,14 @@ class ProfilePage extends StatefulWidget {
     required this.onGoToChat,
     this.notificationCenterRequest = 0,
     this.onNotificationsChanged,
+    this.onFavoritePlacesChanged,
   });
 
   final AuthController authController;
   final VoidCallback onGoToChat;
   final int notificationCenterRequest;
   final Future<void> Function()? onNotificationsChanged;
+  final Future<void> Function()? onFavoritePlacesChanged;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -1541,6 +1543,8 @@ class _ProfilePageState extends State<ProfilePage> {
                         }
                       },
                       onFavoritePlaceChanged: _refreshAll,
+                      isPremiumUser:
+                          widget.authController.currentUser?.isPremium == true,
                       allowProfileOpen: false,
                       showAddressLeadIcon: false,
                       onEditOwn: offer.isOwn
@@ -1761,6 +1765,10 @@ class _ProfilePageState extends State<ProfilePage> {
     if (!mounted) {
       return;
     }
+    if (widget.authController.currentUser?.isPremium != true) {
+      await _showPremiumFeatureSheet('Locali preferiti');
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
@@ -1768,7 +1776,17 @@ class _ProfilePageState extends State<ProfilePage> {
       backgroundColor: Colors.transparent,
       builder: (_) => _FavoritePlacesSheet(
         apiClient: widget.authController.apiClient,
+        onChanged: widget.onFavoritePlacesChanged,
       ),
+    );
+  }
+
+  Future<void> _showPremiumFeatureSheet(String featureName) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _PremiumFeatureSheet(featureName: featureName),
     );
   }
 
@@ -2503,6 +2521,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   onAppGuide: _openAppGuide,
                   onEditProfile: _openEditProfile,
                   onFavoritePlaces: _openFavoritePlaces,
+                  isPremiumUser:
+                      widget.authController.currentUser?.isPremium == true,
                   onCheckUpdates: () => _openExternalLink(
                     _playStoreUri,
                     fallbackMessage:
@@ -3965,10 +3985,75 @@ class _UserListTile extends StatelessWidget {
   }
 }
 
+class _PremiumFeatureSheet extends StatelessWidget {
+  const _PremiumFeatureSheet({required this.featureName});
+
+  final String featureName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppTheme.cream,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: AppTheme.cardBorder,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Icon(
+              Icons.workspace_premium_rounded,
+              color: AppTheme.vividViolet,
+              size: 42,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '$featureName Premium',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Questa funzione sara disponibile con Premium: 0,99 euro al mese oppure 3 mesi gratis usando 1000 ApprofittOffro Points.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppTheme.brown.withValues(alpha: 0.78),
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.lock_open_rounded),
+              label: const Text('Diventa Premium'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _FavoritePlacesSheet extends StatefulWidget {
-  const _FavoritePlacesSheet({required this.apiClient});
+  const _FavoritePlacesSheet({
+    required this.apiClient,
+    this.onChanged,
+  });
 
   final ApiClient apiClient;
+  final Future<void> Function()? onChanged;
 
   @override
   State<_FavoritePlacesSheet> createState() => _FavoritePlacesSheetState();
@@ -3999,6 +4084,7 @@ class _FavoritePlacesSheetState extends State<_FavoritePlacesSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
+      await widget.onChanged?.call();
       _reload();
     } catch (e) {
       if (!mounted) {
@@ -4182,6 +4268,7 @@ class _ProfileToolsCard extends StatelessWidget {
     required this.onAppGuide,
     required this.onEditProfile,
     required this.onFavoritePlaces,
+    required this.isPremiumUser,
     required this.onCheckUpdates,
     required this.showAdminPanel,
     required this.onOpenAdminPanel,
@@ -4193,6 +4280,7 @@ class _ProfileToolsCard extends StatelessWidget {
   final VoidCallback onAppGuide;
   final VoidCallback onEditProfile;
   final VoidCallback onFavoritePlaces;
+  final bool isPremiumUser;
   final VoidCallback onCheckUpdates;
   final bool showAdminPanel;
   final VoidCallback onOpenAdminPanel;
@@ -4291,8 +4379,12 @@ class _ProfileToolsCard extends StatelessWidget {
                         ),
                         _toolAction(
                           onPressed: onFavoritePlaces,
-                          icon: Icons.storefront_rounded,
-                          label: 'Locali preferiti',
+                          icon: isPremiumUser
+                              ? Icons.storefront_rounded
+                              : Icons.lock_rounded,
+                          label: isPremiumUser
+                              ? 'Locali preferiti'
+                              : 'Locali preferiti - Premium',
                           color: _toolsYellow,
                         ),
                         _toolAction(

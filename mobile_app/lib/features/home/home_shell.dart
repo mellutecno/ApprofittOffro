@@ -556,6 +556,7 @@ class _HomeShellState extends State<HomeShell> {
               onGoToChat: () => setState(() => _selectedIndex = 2),
               notificationCenterRequest: _notificationCenterRequest,
               onNotificationsChanged: _refreshUnreadNotifications,
+              onFavoritePlacesChanged: _offersController.loadOffers,
             ),
           ];
     final selectedIndex = _selectedIndex.clamp(0, pages.length - 1);

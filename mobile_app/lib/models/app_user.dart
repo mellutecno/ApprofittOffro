@@ -189,6 +189,8 @@ class AppUser {
     required this.reviewsGiven,
     required this.chatEnabled,
     required this.approfittOffroPoints,
+    required this.isPremium,
+    required this.premiumUntil,
   });
 
   final int id;
@@ -227,6 +229,8 @@ class AppUser {
   final List<UserReview> reviewsGiven;
   final bool chatEnabled;
   final int approfittOffroPoints;
+  final bool isPremium;
+  final DateTime? premiumUntil;
 
   bool get hasAnyProfilePhoto =>
       photoFilename.trim().isNotEmpty ||
@@ -242,6 +246,7 @@ class AppUser {
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
     final stats = json['stats'] as Map<String, dynamic>? ?? const {};
+    final premiumUntilValue = (json['premium_until'] ?? '').toString();
     return AppUser(
       id: json['id'] as int,
       nome: (json['nome'] ?? '').toString(),
@@ -305,6 +310,10 @@ class AppUser {
           .toList(),
       chatEnabled: json['chat_enabled'] == true,
       approfittOffroPoints: json['approfittoffro_points'] as int? ?? 0,
+      isPremium: json['is_premium'] == true,
+      premiumUntil: premiumUntilValue.isEmpty
+          ? null
+          : DateTime.tryParse(premiumUntilValue),
     );
   }
 }

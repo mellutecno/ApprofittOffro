@@ -1757,6 +1757,7 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 ("is_admin", "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"),
                 ("admin_verified_notified_at", "ALTER TABLE users ADD COLUMN admin_verified_notified_at DATETIME"),
                 ("approfittoffro_points", "ALTER TABLE users ADD COLUMN approfittoffro_points INTEGER NOT NULL DEFAULT 0"),
+                ("premium_until", "ALTER TABLE users ADD COLUMN premium_until DATETIME"),
                 ("terms_accepted_version", "ALTER TABLE users ADD COLUMN terms_accepted_version VARCHAR(32)"),
                 ("terms_accepted_at", "ALTER TABLE users ADD COLUMN terms_accepted_at DATETIME"),
                 ("privacy_acknowledged_version", "ALTER TABLE users ADD COLUMN privacy_acknowledged_version VARCHAR(32)"),
@@ -2024,6 +2025,9 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS approfittoffro_points INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_until TIMESTAMP"
             )
             conn.exec_driver_sql(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_version VARCHAR(32)"
@@ -2656,6 +2660,25 @@ def require_legal_acceptance_json(user=None):
         "error": "Prima di continuare devi accettare Termini, Regolamento Community e Informativa privacy.",
         "legal_required": True,
         "legal": build_legal_status_payload(target_user),
+    }), 403
+
+
+def require_premium_json(user=None):
+    target_user = user or current_user
+    if is_premium_user(target_user):
+        return None
+    return jsonify({
+        "success": False,
+        "error": (
+            "Questa funzione e' riservata agli utenti Premium. "
+            "Potrai sbloccarla con l'abbonamento o con gli ApprofittOffro Points."
+        ),
+        "premium_required": True,
+        "premium": {
+            "monthly_price_label": "0,99 euro al mese",
+            "points_price": 1000,
+            "points_duration_months": 3,
+        },
     }), 403
 
 
@@ -4419,6 +4442,15 @@ def is_admin_user(user):
     return bool(getattr(user, "is_admin", False))
 
 
+def is_premium_user(user):
+    if not user:
+        return False
+    if is_admin_user(user):
+        return True
+    premium_until = getattr(user, "premium_until", None)
+    return bool(premium_until and premium_until > datetime.now())
+
+
 def get_admin_delegate_emails():
     raw_emails = os.getenv("ADMIN_DELEGATE_EMAILS", "")
     return {
@@ -4951,6 +4983,12 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
             int(getattr(user, "approfittoffro_points", 0) or 0)
             if include_private
             else 0
+        ),
+        "is_premium": is_premium_user(user) if include_private else False,
+        "premium_until": (
+            user.premium_until.isoformat()
+            if include_private and getattr(user, "premium_until", None)
+            else ""
         ),
         "followers_count": user.followers_count,
         "following_count": user.following_count,
@@ -8221,6 +8259,9 @@ def api_delete_app_notification(notification_id):
 @login_required
 def api_list_favorite_places():
     """Lista dei locali preferiti dell'utente."""
+    premium_error = require_premium_json()
+    if premium_error:
+        return premium_error
     favorites = (
         FavoritePlace.query.filter_by(user_id=current_user.id)
         .order_by(FavoritePlace.created_at.desc(), FavoritePlace.id.desc())
@@ -8239,6 +8280,9 @@ def api_create_favorite_place():
     legal_error = require_legal_acceptance_json()
     if legal_error:
         return legal_error
+    premium_error = require_premium_json()
+    if premium_error:
+        return premium_error
     payload = request.get_json(silent=True) or request.form
     nome_locale = str(payload.get("nome_locale", "")).strip()
     indirizzo = str(payload.get("indirizzo", "")).strip()
@@ -8295,6 +8339,9 @@ def api_favorite_place_from_offer(offer_id):
     legal_error = require_legal_acceptance_json()
     if legal_error:
         return legal_error
+    premium_error = require_premium_json()
+    if premium_error:
+        return premium_error
     offer = db.session.get(Offer, offer_id)
     if not offer:
         return jsonify({"success": False, "error": "Offerta non trovata."}), 404
@@ -8331,6 +8378,9 @@ def api_favorite_place_from_offer(offer_id):
 @app.route("/api/favorite-places/<int:favorite_place_id>", methods=["DELETE"])
 @login_required
 def api_delete_favorite_place(favorite_place_id):
+    premium_error = require_premium_json()
+    if premium_error:
+        return premium_error
     favorite = FavoritePlace.query.filter_by(
         id=favorite_place_id,
         user_id=current_user.id,

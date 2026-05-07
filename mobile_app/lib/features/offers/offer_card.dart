@@ -26,6 +26,7 @@ class OfferCard extends StatelessWidget {
     this.onDeleteOwn,
     this.onArchive,
     this.onFavoritePlaceChanged,
+    this.isPremiumUser = false,
     this.allowProfileOpen = true,
     this.showAddressLeadIcon = true,
   });
@@ -41,6 +42,7 @@ class OfferCard extends StatelessWidget {
   final Future<void> Function()? onDeleteOwn;
   final Future<void> Function()? onArchive;
   final Future<void> Function()? onFavoritePlaceChanged;
+  final bool isPremiumUser;
   final bool allowProfileOpen;
   final bool showAddressLeadIcon;
 
@@ -459,20 +461,11 @@ class OfferCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: offer.isFavoritePlace
-                    ? null
-                    : () => _saveFavoritePlace(context),
-                icon: Icon(
-                  offer.isFavoritePlace
-                      ? Icons.star_rounded
-                      : Icons.star_border_rounded,
-                ),
-                label: Text(
-                  offer.isFavoritePlace
-                      ? 'Locale nei tuoi preferiti'
-                      : 'Salva locale preferito',
-                ),
+              _FavoritePlaceButton(
+                offer: offer,
+                apiClient: apiClient,
+                isPremiumUser: isPremiumUser,
+                onChanged: onFavoritePlaceChanged,
               ),
               if (offer.descrizione.isNotEmpty) ...[
                 const SizedBox(height: 14),
@@ -663,28 +656,6 @@ class OfferCard extends StatelessWidget {
     );
   }
 
-  Future<void> _saveFavoritePlace(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await apiClient.favoritePlaceFromOffer(offer.id);
-      if (context.mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('${offer.nomeLocale} salvato nei locali preferiti.'),
-          ),
-        );
-      }
-      await onFavoritePlaceChanged?.call();
-    } catch (e) {
-      if (!context.mounted) {
-        return;
-      }
-      messenger.showSnackBar(
-        SnackBar(content: Text('Non riesco a salvare il locale: $e')),
-      );
-    }
-  }
-
   Future<void> _openExternalLink(String rawUrl) async {
     final uri = Uri.tryParse(rawUrl);
     if (uri == null) {
@@ -745,6 +716,169 @@ class OfferCard extends StatelessWidget {
 
   String _formatCalendarTimestamp(DateTime value) {
     return '${value.toIso8601String().replaceAll('-', '').replaceAll(':', '').split('.').first}Z';
+  }
+}
+
+class _FavoritePlaceButton extends StatefulWidget {
+  const _FavoritePlaceButton({
+    required this.offer,
+    required this.apiClient,
+    required this.isPremiumUser,
+    this.onChanged,
+  });
+
+  final Offer offer;
+  final ApiClient apiClient;
+  final bool isPremiumUser;
+  final Future<void> Function()? onChanged;
+
+  @override
+  State<_FavoritePlaceButton> createState() => _FavoritePlaceButtonState();
+}
+
+class _FavoritePlaceButtonState extends State<_FavoritePlaceButton> {
+  late bool _isFavorite;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorite = widget.offer.isFavoritePlace;
+  }
+
+  @override
+  void didUpdateWidget(covariant _FavoritePlaceButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.offer.id != widget.offer.id ||
+        oldWidget.offer.isFavoritePlace != widget.offer.isFavoritePlace) {
+      _isFavorite = widget.offer.isFavoritePlace;
+    }
+  }
+
+  Future<void> _showPremiumSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Material(
+          color: AppTheme.cream,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardBorder,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: AppTheme.vividViolet,
+                  size: 42,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Funzione Premium',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'I locali preferiti saranno disponibili per gli utenti Premium: abbonamento a 0,99 euro al mese oppure 3 mesi gratis con 1000 ApprofittOffro Points.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.78),
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.lock_open_rounded),
+                  label: const Text('Diventa Premium'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _saveFavoritePlace() async {
+    if (!widget.isPremiumUser) {
+      await _showPremiumSheet();
+      return;
+    }
+    if (_isFavorite || _isSaving) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _isSaving = true);
+    try {
+      await widget.apiClient.favoritePlaceFromOffer(widget.offer.id);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isFavorite = true;
+        _isSaving = false;
+      });
+      messenger.showSnackBar(
+        SnackBar(
+          content:
+              Text('${widget.offer.nomeLocale} salvato nei locali preferiti.'),
+        ),
+      );
+      await widget.onChanged?.call();
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _isSaving = false);
+      messenger.showSnackBar(
+        SnackBar(content: Text('Non riesco a salvare il locale: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final locked = !widget.isPremiumUser;
+    return OutlinedButton.icon(
+      onPressed: (_isSaving || _isFavorite) ? null : _saveFavoritePlace,
+      icon: _isSaving
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(
+              locked
+                  ? Icons.lock_rounded
+                  : (_isFavorite
+                      ? Icons.star_rounded
+                      : Icons.star_border_rounded),
+            ),
+      label: Text(
+        locked
+            ? 'Salva locale preferito - Premium'
+            : (_isFavorite
+                ? 'Locale nei tuoi preferiti'
+                : 'Salva locale preferito'),
+      ),
+    );
   }
 }
 

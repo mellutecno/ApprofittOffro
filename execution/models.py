@@ -117,6 +117,7 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now)
     chat_enabled = db.Column(db.Boolean, default=False, nullable=False)
     approfittoffro_points = db.Column(db.Integer, default=0, nullable=False)
+    premium_until = db.Column(db.DateTime, nullable=True)
     terms_accepted_version = db.Column(db.String(32), nullable=True)
     terms_accepted_at = db.Column(db.DateTime, nullable=True)
     privacy_acknowledged_version = db.Column(db.String(32), nullable=True)

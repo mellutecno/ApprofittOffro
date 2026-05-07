@@ -23,6 +23,7 @@ class ApiException implements Exception {
   final Map<String, dynamic>? payload;
 
   bool get legalRequired => payload?['legal_required'] == true;
+  bool get premiumRequired => payload?['premium_required'] == true;
 
   LegalStatus? get legalStatus {
     final legal = payload?['legal'];
