@@ -2484,6 +2484,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   },
                   onNotifications: _openNotificationsCenter,
                   onAppGuide: _openAppGuide,
+                  onEditProfile: _openEditProfile,
                   onCheckUpdates: () => _openExternalLink(
                     _playStoreUri,
                     fallbackMessage:
@@ -2507,7 +2508,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       _scrollSettingsContentIntoView();
                     }
                   },
-                  onEditProfile: _openEditProfile,
                   onSecurity: _openSettings,
                   onPrivacyPolicy: () => _openExternalLink(
                     _privacyPolicyUri,
@@ -3953,6 +3953,7 @@ class _ProfileToolsCard extends StatelessWidget {
     required this.onToggle,
     required this.onNotifications,
     required this.onAppGuide,
+    required this.onEditProfile,
     required this.onCheckUpdates,
     required this.showAdminPanel,
     required this.onOpenAdminPanel,
@@ -3962,6 +3963,7 @@ class _ProfileToolsCard extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onNotifications;
   final VoidCallback onAppGuide;
+  final VoidCallback onEditProfile;
   final VoidCallback onCheckUpdates;
   final bool showAdminPanel;
   final VoidCallback onOpenAdminPanel;
@@ -4047,6 +4049,12 @@ class _ProfileToolsCard extends StatelessWidget {
                       physics: const NeverScrollableScrollPhysics(),
                       children: [
                         _toolAction(
+                          onPressed: onEditProfile,
+                          icon: Icons.edit_outlined,
+                          label: 'Modifica profilo',
+                          color: _toolsViolet,
+                        ),
+                        _toolAction(
                           onPressed: onNotifications,
                           icon: Icons.notifications_active_rounded,
                           label: 'Centro notifiche',
@@ -4090,7 +4098,6 @@ class _SettingsCard extends StatelessWidget {
     this.expandUp = false,
     this.contentKey,
     required this.onToggle,
-    required this.onEditProfile,
     required this.onSecurity,
     required this.onPrivacyPolicy,
     required this.onTerms,
@@ -4104,7 +4111,6 @@ class _SettingsCard extends StatelessWidget {
   final bool expandUp;
   final Key? contentKey;
   final VoidCallback onToggle;
-  final VoidCallback onEditProfile;
   final VoidCallback onSecurity;
   final VoidCallback onPrivacyPolicy;
   final VoidCallback onTerms;
@@ -4174,7 +4180,7 @@ class _SettingsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Gestisci rapidamente il tuo profilo da qui.',
+            'Sicurezza, documenti e gestione account.',
             style: TextStyle(
               color: AppTheme.brown.withValues(alpha: 0.76),
               fontWeight: FontWeight.w700,
@@ -4192,12 +4198,6 @@ class _SettingsCard extends StatelessWidget {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  _settingsAction(
-                    onPressed: onEditProfile,
-                    icon: Icons.edit_outlined,
-                    label: 'Modifica profilo',
-                    color: _settingsViolet,
-                  ),
                   _settingsAction(
                     onPressed: onSecurity,
                     icon: Icons.fingerprint,
