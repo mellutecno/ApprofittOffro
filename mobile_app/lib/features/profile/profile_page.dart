@@ -60,6 +60,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _archiveExpanded = false;
   bool _communityExpanded = false;
   bool _reviewsExpanded = false;
+  bool _profileToolsExpanded = false;
   bool _settingsExpanded = false;
   int _socialTabIndex = 0;
   bool _showCommunityList = false;
@@ -2474,6 +2475,25 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 const SizedBox(height: 20),
+                _ProfileToolsCard(
+                  isExpanded: _profileToolsExpanded,
+                  onToggle: () {
+                    setState(() {
+                      _profileToolsExpanded = !_profileToolsExpanded;
+                    });
+                  },
+                  onNotifications: _openNotificationsCenter,
+                  onAppGuide: _openAppGuide,
+                  onCheckUpdates: () => _openExternalLink(
+                    _playStoreUri,
+                    fallbackMessage:
+                        'Non riesco ad aprire il Play Store adesso.',
+                  ),
+                  showAdminPanel:
+                      widget.authController.currentUser?.canAccessAdmin == true,
+                  onOpenAdminPanel: _openAdminPanel,
+                ),
+                const SizedBox(height: 20),
                 _SettingsCard(
                   isExpanded: _settingsExpanded,
                   expandUp: true,
@@ -2488,14 +2508,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     }
                   },
                   onEditProfile: _openEditProfile,
-                  onNotifications: _openNotificationsCenter,
-                  onAppGuide: _openAppGuide,
                   onSecurity: _openSettings,
-                  onCheckUpdates: () => _openExternalLink(
-                    _playStoreUri,
-                    fallbackMessage:
-                        'Non riesco ad aprire il Play Store adesso.',
-                  ),
                   onPrivacyPolicy: () => _openExternalLink(
                     _privacyPolicyUri,
                     fallbackMessage:
@@ -2511,9 +2524,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         'Non riesco ad aprire il regolamento adesso.',
                   ),
                   onAcceptLegalDocuments: _openLegalAcceptance,
-                  showAdminPanel:
-                      widget.authController.currentUser?.canAccessAdmin == true,
-                  onOpenAdminPanel: _openAdminPanel,
                   onDeleteAccount: widget.authController.isBusy
                       ? null
                       : _confirmDeleteAccount,
@@ -3937,6 +3947,143 @@ class _UserListTile extends StatelessWidget {
   }
 }
 
+class _ProfileToolsCard extends StatelessWidget {
+  const _ProfileToolsCard({
+    required this.isExpanded,
+    required this.onToggle,
+    required this.onNotifications,
+    required this.onAppGuide,
+    required this.onCheckUpdates,
+    required this.showAdminPanel,
+    required this.onOpenAdminPanel,
+  });
+
+  final bool isExpanded;
+  final VoidCallback onToggle;
+  final VoidCallback onNotifications;
+  final VoidCallback onAppGuide;
+  final VoidCallback onCheckUpdates;
+  final bool showAdminPanel;
+  final VoidCallback onOpenAdminPanel;
+
+  static const Color _toolsViolet = AppTheme.vividViolet;
+  static const Color _toolsBlue = Color(0xFF38CCFF);
+  static const Color _toolsYellow = Color(0xFFFFD34D);
+
+  Widget _toolAction({
+    required VoidCallback onPressed,
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppTheme.espresso,
+        side: BorderSide(color: color.withValues(alpha: 0.56)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      ),
+      icon: Icon(icon, color: color),
+      label: Text(
+        label,
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: AppTheme.surfaceGradient,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: onToggle,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.dashboard_customize_rounded,
+                        color: _toolsViolet,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Strumenti profilo',
+                          style: Theme.of(context).textTheme.titleMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      Icon(
+                        isExpanded
+                            ? Icons.expand_less_rounded
+                            : Icons.expand_more_rounded,
+                        color: AppTheme.espresso,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (isExpanded) ...[
+                const SizedBox(height: 14),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth >= 520;
+                    return GridView.count(
+                      crossAxisCount: isWide ? 2 : 1,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: isWide ? 3.6 : 4.6,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: [
+                        _toolAction(
+                          onPressed: onNotifications,
+                          icon: Icons.notifications_active_rounded,
+                          label: 'Centro notifiche',
+                          color: _toolsBlue,
+                        ),
+                        _toolAction(
+                          onPressed: onAppGuide,
+                          icon: Icons.menu_book_rounded,
+                          label: 'Guida all\'app',
+                          color: _toolsYellow,
+                        ),
+                        _toolAction(
+                          onPressed: onCheckUpdates,
+                          icon: Icons.system_update_alt_rounded,
+                          label: 'Aggiorna la tua app',
+                          color: _toolsViolet,
+                        ),
+                        if (showAdminPanel)
+                          _toolAction(
+                            onPressed: onOpenAdminPanel,
+                            icon: Icons.admin_panel_settings_rounded,
+                            label: 'Pannello admin',
+                            color: _toolsBlue,
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SettingsCard extends StatelessWidget {
   const _SettingsCard({
     required this.isExpanded,
@@ -3944,16 +4091,11 @@ class _SettingsCard extends StatelessWidget {
     this.contentKey,
     required this.onToggle,
     required this.onEditProfile,
-    required this.onNotifications,
-    required this.onAppGuide,
     required this.onSecurity,
-    required this.onCheckUpdates,
     required this.onPrivacyPolicy,
     required this.onTerms,
     required this.onCommunityRules,
     required this.onAcceptLegalDocuments,
-    required this.showAdminPanel,
-    required this.onOpenAdminPanel,
     required this.onDeleteAccount,
     required this.onLogout,
   });
@@ -3963,16 +4105,11 @@ class _SettingsCard extends StatelessWidget {
   final Key? contentKey;
   final VoidCallback onToggle;
   final VoidCallback onEditProfile;
-  final VoidCallback onNotifications;
-  final VoidCallback onAppGuide;
   final VoidCallback onSecurity;
-  final VoidCallback onCheckUpdates;
   final VoidCallback onPrivacyPolicy;
   final VoidCallback onTerms;
   final VoidCallback onCommunityRules;
   final VoidCallback onAcceptLegalDocuments;
-  final bool showAdminPanel;
-  final VoidCallback onOpenAdminPanel;
   final VoidCallback? onDeleteAccount;
   final VoidCallback? onLogout;
 
@@ -4062,28 +4199,10 @@ class _SettingsCard extends StatelessWidget {
                     color: _settingsViolet,
                   ),
                   _settingsAction(
-                    onPressed: onNotifications,
-                    icon: Icons.notifications_active_rounded,
-                    label: 'Centro notifiche',
-                    color: _settingsBlue,
-                  ),
-                  _settingsAction(
-                    onPressed: onAppGuide,
-                    icon: Icons.menu_book_rounded,
-                    label: 'Guida all\'app',
-                    color: _settingsYellow,
-                  ),
-                  _settingsAction(
                     onPressed: onSecurity,
                     icon: Icons.fingerprint,
                     label: 'Entra con impronta',
                     color: _settingsViolet,
-                  ),
-                  _settingsAction(
-                    onPressed: onCheckUpdates,
-                    icon: Icons.system_update_alt_rounded,
-                    label: 'Aggiorna la tua app',
-                    color: _settingsBlue,
                   ),
                   _settingsAction(
                     onPressed: onPrivacyPolicy,
@@ -4109,13 +4228,6 @@ class _SettingsCard extends StatelessWidget {
                     label: 'Accetta documenti app',
                     color: _settingsYellow,
                   ),
-                  if (showAdminPanel)
-                    _settingsAction(
-                      onPressed: onOpenAdminPanel,
-                      icon: Icons.admin_panel_settings_rounded,
-                      label: 'Pannello admin',
-                      color: _settingsViolet,
-                    ),
                   _settingsAction(
                     onPressed: onLogout,
                     icon: Icons.logout_rounded,
