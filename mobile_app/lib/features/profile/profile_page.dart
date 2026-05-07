@@ -11,6 +11,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_guide_sheet.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../../core/widgets/legal_acceptance_sheet.dart';
+import '../../core/widgets/premium_badge.dart';
 import '../../models/app_user.dart';
 import '../../models/favorite_place.dart';
 import '../../models/offer.dart';
@@ -2102,6 +2103,10 @@ class _ProfilePageState extends State<ProfilePage> {
                         style: Theme.of(context).textTheme.headlineMedium,
                         textAlign: TextAlign.center,
                       ),
+                      if (user.isPremium) ...[
+                        const SizedBox(height: 10),
+                        const PremiumBadge(centered: true),
+                      ],
                       const SizedBox(height: 8),
                       Text(
                         '${user.etaDisplay} anni - ${user.city}',

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_hero_card.dart';
 import '../../core/widgets/brand_wordmark.dart';
+import '../../core/widgets/premium_badge.dart';
 import '../../models/user_preview.dart';
 import '../auth/auth_controller.dart';
 import '../profile/public_profile_page.dart';
@@ -588,6 +589,10 @@ class _CommunityUserCard extends StatelessWidget {
                           person.nome,
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
+                        if (person.isPremium) ...[
+                          const SizedBox(height: 6),
+                          const PremiumBadge(compact: true),
+                        ],
                         const SizedBox(height: 4),
                         Text('${person.etaDisplay} anni - ${person.cityLabel}'),
                         const SizedBox(height: 6),

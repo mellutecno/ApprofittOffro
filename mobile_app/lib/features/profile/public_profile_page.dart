@@ -5,6 +5,7 @@ import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../../core/widgets/content_report_sheet.dart';
+import '../../core/widgets/premium_badge.dart';
 import '../../models/public_profile.dart';
 import '../../models/user_preview.dart';
 import 'profile_gallery_viewer_page.dart';
@@ -954,6 +955,10 @@ class _ProfileHeader extends StatelessWidget {
             style: Theme.of(context).textTheme.headlineMedium,
             textAlign: TextAlign.center,
           ),
+          if (user.isPremium) ...[
+            const SizedBox(height: 10),
+            const PremiumBadge(centered: true),
+          ],
           const SizedBox(height: 8),
           Text(
             '${user.etaDisplay} anni - ${user.cityLabel.isNotEmpty ? user.cityLabel : user.city}',

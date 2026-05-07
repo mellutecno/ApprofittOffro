@@ -4984,7 +4984,7 @@ def serialize_user_preview(user, *, viewer=None, followed_user_ids=None, include
             if include_private
             else 0
         ),
-        "is_premium": is_premium_user(user) if include_private else False,
+        "is_premium": is_premium_user(user),
         "premium_until": (
             user.premium_until.isoformat()
             if include_private and getattr(user, "premium_until", None)

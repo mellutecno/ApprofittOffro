@@ -18,6 +18,7 @@ class UserPreview {
     required this.ratingCount,
     required this.isFollowing,
     required this.isSelf,
+    required this.isPremium,
   });
 
   final int id;
@@ -38,6 +39,7 @@ class UserPreview {
   final int ratingCount;
   final bool isFollowing;
   final bool isSelf;
+  final bool isPremium;
 
   UserPreview copyWith({
     bool? isFollowing,
@@ -62,6 +64,7 @@ class UserPreview {
       ratingCount: ratingCount,
       isFollowing: isFollowing ?? this.isFollowing,
       isSelf: isSelf,
+      isPremium: isPremium,
     );
   }
 
@@ -87,6 +90,7 @@ class UserPreview {
       ratingCount: json['rating_count'] as int? ?? 0,
       isFollowing: json['is_following'] == true,
       isSelf: json['is_self'] == true,
+      isPremium: json['is_premium'] == true,
     );
   }
 }
