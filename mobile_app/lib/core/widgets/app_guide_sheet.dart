@@ -74,6 +74,7 @@ class _AppGuideSheetState extends State<_AppGuideSheet> {
       title: 'Io',
       bullets: [
         'Gestisci le tue offerte, i tuoi approfitti, la community e le recensioni.',
+        'In Strumenti profilo trovi modifica profilo, centro notifiche, guida, aggiornamenti e locali preferiti.',
         'Archivio eventi tiene separati gli eventi passati come host e come guest.',
         'Gli ApprofittOffro Points compariranno nel profilo quando l\'admin valida le segnalazioni utili.',
       ],
@@ -82,10 +83,20 @@ class _AppGuideSheetState extends State<_AppGuideSheet> {
       icon: Icons.settings_rounded,
       title: 'Impostazioni',
       bullets: [
-        'Da qui apri privacy, centro notifiche, sicurezza, aggiornamenti e questa guida.',
+        'Da qui apri privacy, sicurezza, documenti legali e gestione account.',
         'Termini e Condizioni e Regolamento Community restano sempre disponibili.',
-        'Il centro notifiche conserva per 24 ore gli avvisi importanti dell\'app.',
+        'Puoi accettare i documenti dell\'app prima di usare segnalazioni e funzioni sensibili.',
         'Se hai accesso admin, puoi entrare nel pannello senza uscire dal tuo utente.',
+      ],
+    ),
+    _GuideSectionData(
+      icon: Icons.workspace_premium_rounded,
+      title: 'Premium',
+      bullets: [
+        'Le funzioni Premium sono indicate con il lucchetto e la scritta Premium.',
+        'I locali preferiti sono la prima funzione Premium attiva: salvi un locale e ricevi avvisi quando nasce un evento li.',
+        'Premium potra essere attivato con abbonamento da 0,99 euro al mese oppure con 1000 ApprofittOffro Points per 3 mesi.',
+        'Chi non e Premium vede la funzione bloccata, ma puo capire cosa sblocchera.',
       ],
     ),
     _GuideSectionData(
@@ -162,6 +173,8 @@ class _AppGuideSheetState extends State<_AppGuideSheet> {
                 ),
                 const SizedBox(height: 18),
                 const _GuideHighlightCard(),
+                const SizedBox(height: 14),
+                const _PremiumGuideCard(),
                 const SizedBox(height: 14),
                 ..._sections.map(
                   (section) => Padding(
@@ -242,6 +255,11 @@ class _GuideHighlightCard extends StatelessWidget {
           ),
           SizedBox(height: 10),
           _GuidePill(
+            icon: Icons.workspace_premium_rounded,
+            text:
+                'Le funzioni Premium sono riconoscibili dal lucchetto dedicato.',
+          ),
+          _GuidePill(
             icon: Icons.notifications_active_rounded,
             text: 'Le notifiche restano nel centro notifiche per 24 ore.',
           ),
@@ -292,6 +310,178 @@ class _GuidePill extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PremiumGuideCard extends StatelessWidget {
+  const _PremiumGuideCard();
+
+  static const _rows = <_PremiumFeatureRow>[
+    _PremiumFeatureRow(
+      feature: 'Locali preferiti',
+      status: 'Attivo',
+      details:
+          'Salvi i locali che ti interessano e ricevi notifiche dedicate quando viene creato un evento in quel locale.',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF2A145F),
+            Color(0xFF4C22B8),
+            Color(0xFF123EBA),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.vividViolet.withValues(alpha: 0.30),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.lock_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Funzioni Premium',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Alcune funzioni avanzate saranno riservate agli abbonati Premium. Per ora abbiamo inserito questa prima voce, poi la tabella crescera con le prossime novita.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.86),
+              fontWeight: FontWeight.w700,
+              height: 1.32,
+            ),
+          ),
+          const SizedBox(height: 14),
+          ..._rows.map(
+            (row) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _PremiumFeatureTile(row: row),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+            ),
+            child: const Text(
+              'Costo previsto: 0,99 euro al mese oppure 3 mesi Premium con 1000 ApprofittOffro Points.',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                height: 1.28,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PremiumFeatureTile extends StatelessWidget {
+  const _PremiumFeatureTile({required this.row});
+
+  final _PremiumFeatureRow row;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  row.feature,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15.5,
+                  ),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFD34D),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  row.status,
+                  style: const TextStyle(
+                    color: Color(0xFF251057),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Text(
+            row.details,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.86),
+              fontWeight: FontWeight.w700,
+              height: 1.28,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PremiumFeatureRow {
+  const _PremiumFeatureRow({
+    required this.feature,
+    required this.status,
+    required this.details,
+  });
+
+  final String feature;
+  final String status;
+  final String details;
 }
 
 class _GuideSectionCard extends StatelessWidget {

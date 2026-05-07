@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AppGuidePreferences {
   const AppGuidePreferences._();
 
-  static const int currentVersion = 1;
+  static const int currentVersion = 2;
   static const String _hiddenVersionKey = 'app_guide_hidden_version';
 
   static Future<bool> shouldShowAtStartup() async {
