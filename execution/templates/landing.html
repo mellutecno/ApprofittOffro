@@ -894,10 +894,10 @@
 
         <section class="section priority-strip" id="beta">
             <article class="panel priority-card">
-                <h2>Partecipa al Beta Testing: inviaci la tua Gmail e ti inseriamo subito nel gruppo.</h2>
+                <h2>Beta testing aperto: scarica l'app da Google Play e aiutaci a migliorarla.</h2>
                 <div class="priority-row">
-                    <a class="priority-link" href="mailto:betatesting@approfittoffro.it?subject=Richiesta%20Beta%20Testing%20ApprofittOffro&body=Ciao%2C%20voglio%20partecipare%20al%20beta%20testing.%20Questa%20e%20la%20mia%20Gmail%3A%20">Invia ora la tua Gmail a betatesting@approfittoffro.it</a>
-                    <span class="priority-hint">Solo indirizzi Gmail per ingresso nel gruppo beta.</span>
+                    <a class="priority-link" href="{{ play_store_url or 'https://play.google.com/store/apps/details?id=com.mellutecno.approfittoffro' }}" rel="noopener noreferrer" target="_blank">Scarica la beta da Google Play</a>
+                    <span class="priority-hint">Il test e aperto: prova l'app e usa la linguetta Segnala bug per mandarci problemi, screenshot e suggerimenti.</span>
                 </div>
             </article>
         </section>
@@ -1169,8 +1169,8 @@
                 </p>
 
                 <div class="hero-actions" style="margin-top: 20px;">
-                    <a href="{{ play_store_url or 'https://play.google.com/store/apps/details?id=com.mellutecno.approfittoffro' }}" class="btn btn-primary" rel="noopener noreferrer" target="_blank">Vai su Google Play</a>
-                    <a href="mailto:team@approfittoffro.it" class="btn btn-secondary">Contatta il team</a>
+                    <a href="{{ play_store_url or 'https://play.google.com/store/apps/details?id=com.mellutecno.approfittoffro' }}" class="btn btn-primary" rel="noopener noreferrer" target="_blank">Scarica la beta da Google Play</a>
+                    <a href="#beta" class="btn btn-secondary">Come partecipare al test</a>
                 </div>
             </article>
 
@@ -1206,12 +1206,12 @@
         <p class="footnote">ApprofittOffro: occasioni vere, tavoli veri, persone vere.</p>
     </main>
 
-    <div class="sticky-cta" role="region" aria-label="Invito beta testing">
+    <div class="sticky-cta" role="region" aria-label="Beta testing aperto">
         <div class="sticky-cta-inner">
             <div class="sticky-cta-copy">
-                <strong>Beta Testing:</strong> inviaci una Gmail valida e ti aggiungiamo subito al gruppo test.
+                <strong>Beta aperta:</strong> scarica l'app da Google Play e inviaci le segnalazioni bug direttamente dall'app.
             </div>
-            <a href="mailto:betatesting@approfittoffro.it?subject=Richiesta%20Beta%20Testing%20ApprofittOffro&body=Ciao%2C%20voglio%20partecipare%20al%20beta%20testing.%20Questa%20e%20la%20mia%20Gmail%3A%20">Invia Gmail</a>
+            <a href="{{ play_store_url or 'https://play.google.com/store/apps/details?id=com.mellutecno.approfittoffro' }}" rel="noopener noreferrer" target="_blank">Scarica beta</a>
         </div>
     </div>
 </body>
