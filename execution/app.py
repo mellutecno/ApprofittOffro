@@ -9287,8 +9287,7 @@ def purge_chat_thread_if_expired(thread, *, now=None):
     if not is_chat_thread_expired(thread, now=now):
         return False
 
-    delete_chat_thread_payload(thread)
-    db.session.delete(thread)
+    delete_chat_thread_record(thread)
     return True
 
 
@@ -9309,6 +9308,11 @@ def delete_chat_thread_payload(thread):
     media_paths_to_delete = set()
     messages = ChatMessage.query.filter_by(thread_id=thread.id).all()
     deleted_messages = len(messages)
+    message_ids = [message.id for message in messages if message.id]
+    if message_ids:
+        ChatMessageHidden.query.filter(
+            ChatMessageHidden.message_id.in_(message_ids)
+        ).delete(synchronize_session=False)
     for message in messages:
         normalized_audio = sanitize_chat_audio_path(message.audio_path)
         if normalized_audio and normalized_audio.startswith(expected_audio_prefix):
@@ -9332,6 +9336,20 @@ def delete_chat_thread_payload(thread):
         "deleted_audio_files": deleted_audio_files,
         "deleted_media_files": deleted_media_files,
     }
+
+
+def delete_chat_thread_record(thread):
+    """Elimina definitivamente un thread chat e scollega le segnalazioni collegate."""
+    delete_result = delete_chat_thread_payload(thread)
+    ChatThreadUserState.query.filter_by(thread_id=thread.id).delete(
+        synchronize_session=False
+    )
+    ContentReport.query.filter_by(chat_thread_id=thread.id).update(
+        {"chat_thread_id": None},
+        synchronize_session=False,
+    )
+    db.session.delete(thread)
+    return delete_result
 
 
 @app.route("/api/push/chat-notification", methods=["POST"])
@@ -11149,6 +11167,10 @@ def api_admin_dashboard():
     purged_chat_threads = False
     chat_now = chat_now_utc()
     for thread in chat_threads:
+        if is_chat_thread_admin_deleted(thread):
+            delete_chat_thread_record(thread)
+            purged_chat_threads = True
+            continue
         if purge_chat_thread_if_expired(thread, now=chat_now):
             purged_chat_threads = True
     if purged_chat_threads:
@@ -11446,10 +11468,27 @@ def api_admin_archive_content_report(report_id):
 @app.route("/api/admin/chats/<int:thread_id>", methods=["DELETE"])
 @admin_required
 def api_admin_delete_chat(thread_id):
-    """Svuota una chat dal pannello admin e avvisa entrambi i partecipanti."""
+    """Elimina definitivamente una chat dal pannello admin e avvisa i partecipanti."""
     thread = ChatThread.query.get(thread_id)
     if not thread:
-        return jsonify({"success": False, "error": "Chat non trovata."}), 404
+        return jsonify({
+            "success": True,
+            "message": "Chat gia' eliminata dal pannello admin.",
+            "deleted_messages": 0,
+            "deleted_audio_files": 0,
+            "deleted_media_files": 0,
+            "push_sent": 0,
+        })
+
+    if is_chat_thread_admin_deleted(thread):
+        delete_result = delete_chat_thread_record(thread)
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "message": "Chat gia' eliminata: rimossa definitivamente dal pannello admin.",
+            **delete_result,
+            "push_sent": 0,
+        })
 
     if purge_chat_thread_if_expired(thread, now=chat_now_utc()):
         db.session.commit()
@@ -11472,39 +11511,16 @@ def api_admin_delete_chat(thread_id):
 
     user_a = User.query.options(selectinload(User.photos)).get(thread.user_a_id)
     user_b = User.query.options(selectinload(User.photos)).get(thread.user_b_id)
-    delete_result = delete_chat_thread_payload(thread)
-    now = chat_now_utc()
-    delete_after = now + timedelta(hours=1)
-    notice_text = "La chat e' stata eliminata dall'amministratore."
+    offer_id = thread.offer_id
+    delete_result = delete_chat_thread_record(thread)
+    db.session.flush()
+
+    push_body = (
+        "L'amministratore ha eliminato una chat. "
+        "La conversazione non e' piu' disponibile."
+    )
     if reason:
-        notice_text = f"{notice_text} Motivo: {reason}"
-    notice_text = (
-        f"{notice_text} Verra' rimossa definitivamente tra 1 ora."
-    )
-
-    notice = ChatMessage(
-        thread_id=thread.id,
-        sender_id=current_user.id,
-        sender_name="Amministrazione",
-        message_type="text",
-        text=notice_text,
-        created_at=now,
-    )
-    db.session.add(notice)
-    thread.last_message = "Chat eliminata dall'amministratore"
-    thread.last_message_type = "text"
-    thread.last_message_time = now
-    thread.last_sender_id = current_user.id
-    thread.updated_at = now
-    thread.cleared_at = now
-    thread.cleared_by_id = current_user.id
-    thread.admin_deleted_at = now
-    thread.admin_delete_after = delete_after
-    thread.admin_delete_reason = reason or ""
-    thread.admin_deleted_by_id = current_user.id
-    db.session.commit()
-
-    push_body = "Chat eliminata dall'amministratore. Apri l'app per leggere motivo e tempi."
+        push_body = f"{push_body} Motivo: {reason}"
     push_sent = 0
     participants = ((user_a, user_b), (user_b, user_a))
     for receiver, other_user in participants:
@@ -11514,9 +11530,9 @@ def api_admin_delete_chat(thread_id):
             receiver,
             title="Chat eliminata dall'amministratore",
             body=push_body,
-            target="chat",
+            target="notifications",
             extra_data={
-                "offer_id": thread.offer_id,
+                "offer_id": offer_id,
                 "chat_with_user_id": other_user.id if other_user else "",
                 "chat_with_name": other_user.nome if other_user else "Utente",
                 "chat_with_photo_filename": (
@@ -11526,13 +11542,13 @@ def api_admin_delete_chat(thread_id):
                 "admin_removed": "true",
             },
         )
+    db.session.commit()
 
     return jsonify({
         "success": True,
-        "message": "Chat bloccata, avviso inviato e rimozione definitiva prevista tra 1 ora.",
+        "message": "Chat eliminata definitivamente e partecipanti avvisati.",
         **delete_result,
         "push_sent": push_sent,
-        "chat": serialize_admin_chat_summary(thread),
     })
 
 
