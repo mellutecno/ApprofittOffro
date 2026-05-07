@@ -682,7 +682,7 @@ class _ChatPageState extends State<ChatPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Elimina chat per te?'),
+        title: const Text('Svuota chat?'),
         content: const Text(
           "I messaggi spariranno dalla tua chat. L'altro utente continuera a vederli.",
         ),
@@ -717,7 +717,7 @@ class _ChatPageState extends State<ChatPage> {
       await _clearCachedAudioFiles();
       await _clearCachedMediaFiles();
       await _refreshMessages(silent: true);
-      _showSnack('Chat eliminata per te.');
+      _showSnack('Chat svuotata.');
     } catch (_) {
       _showSnack('Non riesco a eliminare la chat adesso. Riprova tra poco.');
     }
@@ -3366,7 +3366,7 @@ class _ChatPageState extends State<ChatPage> {
             itemBuilder: (context) => [
               const PopupMenuItem(
                 value: _ChatMenuAction.clearForMe,
-                child: Text('Elimina per me'),
+                child: Text('Svuota chat'),
               ),
               const PopupMenuItem(
                 value: _ChatMenuAction.reportChat,
