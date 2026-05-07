@@ -1179,6 +1179,17 @@ class _ProfilePageState extends State<ProfilePage> {
     await Future.wait([offersFuture, claimsFuture, reviewHistoryFuture]);
   }
 
+  Future<void> _refreshFavoritePlaceState() async {
+    final refreshes = <Future<void>>[
+      _refreshAll(),
+    ];
+    final externalRefresh = widget.onFavoritePlacesChanged?.call();
+    if (externalRefresh != null) {
+      refreshes.add(externalRefresh);
+    }
+    await Future.wait(refreshes);
+  }
+
   Future<void> _handlePendingClaimDecision(
     PendingClaimRequest request, {
     required bool accept,
@@ -1542,7 +1553,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           sheetNavigator.pop();
                         }
                       },
-                      onFavoritePlaceChanged: _refreshAll,
+                      onFavoritePlaceChanged: _refreshFavoritePlaceState,
                       isPremiumUser:
                           widget.authController.currentUser?.isPremium == true,
                       allowProfileOpen: false,
@@ -1776,7 +1787,7 @@ class _ProfilePageState extends State<ProfilePage> {
       backgroundColor: Colors.transparent,
       builder: (_) => _FavoritePlacesSheet(
         apiClient: widget.authController.apiClient,
-        onChanged: widget.onFavoritePlacesChanged,
+        onChanged: _refreshFavoritePlaceState,
       ),
     );
   }
