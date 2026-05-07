@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_file_dialog/flutter_file_dialog.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_thumbnail/video_thumbnail.dart' as video_thumbnail;
 import 'package:video_compress/video_compress.dart';
 
@@ -473,6 +475,27 @@ class _ChatPageState extends State<ChatPage> {
     }
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _openChatLink(String rawUrl) async {
+    final normalizedUrl = _normalizeChatUrl(rawUrl);
+    final uri = Uri.tryParse(normalizedUrl);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      _showSnack('Link non valido.');
+      return;
+    }
+
+    try {
+      final opened = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) {
+        _showSnack('Non riesco ad aprire questo link.');
+      }
+    } catch (_) {
+      _showSnack('Non riesco ad aprire questo link.');
+    }
   }
 
   Future<bool> _ensureCanSendChat() async {
@@ -2877,9 +2900,17 @@ class _ChatPageState extends State<ChatPage> {
       );
     }
 
-    return Text(
-      data['text']?.toString() ?? '',
+    return _LinkifiedMessageText(
+      text: data['text']?.toString() ?? '',
       style: TextStyle(color: textColor),
+      linkStyle: TextStyle(
+        color: isMe ? const Color(0xFFE7D8FF) : const Color(0xFF55D8FF),
+        decoration: TextDecoration.underline,
+        decorationColor:
+            isMe ? const Color(0xFFE7D8FF) : const Color(0xFF55D8FF),
+        fontWeight: FontWeight.w800,
+      ),
+      onOpenLink: (url) => unawaited(_openChatLink(url)),
     );
   }
 
@@ -3698,6 +3729,147 @@ class _ChatPageState extends State<ChatPage> {
           );
         },
       ),
+    );
+  }
+}
+
+final RegExp _chatUrlRegex = RegExp(
+  r'''\b((?:(?:https?:\/\/|www\.)?)(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:[/?#][^\s<>"']*)?)''',
+  caseSensitive: false,
+);
+
+String _normalizeChatUrl(String rawUrl) {
+  final trimmed = rawUrl.trim();
+  if (RegExp(r'^https?://', caseSensitive: false).hasMatch(trimmed)) {
+    return trimmed;
+  }
+  return 'https://$trimmed';
+}
+
+bool _isTrailingChatLinkPunctuation(int codeUnit) {
+  return codeUnit == 0x2E || // .
+      codeUnit == 0x2C || // ,
+      codeUnit == 0x3B || // ;
+      codeUnit == 0x3A || // :
+      codeUnit == 0x21 || // !
+      codeUnit == 0x3F || // ?
+      codeUnit == 0x29 || // )
+      codeUnit == 0x5D || // ]
+      codeUnit == 0x7D; // }
+}
+
+class _LinkifiedMessageText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  final TextStyle linkStyle;
+  final ValueChanged<String> onOpenLink;
+
+  const _LinkifiedMessageText({
+    required this.text,
+    required this.style,
+    required this.linkStyle,
+    required this.onOpenLink,
+  });
+
+  @override
+  State<_LinkifiedMessageText> createState() => _LinkifiedMessageTextState();
+}
+
+class _LinkifiedMessageTextState extends State<_LinkifiedMessageText> {
+  final List<TapGestureRecognizer> _recognizers = <TapGestureRecognizer>[];
+  late List<InlineSpan> _spans;
+
+  @override
+  void initState() {
+    super.initState();
+    _spans = _buildSpans();
+  }
+
+  @override
+  void didUpdateWidget(covariant _LinkifiedMessageText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text ||
+        oldWidget.linkStyle != widget.linkStyle) {
+      _disposeRecognizers();
+      _spans = _buildSpans();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposeRecognizers();
+    super.dispose();
+  }
+
+  void _disposeRecognizers() {
+    for (final recognizer in _recognizers) {
+      recognizer.dispose();
+    }
+    _recognizers.clear();
+  }
+
+  List<InlineSpan> _buildSpans() {
+    final text = widget.text;
+    if (text.isEmpty) {
+      return const <InlineSpan>[TextSpan(text: '')];
+    }
+
+    final spans = <InlineSpan>[];
+    var currentIndex = 0;
+    for (final match in _chatUrlRegex.allMatches(text)) {
+      if (match.start > 0 && text.codeUnitAt(match.start - 1) == 0x40) {
+        continue;
+      }
+
+      final rawMatch = match.group(0) ?? '';
+      var linkText = rawMatch;
+      var trailingText = '';
+      while (linkText.isNotEmpty &&
+          _isTrailingChatLinkPunctuation(
+            linkText.codeUnitAt(linkText.length - 1),
+          )) {
+        trailingText =
+            '${linkText.substring(linkText.length - 1)}$trailingText';
+        linkText = linkText.substring(0, linkText.length - 1);
+      }
+      if (linkText.isEmpty) {
+        continue;
+      }
+
+      if (match.start > currentIndex) {
+        spans.add(TextSpan(text: text.substring(currentIndex, match.start)));
+      }
+
+      final recognizer = TapGestureRecognizer()
+        ..onTap = () => widget.onOpenLink(linkText);
+      _recognizers.add(recognizer);
+      spans.add(
+        TextSpan(
+          text: linkText,
+          style: widget.linkStyle,
+          recognizer: recognizer,
+        ),
+      );
+      if (trailingText.isNotEmpty) {
+        spans.add(TextSpan(text: trailingText));
+      }
+      currentIndex = match.end;
+    }
+
+    if (currentIndex < text.length) {
+      spans.add(TextSpan(text: text.substring(currentIndex)));
+    }
+
+    return spans;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final baseStyle = DefaultTextStyle.of(context).style.merge(widget.style);
+    return RichText(
+      text: TextSpan(style: baseStyle, children: _spans),
+      textScaler: MediaQuery.textScalerOf(context),
+      softWrap: true,
     );
   }
 }
