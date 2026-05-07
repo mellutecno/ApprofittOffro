@@ -1582,7 +1582,31 @@ class ApiClient {
     return payload;
   }
 
-  Future<Map<String, dynamic>> clearChatForEveryone({
+  Future<Map<String, dynamic>> deleteChatMessage({
+    required int offerId,
+    required int receiverId,
+    required int messageId,
+    required String mode,
+  }) async {
+    if (offerId <= 0 || receiverId <= 0 || messageId <= 0) {
+      throw ApiException('Dati chat non validi.');
+    }
+    final response = await _send(
+      method: 'POST',
+      path: '/api/chat/messages/$messageId/delete',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'offer_id': offerId,
+        'receiver_id': receiverId,
+        'mode': mode,
+      }),
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload;
+  }
+
+  Future<Map<String, dynamic>> clearChatForMe({
     required int offerId,
     required int receiverId,
   }) async {

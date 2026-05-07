@@ -471,6 +471,56 @@ class ChatMessage(db.Model):
         )
 
 
+class ChatThreadUserState(db.Model):
+    """Stato personale di una chat per un singolo utente."""
+    __tablename__ = "chat_thread_user_states"
+
+    id = db.Column(db.Integer, primary_key=True)
+    thread_id = db.Column(db.Integer, db.ForeignKey("chat_threads.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    cleared_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "thread_id",
+            "user_id",
+            name="unique_chat_thread_user_state",
+        ),
+    )
+
+    thread = db.relationship(
+        "ChatThread",
+        backref=db.backref("user_states", lazy=True, cascade="all, delete-orphan"),
+    )
+    user = db.relationship("User", backref=db.backref("chat_thread_states", lazy=True))
+
+
+class ChatMessageHidden(db.Model):
+    """Messaggi eliminati solo per uno specifico utente."""
+    __tablename__ = "chat_message_hidden_users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.Integer, db.ForeignKey("chat_messages.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    hidden_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "message_id",
+            "user_id",
+            name="unique_chat_message_hidden_user",
+        ),
+    )
+
+    message = db.relationship(
+        "ChatMessage",
+        backref=db.backref("hidden_for_users", lazy=True, cascade="all, delete-orphan"),
+    )
+    user = db.relationship("User", backref=db.backref("hidden_chat_messages", lazy=True))
+
+
 class UserReminder(db.Model):
     """Promemoria impostati dall'utente per un evento specifico."""
     __tablename__ = "user_reminders"

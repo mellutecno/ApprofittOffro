@@ -66,6 +66,8 @@ from models import (
     UserBlock,
     ChatThread,
     ChatMessage,
+    ChatMessageHidden,
+    ChatThreadUserState,
     DevicePushToken,
     NotificationDeliveryLog,
     AppNotification,
@@ -278,6 +280,7 @@ CHAT_MEDIA_MAX_BYTES = CHAT_MEDIA_VIDEO_MAX_BYTES
 CHAT_MEDIA_IMAGE_MAX_SIDE = 1280
 CHAT_MEDIA_IMAGE_JPEG_QUALITY = 78
 CHAT_RETENTION_DAYS = 30
+CHAT_DELETE_FOR_EVERYONE_SECONDS = 60
 BREAKFAST_BOOKING_LEAD_HOURS = 1
 MEAL_BOOKING_LEAD_HOURS = 6
 SHORT_NOTICE_BREAKFAST_BOOKING_LEAD_MINUTES = 30
@@ -1798,6 +1801,34 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
                 )
             """)
 
+        if not table_exists("chat_thread_user_states"):
+            cur.execute("""
+                CREATE TABLE chat_thread_user_states (
+                    id INTEGER PRIMARY KEY,
+                    thread_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    cleared_at DATETIME,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    CONSTRAINT unique_chat_thread_user_state UNIQUE (thread_id, user_id),
+                    FOREIGN KEY(thread_id) REFERENCES chat_threads (id),
+                    FOREIGN KEY(user_id) REFERENCES users (id)
+                )
+            """)
+
+        if not table_exists("chat_message_hidden_users"):
+            cur.execute("""
+                CREATE TABLE chat_message_hidden_users (
+                    id INTEGER PRIMARY KEY,
+                    message_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    hidden_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    CONSTRAINT unique_chat_message_hidden_user UNIQUE (message_id, user_id),
+                    FOREIGN KEY(message_id) REFERENCES chat_messages (id),
+                    FOREIGN KEY(user_id) REFERENCES users (id)
+                )
+            """)
+
         if not table_exists("app_notifications"):
             cur.execute("""
                 CREATE TABLE app_notifications (
@@ -1835,6 +1866,12 @@ def ensure_legacy_sqlite_compatibility(sqlite_path):
             cur.execute("CREATE INDEX IF NOT EXISTS ix_content_reports_reported_user_id ON content_reports (reported_user_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS ix_content_reports_status ON content_reports (status)")
             cur.execute("CREATE INDEX IF NOT EXISTS ix_content_reports_created_at ON content_reports (created_at)")
+        if table_exists("chat_thread_user_states"):
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_chat_thread_user_states_thread_user ON chat_thread_user_states (thread_id, user_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_chat_thread_user_states_user ON chat_thread_user_states (user_id)")
+        if table_exists("chat_message_hidden_users"):
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_chat_message_hidden_users_message_user ON chat_message_hidden_users (message_id, user_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS ix_chat_message_hidden_users_user ON chat_message_hidden_users (user_id)")
         if table_exists("app_notifications"):
             cur.execute("CREATE INDEX IF NOT EXISTS ix_app_notifications_user_expires ON app_notifications (user_id, expires_at)")
             cur.execute("CREATE INDEX IF NOT EXISTS ix_app_notifications_user_read ON app_notifications (user_id, read_at)")
@@ -1960,6 +1997,42 @@ def ensure_database_schema_compatibility():
             )
             conn.exec_driver_sql(
                 "ALTER TABLE chat_threads ADD COLUMN IF NOT EXISTS admin_deleted_by_id INTEGER"
+            )
+            conn.exec_driver_sql(
+                """
+                CREATE TABLE IF NOT EXISTS chat_thread_user_states (
+                    id SERIAL PRIMARY KEY,
+                    thread_id INTEGER NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    cleared_at TIMESTAMP,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    CONSTRAINT unique_chat_thread_user_state UNIQUE (thread_id, user_id)
+                )
+                """
+            )
+            conn.exec_driver_sql(
+                """
+                CREATE TABLE IF NOT EXISTS chat_message_hidden_users (
+                    id SERIAL PRIMARY KEY,
+                    message_id INTEGER NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    hidden_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    CONSTRAINT unique_chat_message_hidden_user UNIQUE (message_id, user_id)
+                )
+                """
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_chat_thread_user_states_thread_user ON chat_thread_user_states (thread_id, user_id)"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_chat_thread_user_states_user ON chat_thread_user_states (user_id)"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_chat_message_hidden_users_message_user ON chat_message_hidden_users (message_id, user_id)"
+            )
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_chat_message_hidden_users_user ON chat_message_hidden_users (user_id)"
             )
             conn.exec_driver_sql(
                 """
@@ -8431,7 +8504,29 @@ def build_chat_preview_text(message_type, *, text="", media_file_name="", audio_
     return clean_text or "Nuovo messaggio"
 
 
-def serialize_chat_message(message):
+def chat_message_delete_for_everyone_expires_at(message):
+    created_at = getattr(message, "created_at", None)
+    if not created_at:
+        return None
+    return created_at + timedelta(seconds=CHAT_DELETE_FOR_EVERYONE_SECONDS)
+
+
+def can_delete_chat_message_for_everyone(message, user_id, *, now=None):
+    if not message or str(getattr(message, "message_type", "")).lower() == "system":
+        return False
+    try:
+        actor_id = int(user_id)
+    except (TypeError, ValueError):
+        return False
+    if int(getattr(message, "sender_id", 0) or 0) != actor_id:
+        return False
+    expires_at = chat_message_delete_for_everyone_expires_at(message)
+    return bool(expires_at and (now or chat_now_utc()) <= expires_at)
+
+
+def serialize_chat_message(message, *, viewer_id=None, now=None):
+    now = now or chat_now_utc()
+    delete_for_everyone_expires_at = chat_message_delete_for_everyone_expires_at(message)
     return {
         "id": str(message.id),
         "senderId": str(message.sender_id),
@@ -8445,7 +8540,132 @@ def serialize_chat_message(message):
         "mediaContentType": message.media_content_type or "",
         "mediaSizeBytes": int(message.media_size_bytes or 0),
         "timestamp": datetime_to_iso_z(message.created_at),
+        "canDeleteForEveryone": can_delete_chat_message_for_everyone(
+            message,
+            viewer_id,
+            now=now,
+        ),
+        "deleteForEveryoneExpiresAt": datetime_to_iso_z(delete_for_everyone_expires_at),
     }
+
+
+def get_chat_thread_user_state(thread, user_id, *, create=False, now=None):
+    if not thread:
+        return None
+    try:
+        actor_id = int(user_id)
+    except (TypeError, ValueError):
+        return None
+    state = ChatThreadUserState.query.filter_by(
+        thread_id=thread.id,
+        user_id=actor_id,
+    ).first()
+    if not state and create:
+        state = ChatThreadUserState(
+            thread_id=thread.id,
+            user_id=actor_id,
+            created_at=now or chat_now_utc(),
+            updated_at=now or chat_now_utc(),
+        )
+        db.session.add(state)
+        db.session.flush()
+    return state
+
+
+def visible_chat_messages_query(thread, user_id):
+    query = ChatMessage.query.filter(ChatMessage.thread_id == thread.id)
+    state = get_chat_thread_user_state(thread, user_id)
+    if state and state.cleared_at:
+        query = query.filter(ChatMessage.created_at > state.cleared_at)
+    hidden_message_ids = db.session.query(ChatMessageHidden.message_id).filter(
+        ChatMessageHidden.user_id == int(user_id)
+    )
+    return query.filter(~ChatMessage.id.in_(hidden_message_ids))
+
+
+def get_latest_visible_chat_message(thread, user_id):
+    return (
+        visible_chat_messages_query(thread, user_id)
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+        .first()
+    )
+
+
+def mark_chat_thread_deleted_for_user(thread, user_id, *, now=None):
+    now = now or chat_now_utc()
+    state = get_chat_thread_user_state(thread, user_id, create=True, now=now)
+    state.cleared_at = now
+    state.updated_at = now
+    return state
+
+
+def hide_chat_message_for_user(message, user_id, *, now=None):
+    now = now or chat_now_utc()
+    hidden = ChatMessageHidden.query.filter_by(
+        message_id=message.id,
+        user_id=int(user_id),
+    ).first()
+    if hidden:
+        return hidden, False
+    hidden = ChatMessageHidden(
+        message_id=message.id,
+        user_id=int(user_id),
+        hidden_at=now,
+    )
+    db.session.add(hidden)
+    return hidden, True
+
+
+def delete_single_chat_message_payload(thread, message):
+    expected_audio_prefix = build_chat_audio_prefix(
+        thread.offer_id,
+        thread.user_a_id,
+        thread.user_b_id,
+    )
+    expected_media_prefix = build_chat_media_prefix(
+        thread.offer_id,
+        thread.user_a_id,
+        thread.user_b_id,
+    )
+    deleted_audio_files = 0
+    deleted_media_files = 0
+    normalized_audio = sanitize_chat_audio_path(message.audio_path)
+    if normalized_audio and normalized_audio.startswith(expected_audio_prefix):
+        upload_storage.delete(normalized_audio)
+        deleted_audio_files = 1
+    normalized_media = sanitize_chat_audio_path(message.media_path)
+    if normalized_media and normalized_media.startswith(expected_media_prefix):
+        upload_storage.delete(normalized_media)
+        deleted_media_files = 1
+    ChatMessageHidden.query.filter_by(message_id=message.id).delete(
+        synchronize_session=False
+    )
+    db.session.delete(message)
+    return {
+        "deleted_messages": 1,
+        "deleted_audio_files": deleted_audio_files,
+        "deleted_media_files": deleted_media_files,
+    }
+
+
+def refresh_chat_thread_last_message(thread, *, now=None):
+    latest = (
+        ChatMessage.query.filter_by(thread_id=thread.id)
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+        .first()
+    )
+    if latest:
+        thread.last_message = (latest.text or "").strip()
+        thread.last_message_type = (latest.message_type or "text").strip().lower()
+        thread.last_message_time = latest.created_at
+        thread.last_sender_id = latest.sender_id
+    else:
+        thread.last_message = ""
+        thread.last_message_type = "text"
+        thread.last_message_time = None
+        thread.last_sender_id = None
+    thread.updated_at = now or chat_now_utc()
+    return latest
 
 
 def sanitize_chat_audio_path(raw_path):
@@ -8771,7 +8991,7 @@ def api_chat_message_notification():
 @app.route("/api/chat/clear-notification", methods=["POST"])
 @login_required
 def api_chat_clear_notification():
-    """Notifica l'altro partecipante quando lo storico chat viene azzerato."""
+    """Compatibilita legacy: l'eliminazione chat ora e' solo personale."""
     data = request.get_json(silent=True) or {}
     offer_id = data.get("offer_id")
     receiver_id = data.get("receiver_id")
@@ -8800,24 +9020,10 @@ def api_chat_clear_notification():
     if admin_deleted_response:
         return admin_deleted_response
 
-    receiver = User.query.get(receiver_id)
-    if not receiver:
-        return jsonify({"success": False, "error": "Utente destinatario non trovato."}), 404
-
-    send_push_to_user(
-        receiver,
-        title=f"{current_user.nome} ha azzerato la chat",
-        body="Cronologia rimossa per entrambi. Potete continuare a scrivervi.",
-        target="chat",
-        extra_data={
-            "offer_id": offer_id,
-            "chat_with_user_id": current_user.id,
-            "chat_with_name": current_user.nome,
-            "chat_with_photo_filename": current_user.foto_filename or "",
-            "type": "chat_cleared",
-        },
-    )
-    return jsonify({"success": True})
+    return jsonify({
+        "success": True,
+        "message": "Eliminazione personale: nessuna notifica inviata.",
+    })
 
 
 @app.route("/api/chat/audio-upload", methods=["POST"])
@@ -9593,14 +9799,18 @@ def api_chat_messages():
         })
 
     messages = (
-        ChatMessage.query.filter_by(thread_id=thread.id)
+        visible_chat_messages_query(thread, current_user.id)
         .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
         .limit(limit)
         .all()
     )
+    now = chat_now_utc()
     return jsonify({
         "success": True,
-        "messages": [serialize_chat_message(message) for message in messages],
+        "messages": [
+            serialize_chat_message(message, viewer_id=current_user.id, now=now)
+            for message in messages
+        ],
         "chat_id": build_chat_thread_key(thread.offer_id, thread.user_a_id, thread.user_b_id),
         **build_admin_deleted_chat_payload(thread),
     })
@@ -9779,15 +9989,98 @@ def api_chat_send_message():
     db.session.commit()
     return jsonify({
         "success": True,
-        "message": serialize_chat_message(message),
+        "message": serialize_chat_message(message, viewer_id=current_user.id, now=now),
         "preview_text": preview_text,
+    })
+
+
+@app.route("/api/chat/messages/<int:message_id>/delete", methods=["POST"])
+@login_required
+def api_chat_delete_message(message_id):
+    """Elimina un singolo messaggio: per me sempre, per tutti solo entro 1 minuto."""
+    data = request.get_json(silent=True) or {}
+    raw_offer_id = data.get("offer_id")
+    raw_receiver_id = data.get("receiver_id")
+    mode = str(data.get("mode", "me")).strip().lower()
+
+    if raw_offer_id in (None, "") or raw_receiver_id in (None, ""):
+        return jsonify({"success": False, "error": "Dati chat mancanti."}), 400
+
+    try:
+        offer_id = int(raw_offer_id)
+        receiver_id = int(raw_receiver_id)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Dati chat non validi."}), 400
+
+    if offer_id <= 0 or receiver_id <= 0 or receiver_id == current_user.id:
+        return jsonify({"success": False, "error": "Dati chat non validi."}), 400
+
+    if mode not in {"me", "everyone"}:
+        return jsonify({"success": False, "error": "Tipo eliminazione non valido."}), 400
+
+    _, chat_error = ensure_chat_pair_allowed(offer_id, current_user.id, receiver_id)
+    if chat_error:
+        message, status = chat_error
+        return jsonify({"success": False, "error": message}), status
+
+    admin_deleted_response = chat_admin_deleted_response(
+        offer_id,
+        current_user.id,
+        receiver_id,
+    )
+    if admin_deleted_response:
+        return admin_deleted_response
+
+    thread = get_or_create_chat_thread(
+        offer_id=offer_id,
+        user_id=current_user.id,
+        other_user_id=receiver_id,
+        create_if_missing=False,
+    )
+    if not thread:
+        return jsonify({"success": False, "error": "Chat non trovata."}), 404
+
+    message = ChatMessage.query.filter_by(
+        id=message_id,
+        thread_id=thread.id,
+    ).first()
+    if not message:
+        return jsonify({"success": False, "error": "Messaggio non trovato."}), 404
+
+    now = chat_now_utc()
+    if mode == "me":
+        hide_chat_message_for_user(message, current_user.id, now=now)
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "mode": "me",
+            "message": "Messaggio eliminato per te.",
+            "message_id": str(message_id),
+        })
+
+    if not can_delete_chat_message_for_everyone(message, current_user.id, now=now):
+        return jsonify({
+            "success": False,
+            "error": "Puoi eliminare per tutti solo i tuoi messaggi entro 1 minuto dall'invio.",
+            "delete_window_seconds": CHAT_DELETE_FOR_EVERYONE_SECONDS,
+        }), 403
+
+    delete_result = delete_single_chat_message_payload(thread, message)
+    refresh_chat_thread_last_message(thread, now=now)
+    db.session.commit()
+    return jsonify({
+        "success": True,
+        "mode": "everyone",
+        "message": "Messaggio eliminato per tutti.",
+        "message_id": str(message_id),
+        **delete_result,
     })
 
 
 @app.route("/api/chat/clear", methods=["POST"])
 @login_required
 def api_chat_clear():
-    """Cancella tutti i messaggi del thread chat per entrambi gli utenti."""
+    """Elimina la chat solo per l'utente corrente, senza toccarla per l'altro."""
     data = request.get_json(silent=True) or {}
     raw_offer_id = data.get("offer_id")
     raw_receiver_id = data.get("receiver_id")
@@ -9830,20 +10123,16 @@ def api_chat_clear():
             "deleted_media_files": 0,
         })
 
-    delete_result = delete_chat_thread_payload(thread)
     now = chat_now_utc()
-    thread.last_message = ""
-    thread.last_message_type = "text"
-    thread.last_message_time = now
-    thread.last_sender_id = current_user.id
-    thread.updated_at = now
-    thread.cleared_at = now
-    thread.cleared_by_id = current_user.id
+    visible_count = visible_chat_messages_query(thread, current_user.id).count()
+    mark_chat_thread_deleted_for_user(thread, current_user.id, now=now)
     db.session.commit()
 
     return jsonify({
         "success": True,
-        **delete_result,
+        "deleted_messages": visible_count,
+        "deleted_audio_files": 0,
+        "deleted_media_files": 0,
     })
 
 
@@ -9900,7 +10189,20 @@ def api_chat_inbox():
             thread.user_b_id if thread.user_a_id == current_user.id else thread.user_a_id
         )
         other_user = users_by_id.get(other_user_id)
-        sort_time = thread.last_message_time or thread.updated_at or thread.created_at or datetime.min
+        latest_visible_message = get_latest_visible_chat_message(thread, current_user.id)
+        if latest_visible_message:
+            sort_time = (
+                latest_visible_message.created_at
+                or thread.updated_at
+                or thread.created_at
+                or datetime.min
+            )
+            last_message_text = (latest_visible_message.text or "").strip()
+        elif is_chat_thread_admin_deleted(thread):
+            sort_time = thread.updated_at or thread.admin_deleted_at or thread.created_at or datetime.min
+            last_message_text = (thread.last_message or "").strip()
+        else:
+            continue
         enriched.append((
             sort_time,
             {
@@ -9915,7 +10217,7 @@ def api_chat_inbox():
                 "other_user_photo_filename": (
                     get_primary_photo_filename(other_user) if other_user else ""
                 ),
-                "last_message": (thread.last_message or "").strip(),
+                "last_message": last_message_text,
                 "last_message_time": datetime_to_iso_z(sort_time),
                 **build_admin_deleted_chat_payload(thread),
             },

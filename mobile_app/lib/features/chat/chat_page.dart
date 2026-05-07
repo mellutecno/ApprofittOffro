@@ -23,7 +23,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/content_report_sheet.dart';
 
 enum _ChatMenuAction {
-  clearForEveryone,
+  clearForMe,
   reportChat,
   blockUser,
   unblockUser,
@@ -38,7 +38,8 @@ enum _ChatComposerMediaAction {
 
 enum _ChatMessageAction {
   saveAttachment,
-  hideForMe,
+  deleteForEveryone,
+  deleteForMe,
 }
 
 class _PreparedMediaUpload {
@@ -564,22 +565,110 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  Future<void> _hideMessageForMe(Map<String, dynamic> payload) async {
+  int? _messageServerId(Map<String, dynamic> payload) {
+    final rawId = payload['id']?.toString().trim() ?? '';
+    return int.tryParse(rawId);
+  }
+
+  bool _canDeleteMessageForEveryone(Map<String, dynamic> payload) {
+    final messageId = _messageServerId(payload);
+    if (messageId == null || messageId <= 0) {
+      return false;
+    }
+    final type = payload['type']?.toString().trim().toLowerCase() ?? 'text';
+    if (type == 'system') {
+      return false;
+    }
+    final isMe = payload['senderId']?.toString() == widget.currentUserId;
+    if (!isMe) {
+      return false;
+    }
+    final expiresAt =
+        _parseMessageTimestamp(payload['deleteForEveryoneExpiresAt']);
+    return expiresAt != null && expiresAt.isAfter(DateTime.now());
+  }
+
+  Future<void> _deleteMessageForMe(Map<String, dynamic> payload) async {
     final localId = _messageLocalId(payload);
-    if (localId.isEmpty || _hiddenMessageIds.contains(localId)) {
+    final messageId = _messageServerId(payload);
+    final offerId = _parsedOfferId;
+    final receiverId = _parsedOtherUserId;
+    if (localId.isEmpty ||
+        messageId == null ||
+        offerId == null ||
+        receiverId == null) {
       return;
     }
-    if (!mounted) {
+
+    try {
+      await widget.apiClient.deleteChatMessage(
+        offerId: offerId,
+        receiverId: receiverId,
+        messageId: messageId,
+        mode: 'me',
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _hiddenMessageIds = {..._hiddenMessageIds, localId};
+        _messages = _messages
+            .where((message) => _messageLocalId(message) != localId)
+            .toList();
+      });
+      await _persistHiddenMessageIds();
+      _showSnack('Messaggio eliminato per te.');
+    } catch (_) {
+      _showSnack('Non riesco a eliminare il messaggio adesso.');
+    }
+  }
+
+  Future<void> _deleteMessageForEveryone(Map<String, dynamic> payload) async {
+    final messageId = _messageServerId(payload);
+    final offerId = _parsedOfferId;
+    final receiverId = _parsedOtherUserId;
+    if (messageId == null || offerId == null || receiverId == null) {
       return;
     }
-    setState(() {
-      _hiddenMessageIds = {..._hiddenMessageIds, localId};
-      _messages = _messages
-          .where((message) => _messageLocalId(message) != localId)
-          .toList();
-    });
-    await _persistHiddenMessageIds();
-    _showSnack('Messaggio nascosto solo per te.');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Elimina per tutti?'),
+        content: const Text(
+          'Il messaggio verra cancellato definitivamente dalla chat per entrambi.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Elimina'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await widget.apiClient.deleteChatMessage(
+        offerId: offerId,
+        receiverId: receiverId,
+        messageId: messageId,
+        mode: 'everyone',
+      );
+      await _refreshMessages(silent: true);
+      _showSnack('Messaggio eliminato per tutti.');
+    } catch (error) {
+      final message = error is ApiException && error.message.isNotEmpty
+          ? error.message
+          : 'Non riesco a eliminare il messaggio adesso.';
+      _showSnack(message);
+    }
   }
 
   bool _isMessageVisible(Map<String, dynamic> payload) {
@@ -589,13 +678,13 @@ class _ChatPageState extends State<ChatPage> {
     return true;
   }
 
-  Future<void> _clearChatForEveryone() async {
+  Future<void> _clearChatForMe() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Elimina chat per tutti?'),
+        title: const Text('Elimina chat per te?'),
         content: const Text(
-          'Questa azione cancella tutti i messaggi per entrambi. Potrete comunque riscrivervi da zero.',
+          "I messaggi spariranno dalla tua chat. L'altro utente continuera a vederli.",
         ),
         actions: [
           TextButton(
@@ -604,7 +693,7 @@ class _ChatPageState extends State<ChatPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Elimina per entrambi'),
+            child: const Text('Elimina'),
           ),
         ],
       ),
@@ -621,24 +710,14 @@ class _ChatPageState extends State<ChatPage> {
     }
 
     try {
-      await widget.apiClient.clearChatForEveryone(
+      await widget.apiClient.clearChatForMe(
         offerId: offerId,
         receiverId: receiverId,
       );
       await _clearCachedAudioFiles();
       await _clearCachedMediaFiles();
       await _refreshMessages(silent: true);
-
-      try {
-        await widget.apiClient.sendChatClearNotification(
-          offerId: offerId,
-          receiverId: receiverId,
-        );
-      } catch (_) {
-        // Best effort: chat stays cleared even if push fails.
-      }
-
-      _showSnack('Chat eliminata per entrambi. Potete riscrivervi da zero.');
+      _showSnack('Chat eliminata per te.');
     } catch (_) {
       _showSnack('Non riesco a eliminare la chat adesso. Riprova tra poco.');
     }
@@ -712,8 +791,8 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _onMenuSelected(_ChatMenuAction action) async {
     switch (action) {
-      case _ChatMenuAction.clearForEveryone:
-        await _clearChatForEveryone();
+      case _ChatMenuAction.clearForMe:
+        await _clearChatForMe();
         break;
       case _ChatMenuAction.reportChat:
         await _reportChat();
@@ -1854,6 +1933,7 @@ class _ChatPageState extends State<ChatPage> {
       return;
     }
     final canSave = _canSaveMessageAttachment(data);
+    final canDeleteForEveryone = _canDeleteMessageForEveryone(data);
     final selected = await showModalBottomSheet<_ChatMessageAction>(
       context: context,
       showDragHandle: true,
@@ -1868,11 +1948,19 @@ class _ChatPageState extends State<ChatPage> {
                   _ChatMessageAction.saveAttachment,
                 ),
               ),
+            if (canDeleteForEveryone)
+              ListTile(
+                leading: const Icon(Icons.delete_forever_rounded),
+                title: const Text('Elimina per tutti'),
+                onTap: () => Navigator.of(context).pop(
+                  _ChatMessageAction.deleteForEveryone,
+                ),
+              ),
             ListTile(
-              leading: const Icon(Icons.visibility_off_outlined),
+              leading: const Icon(Icons.delete_outline_rounded),
               title: const Text('Elimina per me'),
               onTap: () =>
-                  Navigator.of(context).pop(_ChatMessageAction.hideForMe),
+                  Navigator.of(context).pop(_ChatMessageAction.deleteForMe),
             ),
           ],
         ),
@@ -1882,8 +1970,11 @@ class _ChatPageState extends State<ChatPage> {
       case _ChatMessageAction.saveAttachment:
         await _saveMessageAttachmentLocally(data);
         break;
-      case _ChatMessageAction.hideForMe:
-        await _hideMessageForMe(data);
+      case _ChatMessageAction.deleteForEveryone:
+        await _deleteMessageForEveryone(data);
+        break;
+      case _ChatMessageAction.deleteForMe:
+        await _deleteMessageForMe(data);
         break;
       case null:
         break;
@@ -3274,8 +3365,8 @@ class _ChatPageState extends State<ChatPage> {
             onSelected: _onMenuSelected,
             itemBuilder: (context) => [
               const PopupMenuItem(
-                value: _ChatMenuAction.clearForEveryone,
-                child: Text('Elimina chat per tutti'),
+                value: _ChatMenuAction.clearForMe,
+                child: Text('Elimina per me'),
               ),
               const PopupMenuItem(
                 value: _ChatMenuAction.reportChat,
