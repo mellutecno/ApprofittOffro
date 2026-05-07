@@ -10202,7 +10202,18 @@ def api_chat_inbox():
             sort_time = thread.updated_at or thread.admin_deleted_at or thread.created_at or datetime.min
             last_message_text = (thread.last_message or "").strip()
         else:
-            continue
+            user_state = get_chat_thread_user_state(thread, current_user.id)
+            if user_state and user_state.cleared_at:
+                sort_time = (
+                    user_state.updated_at
+                    or user_state.cleared_at
+                    or thread.updated_at
+                    or thread.created_at
+                    or datetime.min
+                )
+                last_message_text = ""
+            else:
+                continue
         enriched.append((
             sort_time,
             {
