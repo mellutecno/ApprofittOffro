@@ -333,6 +333,8 @@ class AdminOfferSummary {
       claimId: 0,
       userHasReviewed: false,
       reviewsReceivedCount: 0,
+      isFavoritePlace: false,
+      favoritePlaceId: 0,
     );
   }
 }

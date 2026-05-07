@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../models/app_user.dart';
 import '../../models/app_notification.dart';
 import '../../models/admin_dashboard.dart';
+import '../../models/favorite_place.dart';
 import '../../models/offer.dart';
 import '../../models/place_candidate.dart';
 import '../../models/public_profile.dart';
@@ -707,6 +708,39 @@ class ApiClient {
         .cast<Map<String, dynamic>>()
         .map(Offer.fromJson)
         .toList();
+  }
+
+  Future<List<FavoritePlace>> fetchFavoritePlaces() async {
+    final response = await _send(method: 'GET', path: '/api/favorite-places');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return (payload['favorite_places'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>()
+        .map(FavoritePlace.fromJson)
+        .toList();
+  }
+
+  Future<FavoritePlace> favoritePlaceFromOffer(int offerId) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/api/offers/$offerId/favorite-place',
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return FavoritePlace.fromJson(
+      payload['favorite_place'] as Map<String, dynamic>? ??
+          const <String, dynamic>{},
+    );
+  }
+
+  Future<String> deleteFavoritePlace(int favoritePlaceId) async {
+    final response = await _send(
+      method: 'DELETE',
+      path: '/api/favorite-places/$favoritePlaceId',
+    );
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return payload['message']?.toString() ?? 'Locale rimosso dai preferiti.';
   }
 
   Future<List<PlaceCandidate>> fetchNearbyPlaces({

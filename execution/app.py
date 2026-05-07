@@ -64,6 +64,7 @@ from models import (
     UserPhoto,
     UserFollow,
     UserBlock,
+    FavoritePlace,
     ChatThread,
     ChatMessage,
     ChatMessageHidden,
@@ -714,6 +715,47 @@ def get_mobile_claim_status(current_claim):
     return "open"
 
 
+def normalize_favorite_place_part(value):
+    """Normalizza nome/indirizzo locale per confrontare eventi e preferiti."""
+    text = str(value or "").strip().lower()
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"[^a-z0-9àèéìòùç\s]", "", text)
+    return text.strip()
+
+
+def build_favorite_place_key(nome_locale, indirizzo):
+    name = normalize_favorite_place_part(nome_locale)
+    address = normalize_favorite_place_part(indirizzo)
+    return f"{name}|{address}"[:255]
+
+
+def serialize_favorite_place(favorite_place):
+    return {
+        "id": favorite_place.id,
+        "nome_locale": favorite_place.nome_locale or "",
+        "indirizzo": favorite_place.indirizzo or "",
+        "lat": favorite_place.latitudine,
+        "lon": favorite_place.longitudine,
+        "created_at": (
+            favorite_place.created_at.isoformat()
+            if favorite_place.created_at
+            else ""
+        ),
+    }
+
+
+def get_user_favorite_place_for_offer(user, offer):
+    if not user or not offer:
+        return None
+    place_key = build_favorite_place_key(offer.nome_locale, offer.indirizzo)
+    if not place_key or place_key == "|":
+        return None
+    return FavoritePlace.query.filter_by(
+        user_id=user.id,
+        place_key=place_key,
+    ).first()
+
+
 def serialize_mobile_offer(
     offer,
     *,
@@ -794,6 +836,11 @@ def serialize_mobile_offer(
         reviews_received_count = Review.query.filter_by(
             offer_id=offer.id
         ).count()
+    favorite_place = (
+        get_user_favorite_place_for_offer(viewer, offer)
+        if viewer and getattr(viewer, "is_authenticated", False)
+        else None
+    )
 
     return {
         "id": offer.id,
@@ -847,6 +894,8 @@ def serialize_mobile_offer(
         "claim_id": current_claim.id if current_claim is not None else 0,
         "user_has_reviewed": user_has_reviewed,
         "reviews_received_count": reviews_received_count,
+        "is_favorite_place": favorite_place is not None,
+        "favorite_place_id": favorite_place.id if favorite_place else 0,
     }
 
 
@@ -897,6 +946,31 @@ def get_followers_notification_targets(offer):
     ).all()
 
 
+def get_favorite_place_notification_targets(offer, *, excluded_user_ids=None):
+    """Trova utenti che hanno salvato il locale dell'offerta tra i preferiti."""
+    excluded_ids = {offer.user_id}
+    excluded_ids.update(excluded_user_ids or [])
+    place_key = build_favorite_place_key(offer.nome_locale, offer.indirizzo)
+    if not place_key or place_key == "|":
+        return []
+    return (
+        User.query.join(
+            FavoritePlace,
+            FavoritePlace.user_id == User.id,
+        )
+        .filter(
+            FavoritePlace.place_key == place_key,
+            User.verificato.is_(True),
+            User.is_admin.is_(False),
+            User.bio_moderation_status == MODERATION_STATUS_APPROVED,
+            User.photo_moderation_status == MODERATION_STATUS_APPROVED,
+            User.id.notin_(excluded_ids),
+        )
+        .order_by(User.nome.asc())
+        .all()
+    )
+
+
 def get_nearby_active_push_users(offer, *, radius_km=20, excluded_user_ids=None):
     """Trova utenti con token push attivo vicini all'evento, escludendo host e follower già avvisati."""
     excluded_ids = {offer.user_id}
@@ -939,28 +1013,39 @@ def get_nearby_active_push_users(offer, *, radius_km=20, excluded_user_ids=None)
 
 
 def notify_followers_for_new_offer(offer):
-    """Avvisa follower e utenti vicini quando nasce una nuova offerta."""
+    """Avvisa follower, preferiti locale e utenti vicini quando nasce una nuova offerta."""
     if offer.data_ora <= local_now():
         return {
             "followers": 0,
             "emails": 0,
             "push_users": 0,
             "nearby_push_users": 0,
+            "favorite_place_users": 0,
+            "favorite_place_push_users": 0,
+            "favorite_place_emails": 0,
         }
 
     followers = get_followers_notification_targets(offer)
     follower_ids = {follower.id for follower in followers}
+    favorite_place_users = get_favorite_place_notification_targets(
+        offer,
+        excluded_user_ids=follower_ids,
+    )
+    favorite_place_user_ids = {user.id for user in favorite_place_users}
     nearby_users = get_nearby_active_push_users(
         offer,
         radius_km=20,
-        excluded_user_ids=follower_ids,
+        excluded_user_ids=follower_ids | favorite_place_user_ids,
     )
-    if not followers and not nearby_users:
+    if not followers and not favorite_place_users and not nearby_users:
         return {
             "followers": 0,
             "emails": 0,
             "push_users": 0,
             "nearby_push_users": 0,
+            "favorite_place_users": 0,
+            "favorite_place_push_users": 0,
+            "favorite_place_emails": 0,
         }
 
     data_evento = offer.data_ora.strftime("%d/%m/%Y alle %H:%M")
@@ -974,6 +1059,8 @@ def notify_followers_for_new_offer(offer):
     email_count = 0
     push_users = 0
     nearby_push_users = 0
+    favorite_place_push_users = 0
+    favorite_place_email_count = 0
     push_title = get_followed_offer_notification_heading(offer)
     push_body = get_followed_offer_push_body(offer, data_evento=data_evento)
 
@@ -1007,6 +1094,43 @@ def notify_followers_for_new_offer(offer):
         if delivery["email_sent"]:
             email_count += 1
 
+    favorite_place_push_title = "Evento in un tuo locale preferito"
+    favorite_place_push_body = (
+        f"C'e' un nuovo {meal_label.lower()} da {offer.nome_locale} "
+        f"il {data_evento}."
+    )
+    for user in favorite_place_users:
+        delivery = send_operational_notification(
+            user,
+            push_title=favorite_place_push_title,
+            push_body=favorite_place_push_body,
+            target="offers",
+            extra_data={
+                "offer_id": offer.id,
+                "author_name": offer.autore.nome if offer.autore else "",
+                "meal_type": offer.tipo_pasto,
+                "notification_scope": "favorite_place",
+                "place_name": offer.nome_locale,
+            },
+            email_subject=f"Nuovo evento da {offer.nome_locale}",
+            email_template="nearby_offer_notification.html",
+            email_recipients=[user.email] if user.email else [],
+            email_context={
+                "user": user,
+                "offer": offer,
+                "autore": offer.autore,
+                "notification_heading": favorite_place_push_title,
+                "meal_label": meal_label,
+                "data_evento": data_evento,
+                "spots_copy": spots_copy,
+                "booking_rule_copy": booking_rule_copy,
+            },
+        )
+        if delivery["push_sent"] > 0:
+            favorite_place_push_users += 1
+        if delivery["email_sent"]:
+            favorite_place_email_count += 1
+
     nearby_push_title = "Nuovo evento vicino a te"
     nearby_push_body = (
         f"{offer.autore.nome} ha pubblicato {offer.tipo_pasto} da "
@@ -1033,6 +1157,9 @@ def notify_followers_for_new_offer(offer):
         "emails": email_count,
         "push_users": push_users,
         "nearby_push_users": nearby_push_users,
+        "favorite_place_users": len(favorite_place_users),
+        "favorite_place_push_users": favorite_place_push_users,
+        "favorite_place_emails": favorite_place_email_count,
     }
 
 
@@ -7388,6 +7515,14 @@ def api_create_offer():
     email_notifications = notification_stats["emails"]
     push_notifications = notification_stats["push_users"]
     nearby_push_notifications = notification_stats["nearby_push_users"]
+    favorite_place_push_notifications = notification_stats.get(
+        "favorite_place_push_users",
+        0,
+    )
+    favorite_place_email_notifications = notification_stats.get(
+        "favorite_place_emails",
+        0,
+    )
 
     message = "Offerta creata con successo!"
     if notified_users == 1 and email_notifications and push_notifications:
@@ -7404,6 +7539,16 @@ def api_create_offer():
         message += f" Abbiamo avvisato {notified_users} persone che ti seguono via email."
     elif get_followers_notification_targets(offer):
         message += " L'offerta e' pronta, ma le notifiche ai follower non sono attive su questo ambiente."
+    favorite_place_notifications = (
+        favorite_place_push_notifications + favorite_place_email_notifications
+    )
+    if favorite_place_notifications == 1:
+        message += " Abbiamo avvisato 1 persona che ha salvato questo locale."
+    elif favorite_place_notifications > 1:
+        message += (
+            f" Abbiamo avvisato {favorite_place_notifications} persone "
+            "che hanno salvato questo locale."
+        )
     if nearby_push_notifications == 1:
         message += " In piu', 1 persona vicina ha ricevuto una notifica push."
     elif nearby_push_notifications > 1:
@@ -7420,6 +7565,8 @@ def api_create_offer():
         "email_notifications": email_notifications,
         "push_notifications": push_notifications,
         "nearby_push_notifications": nearby_push_notifications,
+        "favorite_place_push_notifications": favorite_place_push_notifications,
+        "favorite_place_email_notifications": favorite_place_email_notifications,
     })
 
 
@@ -8068,6 +8215,133 @@ def api_delete_app_notification(notification_id):
         db.session.delete(notification)
         db.session.commit()
     return jsonify({"success": True, "message": "Notifica chiusa."})
+
+
+@app.route("/api/favorite-places", methods=["GET"])
+@login_required
+def api_list_favorite_places():
+    """Lista dei locali preferiti dell'utente."""
+    favorites = (
+        FavoritePlace.query.filter_by(user_id=current_user.id)
+        .order_by(FavoritePlace.created_at.desc(), FavoritePlace.id.desc())
+        .all()
+    )
+    return jsonify({
+        "success": True,
+        "favorite_places": [serialize_favorite_place(item) for item in favorites],
+    })
+
+
+@app.route("/api/favorite-places", methods=["POST"])
+@login_required
+def api_create_favorite_place():
+    """Salva manualmente un locale tra i preferiti."""
+    legal_error = require_legal_acceptance_json()
+    if legal_error:
+        return legal_error
+    payload = request.get_json(silent=True) or request.form
+    nome_locale = str(payload.get("nome_locale", "")).strip()
+    indirizzo = str(payload.get("indirizzo", "")).strip()
+    lat = payload.get("lat")
+    lon = payload.get("lon")
+    if not nome_locale or not indirizzo:
+        return jsonify({
+            "success": False,
+            "error": "Nome locale e indirizzo sono obbligatori.",
+        }), 400
+    place_key = build_favorite_place_key(nome_locale, indirizzo)
+    if not place_key or place_key == "|":
+        return jsonify({
+            "success": False,
+            "error": "Locale non valido.",
+        }), 400
+    favorite = FavoritePlace.query.filter_by(
+        user_id=current_user.id,
+        place_key=place_key,
+    ).first()
+    if favorite:
+        return jsonify({
+            "success": True,
+            "message": "Questo locale e' gia' nei tuoi preferiti.",
+            "favorite_place": serialize_favorite_place(favorite),
+        })
+    try:
+        favorite = FavoritePlace(
+            user_id=current_user.id,
+            place_key=place_key,
+            nome_locale=nome_locale[:200],
+            indirizzo=indirizzo[:300],
+            latitudine=float(lat) if lat not in (None, "") else None,
+            longitudine=float(lon) if lon not in (None, "") else None,
+        )
+    except (TypeError, ValueError):
+        return jsonify({
+            "success": False,
+            "error": "Coordinate locale non valide.",
+        }), 400
+    db.session.add(favorite)
+    db.session.commit()
+    return jsonify({
+        "success": True,
+        "message": "Locale salvato nei preferiti.",
+        "favorite_place": serialize_favorite_place(favorite),
+    }), 201
+
+
+@app.route("/api/offers/<int:offer_id>/favorite-place", methods=["POST"])
+@login_required
+def api_favorite_place_from_offer(offer_id):
+    """Salva il locale di un evento tra i preferiti dell'utente."""
+    legal_error = require_legal_acceptance_json()
+    if legal_error:
+        return legal_error
+    offer = db.session.get(Offer, offer_id)
+    if not offer:
+        return jsonify({"success": False, "error": "Offerta non trovata."}), 404
+    place_key = build_favorite_place_key(offer.nome_locale, offer.indirizzo)
+    if not place_key or place_key == "|":
+        return jsonify({"success": False, "error": "Locale non valido."}), 400
+    favorite = FavoritePlace.query.filter_by(
+        user_id=current_user.id,
+        place_key=place_key,
+    ).first()
+    if favorite:
+        return jsonify({
+            "success": True,
+            "message": "Questo locale e' gia' nei tuoi preferiti.",
+            "favorite_place": serialize_favorite_place(favorite),
+        })
+    favorite = FavoritePlace(
+        user_id=current_user.id,
+        place_key=place_key,
+        nome_locale=offer.nome_locale[:200],
+        indirizzo=offer.indirizzo[:300],
+        latitudine=offer.latitudine,
+        longitudine=offer.longitudine,
+    )
+    db.session.add(favorite)
+    db.session.commit()
+    return jsonify({
+        "success": True,
+        "message": "Locale salvato nei preferiti.",
+        "favorite_place": serialize_favorite_place(favorite),
+    }), 201
+
+
+@app.route("/api/favorite-places/<int:favorite_place_id>", methods=["DELETE"])
+@login_required
+def api_delete_favorite_place(favorite_place_id):
+    favorite = FavoritePlace.query.filter_by(
+        id=favorite_place_id,
+        user_id=current_user.id,
+    ).first()
+    if favorite:
+        db.session.delete(favorite)
+        db.session.commit()
+    return jsonify({
+        "success": True,
+        "message": "Locale rimosso dai preferiti.",
+    })
 
 
 def notify_user_for_bug_report_review(report):

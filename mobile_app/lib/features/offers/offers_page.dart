@@ -127,6 +127,8 @@ class _OffersPageState extends State<OffersPage> {
                           sheetNavigator.pop();
                         }
                       },
+                      onFavoritePlaceChanged:
+                          widget.offersController.loadOffers,
                       allowProfileOpen: true,
                       onEditOwn: null,
                       onArchive: offer.isOwn

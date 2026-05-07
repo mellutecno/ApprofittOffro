@@ -61,6 +61,8 @@ class Offer {
     required this.claimId,
     required this.userHasReviewed,
     required this.reviewsReceivedCount,
+    required this.isFavoritePlace,
+    required this.favoritePlaceId,
   });
 
   final int id;
@@ -98,6 +100,8 @@ class Offer {
   final int claimId;
   final bool userHasReviewed;
   final int reviewsReceivedCount;
+  final bool isFavoritePlace;
+  final int favoritePlaceId;
 
   factory Offer.fromJson(Map<String, dynamic> json) {
     final stato = (json['stato'] ?? '').toString();
@@ -172,6 +176,8 @@ class Offer {
       claimId: json['claim_id'] as int? ?? 0,
       userHasReviewed: json['user_has_reviewed'] == true,
       reviewsReceivedCount: json['reviews_received_count'] as int? ?? 0,
+      isFavoritePlace: json['is_favorite_place'] == true,
+      favoritePlaceId: json['favorite_place_id'] as int? ?? 0,
     );
   }
 }

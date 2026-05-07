@@ -12,6 +12,7 @@ import '../../core/widgets/app_guide_sheet.dart';
 import '../../core/widgets/brand_wordmark.dart';
 import '../../core/widgets/legal_acceptance_sheet.dart';
 import '../../models/app_user.dart';
+import '../../models/favorite_place.dart';
 import '../../models/offer.dart';
 import '../../models/public_profile.dart';
 import '../../models/user_preview.dart';
@@ -1539,6 +1540,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           sheetNavigator.pop();
                         }
                       },
+                      onFavoritePlaceChanged: _refreshAll,
                       allowProfileOpen: false,
                       showAddressLeadIcon: false,
                       onEditOwn: offer.isOwn
@@ -1753,6 +1755,21 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _openAppGuide() async {
     await showAppGuideSheet(context);
+  }
+
+  Future<void> _openFavoritePlaces() async {
+    if (!mounted) {
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _FavoritePlacesSheet(
+        apiClient: widget.authController.apiClient,
+      ),
+    );
   }
 
   Future<void> _confirmDeleteAccount() async {
@@ -2485,6 +2502,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   onNotifications: _openNotificationsCenter,
                   onAppGuide: _openAppGuide,
                   onEditProfile: _openEditProfile,
+                  onFavoritePlaces: _openFavoritePlaces,
                   onCheckUpdates: () => _openExternalLink(
                     _playStoreUri,
                     fallbackMessage:
@@ -3947,6 +3965,215 @@ class _UserListTile extends StatelessWidget {
   }
 }
 
+class _FavoritePlacesSheet extends StatefulWidget {
+  const _FavoritePlacesSheet({required this.apiClient});
+
+  final ApiClient apiClient;
+
+  @override
+  State<_FavoritePlacesSheet> createState() => _FavoritePlacesSheetState();
+}
+
+class _FavoritePlacesSheetState extends State<_FavoritePlacesSheet> {
+  late Future<List<FavoritePlace>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.apiClient.fetchFavoritePlaces();
+  }
+
+  void _reload() {
+    setState(() {
+      _future = widget.apiClient.fetchFavoritePlaces();
+    });
+  }
+
+  Future<void> _deleteFavorite(FavoritePlace favoritePlace) async {
+    try {
+      final message =
+          await widget.apiClient.deleteFavoritePlace(favoritePlace.id);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+      _reload();
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Non riesco a rimuovere il locale: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.72,
+      minChildSize: 0.42,
+      maxChildSize: 0.92,
+      builder: (context, scrollController) {
+        return Material(
+          color: AppTheme.cream,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(28),
+          ),
+          child: FutureBuilder<List<FavoritePlace>>(
+            future: _future,
+            builder: (context, snapshot) {
+              final places = snapshot.data ?? const <FavoritePlace>[];
+              return ListView(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: AppTheme.cardBorder,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.storefront_rounded,
+                        color: AppTheme.vividViolet,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Locali preferiti',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Salva i locali dagli eventi: quando qualcuno pubblica un nuovo tavolo in un locale che ami, ricevi una notifica dedicata.',
+                    style: TextStyle(
+                      color: AppTheme.brown.withValues(alpha: 0.76),
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  if (snapshot.connectionState != ConnectionState.done)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (snapshot.hasError)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Text(
+                          'Non riesco a caricare i locali preferiti adesso.',
+                          style: TextStyle(
+                            color: AppTheme.brown.withValues(alpha: 0.78),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (places.isEmpty)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Text(
+                          'Non hai ancora locali preferiti. Apri un evento e tocca "Salva locale preferito".',
+                          style: TextStyle(
+                            color: AppTheme.brown.withValues(alpha: 0.78),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    ...places.map(
+                      (place) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.vividViolet
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: const Icon(
+                                    Icons.star_rounded,
+                                    color: AppTheme.vividViolet,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        place.nomeLocale,
+                                        style: const TextStyle(
+                                          color: AppTheme.espresso,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        place.indirizzo,
+                                        style: TextStyle(
+                                          color: AppTheme.brown
+                                              .withValues(alpha: 0.74),
+                                          fontWeight: FontWeight.w700,
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Rimuovi locale',
+                                  onPressed: () => _deleteFavorite(place),
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: AppTheme.vividViolet,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _ProfileToolsCard extends StatelessWidget {
   const _ProfileToolsCard({
     required this.isExpanded,
@@ -3954,6 +4181,7 @@ class _ProfileToolsCard extends StatelessWidget {
     required this.onNotifications,
     required this.onAppGuide,
     required this.onEditProfile,
+    required this.onFavoritePlaces,
     required this.onCheckUpdates,
     required this.showAdminPanel,
     required this.onOpenAdminPanel,
@@ -3964,6 +4192,7 @@ class _ProfileToolsCard extends StatelessWidget {
   final VoidCallback onNotifications;
   final VoidCallback onAppGuide;
   final VoidCallback onEditProfile;
+  final VoidCallback onFavoritePlaces;
   final VoidCallback onCheckUpdates;
   final bool showAdminPanel;
   final VoidCallback onOpenAdminPanel;
@@ -4061,10 +4290,16 @@ class _ProfileToolsCard extends StatelessWidget {
                           color: _toolsBlue,
                         ),
                         _toolAction(
+                          onPressed: onFavoritePlaces,
+                          icon: Icons.storefront_rounded,
+                          label: 'Locali preferiti',
+                          color: _toolsYellow,
+                        ),
+                        _toolAction(
                           onPressed: onAppGuide,
                           icon: Icons.menu_book_rounded,
                           label: 'Guida all\'app',
-                          color: _toolsYellow,
+                          color: _toolsBlue,
                         ),
                         _toolAction(
                           onPressed: onCheckUpdates,

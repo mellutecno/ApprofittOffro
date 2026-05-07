@@ -25,6 +25,7 @@ class OfferCard extends StatelessWidget {
     this.onEditOwn,
     this.onDeleteOwn,
     this.onArchive,
+    this.onFavoritePlaceChanged,
     this.allowProfileOpen = true,
     this.showAddressLeadIcon = true,
   });
@@ -39,6 +40,7 @@ class OfferCard extends StatelessWidget {
   final VoidCallback? onEditOwn;
   final Future<void> Function()? onDeleteOwn;
   final Future<void> Function()? onArchive;
+  final Future<void> Function()? onFavoritePlaceChanged;
   final bool allowProfileOpen;
   final bool showAddressLeadIcon;
 
@@ -456,6 +458,22 @@ class OfferCard extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: offer.isFavoritePlace
+                    ? null
+                    : () => _saveFavoritePlace(context),
+                icon: Icon(
+                  offer.isFavoritePlace
+                      ? Icons.star_rounded
+                      : Icons.star_border_rounded,
+                ),
+                label: Text(
+                  offer.isFavoritePlace
+                      ? 'Locale nei tuoi preferiti'
+                      : 'Salva locale preferito',
+                ),
+              ),
               if (offer.descrizione.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 Text(
@@ -643,6 +661,28 @@ class OfferCard extends StatelessWidget {
       offerId: offer.id,
       reportedUserId: offer.autoreId,
     );
+  }
+
+  Future<void> _saveFavoritePlace(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await apiClient.favoritePlaceFromOffer(offer.id);
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('${offer.nomeLocale} salvato nei locali preferiti.'),
+          ),
+        );
+      }
+      await onFavoritePlaceChanged?.call();
+    } catch (e) {
+      if (!context.mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(content: Text('Non riesco a salvare il locale: $e')),
+      );
+    }
   }
 
   Future<void> _openExternalLink(String rawUrl) async {

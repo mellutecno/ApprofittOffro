@@ -337,6 +337,31 @@ class Offer(db.Model):
         return f"<Offer {self.tipo_pasto} @ {self.nome_locale} ({self.posti_disponibili}/{self.posti_totali})>"
 
 
+class FavoritePlace(db.Model):
+    """Locale salvato dall'utente per ricevere notifiche dedicate."""
+    __tablename__ = "favorite_places"
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "place_key", name="uq_favorite_places_user_place"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    place_key = db.Column(db.String(255), nullable=False)
+    nome_locale = db.Column(db.String(200), nullable=False)
+    indirizzo = db.Column(db.String(300), nullable=False)
+    latitudine = db.Column(db.Float, nullable=True)
+    longitudine = db.Column(db.Float, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    user = db.relationship(
+        "User",
+        backref=db.backref("favorite_places", lazy=True, cascade="all, delete-orphan"),
+    )
+
+    def __repr__(self):
+        return f"<FavoritePlace user={self.user_id} place={self.nome_locale}>"
+
+
 class OfferPhoto(db.Model):
     """Foto evento/locale dell'offerta (la prima resta la foto principale)."""
     __tablename__ = "offer_photos"
