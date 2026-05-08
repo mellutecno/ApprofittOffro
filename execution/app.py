@@ -2684,7 +2684,7 @@ def require_premium_json(user=None):
     }), 403
 
 
-APP_GUIDE_VERSION = 3
+APP_GUIDE_VERSION = 4
 
 
 def build_app_guide_payload():
@@ -2715,8 +2715,8 @@ def build_app_guide_payload():
         ],
         "premium_intro": (
             "Alcune funzioni avanzate sono riservate agli utenti Premium. "
-            "Per ora abbiamo inserito questa prima voce, poi la tabella "
-            "crescera con le prossime novita."
+            "Il Radar Premium raccoglie avvisi e scorciatoie pensati per "
+            "non perdere occasioni interessanti vicino a te."
         ),
         "premium_note": (
             "Premium richiede un abbonamento attivo. Gli ApprofittOffro Points "
@@ -2724,6 +2724,14 @@ def build_app_guide_payload():
             "saranno disponibili."
         ),
         "premium_features": [
+            {
+                "feature": "Radar Premium",
+                "status": "Attivo",
+                "details": (
+                    "Mostra locali preferiti, occasioni last minute con posti "
+                    "liberi e le funzioni Premium disponibili o in arrivo."
+                ),
+            },
             {
                 "feature": "Locali preferiti",
                 "status": "Attivo",
@@ -2778,7 +2786,7 @@ def build_app_guide_payload():
                 "title": "Io",
                 "bullets": [
                     "Gestisci le tue offerte, i tuoi approfitti, la community e le recensioni.",
-                    "In Strumenti profilo trovi modifica profilo, centro notifiche, guida, aggiornamenti e locali preferiti.",
+                    "In Strumenti profilo trovi Radar Premium, locali preferiti, centro notifiche, guida e aggiornamenti.",
                     "Archivio eventi tiene separati gli eventi passati come host e come guest.",
                     "Gli ApprofittOffro Points compariranno nel profilo quando l'admin valida le segnalazioni utili.",
                 ],
@@ -2798,7 +2806,9 @@ def build_app_guide_payload():
                 "title": "Premium",
                 "bullets": [
                     "Le funzioni Premium sono indicate con il lucchetto e la scritta Premium.",
-                    "I locali preferiti sono la prima funzione Premium attiva: salvi un locale e ricevi avvisi quando nasce un evento li.",
+                    "Radar Premium raccoglie locali preferiti, occasioni last minute e avvisi dedicati.",
+                    "I locali preferiti sono attivi: salvi un locale e ricevi avvisi quando nasce un evento li.",
+                    "ApprofittOffro Club sara la tessera socio futura per vantaggi nei locali convenzionati.",
                     "L'abbonamento Premium abilita le funzioni riservate agli abbonati.",
                     "Gli ApprofittOffro Points potranno permettere di ottenere mesi Premium gratuiti.",
                 ],
@@ -8405,6 +8415,131 @@ def api_delete_app_notification(notification_id):
         db.session.delete(notification)
         db.session.commit()
     return jsonify({"success": True, "message": "Notifica chiusa."})
+
+
+@app.route("/api/premium/radar", methods=["GET"])
+@login_required
+def api_premium_radar():
+    """Dashboard Premium con locali preferiti e occasioni last minute vicine."""
+    legal_error = require_legal_acceptance_json()
+    if legal_error:
+        return legal_error
+    premium_error = require_premium_json()
+    if premium_error:
+        return premium_error
+
+    try:
+        hours = int(request.args.get("hours", 8) or 8)
+    except (TypeError, ValueError):
+        hours = 8
+    hours = max(2, min(hours, 24))
+
+    raw_radius = request.args.get("radius", "")
+    try:
+        radius_km = float(raw_radius.replace(",", ".")) if raw_radius else None
+    except (TypeError, ValueError):
+        radius_km = None
+    if radius_km is None:
+        try:
+            radius_km = float(current_user.raggio_azione or 15)
+        except (TypeError, ValueError):
+            radius_km = 15
+    radius_km = max(1, min(radius_km, 80))
+
+    search_lat, search_lon, location_source = resolve_user_distance_coordinates(
+        current_user,
+    )
+    if search_lat is None or search_lon is None:
+        search_lat = DEFAULT_USER_LATITUDE
+        search_lon = DEFAULT_USER_LONGITUDE
+        location_source = "default"
+
+    now = local_now()
+    deadline = now + timedelta(hours=hours)
+    favorites = (
+        FavoritePlace.query.filter_by(user_id=current_user.id)
+        .order_by(FavoritePlace.created_at.desc(), FavoritePlace.id.desc())
+        .all()
+    )
+    offers = (
+        Offer.query.options(
+            selectinload(Offer.autore).selectinload(User.photos),
+            selectinload(Offer.photos),
+            selectinload(Offer.claims).selectinload(Claim.utente).selectinload(User.photos),
+        )
+        .filter(
+            Offer.stato == "attiva",
+            Offer.data_ora > now,
+            Offer.data_ora <= deadline,
+            Offer.posti_disponibili > 0,
+            Offer.user_id != current_user.id,
+        )
+        .order_by(Offer.data_ora.asc())
+        .all()
+    )
+
+    last_minute_offers = []
+    for offer in offers:
+        if is_user_moderation_restricted(offer.autore):
+            continue
+        current_claim = next(
+            (claim for claim in offer.claims if claim.user_id == current_user.id),
+            None,
+        )
+        if (
+            current_claim is not None
+            and current_claim.status == CLAIM_STATUS_REJECTED
+            and bool(getattr(current_claim, "hidden_by_guest", False))
+        ):
+            continue
+        if current_claim is not None:
+            continue
+        if is_offer_booking_closed(offer, now):
+            continue
+
+        distance_km = calculate_distance(
+            search_lat,
+            search_lon,
+            offer.latitudine,
+            offer.longitudine,
+        )
+        if distance_km > radius_km:
+            continue
+
+        last_minute_offers.append(
+            serialize_mobile_offer(
+                offer,
+                viewer=current_user,
+                current_claim=current_claim,
+                now=now,
+                search_lat=search_lat,
+                search_lon=search_lon,
+            )
+        )
+        if len(last_minute_offers) >= 8:
+            break
+
+    return jsonify({
+        "success": True,
+        "radar": {
+            "window_hours": hours,
+            "radius_km": round(radius_km, 1),
+            "location_source": location_source,
+            "favorite_places_count": len(favorites),
+            "favorite_places": [serialize_favorite_place(item) for item in favorites[:5]],
+            "last_minute_count": len(last_minute_offers),
+            "last_minute_offers": last_minute_offers,
+            "club": {
+                "title": "ApprofittOffro Club",
+                "status": "In arrivo",
+                "description": (
+                    "La tessera socio futura potra dare vantaggi nei locali "
+                    "convenzionati. Per ora il Premium abilita le funzioni "
+                    "digitali dentro l'app."
+                ),
+            },
+        },
+    })
 
 
 @app.route("/api/favorite-places", methods=["GET"])

@@ -15,6 +15,7 @@ import '../../core/widgets/premium_badge.dart';
 import '../../models/app_user.dart';
 import '../../models/favorite_place.dart';
 import '../../models/offer.dart';
+import '../../models/premium_radar.dart';
 import '../../models/public_profile.dart';
 import '../../models/user_preview.dart';
 import '../admin/admin_page.dart';
@@ -1796,6 +1797,26 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _openPremiumRadar() async {
+    if (!mounted) {
+      return;
+    }
+    if (widget.authController.currentUser?.isPremium != true) {
+      await _showPremiumFeatureSheet('Radar Premium');
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PremiumRadarSheet(
+        apiClient: widget.authController.apiClient,
+        onFavoritePlaces: _openFavoritePlaces,
+      ),
+    );
+  }
+
   Future<void> _showPremiumFeatureSheet(String featureName) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -2539,6 +2560,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   onNotifications: _openNotificationsCenter,
                   onAppGuide: _openAppGuide,
                   onEditProfile: _openEditProfile,
+                  onPremiumRadar: _openPremiumRadar,
                   onFavoritePlaces: _openFavoritePlaces,
                   isPremiumUser:
                       widget.authController.currentUser?.isPremium == true,
@@ -4279,6 +4301,394 @@ class _FavoritePlacesSheetState extends State<_FavoritePlacesSheet> {
   }
 }
 
+class _PremiumRadarSheet extends StatefulWidget {
+  const _PremiumRadarSheet({
+    required this.apiClient,
+    required this.onFavoritePlaces,
+  });
+
+  final ApiClient apiClient;
+  final VoidCallback onFavoritePlaces;
+
+  @override
+  State<_PremiumRadarSheet> createState() => _PremiumRadarSheetState();
+}
+
+class _PremiumRadarSheetState extends State<_PremiumRadarSheet> {
+  late Future<PremiumRadar> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.apiClient.fetchPremiumRadar();
+  }
+
+  void _reload() {
+    setState(() {
+      _future = widget.apiClient.fetchPremiumRadar();
+    });
+  }
+
+  String _locationSourceLabel(String source) {
+    return switch (source) {
+      'live' => 'GPS attivo',
+      'last_live' => 'ultimo GPS',
+      'profile' => 'indirizzo profilo',
+      _ => 'posizione standard',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.78,
+      minChildSize: 0.48,
+      maxChildSize: 0.94,
+      builder: (context, scrollController) {
+        return Material(
+          color: AppTheme.cream,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(28),
+          ),
+          child: FutureBuilder<PremiumRadar>(
+            future: _future,
+            builder: (context, snapshot) {
+              final radar = snapshot.data;
+              return ListView(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: AppTheme.cardBorder,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              AppTheme.vividViolet,
+                              Color(0xFF2368FF),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.radar_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Radar Premium',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Le occasioni piu utili, raccolte in un unico punto.',
+                              style: TextStyle(
+                                color: AppTheme.brown.withValues(alpha: 0.72),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Aggiorna radar',
+                        onPressed: _reload,
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  if (snapshot.connectionState != ConnectionState.done)
+                    const Padding(
+                      padding: EdgeInsets.all(26),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (snapshot.hasError)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Text(
+                          'Non riesco a caricare il Radar Premium adesso.',
+                          style: TextStyle(
+                            color: AppTheme.brown.withValues(alpha: 0.78),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (radar != null) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _RadarMetricCard(
+                            icon: Icons.storefront_rounded,
+                            value: '${radar.favoritePlacesCount}',
+                            label: 'locali preferiti',
+                            color: AppTheme.vividViolet,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _RadarMetricCard(
+                            icon: Icons.flash_on_rounded,
+                            value: '${radar.lastMinuteCount}',
+                            label: 'last minute',
+                            color: const Color(0xFFD49B00),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _PremiumRadarFeatureTile(
+                      icon: Icons.my_location_rounded,
+                      title:
+                          '${radar.radiusKm.toStringAsFixed(0)} km - prossime ${radar.windowHours} ore',
+                      subtitle:
+                          'Calcolo basato su ${_locationSourceLabel(radar.locationSource)}.',
+                      color: const Color(0xFF2368FF),
+                    ),
+                    const SizedBox(height: 10),
+                    _PremiumRadarFeatureTile(
+                      icon: Icons.workspace_premium_rounded,
+                      title: radar.clubTitle,
+                      subtitle: '${radar.clubStatus}. ${radar.clubDescription}',
+                      color: AppTheme.vividViolet,
+                    ),
+                    const SizedBox(height: 18),
+                    FilledButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        widget.onFavoritePlaces();
+                      },
+                      icon: const Icon(Icons.star_rounded),
+                      label: const Text('Gestisci locali preferiti'),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Occasioni last minute',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 10),
+                    if (radar.lastMinuteOffers.isEmpty)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            'Nessun evento con posti liberi nelle prossime ore. Il radar resta pronto appena nasce qualcosa vicino a te.',
+                            style: TextStyle(
+                              color: AppTheme.brown.withValues(alpha: 0.76),
+                              fontWeight: FontWeight.w700,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      ...radar.lastMinuteOffers.map(
+                        (offer) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _PremiumRadarOfferTile(offer: offer),
+                        ),
+                      ),
+                  ],
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _RadarMetricCard extends StatelessWidget {
+  const _RadarMetricCard({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppTheme.espresso,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PremiumRadarFeatureTile extends StatelessWidget {
+  const _PremiumRadarFeatureTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppTheme.espresso,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: AppTheme.brown.withValues(alpha: 0.76),
+                    fontWeight: FontWeight.w700,
+                    height: 1.28,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PremiumRadarOfferTile extends StatelessWidget {
+  const _PremiumRadarOfferTile({required this.offer});
+
+  final Offer offer;
+
+  @override
+  Widget build(BuildContext context) {
+    final startsAt = DateFormat('dd/MM HH:mm').format(offer.dataOra.toLocal());
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: AppTheme.offerGreen.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(
+                Icons.flash_on_rounded,
+                color: AppTheme.offerGreen,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    offer.nomeLocale,
+                    style: const TextStyle(
+                      color: AppTheme.espresso,
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${offer.tipoPasto.toUpperCase()} - $startsAt - ${offer.distanceKm.toStringAsFixed(1)} km',
+                    style: TextStyle(
+                      color: AppTheme.brown.withValues(alpha: 0.74),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${offer.postiDisponibili} posti liberi - ${offer.autoreNome}',
+                    style: TextStyle(
+                      color: AppTheme.brown.withValues(alpha: 0.68),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ProfileToolsCard extends StatelessWidget {
   const _ProfileToolsCard({
     required this.isExpanded,
@@ -4286,6 +4696,7 @@ class _ProfileToolsCard extends StatelessWidget {
     required this.onNotifications,
     required this.onAppGuide,
     required this.onEditProfile,
+    required this.onPremiumRadar,
     required this.onFavoritePlaces,
     required this.isPremiumUser,
     required this.onCheckUpdates,
@@ -4298,6 +4709,7 @@ class _ProfileToolsCard extends StatelessWidget {
   final VoidCallback onNotifications;
   final VoidCallback onAppGuide;
   final VoidCallback onEditProfile;
+  final VoidCallback onPremiumRadar;
   final VoidCallback onFavoritePlaces;
   final bool isPremiumUser;
   final VoidCallback onCheckUpdates;
@@ -4384,6 +4796,16 @@ class _ProfileToolsCard extends StatelessWidget {
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       children: [
+                        _toolAction(
+                          onPressed: onPremiumRadar,
+                          icon: isPremiumUser
+                              ? Icons.radar_rounded
+                              : Icons.lock_rounded,
+                          label: isPremiumUser
+                              ? 'Radar Premium'
+                              : 'Radar Premium - bloccato',
+                          color: _toolsYellow,
+                        ),
                         _toolAction(
                           onPressed: onEditProfile,
                           icon: Icons.edit_outlined,

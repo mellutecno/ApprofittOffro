@@ -58,7 +58,7 @@ class AppGuideContent {
   }
 
   static const fallback = AppGuideContent(
-    version: 3,
+    version: 4,
     title: 'Benvenuto in ApprofittOffro',
     subtitle:
         'Qui trovi le funzioni principali dell\'app, le novita e i punti da ricordare per usarla meglio.',
@@ -81,10 +81,16 @@ class AppGuideContent {
       ),
     ],
     premiumIntro:
-        'Alcune funzioni avanzate sono riservate agli utenti Premium. Per ora abbiamo inserito questa prima voce, poi la tabella crescera con le prossime novita.',
+        'Alcune funzioni avanzate sono riservate agli utenti Premium. Il Radar Premium raccoglie avvisi e scorciatoie pensati per non perdere occasioni interessanti vicino a te.',
     premiumNote:
         'Premium richiede un abbonamento attivo. Gli ApprofittOffro Points potranno permettere di ottenere mesi Premium gratuiti quando saranno disponibili.',
     premiumFeatures: [
+      AppGuidePremiumFeature(
+        feature: 'Radar Premium',
+        status: 'Attivo',
+        details:
+            'Mostra locali preferiti, occasioni last minute con posti liberi e le funzioni Premium disponibili o in arrivo.',
+      ),
       AppGuidePremiumFeature(
         feature: 'Locali preferiti',
         status: 'Attivo',
@@ -137,7 +143,7 @@ class AppGuideContent {
         title: 'Io',
         bullets: [
           'Gestisci le tue offerte, i tuoi approfitti, la community e le recensioni.',
-          'In Strumenti profilo trovi modifica profilo, centro notifiche, guida, aggiornamenti e locali preferiti.',
+          'In Strumenti profilo trovi Radar Premium, locali preferiti, centro notifiche, guida e aggiornamenti.',
           'Archivio eventi tiene separati gli eventi passati come host e come guest.',
           'Gli ApprofittOffro Points compariranno nel profilo quando l\'admin valida le segnalazioni utili.',
         ],
@@ -157,7 +163,9 @@ class AppGuideContent {
         title: 'Premium',
         bullets: [
           'Le funzioni Premium sono indicate con il lucchetto e la scritta Premium.',
-          'I locali preferiti sono la prima funzione Premium attiva: salvi un locale e ricevi avvisi quando nasce un evento li.',
+          'Radar Premium raccoglie locali preferiti, occasioni last minute e avvisi dedicati.',
+          'I locali preferiti sono attivi: salvi un locale e ricevi avvisi quando nasce un evento li.',
+          'ApprofittOffro Club sara la tessera socio futura per vantaggi nei locali convenzionati.',
           'L\'abbonamento Premium abilita le funzioni riservate agli abbonati.',
           'Gli ApprofittOffro Points potranno permettere di ottenere mesi Premium gratuiti.',
         ],

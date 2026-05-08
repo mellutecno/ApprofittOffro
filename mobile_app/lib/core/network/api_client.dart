@@ -11,6 +11,7 @@ import '../../models/app_guide.dart';
 import '../../models/favorite_place.dart';
 import '../../models/offer.dart';
 import '../../models/place_candidate.dart';
+import '../../models/premium_radar.dart';
 import '../../models/public_profile.dart';
 import '../../models/user_preview.dart';
 import '../config/app_config.dart';
@@ -752,6 +753,15 @@ class ApiClient {
     final payload = _decodeJson(response.body);
     _ensureSuccess(payload, response.statusCode);
     return payload['message']?.toString() ?? 'Locale rimosso dai preferiti.';
+  }
+
+  Future<PremiumRadar> fetchPremiumRadar() async {
+    final response = await _send(method: 'GET', path: '/api/premium/radar');
+    final payload = _decodeJson(response.body);
+    _ensureSuccess(payload, response.statusCode);
+    return PremiumRadar.fromJson(
+      payload['radar'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+    );
   }
 
   Future<List<PlaceCandidate>> fetchNearbyPlaces({
