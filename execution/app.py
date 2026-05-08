@@ -2707,7 +2707,7 @@ def require_premium_json(user=None):
     }), 403
 
 
-APP_GUIDE_VERSION = 6
+APP_GUIDE_VERSION = 7
 
 
 def build_app_guide_payload():

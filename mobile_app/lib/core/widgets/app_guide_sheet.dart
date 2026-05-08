@@ -42,14 +42,23 @@ class _AppGuideSheet extends StatefulWidget {
 
 class _AppGuideSheetState extends State<_AppGuideSheet> {
   bool _hideAtStartup = false;
+  int _pageIndex = 0;
   late final Future<AppGuideContent> _future;
+  late final PageController _pageController;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
     _future = widget.initialContent != null
         ? Future<AppGuideContent>.value(widget.initialContent)
         : _loadGuide();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   Future<AppGuideContent> _loadGuide() async {
@@ -67,7 +76,7 @@ class _AppGuideSheetState extends State<_AppGuideSheet> {
       initialChildSize: 0.88,
       minChildSize: 0.58,
       maxChildSize: 0.96,
-      builder: (context, scrollController) {
+      builder: (context, _) {
         return Material(
           color: AppTheme.cream,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -77,95 +86,283 @@ class _AppGuideSheetState extends State<_AppGuideSheet> {
             initialData: widget.initialContent,
             builder: (context, snapshot) {
               final content = snapshot.data ?? AppGuideContent.fallback;
-              return SingleChildScrollView(
-                controller: scrollController,
-                padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 44,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: AppTheme.brown.withValues(alpha: 0.32),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const BrandWordmark(height: 54),
-                    const SizedBox(height: 18),
-                    Text(
-                      widget.startupMode ? content.title : 'Guida rapida',
-                      textAlign: TextAlign.center,
-                      style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                color: AppTheme.espresso,
-                                fontWeight: FontWeight.w900,
-                              ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      content.subtitle,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: AppTheme.brown.withValues(alpha: 0.78),
-                        fontWeight: FontWeight.w700,
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    _GuideHighlightCard(highlights: content.highlights),
-                    const SizedBox(height: 14),
-                    _PremiumGuideCard(content: content),
-                    const SizedBox(height: 14),
-                    ...content.sections.map(
-                      (section) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _GuideSectionCard(section: section),
-                      ),
-                    ),
-                    if (widget.startupMode) ...[
-                      const SizedBox(height: 6),
-                      CheckboxListTile(
-                        value: _hideAtStartup,
-                        onChanged: (value) {
-                          setState(() => _hideAtStartup = value ?? false);
-                        },
-                        controlAffinity: ListTileControlAffinity.leading,
-                        contentPadding: EdgeInsets.zero,
-                        activeColor: AppTheme.vividViolet,
-                        title: const Text(
-                          'Non mostrarla piu all\'avvio',
-                          style: TextStyle(
-                            color: AppTheme.espresso,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        subtitle: Text(
-                          'Potrai riaprirla quando vuoi da Io > Strumenti profilo > Guida all\'app.',
-                          style: TextStyle(
-                            color: AppTheme.brown.withValues(alpha: 0.68),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 8),
-                    FilledButton.icon(
-                      onPressed: () =>
-                          Navigator.of(context).pop(_hideAtStartup),
-                      icon: const Icon(Icons.check_circle_rounded),
-                      label: Text(widget.startupMode ? 'Ho capito' : 'Chiudi'),
-                    ),
-                  ],
-                ),
+              return _GuidePager(
+                content: content,
+                startupMode: widget.startupMode,
+                hideAtStartup: _hideAtStartup,
+                pageController: _pageController,
+                pageIndex: _pageIndex,
+                onHideChanged: (value) {
+                  setState(() => _hideAtStartup = value);
+                },
+                onPageChanged: (value) {
+                  setState(() => _pageIndex = value);
+                },
+                onClose: () => Navigator.of(context).pop(_hideAtStartup),
               );
             },
           ),
         );
       },
+    );
+  }
+}
+
+class _GuidePager extends StatelessWidget {
+  const _GuidePager({
+    required this.content,
+    required this.startupMode,
+    required this.hideAtStartup,
+    required this.pageController,
+    required this.pageIndex,
+    required this.onHideChanged,
+    required this.onPageChanged,
+    required this.onClose,
+  });
+
+  final AppGuideContent content;
+  final bool startupMode;
+  final bool hideAtStartup;
+  final PageController pageController;
+  final int pageIndex;
+  final ValueChanged<bool> onHideChanged;
+  final ValueChanged<int> onPageChanged;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final pages = <Widget>[
+      _GuidePageFrame(
+        children: [
+          Text(
+            content.subtitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppTheme.brown.withValues(alpha: 0.78),
+              fontWeight: FontWeight.w700,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 18),
+          _GuideHighlightCard(highlights: content.highlights),
+        ],
+      ),
+      _GuidePageFrame(
+        children: [
+          _PremiumGuideCard(content: content),
+        ],
+      ),
+      ...content.sections.map(
+        (section) => _GuidePageFrame(
+          children: [
+            _GuideSectionCard(section: section),
+          ],
+        ),
+      ),
+    ];
+    final pageCount = pages.length;
+    final currentIndex = pageIndex.clamp(0, pageCount - 1);
+    final isLastPage = currentIndex == pageCount - 1;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 8, 0),
+          child: Row(
+            children: [
+              const SizedBox(width: 44),
+              Expanded(
+                child: Center(
+                  child: Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppTheme.brown.withValues(alpha: 0.32),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Chiudi',
+                onPressed: onClose,
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        const BrandWordmark(height: 50),
+        const SizedBox(height: 14),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: Column(
+            children: [
+              Text(
+                startupMode ? content.title : 'Guida rapida',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: AppTheme.espresso,
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                'Pagina ${currentIndex + 1} di $pageCount',
+                style: TextStyle(
+                  color: AppTheme.brown.withValues(alpha: 0.62),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: PageView(
+            controller: pageController,
+            onPageChanged: onPageChanged,
+            children: pages,
+          ),
+        ),
+        _GuideDots(
+          count: pageCount,
+          activeIndex: currentIndex,
+          onTap: (index) => _goToPage(index, pageCount),
+        ),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: startupMode && isLastPage
+              ? Padding(
+                  key: const ValueKey('hide-guide-check'),
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                  child: CheckboxListTile(
+                    value: hideAtStartup,
+                    onChanged: (value) {
+                      onHideChanged(value ?? false);
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppTheme.vividViolet,
+                    title: const Text(
+                      'Non mostrarla piu all\'avvio',
+                      style: TextStyle(
+                        color: AppTheme.espresso,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Potrai riaprirla quando vuoi da Io > Strumenti profilo > Guida all\'app.',
+                      style: TextStyle(
+                        color: AppTheme.brown.withValues(alpha: 0.68),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(key: ValueKey('hide-guide-empty')),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: currentIndex == 0
+                      ? null
+                      : () => _goToPage(currentIndex - 1, pageCount),
+                  icon: const Icon(Icons.chevron_left_rounded),
+                  label: const Text('Indietro'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: isLastPage
+                      ? onClose
+                      : () => _goToPage(currentIndex + 1, pageCount),
+                  icon: Icon(
+                    isLastPage
+                        ? Icons.check_circle_rounded
+                        : Icons.chevron_right_rounded,
+                  ),
+                  label: Text(
+                    isLastPage ? (startupMode ? 'Inizia' : 'Chiudi') : 'Avanti',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _goToPage(int index, int pageCount) {
+    final target = index.clamp(0, pageCount - 1);
+    pageController.animateToPage(
+      target,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+  }
+}
+
+class _GuidePageFrame extends StatelessWidget {
+  const _GuidePageFrame({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
+    );
+  }
+}
+
+class _GuideDots extends StatelessWidget {
+  const _GuideDots({
+    required this.count,
+    required this.activeIndex,
+    required this.onTap,
+  });
+
+  final int count;
+  final int activeIndex;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 6, 18, 4),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 6,
+        runSpacing: 6,
+        children: List.generate(count, (index) {
+          final selected = index == activeIndex;
+          return InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: () => onTap(index),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: selected ? 22 : 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppTheme.vividViolet
+                    : AppTheme.brown.withValues(alpha: 0.24),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          );
+        }),
+      ),
     );
   }
 }

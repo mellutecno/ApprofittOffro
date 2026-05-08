@@ -471,8 +471,12 @@ class _HomeShellState extends State<HomeShell> {
       } catch (_) {
         guideContent = AppGuideContent.fallback;
       }
+      final guideVersion =
+          guideContent.version < AppGuidePreferences.currentVersion
+              ? AppGuidePreferences.currentVersion
+              : guideContent.version;
       final shouldShow = await AppGuidePreferences.shouldShowAtStartup(
-        guideVersion: guideContent.version,
+        guideVersion: guideVersion,
       );
       if (!mounted || !shouldShow) {
         _startupGuideHandled = true;
@@ -487,7 +491,7 @@ class _HomeShellState extends State<HomeShell> {
       );
       if (hideAtStartup) {
         await AppGuidePreferences.hideCurrentVersionAtStartup(
-          guideVersion: guideContent.version,
+          guideVersion: guideVersion,
         );
       }
     } finally {

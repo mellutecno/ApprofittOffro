@@ -58,7 +58,7 @@ class AppGuideContent {
   }
 
   static const fallback = AppGuideContent(
-    version: 6,
+    version: 7,
     title: 'Benvenuto in ApprofittOffro',
     subtitle:
         'Qui trovi le funzioni principali dell\'app, le novita e i punti da ricordare per usarla meglio.',
