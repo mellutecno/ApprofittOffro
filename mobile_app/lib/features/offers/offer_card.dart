@@ -606,6 +606,10 @@ class OfferCard extends StatelessWidget {
     if (offer.claimStatus == 'full') {
       return 'Completa · non piu\' prenotabile';
     }
+    if (offer.premiumLateBooking ||
+        offer.claimStatus == 'premium_last_minute') {
+      return 'Approfitta last minute';
+    }
     if (offer.claimStatus == 'booking_closed' ||
         offer.claimStatus == 'started') {
       return 'Non piu\' prenotabile';

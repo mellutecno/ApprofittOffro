@@ -331,6 +331,7 @@ class AdminOfferSummary {
       canClaim: false,
       claimStatus: 'open',
       claimId: 0,
+      premiumLateBooking: false,
       userHasReviewed: false,
       reviewsReceivedCount: 0,
       isFavoritePlace: false,

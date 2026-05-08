@@ -445,6 +445,20 @@ def is_offer_booking_closed(offer, now=None):
     return now >= get_offer_booking_deadline(offer)
 
 
+def can_user_use_premium_late_booking(user, offer, now=None):
+    """Permette ai Premium di richiedere eventi fuori tempo massimo ma non iniziati."""
+    now = now or local_now()
+    return bool(
+        user
+        and is_premium_user(user)
+        and offer
+        and offer.stato == "attiva"
+        and offer.posti_disponibili > 0
+        and offer.data_ora > now
+        and is_offer_booking_closed(offer, now)
+    )
+
+
 def is_new_offer_publication_too_late(tipo_pasto, data_ora, now=None):
     """Indica se l'offerta nascerebbe gia' con prenotazioni chiuse."""
     if now is None:
@@ -810,9 +824,17 @@ def serialize_mobile_offer(
     elif current_claim is None and has_started:
         claim_status = "started"
     elif current_claim is None and booking_closed:
-        claim_status = "booking_closed"
+        claim_status = (
+            "premium_last_minute"
+            if can_user_use_premium_late_booking(viewer, offer, now)
+            else "booking_closed"
+        )
 
-    can_claim = (not is_own) and current_claim is None and claim_status == "open"
+    can_claim = (
+        (not is_own)
+        and current_claim is None
+        and claim_status in {"open", "premium_last_minute"}
+    )
     accepted_claims = get_offer_accepted_claims(offer)
     offer_gallery = [
         filename
@@ -891,6 +913,7 @@ def serialize_mobile_offer(
         "already_claimed": already_claimed,
         "can_claim": can_claim,
         "claim_status": claim_status,
+        "premium_late_booking": claim_status == "premium_last_minute",
         "claim_id": current_claim.id if current_claim is not None else 0,
         "user_has_reviewed": user_has_reviewed,
         "reviews_received_count": reviews_received_count,
@@ -2684,7 +2707,7 @@ def require_premium_json(user=None):
     }), 403
 
 
-APP_GUIDE_VERSION = 4
+APP_GUIDE_VERSION = 5
 
 
 def build_app_guide_payload():
@@ -2730,6 +2753,14 @@ def build_app_guide_payload():
                 "details": (
                     "Mostra locali preferiti, occasioni last minute con posti "
                     "liberi e le funzioni Premium disponibili o in arrivo."
+                ),
+            },
+            {
+                "feature": "Prenotazione last minute",
+                "status": "Attivo",
+                "details": (
+                    "Gli utenti Premium possono richiedere un posto anche "
+                    "fuori tempo massimo, finche l'evento non e' iniziato."
                 ),
             },
             {
@@ -2807,6 +2838,7 @@ def build_app_guide_payload():
                 "bullets": [
                     "Le funzioni Premium sono indicate con il lucchetto e la scritta Premium.",
                     "Radar Premium raccoglie locali preferiti, occasioni last minute e avvisi dedicati.",
+                    "Gli utenti Premium possono richiedere eventi con posti liberi anche fuori tempo massimo, finche non sono iniziati.",
                     "I locali preferiti sono attivi: salvi un locale e ricevi avvisi quando nasce un evento li.",
                     "ApprofittOffro Club sara la tessera socio futura per vantaggi nei locali convenzionati.",
                     "L'abbonamento Premium abilita le funzioni riservate agli abbonati.",
@@ -6983,12 +7015,16 @@ def api_get_offers():
         elif current_claim is None and has_started:
             claim_status = "started"
         elif current_claim is None and booking_closed:
-            claim_status = "booking_closed"
+            claim_status = (
+                "premium_last_minute"
+                if can_user_use_premium_late_booking(current_user, o, now)
+                else "booking_closed"
+            )
 
         can_claim = (
             (not is_own)
             and current_claim is None
-            and claim_status == "open"
+            and claim_status in {"open", "premium_last_minute"}
         )
 
         accepted_claims = get_offer_accepted_claims(o)
@@ -7052,6 +7088,7 @@ def api_get_offers():
             "already_claimed": already_claimed,
             "can_claim": can_claim,
             "claim_status": claim_status,
+            "premium_late_booking": claim_status == "premium_last_minute",
             "claim_id": current_claim.id if current_claim is not None else 0,
         })
 
@@ -7812,7 +7849,11 @@ def api_claim_offer(offer_id):
     if offer.data_ora <= now:
         return jsonify({"success": False, "errors": ["Il pasto è già iniziato o concluso."]}), 400
 
-    if is_offer_booking_closed(offer, now):
+    if is_offer_booking_closed(offer, now) and not can_user_use_premium_late_booking(
+        current_user,
+        offer,
+        now,
+    ):
         return jsonify({"success": False, "errors": [get_offer_booking_closed_message(offer)]}), 400
 
     scheduling_conflict = get_user_meal_schedule_conflict(
@@ -7837,10 +7878,15 @@ def api_claim_offer(offer_id):
     db.session.commit()
 
     send_claim_request_notification_to_host(claim)
+    success_message = (
+        "Richiesta last minute Premium inviata! Attendi la conferma dell'organizzatore."
+        if is_offer_booking_closed(offer, now)
+        else "Richiesta inviata! Attendi la conferma dell'organizzatore."
+    )
 
     return jsonify({
         "success": True,
-        "message": "Richiesta inviata! Attendi la conferma dell'organizzatore.",
+        "message": success_message,
         "claim_status": "pending",
         "posti_disponibili": offer.posti_disponibili,
     })
@@ -7865,7 +7911,12 @@ def api_accept_claim_request(claim_id):
         return jsonify({"success": False, "error": "Offerta non più disponibile."}), 400
     if offer.data_ora <= now:
         return jsonify({"success": False, "error": "Il pasto è già iniziato o concluso."}), 400
-    if is_offer_booking_closed(offer, now):
+    claim_user = claim.utente or User.query.get(claim.user_id)
+    if is_offer_booking_closed(offer, now) and not can_user_use_premium_late_booking(
+        claim_user,
+        offer,
+        now,
+    ):
         return jsonify({"success": False, "error": get_offer_booking_closed_message(offer)}), 400
 
     scheduling_conflict = get_user_meal_schedule_conflict(
@@ -8494,9 +8545,6 @@ def api_premium_radar():
             continue
         if current_claim is not None:
             continue
-        if is_offer_booking_closed(offer, now):
-            continue
-
         distance_km = calculate_distance(
             search_lat,
             search_lon,

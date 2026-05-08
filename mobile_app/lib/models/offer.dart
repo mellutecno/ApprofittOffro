@@ -59,6 +59,7 @@ class Offer {
     required this.canClaim,
     required this.claimStatus,
     required this.claimId,
+    required this.premiumLateBooking,
     required this.userHasReviewed,
     required this.reviewsReceivedCount,
     required this.isFavoritePlace,
@@ -98,6 +99,7 @@ class Offer {
   final bool canClaim;
   final String claimStatus;
   final int claimId;
+  final bool premiumLateBooking;
   final bool userHasReviewed;
   final int reviewsReceivedCount;
   final bool isFavoritePlace;
@@ -174,6 +176,7 @@ class Offer {
       canClaim: canClaim,
       claimStatus: claimStatus,
       claimId: json['claim_id'] as int? ?? 0,
+      premiumLateBooking: json['premium_late_booking'] == true,
       userHasReviewed: json['user_has_reviewed'] == true,
       reviewsReceivedCount: json['reviews_received_count'] as int? ?? 0,
       isFavoritePlace: json['is_favorite_place'] == true,

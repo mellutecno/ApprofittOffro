@@ -58,7 +58,7 @@ class AppGuideContent {
   }
 
   static const fallback = AppGuideContent(
-    version: 4,
+    version: 5,
     title: 'Benvenuto in ApprofittOffro',
     subtitle:
         'Qui trovi le funzioni principali dell\'app, le novita e i punti da ricordare per usarla meglio.',
@@ -90,6 +90,12 @@ class AppGuideContent {
         status: 'Attivo',
         details:
             'Mostra locali preferiti, occasioni last minute con posti liberi e le funzioni Premium disponibili o in arrivo.',
+      ),
+      AppGuidePremiumFeature(
+        feature: 'Prenotazione last minute',
+        status: 'Attivo',
+        details:
+            'Gli utenti Premium possono richiedere un posto anche fuori tempo massimo, finche l\'evento non e iniziato.',
       ),
       AppGuidePremiumFeature(
         feature: 'Locali preferiti',
@@ -164,6 +170,7 @@ class AppGuideContent {
         bullets: [
           'Le funzioni Premium sono indicate con il lucchetto e la scritta Premium.',
           'Radar Premium raccoglie locali preferiti, occasioni last minute e avvisi dedicati.',
+          'Gli utenti Premium possono richiedere eventi con posti liberi anche fuori tempo massimo, finche non sono iniziati.',
           'I locali preferiti sono attivi: salvi un locale e ricevi avvisi quando nasce un evento li.',
           'ApprofittOffro Club sara la tessera socio futura per vantaggi nei locali convenzionati.',
           'L\'abbonamento Premium abilita le funzioni riservate agli abbonati.',
