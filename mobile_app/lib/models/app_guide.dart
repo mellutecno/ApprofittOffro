@@ -58,14 +58,20 @@ class AppGuideContent {
   }
 
   static const fallback = AppGuideContent(
-    version: 5,
+    version: 6,
     title: 'Benvenuto in ApprofittOffro',
     subtitle:
         'Qui trovi le funzioni principali dell\'app, le novita e i punti da ricordare per usarla meglio.',
     highlights: [
       AppGuideHighlight(
         icon: 'workspace_premium',
-        text: 'Le funzioni Premium sono riconoscibili dal lucchetto dedicato.',
+        text:
+            'Premium sblocca Radar, locali preferiti e richieste last minute.',
+      ),
+      AppGuideHighlight(
+        icon: 'local_fire',
+        text:
+            'Gli utenti Premium possono approfittare anche fuori tempo massimo se ci sono posti.',
       ),
       AppGuideHighlight(
         icon: 'notifications',
@@ -110,6 +116,7 @@ class AppGuideContent {
         title: 'Approfitta',
         bullets: [
           'Trovi gli eventi aperti nella tua zona e puoi filtrarli per chilometraggio.',
+          'Se sei Premium puoi richiedere eventi con posti liberi anche fuori tempo massimo, finche non sono iniziati.',
           'I tuoi eventi restano sempre evidenziati con il badge dedicato.',
           'La campanella ti permette di inserire un promemoria prima dell\'evento.',
         ],

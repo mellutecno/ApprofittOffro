@@ -199,7 +199,7 @@ class AppTheme {
           final selected = states.contains(WidgetState.selected);
           return TextStyle(
             fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
-            color: selected ? vividViolet : brown.withValues(alpha: 0.82),
+            color: selected ? Colors.white : brown.withValues(alpha: 0.82),
           );
         }),
       ),
@@ -365,7 +365,7 @@ class AppTheme {
           final selected = states.contains(WidgetState.selected);
           return TextStyle(
             fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
-            color: selected ? vividViolet : brown.withValues(alpha: 0.9),
+            color: selected ? Colors.white : brown.withValues(alpha: 0.9),
           );
         }),
       ),

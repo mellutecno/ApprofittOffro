@@ -603,7 +603,7 @@ class _HomeShellState extends State<HomeShell> {
               fontSize: 11,
               fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
               color: selected
-                  ? AppTheme.vividViolet
+                  ? Colors.white
                   : AppTheme.brown.withValues(alpha: 0.86),
               height: 1.05,
             );

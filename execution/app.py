@@ -2707,7 +2707,7 @@ def require_premium_json(user=None):
     }), 403
 
 
-APP_GUIDE_VERSION = 5
+APP_GUIDE_VERSION = 6
 
 
 def build_app_guide_payload():
@@ -2721,7 +2721,11 @@ def build_app_guide_payload():
         "highlights": [
             {
                 "icon": "workspace_premium",
-                "text": "Le funzioni Premium sono riconoscibili dal lucchetto dedicato.",
+                "text": "Premium sblocca Radar, locali preferiti e richieste last minute.",
+            },
+            {
+                "icon": "local_fire",
+                "text": "Gli utenti Premium possono approfittare anche fuori tempo massimo se ci sono posti.",
             },
             {
                 "icon": "notifications",
@@ -2778,6 +2782,7 @@ def build_app_guide_payload():
                 "title": "Approfitta",
                 "bullets": [
                     "Trovi gli eventi aperti nella tua zona e puoi filtrarli per chilometraggio.",
+                    "Se sei Premium puoi richiedere eventi con posti liberi anche fuori tempo massimo, finche non sono iniziati.",
                     "I tuoi eventi restano sempre evidenziati con il badge dedicato.",
                     "La campanella ti permette di inserire un promemoria prima dell'evento.",
                 ],
