@@ -774,6 +774,26 @@ def get_user_favorite_place_for_offer(user, offer):
     ).first()
 
 
+# Dati di un evento che escono solo a chi ha fatto l'accesso. Senza login (pagina
+# iniziale dell'app) restano nome e foto dell'host; età, gusti, intolleranze (dato
+# sanitario) e galleria dell'host e gli ospiti (nome e foto) no.
+LOGIN_ONLY_OFFER_FIELDS = (
+    "autore_eta",
+    "autore_cibi_preferiti",
+    "autore_intolleranze",
+    "autore_foto_gallery",
+    "partecipanti",
+)
+
+
+def strip_login_only_offer_fields(payload, viewer):
+    """Toglie da un evento serializzato i dati personali riservati a chi ha fatto l'accesso."""
+    if not getattr(viewer, "is_authenticated", False):
+        for key in LOGIN_ONLY_OFFER_FIELDS:
+            payload.pop(key, None)
+    return payload
+
+
 def serialize_mobile_offer(
     offer,
     *,
@@ -868,7 +888,7 @@ def serialize_mobile_offer(
         else None
     )
 
-    return {
+    return strip_login_only_offer_fields({
         "id": offer.id,
         "tipo_pasto": offer.tipo_pasto,
         "nome_locale": offer.nome_locale,
@@ -923,7 +943,7 @@ def serialize_mobile_offer(
         "reviews_received_count": reviews_received_count,
         "is_favorite_place": favorite_place is not None,
         "favorite_place_id": favorite_place.id if favorite_place else 0,
-    }
+    }, viewer)
 
 
 def get_followed_offer_notification_subject(offer):
@@ -6731,7 +6751,7 @@ def api_get_offers():
             else getattr(o, "foto_locale", "nessuna.jpg")
         )
 
-        result.append({
+        result.append(strip_login_only_offer_fields({
             "id": o.id,
             "tipo_pasto": o.tipo_pasto,
             "nome_locale": o.nome_locale,
@@ -6782,7 +6802,7 @@ def api_get_offers():
             "claim_status": claim_status,
             "premium_late_booking": claim_status == "premium_last_minute",
             "claim_id": current_claim.id if current_claim is not None else 0,
-        })
+        }, current_user))
 
         if limit is not None and len(result) >= limit:
             break
