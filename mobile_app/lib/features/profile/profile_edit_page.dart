@@ -677,8 +677,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   Widget build(BuildContext context) {
     final busyMap = _isLocating || _isResolvingAddress;
 
-    return WillPopScope(
-      onWillPop: () async => !widget.requireCompletion,
+    return PopScope(
+      canPop: !widget.requireCompletion,
       child: Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: !widget.requireCompletion,

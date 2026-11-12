@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/auth/biometric_auth_service.dart';
@@ -206,6 +208,34 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
     });
   }
 
+  /// From Android 16 (target API 36) apps are always drawn edge-to-edge, so
+  /// the system navigation bar would cover the bottom of pages and bottom
+  /// sheets (`useSafeArea` on bottom sheets does not pad the bottom). On
+  /// Android the whole app stays above the navigation bar, as it did when the
+  /// app opted out of edge-to-edge. iOS is unchanged.
+  Widget _keepAboveAndroidNavigationBar(Widget child) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      return child;
+    }
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        systemNavigationBarColor: AppTheme.notte,
+        systemNavigationBarDividerColor: AppTheme.notte,
+        systemNavigationBarIconBrightness: Brightness.light,
+        systemNavigationBarContrastEnforced: false,
+      ),
+      child: ColoredBox(
+        color: AppTheme.notte,
+        child: SafeArea(
+          top: false,
+          left: false,
+          right: false,
+          child: child,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -225,7 +255,9 @@ class _ApprofittOffroMobileAppState extends State<ApprofittOffroMobileApp>
         GlobalCupertinoLocalizations.delegate,
       ],
       builder: (context, child) {
-        final content = child ?? const SizedBox.shrink();
+        final content = _keepAboveAndroidNavigationBar(
+          child ?? const SizedBox.shrink(),
+        );
         return AnimatedBuilder(
           animation: _authController,
           builder: (context, _) {
